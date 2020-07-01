@@ -1,0 +1,71 @@
+import com.bmuschko.gradle.docker.tasks.container.DockerCreateContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerStartContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerStopContainer
+import com.bmuschko.gradle.docker.tasks.image.DockerPullImage
+import com.bmuschko.gradle.docker.tasks.network.DockerCreateNetwork
+import com.bmuschko.gradle.docker.tasks.network.DockerRemoveNetwork
+
+plugins {
+  `java-library`
+  jacoco
+  id("org.hypertrace.publish-plugin")
+  id("org.hypertrace.jacoco-report-plugin") version "0.1.0"
+  id("org.hypertrace.integration-test-plugin") version "0.1.0"
+  id("com.bmuschko.docker-remote-api") version "6.4.0"
+}
+
+dependencies {
+  api("com.typesafe:config:1.3.2")
+  implementation("org.mongodb:mongo-java-driver:3.12.0")
+  implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")
+  implementation("org.slf4j:slf4j-api:1.7.25")
+  implementation("com.google.guava:guava-annotations:r03")
+  testImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
+  integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
+}
+
+tasks.test {
+  useJUnitPlatform()
+}
+
+tasks.register<DockerCreateNetwork>("createIntegrationTestNetwork") {
+  networkName.set("document-store-int-test");
+}
+
+tasks.register<DockerRemoveNetwork>("removeIntegrationTestNetwork") {
+  networkId.set("document-store-int-test")
+}
+
+tasks.register<DockerPullImage>("pullMongoImage") {
+  image.set("mongo:4.2.0")
+}
+
+tasks.register<DockerCreateContainer>("createMongoContainer") {
+  dependsOn("createIntegrationTestNetwork")
+  dependsOn("pullMongoImage")
+  targetImageId(tasks.getByName<DockerPullImage>("pullMongoImage").image)
+  containerName.set("mongo-local")
+  hostConfig.network.set(tasks.getByName<DockerCreateNetwork>("createIntegrationTestNetwork").networkId)
+  hostConfig.portBindings.set(listOf("27017:27017"))
+  hostConfig.autoRemove.set(true)
+}
+
+tasks.register<DockerStartContainer>("startMongoContainer") {
+  dependsOn("createMongoContainer")
+  targetContainerId(tasks.getByName<DockerCreateContainer>("createMongoContainer").containerId)
+}
+
+tasks.register<DockerStopContainer>("stopMongoContainer") {
+  targetContainerId(tasks.getByName<DockerCreateContainer>("createMongoContainer").containerId)
+  finalizedBy("removeIntegrationTestNetwork")
+}
+
+tasks.integrationTest {
+  useJUnitPlatform()
+  dependsOn("startMongoContainer")
+  finalizedBy("stopMongoContainer")
+}
+
+tasks.jacocoIntegrationTestReport {
+  sourceSets(project(":document-store").sourceSets.getByName("main"))
+}
