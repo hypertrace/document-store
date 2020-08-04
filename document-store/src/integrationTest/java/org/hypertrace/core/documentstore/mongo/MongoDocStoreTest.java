@@ -65,6 +65,32 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testOffsetAndLimit() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("foo1", "bar1"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("foo2", "bar2"));
+    collection.upsert(new SingleValueKey("default", "testKey3"), createDocument("foo3", "bar3"));
+    collection.upsert(new SingleValueKey("default", "testKey4"), createDocument("foo4", "bar4"));
+    collection.upsert(new SingleValueKey("default", "testKey5"), createDocument("foo5", "bar5"));
+
+    Query query = new Query();
+    query.setLimit(2);
+    query.setOffset(1);
+
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    for (; results.hasNext(); ) {
+      documents.add(results.next());
+    }
+
+    Assertions.assertEquals(2, documents.size());
+    String persistedDocument1 = documents.get(0).toJson();
+    Assertions.assertTrue(persistedDocument1.contains("foo2"));
+    String persistedDocument2 = documents.get(1).toJson();
+    Assertions.assertTrue(persistedDocument2.contains("foo3"));
+  }
+
+  @Test
   public void testUpsert() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
@@ -216,5 +242,11 @@ public class MongoDocStoreTest {
       System.out.println(dbObject);
     }
     Assertions.assertEquals(1, results.size());
+  }
+
+  private Document createDocument(String key, String value) {
+    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+    objectNode.put(key, value);
+    return new JSONDocument(objectNode);
   }
 }

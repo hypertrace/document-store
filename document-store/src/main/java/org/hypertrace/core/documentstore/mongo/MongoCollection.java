@@ -45,6 +45,7 @@ public class MongoCollection implements Collection {
   /* follow json/protobuf convention to make it deser, let's not make our life harder */
   private static final String CREATED_TIME = "createdTime";
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final int MAX_LIMIT = 10000;
 
   private final DBCollection collection;
 
@@ -145,7 +146,6 @@ public class MongoCollection implements Collection {
 
   @Override
   public Iterator<Document> search(Query query) {
-
     Map<String, Object> map = new HashMap<>();
 
     // If there is a filter in the query, parse it fully.
@@ -157,7 +157,19 @@ public class MongoCollection implements Collection {
 
     // Assume its SimpleAndQuery for now
     DBObject ref = new BasicDBObject(map);
-    final DBCursor dbCursor = collection.find(ref);
+    DBCursor cursor = collection.find(ref);
+
+    Integer offset = query.getOffset();
+    if (offset != null && offset >= 0) {
+      cursor = cursor.skip(offset);
+    }
+
+    Integer limit = normalizeLimit(query.getLimit());
+    if (limit != null && limit >= 0) {
+      cursor = cursor.limit(limit);
+    }
+
+    final DBCursor dbCursor = cursor;
     if (!query.getOrderBys().isEmpty()) {
       Map<String, Object> orderbyMap = new HashMap<>();
       parseOrderByQuery(query.getOrderBys(), orderbyMap);
@@ -354,5 +366,14 @@ public class MongoCollection implements Collection {
   @Override
   public void drop() {
     collection.drop();
+  }
+
+  // cap the max limit to 10k records
+  private Integer normalizeLimit(Integer limit) {
+    if (limit != null && limit > MAX_LIMIT) {
+      return MAX_LIMIT;
+    }
+
+    return limit;
   }
 }
