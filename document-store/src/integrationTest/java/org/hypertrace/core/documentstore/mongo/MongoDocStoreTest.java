@@ -73,21 +73,24 @@ public class MongoDocStoreTest {
     collection.upsert(new SingleValueKey("default", "testKey4"), createDocument("foo4", "bar4"));
     collection.upsert(new SingleValueKey("default", "testKey5"), createDocument("foo5", "bar5"));
 
-    Query query = new Query();
-    query.setLimit(2);
-    query.setOffset(1);
+    // Querying 5 times, to make sure the order of results is maintained with offset + limit
+    for (int i = 0; i < 5; i++) {
+      Query query = new Query();
+      query.setLimit(2);
+      query.setOffset(1);
 
-    Iterator<Document> results = collection.search(query);
-    List<Document> documents = new ArrayList<>();
-    for (; results.hasNext(); ) {
-      documents.add(results.next());
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      for (; results.hasNext(); ) {
+        documents.add(results.next());
+      }
+
+      Assertions.assertEquals(2, documents.size());
+      String persistedDocument1 = documents.get(0).toJson();
+      Assertions.assertTrue(persistedDocument1.contains("foo2"));
+      String persistedDocument2 = documents.get(1).toJson();
+      Assertions.assertTrue(persistedDocument2.contains("foo3"));
     }
-
-    Assertions.assertEquals(2, documents.size());
-    String persistedDocument1 = documents.get(0).toJson();
-    Assertions.assertTrue(persistedDocument1.contains("foo2"));
-    String persistedDocument2 = documents.get(1).toJson();
-    Assertions.assertTrue(persistedDocument2.contains("foo3"));
   }
 
   @Test
