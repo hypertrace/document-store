@@ -45,7 +45,6 @@ public class MongoCollection implements Collection {
   /* follow json/protobuf convention to make it deser, let's not make our life harder */
   private static final String CREATED_TIME = "createdTime";
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final int MAX_LIMIT = 10000;
 
   private final DBCollection collection;
 
@@ -164,7 +163,7 @@ public class MongoCollection implements Collection {
       cursor = cursor.skip(offset);
     }
 
-    Integer limit = normalizeLimit(query.getLimit());
+    Integer limit = query.getLimit();
     if (limit != null && limit >= 0) {
       cursor = cursor.limit(limit);
     }
@@ -366,14 +365,5 @@ public class MongoCollection implements Collection {
   @Override
   public void drop() {
     collection.drop();
-  }
-
-  // cap the max limit to 10k records
-  private Integer normalizeLimit(Integer limit) {
-    if (limit != null && limit > MAX_LIMIT) {
-      return MAX_LIMIT;
-    }
-
-    return limit;
   }
 }

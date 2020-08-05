@@ -150,19 +150,6 @@ public class MongoCollectionTest {
   }
 
   @Test
-  public void testMaxLimitInQuery() {
-    Query query = new Query();
-    query.setLimit(10001);
-
-    DBCursor cursor = mock(DBCursor.class);
-    when(collection.getFullName()).thenReturn("I am Collection");
-    when(collection.find(any())).thenReturn(cursor);
-    mongoCollection.search(query);
-
-    verify(cursor, times(1)).limit(10000);
-  }
-
-  @Test
   public void testNullLimitInQuery() {
     Query query = new Query();
     query.setLimit(null);
