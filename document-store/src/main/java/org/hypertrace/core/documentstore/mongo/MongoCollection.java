@@ -145,7 +145,6 @@ public class MongoCollection implements Collection {
 
   @Override
   public Iterator<Document> search(Query query) {
-
     Map<String, Object> map = new HashMap<>();
 
     // If there is a filter in the query, parse it fully.
@@ -157,7 +156,19 @@ public class MongoCollection implements Collection {
 
     // Assume its SimpleAndQuery for now
     DBObject ref = new BasicDBObject(map);
-    final DBCursor dbCursor = collection.find(ref);
+    DBCursor cursor = collection.find(ref);
+
+    Integer offset = query.getOffset();
+    if (offset != null && offset >= 0) {
+      cursor = cursor.skip(offset);
+    }
+
+    Integer limit = query.getLimit();
+    if (limit != null && limit >= 0) {
+      cursor = cursor.limit(limit);
+    }
+
+    final DBCursor dbCursor = cursor;
     if (!query.getOrderBys().isEmpty()) {
       Map<String, Object> orderbyMap = new HashMap<>();
       parseOrderByQuery(query.getOrderBys(), orderbyMap);

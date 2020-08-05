@@ -8,6 +8,8 @@ public class Query {
   // support only filter for now. Add projections and aggregations and group by later.
   private Filter filter;
   private List<OrderBy> orderBys = new ArrayList<>();
+  private Integer offset;
+  private Integer limit;
 
   public Filter getFilter() {
     return filter;
@@ -23,6 +25,22 @@ public class Query {
 
   public List<OrderBy> getOrderBys() {
     return orderBys;
+  }
+
+  public Integer getOffset() {
+    return offset;
+  }
+
+  public void setOffset(Integer offset) {
+    this.offset = offset;
+  }
+
+  public Integer getLimit() {
+    return limit;
+  }
+
+  public void setLimit(Integer limit) {
+    this.limit = limit;
   }
 
   @Override
