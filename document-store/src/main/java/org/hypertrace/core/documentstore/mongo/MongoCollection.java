@@ -322,6 +322,19 @@ public class MongoCollection implements Collection {
   }
 
   @Override
+  public long count(Query query) {
+    Map<String, Object> map = new HashMap<>();
+
+    // If there is a filter in the query, parse it fully.
+    if (query.getFilter() != null) {
+      map = parseQuery(query.getFilter());
+    }
+
+    final DBObject ref = new BasicDBObject(map);
+    return collection.count(ref);
+  }
+
+  @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
     try {
       BulkWriteOperation bulkWriteOperation = collection.initializeUnorderedBulkOperation();
