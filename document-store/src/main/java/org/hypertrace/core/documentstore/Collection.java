@@ -62,7 +62,7 @@ public interface Collection {
   /**
    * @return the number of documents matching the query
    */
-  long count(Query query);
+  long total(Query query);
 
   /**
    * @param documents to be upserted in bulk

@@ -208,19 +208,19 @@ public class MongoCollectionTest {
   }
 
   @Test
-  public void testCountWithQuery() {
+  public void testTotalWithQuery() {
     Query query = new Query();
-    mongoCollection.count(query);
+    mongoCollection.total(query);
     verify(collection, times(1)).count(any(DBObject.class));
   }
 
   @Test
-  public void testCountWithFilter() {
+  public void testTotalWithFilter() {
     Query query = new Query();
     Filter filter = new Filter(Filter.Op.EQ, "key1", "val1");
     query.setFilter(filter);
 
-    mongoCollection.count(query);
+    mongoCollection.total(query);
     verify(collection, times(1)).count(any(DBObject.class));
   }
 }

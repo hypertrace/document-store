@@ -322,7 +322,7 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public long count(Query query) {
+  public long total(Query query) {
     Map<String, Object> map = new HashMap<>();
 
     // If there is a filter in the query, parse it fully.

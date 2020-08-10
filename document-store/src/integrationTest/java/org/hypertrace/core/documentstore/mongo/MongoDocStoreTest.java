@@ -65,7 +65,7 @@ public class MongoDocStoreTest {
   }
 
   @Test
-  public void testCountWithQuery() throws IOException {
+  public void testTotalWithQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
     collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("name", "Alice"));
@@ -77,21 +77,21 @@ public class MongoDocStoreTest {
     {
       // empty query returns all the documents
       Query query = new Query();
-      Assertions.assertEquals(6, collection.count(query));
+      Assertions.assertEquals(6, collection.total(query));
     }
 
     {
       Query query = new Query();
       query.setFilter(Filter.eq("name", "Bob"));
-      Assertions.assertEquals(2, collection.count(query));
+      Assertions.assertEquals(2, collection.total(query));
     }
 
     {
-      // limit should not affect the total count
+      // limit should not affect the total
       Query query = new Query();
       query.setFilter(Filter.eq("name", "Bob"));
       query.setLimit(1);
-      Assertions.assertEquals(2, collection.count(query));
+      Assertions.assertEquals(2, collection.total(query));
     }
   }
 
