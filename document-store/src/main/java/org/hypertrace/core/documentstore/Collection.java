@@ -60,7 +60,8 @@ public interface Collection {
   long count();
 
   /**
-   * @return the number of documents matching the query
+   * @return the total number of documents matching the query
+   * applying the filters passed, and ignoring offset and limit
    */
   long total(Query query);
 
