@@ -95,6 +95,19 @@ public class MongoDocStoreTest {
       }
       Assertions.assertEquals(2, documents.size());
     }
+
+    {
+      // limit should not affect the total count
+      Query query = new Query();
+      query.setFilter(Filter.eq("name", "Bob"));
+      query.setLimit(1);
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      for (; results.hasNext(); ) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(2, documents.size());
+    }
   }
 
   @Test
