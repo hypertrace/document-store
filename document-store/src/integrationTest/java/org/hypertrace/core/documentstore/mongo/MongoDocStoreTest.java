@@ -77,23 +77,13 @@ public class MongoDocStoreTest {
     {
       // empty query returns all the documents
       Query query = new Query();
-      Iterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      for (; results.hasNext(); ) {
-        documents.add(results.next());
-      }
-      Assertions.assertEquals(6, documents.size());
+      Assertions.assertEquals(6, collection.count(query));
     }
 
     {
       Query query = new Query();
       query.setFilter(Filter.eq("name", "Bob"));
-      Iterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      for (; results.hasNext(); ) {
-        documents.add(results.next());
-      }
-      Assertions.assertEquals(2, documents.size());
+      Assertions.assertEquals(2, collection.count(query));
     }
 
     {
@@ -101,12 +91,7 @@ public class MongoDocStoreTest {
       Query query = new Query();
       query.setFilter(Filter.eq("name", "Bob"));
       query.setLimit(1);
-      Iterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      for (; results.hasNext(); ) {
-        documents.add(results.next());
-      }
-      Assertions.assertEquals(2, documents.size());
+      Assertions.assertEquals(2, collection.count(query));
     }
   }
 
