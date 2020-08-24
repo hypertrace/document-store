@@ -65,6 +65,37 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testTotalWithQuery() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey3"), createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey4"), createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey5"), createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
+
+    {
+      // empty query returns all the documents
+      Query query = new Query();
+      Assertions.assertEquals(6, collection.total(query));
+    }
+
+    {
+      Query query = new Query();
+      query.setFilter(Filter.eq("name", "Bob"));
+      Assertions.assertEquals(2, collection.total(query));
+    }
+
+    {
+      // limit should not affect the total
+      Query query = new Query();
+      query.setFilter(Filter.eq("name", "Bob"));
+      query.setLimit(1);
+      Assertions.assertEquals(2, collection.total(query));
+    }
+  }
+
+  @Test
   public void testOffsetAndLimit() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("foo1", "bar1"));
