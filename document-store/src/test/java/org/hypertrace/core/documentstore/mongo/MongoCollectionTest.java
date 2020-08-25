@@ -6,6 +6,7 @@ import java.util.Map;
 
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Query;
 import org.junit.jupiter.api.Assertions;
@@ -204,5 +205,22 @@ public class MongoCollectionTest {
 
     verify(cursor, times(1)).skip(10);
     verify(cursor, times(1)).limit(5);
+  }
+
+  @Test
+  public void testTotalWithQuery() {
+    Query query = new Query();
+    mongoCollection.total(query);
+    verify(collection, times(1)).count(any(DBObject.class));
+  }
+
+  @Test
+  public void testTotalWithFilter() {
+    Query query = new Query();
+    Filter filter = new Filter(Filter.Op.EQ, "key1", "val1");
+    query.setFilter(filter);
+
+    mongoCollection.total(query);
+    verify(collection, times(1)).count(any(DBObject.class));
   }
 }
