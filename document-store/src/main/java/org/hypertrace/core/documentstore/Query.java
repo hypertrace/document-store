@@ -27,10 +27,6 @@ public class Query {
     this.orderBys.add(orderBy);
   }
 
-  public void setOrderBy(OrderBy orderBy) {
-    orderBys.add(orderBy);
-  }
-
   public List<OrderBy> getOrderBys() {
     return orderBys;
   }
