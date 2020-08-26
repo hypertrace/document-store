@@ -19,8 +19,12 @@ public class Query {
     this.filter = filter;
   }
 
-  public void setOrderBy(OrderBy orderBy) {
-    orderBys.add(orderBy);
+  public void addAllOrderBys(List<OrderBy> orderBys) {
+    this.orderBys.addAll(orderBys);
+  }
+
+  public void addOrderBy(OrderBy orderBy) {
+    this.orderBys.add(orderBy);
   }
 
   public List<OrderBy> getOrderBys() {
