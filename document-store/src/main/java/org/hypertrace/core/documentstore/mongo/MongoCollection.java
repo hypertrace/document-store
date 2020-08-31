@@ -279,7 +279,9 @@ public class MongoCollection implements Collection {
           map.put(filter.getFieldName(), value);
           break;
         case LIKE:
-          map.put(filter.getFieldName(), new BasicDBObject("$regex", value));
+          // Case insensitive regex search
+          map.put(
+              filter.getFieldName(), new BasicDBObject("$regex", value).append("$options", "i"));
           break;
         case IN:
           map.put(filter.getFieldName(), new BasicDBObject("$in", value));
