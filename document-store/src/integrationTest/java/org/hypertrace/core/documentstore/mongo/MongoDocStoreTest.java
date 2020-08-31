@@ -67,7 +67,7 @@ public class MongoDocStoreTest {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(new SingleValueKey("default", "testKey"), createDocument("name", "Bob"));
 
-    String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB"};
+    String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB", "BO", "bO", "Ob", "OB"};
 
     for (String searchValue : ignoreCaseSearchValues) {
       Query query = new Query();
