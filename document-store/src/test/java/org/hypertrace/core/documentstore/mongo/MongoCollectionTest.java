@@ -20,9 +20,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Unit tests for utility/helper methods in {@link MongoCollection}
- */
+/** Unit tests for utility/helper methods in {@link MongoCollection} */
 public class MongoCollectionTest {
 
   private DBCollection collection;
@@ -81,7 +79,8 @@ public class MongoCollectionTest {
     {
       Filter filter = new Filter(Filter.Op.LIKE, "key1", ".*abc");
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(new BasicDBObject("$regex", ".*abc"), query.get("key1"));
+      Assertions.assertEquals(
+          new BasicDBObject("$regex", ".*abc").append("$options", "i"), query.get("key1"));
     }
 
     {
@@ -100,41 +99,45 @@ public class MongoCollectionTest {
   @Test
   public void testParseAndOrQuery() {
     {
-      Filter filter = new Filter(Filter.Op.EQ, "key1", "val1")
-          .and(new Filter(Filter.Op.EQ, "key2", "val2"));
+      Filter filter =
+          new Filter(Filter.Op.EQ, "key1", "val1").and(new Filter(Filter.Op.EQ, "key2", "val2"));
 
       Map<String, Object> query = mongoCollection.parseQuery(filter);
       Assertions.assertTrue(query.get("$and") instanceof List);
-      Assertions.assertTrue(((List)query.get("$and")).containsAll(
-          List.of(Map.of("key1", "val1"), Map.of("key2", "val2"))));
+      Assertions.assertTrue(
+          ((List) query.get("$and"))
+              .containsAll(List.of(Map.of("key1", "val1"), Map.of("key2", "val2"))));
     }
 
     {
-      Filter filter = new Filter(Filter.Op.EQ, "key1", "val1")
-          .or(new Filter(Filter.Op.EQ, "key2", "val2"));
+      Filter filter =
+          new Filter(Filter.Op.EQ, "key1", "val1").or(new Filter(Filter.Op.EQ, "key2", "val2"));
 
       Map<String, Object> query = mongoCollection.parseQuery(filter);
       Assertions.assertTrue(query.get("$or") instanceof List);
-      Assertions.assertTrue(((List)query.get("$or")).containsAll(
-          List.of(Map.of("key1", "val1"), Map.of("key2", "val2"))));
+      Assertions.assertTrue(
+          ((List) query.get("$or"))
+              .containsAll(List.of(Map.of("key1", "val1"), Map.of("key2", "val2"))));
     }
   }
 
   @Test
   public void testParseNestedQuery() {
-    Filter filter1 = new Filter(Filter.Op.EQ, "key1", "val1")
-        .and(new Filter(Filter.Op.EQ, "key2", "val2"));
+    Filter filter1 =
+        new Filter(Filter.Op.EQ, "key1", "val1").and(new Filter(Filter.Op.EQ, "key2", "val2"));
 
-    Filter filter2 = new Filter(Filter.Op.EQ, "key3", "val3")
-        .and(new Filter(Filter.Op.EQ, "key4", "val4"));
+    Filter filter2 =
+        new Filter(Filter.Op.EQ, "key3", "val3").and(new Filter(Filter.Op.EQ, "key4", "val4"));
 
     Filter filter = filter1.or(filter2);
     Map<String, Object> query = mongoCollection.parseQuery(filter);
-    Assertions.assertEquals(2, ((List)query.get("$or")).size());
-    Assertions.assertTrue(((List)((Map)((List)query.get("$or")).get(0)).get("$and")).containsAll(
-        List.of(Map.of("key1", "val1"), Map.of("key2", "val2"))));
-    Assertions.assertTrue(((List)((Map)((List)query.get("$or")).get(1)).get("$and")).containsAll(
-        List.of(Map.of("key3", "val3"), Map.of("key4", "val4"))));
+    Assertions.assertEquals(2, ((List) query.get("$or")).size());
+    Assertions.assertTrue(
+        ((List) ((Map) ((List) query.get("$or")).get(0)).get("$and"))
+            .containsAll(List.of(Map.of("key1", "val1"), Map.of("key2", "val2"))));
+    Assertions.assertTrue(
+        ((List) ((Map) ((List) query.get("$or")).get(1)).get("$and"))
+            .containsAll(List.of(Map.of("key3", "val3"), Map.of("key4", "val4"))));
   }
 
   @Test

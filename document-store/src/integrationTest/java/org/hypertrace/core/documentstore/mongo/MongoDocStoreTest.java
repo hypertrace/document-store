@@ -30,18 +30,16 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
-/**
- * Integration tests for the MongoDB doc store
- */
+/** Integration tests for the MongoDB doc store */
 public class MongoDocStoreTest {
   private static final String COLLECTION_NAME = "mytest";
   private static Datastore datastore;
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   /*
-  * These 2 fields should be automatically created when upserting a doc.
-  * There are downstream services that depends on this. The test should verify that
-  * the string is not changed.
-  */
+   * These 2 fields should be automatically created when upserting a doc.
+   * There are downstream services that depends on this. The test should verify that
+   * the string is not changed.
+   */
   private static final String LAST_UPDATED_TIME_KEY = "_lastUpdateTime";
   private static final String LAST_CREATED_TIME_KEY = "createdTime";
 
@@ -65,6 +63,27 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testIgnoreCaseLikeQuery() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey"), createDocument("name", "Bob"));
+
+    String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB", "BO", "bO", "Ob", "OB"};
+
+    for (String searchValue : ignoreCaseSearchValues) {
+      Query query = new Query();
+      query.setFilter(new Filter(Filter.Op.LIKE, "name", searchValue));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      for (; results.hasNext(); ) {
+        documents.add(results.next());
+      }
+      Assertions.assertFalse(documents.isEmpty());
+      String persistedDocument = documents.get(0).toJson();
+      Assertions.assertTrue(persistedDocument.contains("Bob"));
+    }
+  }
+
+  @Test
   public void testTotalWithQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
@@ -72,7 +91,8 @@ public class MongoDocStoreTest {
     collection.upsert(new SingleValueKey("default", "testKey3"), createDocument("name", "Alice"));
     collection.upsert(new SingleValueKey("default", "testKey4"), createDocument("name", "Bob"));
     collection.upsert(new SingleValueKey("default", "testKey5"), createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
 
     {
       // empty query returns all the documents
@@ -141,7 +161,7 @@ public class MongoDocStoreTest {
     }
     Assertions.assertFalse(documents.isEmpty());
     String persistedDocument = documents.get(0).toJson();
-    //Assert _lastUpdateTime fields exists
+    // Assert _lastUpdateTime fields exists
     Assertions.assertTrue(persistedDocument.contains(LAST_UPDATED_TIME_KEY));
     Assertions.assertTrue(persistedDocument.contains(LAST_CREATED_TIME_KEY));
     JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
@@ -203,12 +223,10 @@ public class MongoDocStoreTest {
     Document subDocument = new JSONDocument(subObjectNode);
     collection.updateSubDoc(docKey, "subdoc", subDocument);
 
-    boolean status =
-        collection.deleteSubDoc(docKey, "subdoc.subfoo1");
+    boolean status = collection.deleteSubDoc(docKey, "subdoc.subfoo1");
     Assertions.assertTrue(status);
 
-    status =
-        collection.deleteSubDoc(docKey, "subdoc");
+    status = collection.deleteSubDoc(docKey, "subdoc");
     Assertions.assertTrue(status);
   }
 
@@ -268,7 +286,8 @@ public class MongoDocStoreTest {
       mytest2.insert(basicDBObject);
     }
 
-    DBCursor result = mytest2.find(new BasicDBObject("testKey1", new BasicDBObject("$regex", "abc")));
+    DBCursor result =
+        mytest2.find(new BasicDBObject("testKey1", new BasicDBObject("$regex", "abc")));
     List<DBObject> results = new ArrayList<>();
     while (result.hasNext()) {
       DBObject dbObject = result.next();
