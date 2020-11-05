@@ -13,9 +13,18 @@ public interface Collection {
    *
    * @param key      Unique key of the document in the collection.
    * @param document Document to be upserted.
-   * @return True if this operation resulted in updation of an existing document. False, otherwise.
+   * @return True if this operation resulted in update of an existing document. False, otherwise.
    */
   boolean upsert(Key key, Document document) throws IOException;
+
+  /**
+   * Upsert (create a new doc or update if one already exists) the given document into the doc store.
+   *
+   * @param key      Unique key of the document in the collection.
+   * @param document Document to be upserted.
+   * @return Returns the updated document regardless if an update occurred
+   */
+  Document upsertAndReturn(Key key, Document document) throws IOException;
 
   /**
    * Update a sub document
