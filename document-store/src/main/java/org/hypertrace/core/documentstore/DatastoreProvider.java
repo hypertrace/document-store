@@ -1,10 +1,12 @@
 package org.hypertrace.core.documentstore;
 
 import com.typesafe.config.Config;
+import org.hypertrace.core.documentstore.mongo.MongoDatastore;
+import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
+
 import java.lang.reflect.Constructor;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 
 public class DatastoreProvider {
 
@@ -12,6 +14,7 @@ public class DatastoreProvider {
 
   static {
     DatastoreProvider.register("Mongo", MongoDatastore.class);
+    DatastoreProvider.register("Postgres", PostgresDatastore.class);
   }
 
   /**

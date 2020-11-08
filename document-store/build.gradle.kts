@@ -17,6 +17,7 @@ plugins {
 dependencies {
   api("com.typesafe:config:1.3.2")
   implementation("org.mongodb:mongo-java-driver:3.12.0")
+  implementation("org.postgresql:postgresql:42.1.4")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")
   implementation("org.slf4j:slf4j-api:1.7.25")
   implementation("com.google.guava:guava-annotations:r03")
