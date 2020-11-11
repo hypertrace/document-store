@@ -106,7 +106,7 @@ public class PostgresDatastore implements Datastore {
   
   @Override
   public boolean healthCheck() {
-    String healtchCheckSQL = "SELECT NOW();";
+    String healtchCheckSQL = "SELECT 1;";
     try {
       PreparedStatement preparedStatement = client.prepareStatement(healtchCheckSQL);
       return preparedStatement.execute();
