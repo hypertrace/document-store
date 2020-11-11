@@ -16,24 +16,24 @@ public class PostgresDatastore implements Datastore {
   
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDatastore.class);
   
-  private static final String DEFAULT_DB_NAME = "default_db";
-  Connection client;
-  private String database = DEFAULT_DB_NAME;
+  private Connection client;
   // Specifies whether document will be stored in json/jsonb format.
   private String columnType = "json";
+  private String database = "postgres";
   
   @Override
   public boolean init(Config config) {
     try {
       DriverManager.registerDriver(new org.postgresql.Driver());
+      String url = config.getString("url");
       if (config.hasPath("type")) {
         this.columnType = config.getString("type");
       }
       // Database needs to be created before initializing connection
       if (config.hasPath("database")) {
         this.database = config.getString("database");
+        url = url + database;
       }
-      String url = String.format("%s/%s", config.getString("url"), database);
       if (config.hasPath("user") && config.hasPath("password")) {
         client = DriverManager.getConnection(url, config.getString("user"), config.getString("password"));
       } else {
@@ -58,7 +58,7 @@ public class PostgresDatastore implements Datastore {
       DatabaseMetaData metaData = client.getMetaData();
       ResultSet tables = metaData.getTables(null, null, "%", new String[]{"TABLE"});
       while (tables.next()) {
-        collections.add(this.database + "." + tables.getString("TABLE_NAME"));
+        collections.add(database + "." + tables.getString("TABLE_NAME"));
       }
     } catch (SQLException e) {
       LOGGER.error("Exception getting postgres metadata");
@@ -68,7 +68,12 @@ public class PostgresDatastore implements Datastore {
   
   @Override
   public boolean createCollection(String collectionName, Map<String, String> options) {
-    String createTableSQL = String.format("CREATE TABLE IF NOT EXISTS %s(document %s NOT NULL)", collectionName, columnType);
+    String createTableSQL = String.format("CREATE TABLE %s (" +
+      "id TEXT PRIMARY KEY," +
+      "document %s NOT NULL," +
+      "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()," +
+      "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()" +
+      ");", collectionName, columnType);
     try {
       PreparedStatement preparedStatement = client.prepareStatement(createTableSQL);
       int result = preparedStatement.executeUpdate();
@@ -96,8 +101,7 @@ public class PostgresDatastore implements Datastore {
   
   @Override
   public Collection getCollection(String collectionName) {
-    // Collection will be null in case of Postgres
-    return null;
+    return new PostgresCollection(client, collectionName, columnType);
   }
   
   @Override
