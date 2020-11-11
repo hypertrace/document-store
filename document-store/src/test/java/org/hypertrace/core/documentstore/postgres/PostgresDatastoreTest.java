@@ -20,8 +20,7 @@ public class PostgresDatastoreTest {
   public void testInitWithUserPassword() {
     PostgresDatastore datastore = new PostgresDatastore();
     Properties properties = new Properties();
-    String url = "jdbc:postgresql://localhost:5432";
-    String database = "default_db";
+    String url = "jdbc:postgresql://localhost:5432/";
     String user = "postgres";
     String password = "postgres";
     
@@ -33,7 +32,7 @@ public class PostgresDatastoreTest {
     
     try {
       DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();
-      Assertions.assertEquals(metaData.getURL(), url + "/" + database);
+      Assertions.assertEquals(metaData.getURL(), url);
       Assertions.assertEquals(metaData.getUserName(), user);
     } catch (SQLException e) {
       LOGGER.error("Exception executing init test with user and password");
