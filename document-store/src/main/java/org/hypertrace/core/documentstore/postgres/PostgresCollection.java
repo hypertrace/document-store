@@ -61,7 +61,40 @@ public class PostgresCollection implements Collection {
   }
   
   @Override
+  /**
+   * This function will replace the complete sub document at subDocPath. If the key doesn't exist then it will create the key,
+   * only if the subDocPath exists before the last level of the key. i.e subdoc1.subdoc2, the json document should have key subdoc1.
+   * In case of nested subDocPath, if the nested path doesn't exist inside json document, this function won't update anything.
+   * Example: Document: {"foo":"bar"}
+   * SubDocPath: "subdoc1.subdoc2"
+   * SubDocument: {"subdoc3": "subdoc3val"}
+   * As the path subdoc1.subdoc2 doesn't exist, this wouldn't update anything.
+   * But when the following specifications are provided:
+   * SubDocPath: "subdoc1"
+   * SubDocument: {"subdoc2": {"subdoc3": "subdoc3Val"}}
+   * This will create the key subdoc1, and insert the document in respect to the key.
+   */
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
+    String updateSubDocSQL = String.format("UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
+      collectionName, DOCUMENT_KEY, DOCUMENT_KEY, ID_KEY);
+    String jsonSubDocPath = getJsonSubDocPath(subDocPath);
+    String jsonString = subDocument.toJson();
+    try {
+      
+      PreparedStatement preparedStatement = client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS);
+      preparedStatement.setString(1, jsonSubDocPath);
+      preparedStatement.setString(2, jsonString);
+      preparedStatement.setString(3, key.toString());
+      int resultSet = preparedStatement.executeUpdate();
+      
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: " + resultSet);
+      }
+      
+      return true;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException updating sub document. key: {} subDocPath: {} content:{}", key, subDocPath, subDocument, e);
+    }
     return false;
   }
   
@@ -199,6 +232,11 @@ public class PostgresCollection implements Collection {
     }
   }
   
+  @VisibleForTesting
+  private String getJsonSubDocPath(String subDocPath) {
+    return "{" + subDocPath.replaceAll("\\.", ",") + "}";
+  }
+  
   /**
    * If the query column is a json column, then add document column prefix to it\
    * This will currently only search first level keys inside JSON
@@ -238,6 +276,24 @@ public class PostgresCollection implements Collection {
   
   @Override
   public boolean deleteSubDoc(Key key, String subDocPath) {
+    String deleteSubDocSQL = String.format("UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?",
+      collectionName, DOCUMENT_KEY, DOCUMENT_KEY, ID_KEY);
+    String jsonSubDocPath = getJsonSubDocPath(subDocPath);
+    try {
+      
+      PreparedStatement preparedStatement = client.prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS);
+      preparedStatement.setString(1, jsonSubDocPath);
+      preparedStatement.setString(2, key.toString());
+      int resultSet = preparedStatement.executeUpdate();
+      
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: " + resultSet);
+      }
+      
+      return true;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException updating sub document. key: {} subDocPath: {}", key, subDocPath, e);
+    }
     return false;
   }
   
@@ -290,6 +346,36 @@ public class PostgresCollection implements Collection {
   
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
+    String upsertSQL = String.format("INSERT INTO %s (%s,%s) VALUES( ?, ? :: %s) ON CONFLICT(%s) DO UPDATE SET %s = ?::%s ",
+      collectionName, ID_KEY, DOCUMENT_KEY, columnType, ID_KEY, DOCUMENT_KEY, columnType);
+    
+    try {
+      
+      PreparedStatement preparedStatement = client.prepareStatement(upsertSQL, Statement.RETURN_GENERATED_KEYS);
+      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+        Key key = entry.getKey();
+        Document document = entry.getValue();
+        String jsonString = document.toJson();
+        
+        preparedStatement.setString(1, key.toString());
+        preparedStatement.setString(2, jsonString);
+        preparedStatement.setString(3, jsonString);
+        
+        preparedStatement.addBatch();
+        
+      }
+      
+      int[] updateCounts = preparedStatement.executeBatch();
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: " + updateCounts);
+      }
+      
+      return true;
+    } catch (BatchUpdateException e) {
+      LOGGER.error("BatchUpdateException bulk inserting documents.", e);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException bulk inserting documents. SQLState: {} Error Code:{}", e.getSQLState(), e.getErrorCode(), e);
+    }
     return false;
   }
   

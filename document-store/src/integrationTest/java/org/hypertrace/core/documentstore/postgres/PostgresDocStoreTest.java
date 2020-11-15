@@ -6,9 +6,9 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.*;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -41,7 +41,7 @@ public class PostgresDocStoreTest {
     System.out.println(datastore.listCollections());
   }
   
-  @AfterEach
+  @BeforeEach
   public void cleanup() {
     datastore.deleteCollection(COLLECTION_NAME);
     datastore.createCollection(COLLECTION_NAME, null);
@@ -64,6 +64,81 @@ public class PostgresDocStoreTest {
     // Assert _lastUpdateTime fields exists
     Assertions.assertTrue(persistedDocument.contains(UPDATED_AT));
     Assertions.assertTrue(persistedDocument.contains(CREATED_AT));
+  }
+  
+  @Test
+  public void testBulkUpsert() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Document> bulkMap = new HashMap<>();
+    bulkMap.put(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
+    bulkMap.put(new SingleValueKey("default", "testKey2"), createDocument("name", "Alice"));
+    bulkMap.put(new SingleValueKey("default", "testKey3"), createDocument("name", "Alice"));
+    bulkMap.put(new SingleValueKey("default", "testKey4"), createDocument("name", "Bob"));
+    bulkMap.put(new SingleValueKey("default", "testKey5"), createDocument("name", "Alice"));
+    bulkMap.put(
+      new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
+    
+    collection.bulkUpsert(bulkMap);
+    
+    {
+      // empty query returns all the documents
+      Query query = new Query();
+      Assertions.assertEquals(6, collection.total(query));
+    }
+    
+    {
+      Query query = new Query();
+      query.setFilter(Filter.eq("name", "Bob"));
+      Assertions.assertEquals(2, collection.total(query));
+    }
+    
+    {
+      // limit should not affect the total
+      Query query = new Query();
+      query.setFilter(Filter.eq("name", "Bob"));
+      query.setLimit(1);
+      Assertions.assertEquals(2, collection.total(query));
+    }
+  }
+  
+  @Test
+  public void testSubDocumentUpdate() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    SingleValueKey docKey = new SingleValueKey("default", "testKey");
+    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    
+    Document subDocument = createDocument("subfoo1", "subbar1");
+    collection.updateSubDoc(docKey, "subdoc", subDocument);
+    
+    Document nestedDocument = createDocument("nestedfoo1", "nestedbar1");
+    collection.updateSubDoc(docKey, "subdoc.nesteddoc", nestedDocument);
+    
+    Query query = new Query();
+    query.setFilter(Filter.eq(ID_KEY, "default:testKey"));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    for (; results.hasNext(); ) {
+      documents.add(results.next());
+    }
+    Assertions.assertFalse(documents.isEmpty());
+    Assertions.assertTrue(documents.get(0).toJson().contains("subdoc"));
+    Assertions.assertTrue(documents.get(0).toJson().contains("nesteddoc"));
+  }
+  
+  @Test
+  public void testSubDocumentDelete() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    SingleValueKey docKey = new SingleValueKey("default", "testKey");
+    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    
+    Document subDocument = createDocument("subfoo1", "subbar1");
+    collection.updateSubDoc(docKey, "subdoc", subDocument);
+    
+    boolean status = collection.deleteSubDoc(docKey, "subdoc.subfoo1");
+    Assertions.assertTrue(status);
+    
+    status = collection.deleteSubDoc(docKey, "subdoc");
+    Assertions.assertTrue(status);
   }
   
   @Test
