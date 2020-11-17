@@ -2,6 +2,8 @@ package org.hypertrace.core.documentstore.mongo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -65,6 +67,21 @@ public class MongoDocStoreTest {
   public void cleanup() {
     datastore.deleteCollection(COLLECTION_NAME);
     datastore.createCollection(COLLECTION_NAME, null);
+  }
+
+  @Test
+  public void testCollections() {
+    String collectionName = "test-col1";
+    assertTrue(datastore.createCollection(collectionName, null));
+
+    // Retry again and you should still receive true.
+    assertTrue(datastore.createCollection(collectionName, null));
+
+    // We should receive non-null collection.
+    assertNotNull(datastore.getCollection(collectionName));
+
+    // Delete the collection.
+    assertTrue(datastore.deleteCollection(collectionName));
   }
 
   @Test
@@ -271,34 +288,16 @@ public class MongoDocStoreTest {
   }
 
   @Test
-  public void testSelectAll() {
-    MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017");
+  public void testSelectAll() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2"));
+    assertEquals(2, collection.count());
 
-    MongoDatabase db = mongoClient.getDatabase("default_db");
-    String collectionName = "myTest2";
-    MongoCollection<BasicDBObject> myTest2 = db.getCollection(collectionName, BasicDBObject.class);
-    myTest2.drop();
-
-    {
-      BasicDBObject basicDBObject = new BasicDBObject();
-      basicDBObject.put("testKey1", "abc1");
-      myTest2.insertOne(basicDBObject);
-    }
-
-    {
-      BasicDBObject basicDBObject = new BasicDBObject();
-      basicDBObject.put("testKey2", "abc2");
-      myTest2.insertOne(basicDBObject);
-    }
-
-    MongoCursor<BasicDBObject> cursor = myTest2.find().cursor();
-    List<BasicDBObject> results = new ArrayList<>();
-    while (cursor.hasNext()) {
-      BasicDBObject dbObject = cursor.next();
-      results.add(dbObject);
-      System.out.println(dbObject);
-    }
-    assertEquals(2, results.size());
+    // Delete one of the documents and test again.
+    collection.delete(new SingleValueKey("default", "testKey1"));
+    assertEquals(1, collection.count());
   }
 
   @Test

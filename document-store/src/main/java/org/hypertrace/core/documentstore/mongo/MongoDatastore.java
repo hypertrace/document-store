@@ -4,18 +4,23 @@ import com.google.common.annotations.VisibleForTesting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoCommandException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import com.typesafe.config.Config;
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class MongoDatastore implements Datastore {
+  private static final Logger LOGGER = LoggerFactory.getLogger(MongoDatastore.class);
 
   private static final String DEFAULT_DB_NAME = "default_db";
   private MongoClient client;
@@ -23,30 +28,25 @@ public class MongoDatastore implements Datastore {
 
   @Override
   public boolean init(Config config) {
-    try {
-      if (config.hasPath("url")) {
-        ConnectionString connString = new ConnectionString(config.getString("url"));
-        MongoClientSettings settings = MongoClientSettings.builder()
-            .applyConnectionString(connString)
-            .retryWrites(true)
-            .build();
-        client = MongoClients.create(settings);
-      } else {
-        String hostName = config.getString("host");
-        int port = config.getInt("port");
-        ConnectionString connString = new ConnectionString("mongodb://" + hostName + ":" + port);
-        MongoClientSettings settings = MongoClientSettings.builder()
-            .applyConnectionString(connString)
-            .retryWrites(true)
-            .build();
-        client = MongoClients.create(settings);
-      }
-
-      database = client.getDatabase(DEFAULT_DB_NAME);
-    } catch (IllegalArgumentException e) {
-        throw new IllegalArgumentException(
-            String.format("Unable to instantiate MongoClient with config:%s",config), e);
+    if (config.hasPath("url")) {
+      ConnectionString connString = new ConnectionString(config.getString("url"));
+      MongoClientSettings settings = MongoClientSettings.builder()
+          .applyConnectionString(connString)
+          .retryWrites(true)
+          .build();
+      client = MongoClients.create(settings);
+    } else {
+      String hostName = config.getString("host");
+      int port = config.getInt("port");
+      ConnectionString connString = new ConnectionString("mongodb://" + hostName + ":" + port);
+      MongoClientSettings settings = MongoClientSettings.builder()
+          .applyConnectionString(connString)
+          .retryWrites(true)
+          .build();
+      client = MongoClients.create(settings);
     }
+
+    database = client.getDatabase(DEFAULT_DB_NAME);
     return true;
   }
 
@@ -54,14 +54,21 @@ public class MongoDatastore implements Datastore {
   public Set<String> listCollections() {
     Set<String> collections = new HashSet<>();
     for (String collectionName : database.listCollectionNames()) {
-      collections.add(collectionName + "." + collectionName);
+      collections.add(database.getName() + "." + collectionName);
     }
     return collections;
   }
 
   @Override
   public boolean createCollection(String collectionName, Map<String, String> options) {
-    database.createCollection(collectionName);
+    try {
+      database.createCollection(collectionName);
+    } catch (MongoCommandException e) {
+      if (!"NamespaceExists".equals(e.getErrorCodeName())) {
+        LOGGER.error("Could not create collection: {}", collectionName, e);
+        return false;
+      }
+    }
     return true;
   }
 
