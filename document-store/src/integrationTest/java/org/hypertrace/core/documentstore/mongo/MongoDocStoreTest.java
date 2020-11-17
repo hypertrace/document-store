@@ -71,17 +71,22 @@ public class MongoDocStoreTest {
 
   @Test
   public void testCollections() {
-    String collectionName = "test-col1";
-    assertTrue(datastore.createCollection(collectionName, null));
+    for (String collection: datastore.listCollections()) {
+      datastore.deleteCollection(collection);
+    }
+
+    assertTrue(datastore.createCollection(COLLECTION_NAME, null));
 
     // Retry again and you should still receive true.
-    assertTrue(datastore.createCollection(collectionName, null));
+    assertTrue(datastore.createCollection(COLLECTION_NAME, null));
 
     // We should receive non-null collection.
-    assertNotNull(datastore.getCollection(collectionName));
+    assertNotNull(datastore.getCollection(COLLECTION_NAME));
+
+    assertTrue(datastore.listCollections().contains("default_db." + COLLECTION_NAME));
 
     // Delete the collection.
-    assertTrue(datastore.deleteCollection(collectionName));
+    assertTrue(datastore.deleteCollection(COLLECTION_NAME));
   }
 
   @Test
@@ -294,6 +299,12 @@ public class MongoDocStoreTest {
     collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"));
     collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2"));
     assertEquals(2, collection.count());
+    Iterator<Document> iterator = collection.search(new Query());
+    List<Document> documents = new ArrayList<>();
+    while (iterator.hasNext()) {
+      documents.add(iterator.next());
+    }
+    assertEquals(2, documents.size());
 
     // Delete one of the documents and test again.
     collection.delete(new SingleValueKey("default", "testKey1"));

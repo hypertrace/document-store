@@ -9,7 +9,6 @@ import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
 import com.typesafe.config.Config;
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -74,13 +73,9 @@ public class MongoDatastore implements Datastore {
 
   @Override
   public boolean deleteCollection(String collectionName) {
-    try {
-      com.mongodb.client.MongoCollection<Document> collection = database.getCollection(collectionName);
-      collection.drop();
-      return true;
-    } catch (Exception e) {
-      return false;
-    }
+    com.mongodb.client.MongoCollection<Document> collection = database.getCollection(collectionName);
+    collection.drop();
+    return true;
   }
 
   @Override
