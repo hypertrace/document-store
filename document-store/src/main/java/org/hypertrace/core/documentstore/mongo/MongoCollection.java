@@ -364,7 +364,10 @@ public class MongoCollection implements Collection {
             .upsert()
             .update(
                 new BasicDBObject("$set", dbObject)
-                    .append("$currentDate", new BasicDBObject("_lastUpdateTime", true)));
+                    .append("$currentDate", new BasicDBObject("_lastUpdateTime", true))
+                    .append(
+                        "$setOnInsert",
+                        new BasicDBObject(CREATED_TIME, System.currentTimeMillis())));
       }
 
       BulkWriteResult result = bulkWriteOperation.execute();

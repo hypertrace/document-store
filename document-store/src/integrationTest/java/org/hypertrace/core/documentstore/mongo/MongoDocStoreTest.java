@@ -186,6 +186,47 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testBulkUpsert() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+    objectNode.put("foo1", "bar1");
+    Document document = new JSONDocument(objectNode);
+    collection.bulkUpsert(Map.of(new SingleValueKey("default", "testKey"), document));
+
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", "default:testKey"));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertFalse(documents.isEmpty());
+    String persistedDocument = documents.get(0).toJson();
+    // Assert _lastUpdateTime fields exists
+    Assertions.assertTrue(persistedDocument.contains(LAST_UPDATED_TIME_KEY));
+    Assertions.assertTrue(persistedDocument.contains(LAST_CREATED_TIME_KEY));
+    JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
+    String lastUpdatedtime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    long createdTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
+
+    // Upsert again and verify that createdTime does not change, while lastUpdatedTime
+    // has changed
+    collection.bulkUpsert(Map.of(new SingleValueKey("default", "testKey"), document));
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertFalse(documents.isEmpty());
+    persistedDocument = documents.get(0).toJson();
+    node = OBJECT_MAPPER.readTree(persistedDocument);
+    String newLastUpdatedtime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
+    Assertions.assertEquals(createdTime, newCreatedTime);
+    Assertions.assertFalse(newLastUpdatedtime.equalsIgnoreCase(lastUpdatedtime));
+  }
+
+  @Test
   public void testSubDocumentUpdate() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     ObjectNode objectNode = new ObjectMapper().createObjectNode();
