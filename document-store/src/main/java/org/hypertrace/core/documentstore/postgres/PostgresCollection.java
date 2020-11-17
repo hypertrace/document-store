@@ -159,6 +159,7 @@ public class PostgresCollection implements Collection {
             Arrays.stream(filter.getChildFilters())
               .map(this::parseQuery)
               .filter(str -> !str.isEmpty())
+              .map(str -> "(" + str + ")")
               .collect(Collectors.joining(" OR "));
           if (!childList.isEmpty()) {
             return childList;
@@ -171,6 +172,7 @@ public class PostgresCollection implements Collection {
             Arrays.stream(filter.getChildFilters())
               .map(this::parseQuery)
               .filter(str -> !str.isEmpty())
+              .map(str -> "(" + str + ")")
               .collect(Collectors.joining(" AND "));
           if (!childList.isEmpty()) {
             return childList;
@@ -192,17 +194,6 @@ public class PostgresCollection implements Collection {
         case EQ:
           filterString.append(" = ");
           break;
-        case LIKE:
-          // Case insensitive regex search, Append % at beginning and end of value to do a regex search
-          filterString.append(" ILIKE ");
-          value = "%" + value + "%";
-          break;
-        case IN:
-          filterString.append(" IN ");
-          break;
-        case CONTAINS:
-          // TODO: Matches condition inside an array of documents
-          break;
         case GT:
           filterString.append(" > ");
           break;
@@ -215,15 +206,26 @@ public class PostgresCollection implements Collection {
         case LTE:
           filterString.append(" <= ");
           break;
+        case LIKE:
+          // Case insensitive regex search, Append % at beginning and end of value to do a regex search
+          filterString.append(" ILIKE ");
+          value = "%" + value + "%";
+          break;
+        case IN:
+          filterString.append(" IN ");
+          List<Object> values = (List<Object>) value;
+          String collect = values
+            .stream()
+            .map(val -> "'" + val + "'")
+            .collect(Collectors.joining(", "));
+          return filterString.append("(" + collect + ")").toString();
+        case CONTAINS:
+          // TODO: Matches condition inside an array of documents
         case EXISTS:
           // TODO: Checks if key exists
-          break;
         case NOT_EXISTS:
           // TODO: Checks if key does not exist
-          break;
-        case AND:
         case NEQ:
-        case OR:
           throw new UnsupportedOperationException("Only Equality predicate is supported");
         default:
           break;
