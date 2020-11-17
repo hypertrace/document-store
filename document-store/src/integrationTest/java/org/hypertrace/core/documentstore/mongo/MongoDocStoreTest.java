@@ -1,5 +1,10 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -97,13 +102,13 @@ public class MongoDocStoreTest {
     {
       // empty query returns all the documents
       Query query = new Query();
-      Assertions.assertEquals(6, collection.total(query));
+      assertEquals(6, collection.total(query));
     }
 
     {
       Query query = new Query();
       query.setFilter(Filter.eq("name", "Bob"));
-      Assertions.assertEquals(2, collection.total(query));
+      assertEquals(2, collection.total(query));
     }
 
     {
@@ -111,7 +116,7 @@ public class MongoDocStoreTest {
       Query query = new Query();
       query.setFilter(Filter.eq("name", "Bob"));
       query.setLimit(1);
-      Assertions.assertEquals(2, collection.total(query));
+      assertEquals(2, collection.total(query));
     }
   }
 
@@ -136,7 +141,7 @@ public class MongoDocStoreTest {
         documents.add(results.next());
       }
 
-      Assertions.assertEquals(2, documents.size());
+      assertEquals(2, documents.size());
       String persistedDocument1 = documents.get(0).toJson();
       Assertions.assertTrue(persistedDocument1.contains("foo2"));
       String persistedDocument2 = documents.get(1).toJson();
@@ -181,8 +186,43 @@ public class MongoDocStoreTest {
     node = OBJECT_MAPPER.readTree(persistedDocument);
     String newLastUpdatedtime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
     long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
-    Assertions.assertEquals(createdTime, newCreatedTime);
+    assertEquals(createdTime, newCreatedTime);
     Assertions.assertFalse(newLastUpdatedtime.equalsIgnoreCase(lastUpdatedtime));
+  }
+
+
+  @Test
+  public void testUpsertAndReturn() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+    objectNode.put("foo1", "bar1");
+    Document document = new JSONDocument(objectNode);
+    Document persistedDocument = collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
+
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", "default:testKey"));
+    // Assert upsert and search results match
+    assertEquals(collection.search(query).next(), persistedDocument);
+
+    JsonNode node = OBJECT_MAPPER.readTree(persistedDocument.toJson());
+    String lastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    long createdTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
+
+    objectNode = OBJECT_MAPPER.createObjectNode();
+    objectNode.put("foo2", "bar2");
+    document = new JSONDocument(objectNode);
+
+    // Upsert again and verify that createdTime does not change, while lastUpdatedTime
+    // has changed and values have merged
+    Document updatedDocument = collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
+    node = OBJECT_MAPPER.readTree(updatedDocument.toJson());
+    String newLastUpdatedtime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
+    assertEquals(createdTime, newCreatedTime);
+    assertNotEquals(lastUpdatedTime, newLastUpdatedtime);
+
+    assertEquals("bar1", node.get("foo1").asText());
+    assertEquals("bar2", node.get("foo2").asText());
   }
 
   @Test
@@ -299,7 +339,7 @@ public class MongoDocStoreTest {
       results.add(dbObject);
       System.out.println(dbObject);
     }
-    Assertions.assertEquals(2, results.size());
+    assertEquals(2, results.size());
   }
 
   @Test
@@ -335,7 +375,7 @@ public class MongoDocStoreTest {
       results.add(dbObject);
       System.out.println(dbObject);
     }
-    Assertions.assertEquals(1, results.size());
+    assertEquals(1, results.size());
   }
 
   private Document createDocument(String key, String value) {

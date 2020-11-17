@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -13,6 +14,7 @@ import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoServerException;
 import com.mongodb.WriteResult;
+import com.mongodb.client.model.DBCollectionFindAndModifyOptions;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -27,11 +29,11 @@ import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Document;
-import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.OrderBy;
+import org.hypertrace.core.documentstore.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,24 +54,8 @@ public class MongoCollection implements Collection {
 
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
-    String jsonString = document.toJson();
     try {
-      JsonNode jsonNode = MAPPER.readTree(jsonString);
-
-      // escape "." and "$" in field names since Mongo DB does not like them
-      JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-      BasicDBObject setObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
-      setObject.put(ID_KEY, key.toString());
-      BasicDBObject dbObject =
-          new BasicDBObject("$set", setObject)
-              .append("$currentDate", new BasicDBObject(LAST_UPDATE_TIME, true))
-              .append("$setOnInsert", new BasicDBObject(CREATED_TIME, System.currentTimeMillis()));
-
-      // Create selection criteria from the key.
-      BasicDBObject selectionCriteria = new BasicDBObject();
-      selectionCriteria.put(ID_KEY, key.toString());
-
-      WriteResult writeResult = collection.update(selectionCriteria, dbObject, true, false);
+      WriteResult writeResult = collection.update(this.selectionCriteriaForKey(key), this.prepareUpsert(key, document), true, false);
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
@@ -81,6 +67,30 @@ public class MongoCollection implements Collection {
     }
   }
 
+  @Override
+  public Document upsertAndReturn(Key key, Document document) throws IOException {
+    DBObject upsertResult = collection.findAndModify(this.selectionCriteriaForKey(key), new DBCollectionFindAndModifyOptions()
+    .update(this.prepareUpsert(key, document))
+    .upsert(true)
+    .returnNew(true));
+
+    return this.dbObjectToDocument(upsertResult);
+  }
+
+  private BasicDBObject prepareUpsert(Key key, Document document) throws JsonProcessingException {
+    String jsonString = document.toJson();
+    JsonNode jsonNode = MAPPER.readTree(jsonString);
+
+    // escape "." and "$" in field names since Mongo DB does not like them
+    JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
+    BasicDBObject setObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
+    setObject.put(ID_KEY, key.toString());
+    return new BasicDBObject("$set", setObject)
+        .append("$currentDate", new BasicDBObject(LAST_UPDATE_TIME, true))
+        .append("$setOnInsert", new BasicDBObject(CREATED_TIME, System.currentTimeMillis()));
+  }
+
+  @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
     String jsonString = subDocument.toJson();
     try {
@@ -93,11 +103,7 @@ public class MongoCollection implements Collection {
               subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
       BasicDBObject setObject = new BasicDBObject("$set", dbObject);
 
-      // Create selection criteria from the key.
-      BasicDBObject selectionCriteria = new BasicDBObject();
-      selectionCriteria.put(ID_KEY, key.toString());
-
-      WriteResult writeResult = collection.update(selectionCriteria, setObject, false, false);
+      WriteResult writeResult = collection.update(selectionCriteriaForKey(key), setObject, false, false);
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
@@ -182,39 +188,14 @@ public class MongoCollection implements Collection {
 
       @Override
       public Document next() {
-        DBObject next = dbCursor.next();
-        try {
-          // Hack: Remove the _id field since it's an unrecognized field for Proto layer.
-          // TODO: We should rather use separate DAO classes instead of using the
-          //  DB document directly as proto message.
-          next.removeField(ID_KEY);
-          String jsonString;
-          JsonWriterSettings relaxed =
-              JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
-          if (next instanceof BasicDBObject) {
-            jsonString = ((BasicDBObject) next).toJson(relaxed);
-          } else {
-            LOGGER.info(
-                "Converting to bson document before converting JSON for none BasicDBObject type");
-            jsonString = org.bson.Document.parse(next.toString()).toJson(relaxed);
-          }
-          JsonNode jsonNode = MAPPER.readTree(jsonString);
-          JsonNode decodedJsonNode = recursiveClone(jsonNode, key -> decodeKey(key));
-          return new JSONDocument(decodedJsonNode);
-        } catch (IOException e) {
-          // throwing exception is not very useful here.
-          return JSONDocument.errorDocument(e.getMessage());
-        }
+        return MongoCollection.this.dbObjectToDocument(dbCursor.next());
       }
     };
   }
 
   @Override
   public boolean delete(Key key) {
-    // Create selection criteria from the key.
-    BasicDBObject selectionCriteria = new BasicDBObject();
-    selectionCriteria.put(ID_KEY, key.toString());
-    collection.remove(selectionCriteria);
+    collection.remove(this.selectionCriteriaForKey(key));
 
     // If there was no exception, the operation is successful.
     return true;
@@ -222,10 +203,9 @@ public class MongoCollection implements Collection {
 
   @Override
   public boolean deleteSubDoc(Key key, String subDocPath) {
-    BasicDBObject selectionCriteria = new BasicDBObject(ID_KEY, key.toString());
     BasicDBObject unsetObject = new BasicDBObject("$unset", new BasicDBObject(subDocPath, ""));
 
-    WriteResult writeResult = collection.update(selectionCriteria, unsetObject, false, false);
+    WriteResult writeResult = collection.update(this.selectionCriteriaForKey(key), unsetObject, false, false);
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Write result: " + writeResult.toString());
     }
@@ -354,13 +334,9 @@ public class MongoCollection implements Collection {
 
         dbObject.put(ID_KEY, key.toString());
 
-        // Create selection criteria from the key.
-        BasicDBObject selectionCriteria = new BasicDBObject();
-        selectionCriteria.put(ID_KEY, key.toString());
-
         // insert or overwrite
         bulkWriteOperation
-            .find(selectionCriteria)
+            .find(this.selectionCriteriaForKey(key))
             .upsert()
             .update(
                 new BasicDBObject("$set", dbObject)
@@ -384,5 +360,34 @@ public class MongoCollection implements Collection {
   @Override
   public void drop() {
     collection.drop();
+  }
+
+  private DBObject selectionCriteriaForKey(Key key) {
+    return new BasicDBObject(ID_KEY, key.toString());
+  }
+
+  private Document dbObjectToDocument(DBObject dbObject) {
+    try {
+      // Hack: Remove the _id field since it's an unrecognized field for Proto layer.
+      // TODO: We should rather use separate DAO classes instead of using the
+      //  DB document directly as proto message.
+      dbObject.removeField(ID_KEY);
+      String jsonString;
+      JsonWriterSettings relaxed =
+          JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
+      if (dbObject instanceof BasicDBObject) {
+        jsonString = ((BasicDBObject) dbObject).toJson(relaxed);
+      } else {
+        LOGGER.info(
+            "Converting to bson document before converting JSON for none BasicDBObject type");
+        jsonString = org.bson.Document.parse(dbObject.toString()).toJson(relaxed);
+      }
+      JsonNode jsonNode = MAPPER.readTree(jsonString);
+      JsonNode decodedJsonNode = recursiveClone(jsonNode, this::decodeKey);
+      return new JSONDocument(decodedJsonNode);
+    } catch (IOException e) {
+      // throwing exception is not very useful here.
+      return JSONDocument.errorDocument(e.getMessage());
+    }
   }
 }
