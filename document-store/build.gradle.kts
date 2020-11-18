@@ -71,6 +71,8 @@ tasks.register<DockerCreateContainer>("createPostgresContainer") {
   dependsOn("pullPostgresImage")
   targetImageId(tasks.getByName<DockerPullImage>("pullPostgresImage").image)
   containerName.set("postgres-local")
+  envVars.put("POSTGRES_PASSWORD", "postgres")
+  envVars.put("POSTGRES_USER", "postgres")
   hostConfig.network.set(tasks.getByName<DockerCreateNetwork>("createIntegrationTestNetwork").networkId)
   hostConfig.portBindings.set(listOf("5432:5432"))
   hostConfig.autoRemove.set(true)
