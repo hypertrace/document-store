@@ -99,6 +99,10 @@ public class PostgresDatastore implements Datastore {
   
   @Override
   public Collection getCollection(String collectionName) {
+    Set<String> tables = listCollections();
+    if (!tables.contains(collectionName)) {
+      createCollection(collectionName, null);
+    }
     return new PostgresCollection(client, collectionName);
   }
   
