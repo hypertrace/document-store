@@ -42,10 +42,6 @@ tasks.register<DockerPullImage>("pullMongoImage") {
   image.set("mongo:4.4.0")
 }
 
-tasks.register<DockerPullImage>("pullPostgresImage") {
-  image.set("postgres:13.1")
-}
-
 tasks.register<DockerCreateContainer>("createMongoContainer") {
   dependsOn("createIntegrationTestNetwork")
   dependsOn("pullMongoImage")
@@ -66,10 +62,36 @@ tasks.register<DockerStopContainer>("stopMongoContainer") {
   finalizedBy("removeIntegrationTestNetwork")
 }
 
+tasks.register<DockerPullImage>("pullPostgresImage") {
+  image.set("postgres:13.1")
+}
+
+tasks.register<DockerCreateContainer>("createPostgresContainer") {
+  dependsOn("createIntegrationTestNetwork")
+  dependsOn("pullPostgresImage")
+  targetImageId(tasks.getByName<DockerPullImage>("pullPostgresImage").image)
+  containerName.set("postgres-local")
+  hostConfig.network.set(tasks.getByName<DockerCreateNetwork>("createIntegrationTestNetwork").networkId)
+  hostConfig.portBindings.set(listOf("5432:5432"))
+  hostConfig.autoRemove.set(true)
+}
+
+tasks.register<DockerStartContainer>("startPostgresContainer") {
+  dependsOn("createPostgresContainer")
+  targetContainerId(tasks.getByName<DockerCreateContainer>("createPostgresContainer").containerId)
+}
+
+tasks.register<DockerStopContainer>("stopPostgresContainer") {
+  targetContainerId(tasks.getByName<DockerCreateContainer>("createPostgresContainer").containerId)
+  finalizedBy("removeIntegrationTestNetwork")
+}
+
 tasks.integrationTest {
   useJUnitPlatform()
   dependsOn("startMongoContainer")
+  dependsOn("startPostgresContainer")
   finalizedBy("stopMongoContainer")
+  finalizedBy("stopPostgresContainer")
 }
 
 tasks.jacocoIntegrationTestReport {
