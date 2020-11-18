@@ -12,6 +12,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
 import java.util.*;
 
 public class PostgresDocStoreTest {
@@ -35,11 +37,36 @@ public class PostgresDocStoreTest {
     postgresConfig.putIfAbsent("url", "jdbc:postgresql://localhost:5432/");
     postgresConfig.putIfAbsent("user", "postgres");
     postgresConfig.putIfAbsent("password", "postgres");
-    postgresConfig.putIfAbsent("type", "jsonb");
     Config config = ConfigFactory.parseMap(postgresConfig);
     
     datastore = DatastoreProvider.getDatastore("Postgres", config);
     System.out.println(datastore.listCollections());
+  }
+  
+  @Test
+  public void testInitWithDatabase() {
+    PostgresDatastore datastore = new PostgresDatastore();
+    Properties properties = new Properties();
+    String url = "jdbc:postgresql://localhost:5432/";
+    String user = "postgres";
+    String password = "postgres";
+    String database = "postgres";
+    
+    properties.put("url", url);
+    properties.put("user", user);
+    properties.put("password", password);
+    properties.put("database", database);
+    Config config = ConfigFactory.parseProperties(properties);
+    datastore.init(config);
+    
+    try {
+      DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();
+      Assertions.assertEquals(metaData.getURL(), url + database);
+      Assertions.assertEquals(metaData.getUserName(), user);
+    } catch (SQLException e) {
+      System.out.println("Exception executing init test with user and password");
+    }
+    
   }
   
   @BeforeEach

@@ -115,8 +115,7 @@ public class PostgresDatastore implements Datastore {
     return false;
   }
   
-  @VisibleForTesting
-  Connection getPostgresClient() {
+  public Connection getPostgresClient() {
     return client;
   }
 }
