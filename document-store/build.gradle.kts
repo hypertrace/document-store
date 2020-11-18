@@ -42,6 +42,10 @@ tasks.register<DockerPullImage>("pullMongoImage") {
   image.set("mongo:4.2.0")
 }
 
+tasks.register<DockerPullImage>("pullPostgresImage") {
+  image.set("postgres:13.1")
+}
+
 tasks.register<DockerCreateContainer>("createMongoContainer") {
   dependsOn("createIntegrationTestNetwork")
   dependsOn("pullMongoImage")

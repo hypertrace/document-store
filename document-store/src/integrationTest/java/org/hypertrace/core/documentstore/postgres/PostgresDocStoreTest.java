@@ -15,13 +15,14 @@ import java.io.IOException;
 import java.util.*;
 
 public class PostgresDocStoreTest {
-  public static final String ID_KEY = "id";
-  public static final String DOCUMENT_KEY = "document";
-  private static final String COLLECTION_NAME = "mytest2";
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private static final String UPDATED_AT = "updated_at";
-  private static final String CREATED_AT = "created_at";
   
+  public static final String ID = "id";
+  public static final String DOCUMENT = "document";
+  public static final String UPDATED_AT = "updated_at";
+  public static final String CREATED_AT = "created_at";
+  private static final String COLLECTION_NAME = "mytest";
+  
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static Datastore datastore;
   
   
@@ -42,7 +43,7 @@ public class PostgresDocStoreTest {
   }
   
   @BeforeEach
-  public void cleanup() {
+  public void setUp() {
     datastore.deleteCollection(COLLECTION_NAME);
     datastore.createCollection(COLLECTION_NAME, null);
   }
@@ -53,7 +54,7 @@ public class PostgresDocStoreTest {
     collection.upsert(new SingleValueKey("default", "testKey"), createDocument("foo1", "bar1"));
     
     Query query = new Query();
-    query.setFilter(Filter.eq(ID_KEY, "default:testKey"));
+    query.setFilter(Filter.eq(ID, "default:testKey"));
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
     for (; results.hasNext(); ) {
@@ -114,7 +115,7 @@ public class PostgresDocStoreTest {
     collection.updateSubDoc(docKey, "subdoc.nesteddoc", nestedDocument);
     
     Query query = new Query();
-    query.setFilter(Filter.eq(ID_KEY, "default:testKey"));
+    query.setFilter(Filter.eq(ID, "default:testKey"));
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
     for (; results.hasNext(); ) {
@@ -139,6 +140,26 @@ public class PostgresDocStoreTest {
     
     status = collection.deleteSubDoc(docKey, "subdoc");
     Assertions.assertTrue(status);
+  }
+  
+  @Test
+  public void testCount() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    SingleValueKey docKey = new SingleValueKey("default", "testKey");
+    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    Assertions.assertEquals(collection.count(), 1);
+  }
+  
+  @Test
+  public void testDelete() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    SingleValueKey docKey = new SingleValueKey("default", "testKey");
+    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    
+    Assertions.assertEquals(collection.count(), 1);
+    collection.delete(docKey);
+    Assertions.assertEquals(collection.count(), 0);
+    
   }
   
   @Test
@@ -208,7 +229,7 @@ public class PostgresDocStoreTest {
       Query query = new Query();
       query.setLimit(2);
       query.setOffset(1);
-      query.addOrderBy(new OrderBy(ID_KEY, true));
+      query.addOrderBy(new OrderBy(ID, true));
       
       Iterator<Document> results = collection.search(query);
       List<Document> documents = new ArrayList<>();

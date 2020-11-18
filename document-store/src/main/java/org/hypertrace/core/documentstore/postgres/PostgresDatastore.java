@@ -12,23 +12,21 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.hypertrace.core.documentstore.postgres.PostgresCollection.*;
+
 public class PostgresDatastore implements Datastore {
   
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDatastore.class);
   
   private Connection client;
   // Specifies whether document will be stored in json/jsonb format.
-  private String columnType = "json";
-  private String database = "postgres";
+  private String database;
   
   @Override
   public boolean init(Config config) {
     try {
       DriverManager.registerDriver(new org.postgresql.Driver());
       String url = config.getString("url");
-      if (config.hasPath("type")) {
-        this.columnType = config.getString("type");
-      }
       // Database needs to be created before initializing connection
       if (config.hasPath("database")) {
         this.database = config.getString("database");
@@ -69,11 +67,11 @@ public class PostgresDatastore implements Datastore {
   @Override
   public boolean createCollection(String collectionName, Map<String, String> options) {
     String createTableSQL = String.format("CREATE TABLE %s (" +
-      "id TEXT PRIMARY KEY," +
-      "document %s NOT NULL," +
-      "created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()," +
-      "updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()" +
-      ");", collectionName, columnType);
+      "%s TEXT PRIMARY KEY," +
+      "%s jsonb NOT NULL," +
+      "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()," +
+      "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()" +
+      ");", collectionName, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
     try {
       PreparedStatement preparedStatement = client.prepareStatement(createTableSQL);
       int result = preparedStatement.executeUpdate();
@@ -101,7 +99,7 @@ public class PostgresDatastore implements Datastore {
   
   @Override
   public Collection getCollection(String collectionName) {
-    return new PostgresCollection(client, collectionName, columnType);
+    return new PostgresCollection(client, collectionName);
   }
   
   @Override

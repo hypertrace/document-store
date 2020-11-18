@@ -15,32 +15,32 @@ import java.util.stream.Collectors;
 
 public class PostgresCollection implements Collection {
   
-  private static final String ID_KEY = "id";
-  private static final String DOCUMENT_KEY = "document";
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
-  private static final String UPDATED_AT = "updated_at";
-  private static final String CREATED_AT = "created_at";
-  private static final Set<String> OUTER_COLUMNS = new HashSet<>() {{
+  
+  
+  public static final String ID = "id";
+  public static final String DOCUMENT = "document";
+  public static final String UPDATED_AT = "updated_at";
+  public static final String CREATED_AT = "created_at";
+  public static final Set<String> OUTER_COLUMNS = new HashSet<>() {{
     add(CREATED_AT);
-    add(ID_KEY);
+    add(ID);
     add(UPDATED_AT);
   }};
   
   private Connection client;
   private String collectionName;
-  private String columnType;
   
-  public PostgresCollection(Connection client, String collectionName, String columnType) {
+  public PostgresCollection(Connection client, String collectionName) {
     this.client = client;
     this.collectionName = collectionName;
-    this.columnType = columnType;
   }
   
   @Override
   public boolean upsert(Key key, Document document) {
     String jsonString = document.toJson();
-    String upsertSQL = String.format("INSERT INTO %s (%s,%s) VALUES( ?, ? :: %s) ON CONFLICT(%s) DO UPDATE SET %s = ?::%s ",
-      collectionName, ID_KEY, DOCUMENT_KEY, columnType, ID_KEY, DOCUMENT_KEY, columnType);
+    String upsertSQL = String.format("INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
+      collectionName, ID, DOCUMENT, ID, DOCUMENT);
     try {
       
       PreparedStatement preparedStatement = client.prepareStatement(upsertSQL, Statement.RETURN_GENERATED_KEYS);
@@ -61,6 +61,11 @@ public class PostgresCollection implements Collection {
   }
   
   @Override
+  public Document upsertAndReturn(Key key, Document document) throws IOException {
+    return null;
+  }
+  
+  @Override
   /**
    * This function will replace the complete sub document at subDocPath. If the key doesn't exist then it will create the key,
    * only if the subDocPath exists before the last level of the key. i.e subdoc1.subdoc2, the json document should have key subdoc1.
@@ -76,7 +81,7 @@ public class PostgresCollection implements Collection {
    */
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
     String updateSubDocSQL = String.format("UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
-      collectionName, DOCUMENT_KEY, DOCUMENT_KEY, ID_KEY);
+      collectionName, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
     String jsonString = subDocument.toJson();
     try {
@@ -147,90 +152,98 @@ public class PostgresCollection implements Collection {
   }
   
   @VisibleForTesting
-  /**
-   *
-   */
-  String parseQuery(Filter filter) {
+  protected String parseQuery(Filter filter) {
     if (filter.isComposite()) {
-      Filter.Op op = filter.getOp();
-      switch (op) {
-        case OR: {
-          String childList =
-            Arrays.stream(filter.getChildFilters())
-              .map(this::parseQuery)
-              .filter(str -> !str.isEmpty())
-              .map(str -> "(" + str + ")")
-              .collect(Collectors.joining(" OR "));
-          if (!childList.isEmpty()) {
-            return childList;
-          } else {
-            return null;
-          }
-        }
-        case AND: {
-          String childList =
-            Arrays.stream(filter.getChildFilters())
-              .map(this::parseQuery)
-              .filter(str -> !str.isEmpty())
-              .map(str -> "(" + str + ")")
-              .collect(Collectors.joining(" AND "));
-          if (!childList.isEmpty()) {
-            return childList;
-          } else {
-            return null;
-          }
-        }
-        default:
-          throw new UnsupportedOperationException(
-            String.format("Boolean operation:%s not supported", op));
-      }
+      return parseQueryForCompositeFilter(filter);
     } else {
-      Filter.Op op = filter.getOp();
-      Object value = filter.getValue();
-      String fieldName = filter.getFieldName();
-      String prefix = getFieldPrefix(fieldName);
-      StringBuilder filterString = new StringBuilder(prefix);
-      switch (op) {
-        case EQ:
-          filterString.append(" = ");
-          break;
-        case GT:
-          filterString.append(" > ");
-          break;
-        case LT:
-          filterString.append(" < ");
-          break;
-        case GTE:
-          filterString.append(" >= ");
-          break;
-        case LTE:
-          filterString.append(" <= ");
-          break;
-        case LIKE:
-          // Case insensitive regex search, Append % at beginning and end of value to do a regex search
-          filterString.append(" ILIKE ");
-          value = "%" + value + "%";
-          break;
-        case IN:
-          filterString.append(" IN ");
-          List<Object> values = (List<Object>) value;
-          String collect = values
-            .stream()
-            .map(val -> "'" + val + "'")
-            .collect(Collectors.joining(", "));
-          return filterString.append("(" + collect + ")").toString();
-        case CONTAINS:
-          // TODO: Matches condition inside an array of documents
-        case EXISTS:
-          // TODO: Checks if key exists
-        case NOT_EXISTS:
-          // TODO: Checks if key does not exist
-        case NEQ:
-          throw new UnsupportedOperationException("Only Equality predicate is supported");
-        default:
-          break;
+      return parseQueryForNonCompositeFilter(filter);
+    }
+  }
+  
+  @VisibleForTesting
+  protected String parseQueryForNonCompositeFilter(Filter filter) {
+    Filter.Op op = filter.getOp();
+    Object value = filter.getValue();
+    String fieldName = filter.getFieldName();
+    String prefix = getFieldPrefix(fieldName);
+    StringBuilder filterString = new StringBuilder(prefix);
+    switch (op) {
+      case EQ:
+        filterString.append(" = ");
+        break;
+      case GT:
+        filterString.append(" > ");
+        break;
+      case LT:
+        filterString.append(" < ");
+        break;
+      case GTE:
+        filterString.append(" >= ");
+        break;
+      case LTE:
+        filterString.append(" <= ");
+        break;
+      case LIKE:
+        // Case insensitive regex search, Append % at beginning and end of value to do a regex search
+        filterString.append(" ILIKE ");
+        value = "%" + value + "%";
+        break;
+      case IN:
+        filterString.append(" IN ");
+        List<Object> values = (List<Object>) value;
+        String collect = values
+          .stream()
+          .map(val -> "'" + val + "'")
+          .collect(Collectors.joining(", "));
+        return filterString.append("(" + collect + ")").toString();
+      case CONTAINS:
+        // TODO: Matches condition inside an array of documents
+      case EXISTS:
+        // TODO: Checks if key exists
+      case NOT_EXISTS:
+        // TODO: Checks if key does not exist
+      case NEQ:
+        throw new UnsupportedOperationException("Only Equality predicate is supported");
+      default:
+        throw new UnsupportedOperationException(
+          String.format("Query operation:%s not supported", op));
+    }
+    return filterString.append("'" + value + "'").toString();
+  }
+  
+  @VisibleForTesting
+  protected String parseQueryForCompositeFilter(Filter filter) {
+    Filter.Op op = filter.getOp();
+    switch (op) {
+      case OR: {
+        String childList =
+          Arrays.stream(filter.getChildFilters())
+            .map(this::parseQuery)
+            .filter(str -> !str.isEmpty())
+            .map(str -> "(" + str + ")")
+            .collect(Collectors.joining(" OR "));
+        if (!childList.isEmpty()) {
+          return childList;
+        } else {
+          return null;
+        }
       }
-      return filterString.append("'" + value + "'").toString();
+      case AND: {
+        String childList =
+          Arrays.stream(filter.getChildFilters())
+            .map(this::parseQuery)
+            .filter(str -> !str.isEmpty())
+            .map(str -> "(" + str + ")")
+            .collect(Collectors.joining(" AND "));
+        if (!childList.isEmpty()) {
+          return childList;
+        } else {
+          return null;
+        }
+      }
+      default:
+        throw new UnsupportedOperationException(
+          String.format("Boolean operation:%s not supported", op));
     }
   }
   
@@ -247,7 +260,7 @@ public class PostgresCollection implements Collection {
   private String getFieldPrefix(String fieldName) {
     String fieldPrefix = fieldName;
     if (!OUTER_COLUMNS.contains(fieldName)) {
-      fieldPrefix = DOCUMENT_KEY + "->>" + "'" + fieldName + "'";
+      fieldPrefix = DOCUMENT + "->>" + "'" + fieldName + "'";
     }
     return fieldPrefix;
   }
@@ -264,7 +277,7 @@ public class PostgresCollection implements Collection {
   
   @Override
   public boolean delete(Key key) {
-    String deleteSQL = String.format("DELETE FROM %s WHERE %s = ?", collectionName, ID_KEY);
+    String deleteSQL = String.format("DELETE FROM %s WHERE %s = ?", collectionName, ID);
     try {
       PreparedStatement preparedStatement = client.prepareStatement(deleteSQL);
       preparedStatement.setString(1, key.toString());
@@ -279,7 +292,7 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean deleteSubDoc(Key key, String subDocPath) {
     String deleteSubDocSQL = String.format("UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?",
-      collectionName, DOCUMENT_KEY, DOCUMENT_KEY, ID_KEY);
+      collectionName, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
     try {
       
@@ -315,20 +328,21 @@ public class PostgresCollection implements Collection {
   @Override
   public long count() {
     String countSQL = String.format("SELECT COUNT(*) FROM %s", collectionName);
+    long count = -1;
     try {
       PreparedStatement preparedStatement = client.prepareStatement(countSQL);
       ResultSet resultSet = preparedStatement.executeQuery();
-      return resultSet.getLong(1);
+      while (resultSet.next()) count = resultSet.getLong(1);
     } catch (SQLException e) {
       LOGGER.error("SQLException deleting all documents.", e);
     }
-    return 0;
+    return count;
   }
   
   @Override
   public long total(Query query) {
     StringBuilder totalSQLBuilder = new StringBuilder("SELECT COUNT(*) FROM ").append(collectionName);
-    long count = 0;
+    long count = -1;
     // If there is a filter in the query, parse it fully.
     if (query.getFilter() != null) {
       totalSQLBuilder
@@ -348,8 +362,8 @@ public class PostgresCollection implements Collection {
   
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
-    String upsertSQL = String.format("INSERT INTO %s (%s,%s) VALUES( ?, ? :: %s) ON CONFLICT(%s) DO UPDATE SET %s = ?::%s ",
-      collectionName, ID_KEY, DOCUMENT_KEY, columnType, ID_KEY, DOCUMENT_KEY, columnType);
+    String upsertSQL = String.format("INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
+      collectionName, ID, DOCUMENT, ID, DOCUMENT);
     
     try {
       
@@ -415,7 +429,7 @@ public class PostgresCollection implements Collection {
     @Override
     public Document next() {
       try {
-        String documentString = resultSet.getString(DOCUMENT_KEY);
+        String documentString = resultSet.getString(DOCUMENT);
         ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
         
         // Add Timestamps to Document
