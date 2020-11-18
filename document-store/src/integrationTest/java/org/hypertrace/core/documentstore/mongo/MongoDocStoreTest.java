@@ -30,6 +30,7 @@ import org.hypertrace.core.documentstore.DatastoreProvider;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
+import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.junit.jupiter.api.AfterEach;
@@ -298,6 +299,29 @@ public class MongoDocStoreTest {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"));
     collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2"));
+    assertEquals(2, collection.count());
+    Iterator<Document> iterator = collection.search(new Query());
+    List<Document> documents = new ArrayList<>();
+    while (iterator.hasNext()) {
+      documents.add(iterator.next());
+    }
+    assertEquals(2, documents.size());
+
+    // Delete one of the documents and test again.
+    collection.delete(new SingleValueKey("default", "testKey1"));
+    assertEquals(1, collection.count());
+  }
+
+  @Test
+  public void testBulkUpsert() {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Document> documentMap = Map.of(
+        new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"),
+        new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2")
+    );
+
+    assertTrue(collection.bulkUpsert(documentMap));
     assertEquals(2, collection.count());
     Iterator<Document> iterator = collection.search(new Query());
     List<Document> documents = new ArrayList<>();

@@ -27,23 +27,20 @@ public class MongoDatastore implements Datastore {
 
   @Override
   public boolean init(Config config) {
+    ConnectionString connString;
     if (config.hasPath("url")) {
-      ConnectionString connString = new ConnectionString(config.getString("url"));
-      MongoClientSettings settings = MongoClientSettings.builder()
-          .applyConnectionString(connString)
-          .retryWrites(true)
-          .build();
-      client = MongoClients.create(settings);
+      connString = new ConnectionString(config.getString("url"));
     } else {
       String hostName = config.getString("host");
       int port = config.getInt("port");
-      ConnectionString connString = new ConnectionString("mongodb://" + hostName + ":" + port);
-      MongoClientSettings settings = MongoClientSettings.builder()
-          .applyConnectionString(connString)
-          .retryWrites(true)
-          .build();
-      client = MongoClients.create(settings);
+      connString = new ConnectionString("mongodb://" + hostName + ":" + port);
     }
+
+    MongoClientSettings settings = MongoClientSettings.builder()
+        .applyConnectionString(connString)
+        .retryWrites(true)
+        .build();
+    client = MongoClients.create(settings);
 
     database = client.getDatabase(DEFAULT_DB_NAME);
     return true;
