@@ -17,7 +17,7 @@ import java.util.*;
 public class PostgresDocStoreTest {
   
   public static final String ID = "id";
-  public static final String DOCUMENT = "document";
+  public static final String DOCUMENT_ID = "_id";
   public static final String UPDATED_AT = "updated_at";
   public static final String CREATED_AT = "created_at";
   private static final String COLLECTION_NAME = "mytest";
@@ -181,6 +181,44 @@ public class PostgresDocStoreTest {
       String persistedDocument = documents.get(0).toJson();
       Assertions.assertTrue(persistedDocument.contains("Bob"));
     }
+  }
+  
+  @Test
+  public void testSearch() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    String documentString = "{\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    Document document = new JSONDocument(documentString);
+    SingleValueKey key = new SingleValueKey("default", "testKey1");
+    collection.upsert(key, document);
+    
+    // Search _id field in the document
+    Query query = new Query();
+    query.setFilter(new Filter(Filter.Op.EQ, DOCUMENT_ID, key.toString()));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    for (; results.hasNext(); ) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(documents.size(), 1);
+  }
+  
+  @Test
+  public void testSearchForNestedKey() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    String documentString = "{\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    Document document = new JSONDocument(documentString);
+    SingleValueKey key = new SingleValueKey("default", "testKey1");
+    collection.upsert(key, document);
+    
+    // Search nested field in the document
+    Query query = new Query();
+    query.setFilter(new Filter(Filter.Op.EQ, "attributes.span_id.value.string", "6449f1f720c93a67"));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    for (; results.hasNext(); ) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(documents.size(), 1);
   }
   
   @Test

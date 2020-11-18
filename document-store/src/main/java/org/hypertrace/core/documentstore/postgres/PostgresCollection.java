@@ -16,6 +16,9 @@ import java.util.stream.Collectors;
 public class PostgresCollection implements Collection {
   
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
+  private final ObjectMapper MAPPER = new ObjectMapper();
+  
+  private String DOC_PATH_SEPARATOR = "\\.";
   
   public static final String ID = "id";
   public static final String DOCUMENT_ID = "_id";
@@ -27,9 +30,6 @@ public class PostgresCollection implements Collection {
     add(ID);
     add(UPDATED_AT);
   }};
-  private final ObjectMapper MAPPER = new ObjectMapper();
-  
-  
   private Connection client;
   private String collectionName;
   
@@ -218,7 +218,7 @@ public class PostgresCollection implements Collection {
         throw new UnsupportedOperationException(
           String.format("Query operation:%s not supported", op));
     }
-    return filterString.append("'" + value + "'").toString();
+    return filterString.append("'").append(value).append("'").toString();
   }
   
   @VisibleForTesting
@@ -259,7 +259,7 @@ public class PostgresCollection implements Collection {
   
   @VisibleForTesting
   private String getJsonSubDocPath(String subDocPath) {
-    return "{" + subDocPath.replaceAll("\\.", ",") + "}";
+    return "{" + subDocPath.replaceAll(DOC_PATH_SEPARATOR, ",") + "}";
   }
   
   /**
@@ -268,11 +268,16 @@ public class PostgresCollection implements Collection {
    * TODO: Add support for deep nested keys and arrays
    */
   private String getFieldPrefix(String fieldName) {
-    String fieldPrefix = fieldName;
+    StringBuilder fieldPrefix = new StringBuilder(fieldName);
     if (!OUTER_COLUMNS.contains(fieldName)) {
-      fieldPrefix = DOCUMENT + "->>" + "'" + fieldName + "'";
+      fieldPrefix = new StringBuilder(DOCUMENT);
+      String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
+      for (int i = 0; i < nestedFields.length - 1; i++) {
+        fieldPrefix.append("->" + "'").append(nestedFields[i]).append("'");
+      }
+      fieldPrefix.append("->>").append("'").append(nestedFields[nestedFields.length - 1]).append("'");
     }
-    return fieldPrefix;
+    return fieldPrefix.toString();
   }
   
   private String parseOrderByQuery(List<OrderBy> orderBys) {
