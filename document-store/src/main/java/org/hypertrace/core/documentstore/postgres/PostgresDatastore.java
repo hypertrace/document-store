@@ -20,7 +20,7 @@ public class PostgresDatastore implements Datastore {
   
   private Connection client;
   // Specifies whether document will be stored in json/jsonb format.
-  private String database;
+  private String database = "postgres";
   
   @Override
   public boolean init(Config config) {

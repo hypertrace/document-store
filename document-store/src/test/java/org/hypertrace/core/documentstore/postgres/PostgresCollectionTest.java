@@ -145,6 +145,18 @@ public class PostgresCollectionTest {
   }
   
   @Test
+  public void testParseQueryForCompositeFilterWithNullConditions() {
+    {
+      Filter filter = new Filter(Filter.Op.AND, null, null);
+      Assertions.assertNull(collection.parseQuery(filter));
+    }
+    {
+      Filter filter = new Filter(Filter.Op.OR, null, null);
+      Assertions.assertNull(collection.parseQuery(filter));
+    }
+  }
+  
+  @Test
   public void testParseQueryForCompositeFilter() {
     {
       Filter filter =
