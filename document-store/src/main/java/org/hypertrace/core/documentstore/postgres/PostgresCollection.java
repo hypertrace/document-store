@@ -17,7 +17,6 @@ public class PostgresCollection implements Collection {
   
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
   
-  
   public static final String ID = "id";
   public static final String DOCUMENT_ID = "_id";
   public static final String DOCUMENT = "document";
@@ -28,6 +27,8 @@ public class PostgresCollection implements Collection {
     add(ID);
     add(UPDATED_AT);
   }};
+  private final ObjectMapper MAPPER = new ObjectMapper();
+  
   
   private Connection client;
   private String collectionName;
@@ -39,21 +40,19 @@ public class PostgresCollection implements Collection {
   
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
-    String jsonString = document.toJson();
-    String upsertSQL = String.format("INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
-      collectionName, ID, DOCUMENT, ID, DOCUMENT);
+    
     try {
+      PreparedStatement preparedStatement = client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS);
+      String jsonString = prepareUpsertDocument(key, document);
       
-      PreparedStatement preparedStatement = client.prepareStatement(upsertSQL, Statement.RETURN_GENERATED_KEYS);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, jsonString);
+      
       int result = preparedStatement.executeUpdate();
-  
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + result);
       }
-      
       return result >= 0;
     } catch (SQLException e) {
       LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
@@ -69,7 +68,7 @@ public class PostgresCollection implements Collection {
   public Document upsertAndReturn(Key key, Document document) throws IOException {
     try {
       boolean upsert = upsert(key, document);
-      return upsert ? document: null;
+      return upsert ? document : null;
     } catch (IOException e) {
       LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
       throw e;
@@ -102,7 +101,7 @@ public class PostgresCollection implements Collection {
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, key.toString());
       int resultSet = preparedStatement.executeUpdate();
-  
+      
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + resultSet);
       }
@@ -373,28 +372,26 @@ public class PostgresCollection implements Collection {
   
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
-    String upsertSQL = String.format("INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
-      collectionName, ID, DOCUMENT, ID, DOCUMENT);
-    
     try {
-      
-      PreparedStatement preparedStatement = client.prepareStatement(upsertSQL, Statement.RETURN_GENERATED_KEYS);
+      PreparedStatement preparedStatement = client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS);
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+        
         Key key = entry.getKey();
-        Document document = entry.getValue();
-        String jsonString = document.toJson();
+        String jsonString = prepareUpsertDocument(key, entry.getValue());
         
         preparedStatement.setString(1, key.toString());
         preparedStatement.setString(2, jsonString);
         preparedStatement.setString(3, jsonString);
         
         preparedStatement.addBatch();
-        
       }
       
+      if (preparedStatement == null) return false;
+      
       int[] updateCounts = preparedStatement.executeBatch();
+      
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + updateCounts);
+        LOGGER.debug("Write result: " + Arrays.toString(updateCounts));
       }
       
       return true;
@@ -402,8 +399,25 @@ public class PostgresCollection implements Collection {
       LOGGER.error("BatchUpdateException bulk inserting documents.", e);
     } catch (SQLException e) {
       LOGGER.error("SQLException bulk inserting documents. SQLState: {} Error Code:{}", e.getSQLState(), e.getErrorCode(), e);
+    } catch (IOException e) {
+      LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
     }
+    
     return false;
+  }
+  
+  private String prepareUpsertDocument(Key key, Document document) throws IOException {
+    String jsonString = document.toJson();
+    
+    ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(jsonString);
+    jsonNode.put(DOCUMENT_ID, key.toString());
+    
+    return MAPPER.writeValueAsString(jsonNode);
+  }
+  
+  private String getUpsertSQL() {
+    return String.format("INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
+      collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
   
   @Override
@@ -442,11 +456,7 @@ public class PostgresCollection implements Collection {
       try {
         String documentString = resultSet.getString(DOCUMENT);
         ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
-  
-        String id = resultSet.getString(ID);
-        jsonNode.put(CREATED_AT, "_id");
-  
-  
+        
         // Add Timestamps to Document
         Timestamp createdAt = resultSet.getTimestamp(CREATED_AT);
         Timestamp updatedAt = resultSet.getTimestamp(UPDATED_AT);

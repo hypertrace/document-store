@@ -6,11 +6,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.List;
 
-import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.CREATED_AT;
+import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 
@@ -19,7 +18,7 @@ public class PostgresCollectionTest {
   private PostgresCollection collection;
   
   @BeforeEach
-  public void setUp() throws SQLException {
+  public void setUp() {
     String COLLECTION_NAME = "mytest";
     Connection client = mock(Connection.class);
     collection = new PostgresCollection(client, COLLECTION_NAME);
