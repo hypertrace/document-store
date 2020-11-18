@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.mongodb.ConnectionString;
 import com.typesafe.config.Config;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
@@ -26,16 +27,25 @@ public class PostgresDatastore implements Datastore {
   public boolean init(Config config) {
     try {
       DriverManager.registerDriver(new org.postgresql.Driver());
-      String url = config.getString("url");
+      String url;
+      if (config.hasPath("url")) {
+        url = config.getString("url");
+      } else {
+        String hostName = config.getString("host");
+        int port = config.getInt("port");
+        url = String.format("jdbc:postgresql://%s:%s/", hostName, port);
+      }
+
       // Database needs to be created before initializing connection
       if (config.hasPath("database")) {
         this.database = config.getString("database");
         url = url + database;
       }
+
       if (config.hasPath("user") && config.hasPath("password")) {
         client = DriverManager.getConnection(url, config.getString("user"), config.getString("password"));
       } else {
-        client = DriverManager.getConnection(url);
+        client = DriverManager.getConnection(url, "postgres", "postgres");
       }
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
