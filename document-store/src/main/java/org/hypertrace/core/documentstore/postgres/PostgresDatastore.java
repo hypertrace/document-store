@@ -21,7 +21,7 @@ public class PostgresDatastore implements Datastore {
   
   private Connection client;
   // Specifies whether document will be stored in json/jsonb format.
-  private String database;
+  private String database = "postgres";
   
   @Override
   public boolean init(Config config) {
@@ -109,6 +109,10 @@ public class PostgresDatastore implements Datastore {
   
   @Override
   public Collection getCollection(String collectionName) {
+    Set<String> tables = listCollections();
+    if (!tables.contains(collectionName)) {
+      createCollection(collectionName, null);
+    }
     return new PostgresCollection(client, collectionName);
   }
   

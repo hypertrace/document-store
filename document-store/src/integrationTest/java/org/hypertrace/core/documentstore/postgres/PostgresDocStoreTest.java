@@ -95,6 +95,15 @@ public class PostgresDocStoreTest {
   }
   
   @Test
+  public void testUpsertAndReturn() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Document document = createDocument("foo1", "bar1");
+    Document resultDocument = collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
+    
+    Assertions.assertEquals(document.toJson(), resultDocument.toJson());
+  }
+  
+  @Test
   public void testBulkUpsert() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Map<Key, Document> bulkMap = new HashMap<>();
@@ -187,6 +196,26 @@ public class PostgresDocStoreTest {
     collection.delete(docKey);
     Assertions.assertEquals(collection.count(), 0);
     
+  }
+  
+  @Test
+  public void testDeleteAll() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    SingleValueKey docKey = new SingleValueKey("default", "testKey");
+    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    
+    Assertions.assertEquals(collection.count(), 1);
+    collection.deleteAll();
+    Assertions.assertEquals(collection.count(), 0);
+  }
+  
+  @Test
+  public void testDrop() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+  
+    Assertions.assertTrue(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
+    collection.drop();
+    Assertions.assertFalse(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
   }
   
   @Test
