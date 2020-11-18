@@ -19,6 +19,7 @@ public class PostgresCollection implements Collection {
   
   
   public static final String ID = "id";
+  public static final String DOCUMENT_ID = "_id";
   public static final String DOCUMENT = "document";
   public static final String UPDATED_AT = "updated_at";
   public static final String CREATED_AT = "created_at";
@@ -37,7 +38,7 @@ public class PostgresCollection implements Collection {
   }
   
   @Override
-  public boolean upsert(Key key, Document document) {
+  public boolean upsert(Key key, Document document) throws IOException {
     String jsonString = document.toJson();
     String upsertSQL = String.format("INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
       collectionName, ID, DOCUMENT, ID, DOCUMENT);
@@ -47,22 +48,32 @@ public class PostgresCollection implements Collection {
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, jsonString);
-      ResultSet resultSet = preparedStatement.executeQuery();
-      
+      int result = preparedStatement.executeUpdate();
+  
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + resultSet.toString());
+        LOGGER.debug("Write result: " + result);
       }
       
-      return resultSet.rowUpdated();
+      return result >= 0;
     } catch (SQLException e) {
       LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      throw new IOException(e);
     }
-    return false;
   }
   
   @Override
+  /**
+   * For Postgres upsertAndReturn functionality is not supported directly.
+   * So using direct upsert and then return document.
+   */
   public Document upsertAndReturn(Key key, Document document) throws IOException {
-    return null;
+    try {
+      boolean upsert = upsert(key, document);
+      return upsert ? document: null;
+    } catch (IOException e) {
+      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      throw e;
+    }
   }
   
   @Override
@@ -91,7 +102,7 @@ public class PostgresCollection implements Collection {
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, key.toString());
       int resultSet = preparedStatement.executeUpdate();
-      
+  
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + resultSet);
       }
@@ -334,7 +345,7 @@ public class PostgresCollection implements Collection {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) count = resultSet.getLong(1);
     } catch (SQLException e) {
-      LOGGER.error("SQLException deleting all documents.", e);
+      LOGGER.error("SQLException counting all documents.", e);
     }
     return count;
   }
@@ -431,7 +442,11 @@ public class PostgresCollection implements Collection {
       try {
         String documentString = resultSet.getString(DOCUMENT);
         ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
-        
+  
+        String id = resultSet.getString(ID);
+        jsonNode.put(CREATED_AT, "_id");
+  
+  
         // Add Timestamps to Document
         Timestamp createdAt = resultSet.getTimestamp(CREATED_AT);
         Timestamp updatedAt = resultSet.getTimestamp(UPDATED_AT);
