@@ -3,17 +3,19 @@ package org.hypertrace.core.documentstore.mongo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mongodb.BasicDBObject;
-import com.mongodb.DB;
-import com.mongodb.DBCollection;
-import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
-import com.mongodb.MongoClient;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoDatabase;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
@@ -28,6 +30,7 @@ import org.hypertrace.core.documentstore.DatastoreProvider;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
+import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.junit.jupiter.api.AfterEach;
@@ -37,7 +40,7 @@ import org.junit.jupiter.api.Test;
 
 /** Integration tests for the MongoDB doc store */
 public class MongoDocStoreTest {
-  private static final String COLLECTION_NAME = "mytest";
+  private static final String COLLECTION_NAME = "myTest";
   private static Datastore datastore;
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   /*
@@ -68,6 +71,26 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testCollections() {
+    for (String collection: datastore.listCollections()) {
+      datastore.deleteCollection(collection);
+    }
+
+    assertTrue(datastore.createCollection(COLLECTION_NAME, null));
+
+    // Retry again and you should still receive true.
+    assertTrue(datastore.createCollection(COLLECTION_NAME, null));
+
+    // We should receive non-null collection.
+    assertNotNull(datastore.getCollection(COLLECTION_NAME));
+
+    assertTrue(datastore.listCollections().contains("default_db." + COLLECTION_NAME));
+
+    // Delete the collection.
+    assertTrue(datastore.deleteCollection(COLLECTION_NAME));
+  }
+
+  @Test
   public void testIgnoreCaseLikeQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(new SingleValueKey("default", "testKey"), createDocument("name", "Bob"));
@@ -79,7 +102,7 @@ public class MongoDocStoreTest {
       query.setFilter(new Filter(Filter.Op.LIKE, "name", searchValue));
       Iterator<Document> results = collection.search(query);
       List<Document> documents = new ArrayList<>();
-      for (; results.hasNext(); ) {
+      while (results.hasNext()) {
         documents.add(results.next());
       }
       Assertions.assertFalse(documents.isEmpty());
@@ -137,7 +160,7 @@ public class MongoDocStoreTest {
 
       Iterator<Document> results = collection.search(query);
       List<Document> documents = new ArrayList<>();
-      for (; results.hasNext(); ) {
+      while (results.hasNext()) {
         documents.add(results.next());
       }
 
@@ -161,7 +184,7 @@ public class MongoDocStoreTest {
     query.setFilter(Filter.eq("_id", "default:testKey"));
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
-    for (; results.hasNext(); ) {
+    while (results.hasNext()) {
       documents.add(results.next());
     }
     Assertions.assertFalse(documents.isEmpty());
@@ -170,7 +193,7 @@ public class MongoDocStoreTest {
     Assertions.assertTrue(persistedDocument.contains(LAST_UPDATED_TIME_KEY));
     Assertions.assertTrue(persistedDocument.contains(LAST_CREATED_TIME_KEY));
     JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
-    String lastUpdatedtime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    String lastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
     long createdTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
 
     // Upsert again and verify that createdTime does not change, while lastUpdatedTime
@@ -178,16 +201,16 @@ public class MongoDocStoreTest {
     collection.upsert(new SingleValueKey("default", "testKey"), document);
     results = collection.search(query);
     documents = new ArrayList<>();
-    for (; results.hasNext(); ) {
+    while (results.hasNext()) {
       documents.add(results.next());
     }
     Assertions.assertFalse(documents.isEmpty());
     persistedDocument = documents.get(0).toJson();
     node = OBJECT_MAPPER.readTree(persistedDocument);
-    String newLastUpdatedtime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    String newLastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
     long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
     assertEquals(createdTime, newCreatedTime);
-    Assertions.assertFalse(newLastUpdatedtime.equalsIgnoreCase(lastUpdatedtime));
+    Assertions.assertFalse(newLastUpdatedTime.equalsIgnoreCase(lastUpdatedTime));
   }
 
 
@@ -216,13 +239,54 @@ public class MongoDocStoreTest {
     // has changed and values have merged
     Document updatedDocument = collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
     node = OBJECT_MAPPER.readTree(updatedDocument.toJson());
-    String newLastUpdatedtime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    String newLastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
     long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
     assertEquals(createdTime, newCreatedTime);
-    assertNotEquals(lastUpdatedTime, newLastUpdatedtime);
+    assertNotEquals(lastUpdatedTime, newLastUpdatedTime);
 
     assertEquals("bar1", node.get("foo1").asText());
     assertEquals("bar2", node.get("foo2").asText());
+  }
+
+  @Test
+  public void testBulkUpsertAndVerifyUpdatedTime() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+    objectNode.put("foo1", "bar1");
+    Document document = new JSONDocument(objectNode);
+    collection.bulkUpsert(Map.of(new SingleValueKey("default", "testKey"), document));
+
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", "default:testKey"));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertFalse(documents.isEmpty());
+    String persistedDocument = documents.get(0).toJson();
+    // Assert _lastUpdateTime fields exists
+    Assertions.assertTrue(persistedDocument.contains(LAST_UPDATED_TIME_KEY));
+    Assertions.assertTrue(persistedDocument.contains(LAST_CREATED_TIME_KEY));
+    JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
+    String lastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    long createdTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
+
+    // Upsert again and verify that createdTime does not change, while lastUpdatedTime
+    // has changed
+    collection.bulkUpsert(Map.of(new SingleValueKey("default", "testKey"), document));
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertFalse(documents.isEmpty());
+    persistedDocument = documents.get(0).toJson();
+    node = OBJECT_MAPPER.readTree(persistedDocument);
+    String newLastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
+    Assertions.assertEquals(createdTime, newCreatedTime);
+    Assertions.assertFalse(newLastUpdatedTime.equalsIgnoreCase(lastUpdatedTime));
   }
 
   @Test
@@ -242,7 +306,7 @@ public class MongoDocStoreTest {
     query.setFilter(Filter.eq("_id", "default:testKey"));
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
-    for (; results.hasNext(); ) {
+    while (results.hasNext()) {
       documents.add(results.next());
     }
     Assertions.assertFalse(documents.isEmpty());
@@ -271,66 +335,78 @@ public class MongoDocStoreTest {
   }
 
   @Test
-  public void testSelectAll() throws Exception {
-    MongoClient mongoClient = new MongoClient("localhost", 27017);
-
-    DB db = mongoClient.getDB("default_db");
-    String collectionName = "mytest2";
-    DBCollection mytest2 = db.getCollection(collectionName);
-    mytest2.drop();
-
-    {
-      BasicDBObject basicDBObject = new BasicDBObject();
-      basicDBObject.put("testKey1", "abc1");
-      mytest2.insert(basicDBObject);
+  public void testSelectAll() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2"));
+    assertEquals(2, collection.count());
+    Iterator<Document> iterator = collection.search(new Query());
+    List<Document> documents = new ArrayList<>();
+    while (iterator.hasNext()) {
+      documents.add(iterator.next());
     }
+    assertEquals(2, documents.size());
 
-    {
-      BasicDBObject basicDBObject = new BasicDBObject();
-      basicDBObject.put("testKey2", "abc2");
-      mytest2.insert(basicDBObject);
-    }
-
-    DBCursor result = mytest2.find();
-    List<DBObject> results = new ArrayList<>();
-    while (result.hasNext()) {
-      DBObject dbObject = result.next();
-      results.add(dbObject);
-      System.out.println(dbObject);
-    }
-    assertEquals(2, results.size());
+    // Delete one of the documents and test again.
+    collection.delete(new SingleValueKey("default", "testKey1"));
+    assertEquals(1, collection.count());
   }
 
   @Test
-  public void testLike() throws Exception {
-    MongoClient mongoClient = new MongoClient("localhost", 27017);
+  public void testBulkUpsert() {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Document> documentMap = Map.of(
+        new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"),
+        new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2")
+    );
 
-    DB db = mongoClient.getDB("default_db");
-    String collectionName = "mytest2";
-    DBCollection mytest2 = db.getCollection(collectionName);
-    mytest2.drop();
+    assertTrue(collection.bulkUpsert(documentMap));
+    assertEquals(2, collection.count());
+    Iterator<Document> iterator = collection.search(new Query());
+    List<Document> documents = new ArrayList<>();
+    while (iterator.hasNext()) {
+      documents.add(iterator.next());
+    }
+    assertEquals(2, documents.size());
+
+    // Delete one of the documents and test again.
+    collection.delete(new SingleValueKey("default", "testKey1"));
+    assertEquals(1, collection.count());
+  }
+
+  @Test
+  public void testLike() {
+    MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017");
+
+    MongoDatabase db = mongoClient.getDatabase("default_db");
+    String collectionName = "myTest2";
+    MongoCollection<BasicDBObject> myTest2 = db.getCollection(collectionName, BasicDBObject.class);
+    myTest2.drop();
 
     {
       BasicDBObject basicDBObject = new BasicDBObject();
       basicDBObject.put("testKey1", "abc1");
-      mytest2.insert(basicDBObject);
+      myTest2.insertOne(basicDBObject);
     }
     {
       BasicDBObject basicDBObject = new BasicDBObject();
       basicDBObject.put("testKey1", "xyz1");
-      mytest2.insert(basicDBObject);
+      myTest2.insertOne(basicDBObject);
     }
     {
       BasicDBObject basicDBObject = new BasicDBObject();
       basicDBObject.put("testKey2", "abc2");
-      mytest2.insert(basicDBObject);
+      myTest2.insertOne(basicDBObject);
     }
 
-    DBCursor result =
-        mytest2.find(new BasicDBObject("testKey1", new BasicDBObject("$regex", "abc")));
+    FindIterable<BasicDBObject> result =
+        myTest2.find(new BasicDBObject("testKey1", new BasicDBObject("$regex", "abc")));
+    MongoCursor<BasicDBObject> cursor = result.cursor();
     List<DBObject> results = new ArrayList<>();
-    while (result.hasNext()) {
-      DBObject dbObject = result.next();
+    while (cursor.hasNext()) {
+      DBObject dbObject = cursor.next();
       results.add(dbObject);
       System.out.println(dbObject);
     }

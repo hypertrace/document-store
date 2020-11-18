@@ -1,18 +1,5 @@
 package org.hypertrace.core.documentstore.mongo;
 
-import com.mongodb.BasicDBObject;
-import java.util.List;
-import java.util.Map;
-
-import com.mongodb.DBCollection;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
-import org.hypertrace.core.documentstore.Filter;
-import org.hypertrace.core.documentstore.Query;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -20,15 +7,26 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.mongodb.BasicDBObject;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCursor;
+import java.util.List;
+import java.util.Map;
+import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.Query;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
 /** Unit tests for utility/helper methods in {@link MongoCollection} */
 public class MongoCollectionTest {
 
-  private DBCollection collection;
+  private com.mongodb.client.MongoCollection collection;
   private MongoCollection mongoCollection;
 
   @BeforeEach
   public void setup() {
-    collection = mock(DBCollection.class);
+    collection = mock(com.mongodb.client.MongoCollection.class);
     mongoCollection = new MongoCollection(collection);
   }
 
@@ -145,9 +143,11 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setLimit(10);
 
-    DBCursor cursor = mock(DBCursor.class);
-    when(collection.getFullName()).thenReturn("I am Collection");
-    when(collection.find(any())).thenReturn(cursor);
+    FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
+    MongoCursor<BasicDBObject> mongoCursor = mock(MongoCursor.class);
+    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+    when(cursor.cursor()).thenReturn(mongoCursor);
+    when(cursor.limit(10)).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(1)).limit(10);
@@ -158,9 +158,8 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setLimit(null);
 
-    DBCursor cursor = mock(DBCursor.class);
-    when(collection.getFullName()).thenReturn("I am Collection");
-    when(collection.find(any())).thenReturn(cursor);
+    FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
+    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(0)).limit(anyInt());
@@ -171,9 +170,9 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setOffset(10);
 
-    DBCursor cursor = mock(DBCursor.class);
-    when(collection.getFullName()).thenReturn("I am Collection");
-    when(collection.find(any())).thenReturn(cursor);
+    FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
+    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+    when(cursor.skip(10)).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(1)).skip(10);
@@ -184,9 +183,8 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setOffset(null);
 
-    DBCursor cursor = mock(DBCursor.class);
-    when(collection.getFullName()).thenReturn("I am Collection");
-    when(collection.find(any())).thenReturn(cursor);
+    FindIterable cursor = mock(FindIterable.class);
+    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(0)).skip(anyInt());
@@ -198,12 +196,11 @@ public class MongoCollectionTest {
     query.setLimit(5);
     query.setOffset(10);
 
-    DBCursor cursor = mock(DBCursor.class);
+    FindIterable cursor = mock(FindIterable.class);
     when(cursor.limit(anyInt())).thenReturn(cursor);
     when(cursor.skip(anyInt())).thenReturn(cursor);
 
-    when(collection.getFullName()).thenReturn("I am Collection");
-    when(collection.find(any())).thenReturn(cursor);
+    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(1)).skip(10);
@@ -214,7 +211,7 @@ public class MongoCollectionTest {
   public void testTotalWithQuery() {
     Query query = new Query();
     mongoCollection.total(query);
-    verify(collection, times(1)).count(any(DBObject.class));
+    verify(collection, times(1)).countDocuments(any(BasicDBObject.class));
   }
 
   @Test
@@ -224,6 +221,6 @@ public class MongoCollectionTest {
     query.setFilter(filter);
 
     mongoCollection.total(query);
-    verify(collection, times(1)).count(any(DBObject.class));
+    verify(collection, times(1)).countDocuments(any(BasicDBObject.class));
   }
 }

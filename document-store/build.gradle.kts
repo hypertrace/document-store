@@ -16,8 +16,8 @@ plugins {
 
 dependencies {
   api("com.typesafe:config:1.3.2")
-  implementation("org.mongodb:mongo-java-driver:3.12.0")
   implementation("org.postgresql:postgresql:42.1.4")
+  implementation("org.mongodb:mongodb-driver-sync:4.1.1")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")
   implementation("org.slf4j:slf4j-api:1.7.25")
   implementation("com.google.guava:guava-annotations:r03")
@@ -39,7 +39,7 @@ tasks.register<DockerRemoveNetwork>("removeIntegrationTestNetwork") {
 }
 
 tasks.register<DockerPullImage>("pullMongoImage") {
-  image.set("mongo:4.2.0")
+  image.set("mongo:4.4.0")
 }
 
 tasks.register<DockerPullImage>("pullPostgresImage") {
