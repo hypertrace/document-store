@@ -340,8 +340,9 @@ public class MongoCollection implements Collection {
         BasicDBObject dbObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
 
         dbObject.put(ID_KEY, key.toString());
-        BasicDBObject doc =
-            new BasicDBObject("$set", dbObject).append("$currentDate", new BasicDBObject("_lastUpdateTime", true));
+        BasicDBObject doc = new BasicDBObject("$set", dbObject)
+            .append("$currentDate", new BasicDBObject("_lastUpdateTime", true))
+            .append("$setOnInsert", new BasicDBObject(CREATED_TIME, System.currentTimeMillis()));
 
         // insert or overwrite
         bulkCollection.add(new UpdateOneModel<>(this.selectionCriteriaForKey(key), doc, new UpdateOptions().upsert(true)));
