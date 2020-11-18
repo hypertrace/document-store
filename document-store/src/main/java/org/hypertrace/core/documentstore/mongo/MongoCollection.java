@@ -7,15 +7,19 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.mongodb.BasicDBObject;
-import com.mongodb.BulkWriteOperation;
-import com.mongodb.BulkWriteResult;
-import com.mongodb.DBCollection;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 import com.mongodb.MongoServerException;
-import com.mongodb.WriteResult;
-import com.mongodb.client.model.DBCollectionFindAndModifyOptions;
+import com.mongodb.bulk.BulkWriteResult;
+import com.mongodb.client.FindIterable;
+import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.BulkWriteOptions;
+import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.model.ReturnDocument;
+import com.mongodb.client.model.UpdateOneModel;
+import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.client.result.DeleteResult;
+import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,33 +50,38 @@ public class MongoCollection implements Collection {
   private static final String CREATED_TIME = "createdTime";
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  private final DBCollection collection;
+  private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
-  MongoCollection(DBCollection collection) {
+  MongoCollection(com.mongodb.client.MongoCollection<BasicDBObject> collection) {
     this.collection = collection;
   }
 
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
     try {
-      WriteResult writeResult = collection.update(this.selectionCriteriaForKey(key), this.prepareUpsert(key, document), true, false);
+      UpdateOptions options = new UpdateOptions().upsert(true);
+      UpdateResult writeResult =
+          collection.updateOne(this.selectionCriteriaForKey(key), this.prepareUpsert(key, document), options);
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
 
-      return writeResult.isUpdateOfExisting();
+      return writeResult.getModifiedCount() > 0;
     } catch (IOException e) {
-      LOGGER.error("Exception inserting document. key: {} content:{}", key, document, e);
+      LOGGER.error("Exception upserting document. key: {} content:{}", key, document, e);
       throw e;
     }
   }
 
   @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
-    DBObject upsertResult = collection.findAndModify(this.selectionCriteriaForKey(key), new DBCollectionFindAndModifyOptions()
-    .update(this.prepareUpsert(key, document))
-    .upsert(true)
-    .returnNew(true));
+    BasicDBObject upsertResult = collection.findOneAndUpdate(
+        this.selectionCriteriaForKey(key),
+        this.prepareUpsert(key, document),
+        new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER));
+    if (upsertResult == null) {
+      throw new IOException("Could not upsert the document with key: " + key);
+    }
 
     return this.dbObjectToDocument(upsertResult);
   }
@@ -103,7 +112,8 @@ public class MongoCollection implements Collection {
               subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
       BasicDBObject setObject = new BasicDBObject("$set", dbObject);
 
-      WriteResult writeResult = collection.update(selectionCriteriaForKey(key), setObject, false, false);
+      UpdateResult writeResult = collection.updateOne(selectionCriteriaForKey(key), setObject,
+          new UpdateOptions());
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
@@ -152,14 +162,15 @@ public class MongoCollection implements Collection {
     if (query.getFilter() != null) {
       map = parseQuery(query.getFilter());
     }
-    LOGGER.debug(
-        "Sending query to mongo: {} : {}",
-        collection.getFullName(),
-        Arrays.toString(map.entrySet().toArray()));
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Sending query to mongo: {} : {}",
+          collection.getNamespace().getCollectionName(),
+          Arrays.toString(map.entrySet().toArray()));
+    }
 
     // Assume its SimpleAndQuery for now
-    DBObject ref = new BasicDBObject(map);
-    DBCursor cursor = collection.find(ref);
+    BasicDBObject ref = new BasicDBObject(map);
+    FindIterable<BasicDBObject> cursor = collection.find(ref);
 
     Integer offset = query.getOffset();
     if (offset != null && offset >= 0) {
@@ -171,51 +182,49 @@ public class MongoCollection implements Collection {
       cursor = cursor.limit(limit);
     }
 
-    final DBCursor dbCursor = cursor;
     if (!query.getOrderBys().isEmpty()) {
       Map<String, Object> orderbyMap = new HashMap<>();
       parseOrderByQuery(query.getOrderBys(), orderbyMap);
-      DBObject orderBy = new BasicDBObject(orderbyMap);
-      dbCursor.sort(orderBy);
+      BasicDBObject orderBy = new BasicDBObject(orderbyMap);
+      cursor.sort(orderBy);
     }
 
+    final MongoCursor<BasicDBObject> mongoCursor = cursor.cursor();
     return new Iterator<>() {
 
       @Override
       public boolean hasNext() {
-        return dbCursor.hasNext();
+        return mongoCursor.hasNext();
       }
 
       @Override
       public Document next() {
-        return MongoCollection.this.dbObjectToDocument(dbCursor.next());
+        return MongoCollection.this.dbObjectToDocument(mongoCursor.next());
       }
     };
   }
 
   @Override
   public boolean delete(Key key) {
-    collection.remove(this.selectionCriteriaForKey(key));
-
-    // If there was no exception, the operation is successful.
-    return true;
+    DeleteResult deleteResult = collection.deleteOne(this.selectionCriteriaForKey(key));
+    return deleteResult.getDeletedCount() > 0;
   }
 
   @Override
   public boolean deleteSubDoc(Key key, String subDocPath) {
     BasicDBObject unsetObject = new BasicDBObject("$unset", new BasicDBObject(subDocPath, ""));
 
-    WriteResult writeResult = collection.update(this.selectionCriteriaForKey(key), unsetObject, false, false);
+    UpdateResult updateResult = collection.updateOne(this.selectionCriteriaForKey(key), unsetObject);
     if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Write result: " + writeResult.toString());
+      LOGGER.debug("Write result: " + updateResult.toString());
     }
 
-    return true;
+    return updateResult.getModifiedCount() > 0;
   }
 
   @Override
   public boolean deleteAll() {
-    collection.remove(new BasicDBObject());
+    collection.deleteMany(new BasicDBObject());
 
     // If there was no exception, the operation is successful.
     return true;
@@ -300,7 +309,7 @@ public class MongoCollection implements Collection {
 
   @Override
   public long count() {
-    return collection.count();
+    return collection.countDocuments();
   }
 
   @Override
@@ -312,15 +321,13 @@ public class MongoCollection implements Collection {
       map = parseQuery(query.getFilter());
     }
 
-    final DBObject ref = new BasicDBObject(map);
-    return collection.count(ref);
+    return collection.countDocuments(new BasicDBObject(map));
   }
 
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
     try {
-      BulkWriteOperation bulkWriteOperation = collection.initializeUnorderedBulkOperation();
-
+      List<UpdateOneModel<BasicDBObject>> bulkCollection = new ArrayList<>();
       for (Entry<Key, Document> entry : documents.entrySet()) {
         Key key = entry.getKey();
         Document document = entry.getValue();
@@ -333,17 +340,15 @@ public class MongoCollection implements Collection {
         BasicDBObject dbObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
 
         dbObject.put(ID_KEY, key.toString());
+        BasicDBObject doc = new BasicDBObject("$set", dbObject)
+            .append("$currentDate", new BasicDBObject("_lastUpdateTime", true))
+            .append("$setOnInsert", new BasicDBObject(CREATED_TIME, System.currentTimeMillis()));
 
         // insert or overwrite
-        bulkWriteOperation
-            .find(this.selectionCriteriaForKey(key))
-            .upsert()
-            .update(
-                new BasicDBObject("$set", dbObject)
-                    .append("$currentDate", new BasicDBObject("_lastUpdateTime", true)));
+        bulkCollection.add(new UpdateOneModel<>(this.selectionCriteriaForKey(key), doc, new UpdateOptions().upsert(true)));
       }
 
-      BulkWriteResult result = bulkWriteOperation.execute();
+      BulkWriteResult result = collection.bulkWrite(bulkCollection, new BulkWriteOptions().ordered(false));
       LOGGER.debug(result.toString());
 
       return true;
@@ -359,11 +364,11 @@ public class MongoCollection implements Collection {
     collection.drop();
   }
 
-  private DBObject selectionCriteriaForKey(Key key) {
+  private BasicDBObject selectionCriteriaForKey(Key key) {
     return new BasicDBObject(ID_KEY, key.toString());
   }
 
-  private Document dbObjectToDocument(DBObject dbObject) {
+  private Document dbObjectToDocument(BasicDBObject dbObject) {
     try {
       // Hack: Remove the _id field since it's an unrecognized field for Proto layer.
       // TODO: We should rather use separate DAO classes instead of using the
@@ -372,13 +377,7 @@ public class MongoCollection implements Collection {
       String jsonString;
       JsonWriterSettings relaxed =
           JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
-      if (dbObject instanceof BasicDBObject) {
-        jsonString = ((BasicDBObject) dbObject).toJson(relaxed);
-      } else {
-        LOGGER.info(
-            "Converting to bson document before converting JSON for none BasicDBObject type");
-        jsonString = org.bson.Document.parse(dbObject.toString()).toJson(relaxed);
-      }
+      jsonString = dbObject.toJson(relaxed);
       JsonNode jsonNode = MAPPER.readTree(jsonString);
       JsonNode decodedJsonNode = recursiveClone(jsonNode, this::decodeKey);
       return new JSONDocument(decodedJsonNode);
