@@ -1,32 +1,45 @@
 package org.hypertrace.core.documentstore.postgres;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.mongodb.ConnectionString;
+import static org.hypertrace.core.documentstore.postgres.PostgresCollection.CREATED_AT;
+import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCUMENT;
+import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
+import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
+
 import com.typesafe.config.Config;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.sql.*;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-
-import static org.hypertrace.core.documentstore.postgres.PostgresCollection.*;
-
+/**
+ * Provides {@link Datastore} implementation for Postgres DB.
+ */
 public class PostgresDatastore implements Datastore {
-  
+
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDatastore.class);
-  
+
+  private static String DEFAULT_USER = "postgres";
+  private static String DEFAULT_PASSWORD = "postgres";
+  private static String DEFAULT_DB_NAME = "postgres";
+
   private Connection client;
-  // Specifies whether document will be stored in json/jsonb format.
-  private String database = "postgres";
-  
+  private String database;
+
   @Override
   public boolean init(Config config) {
     try {
       DriverManager.registerDriver(new org.postgresql.Driver());
+      this.database = config.hasPath("database") ? config.getString("database") : DEFAULT_DB_NAME;
+
       String url;
       if (config.hasPath("url")) {
         url = config.getString("url");
@@ -36,26 +49,22 @@ public class PostgresDatastore implements Datastore {
         url = String.format("jdbc:postgresql://%s:%s/", hostName, port);
       }
 
-      // Database needs to be created before initializing connection
-      if (config.hasPath("database")) {
-        this.database = config.getString("database");
-        url = url + database;
-      }
+      String user = config.hasPath("user") ? config.getString("user") : DEFAULT_USER;
+      String password =
+          config.hasPath("password") ? config.getString("password") : DEFAULT_PASSWORD;
 
-      if (config.hasPath("user") && config.hasPath("password")) {
-        client = DriverManager.getConnection(url, config.getString("user"), config.getString("password"));
-      } else {
-        client = DriverManager.getConnection(url, "postgres", "postgres");
-      }
+      String finalUrl = url + this.database;
+      client = DriverManager.getConnection(finalUrl, user, password);
+
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
-        String.format("Unable to instantiate PostgresClient with config:%s", config), e);
+          String.format("Unable to instantiate PostgresClient with config:%s", config), e);
     } catch (SQLException e) {
       throw new RuntimeException("PostgresClient SQLException", e);
     }
     return true;
   }
-  
+
   /**
    * @return Returns Tables for a particular database
    */
@@ -73,15 +82,15 @@ public class PostgresDatastore implements Datastore {
     }
     return collections;
   }
-  
+
   @Override
   public boolean createCollection(String collectionName, Map<String, String> options) {
     String createTableSQL = String.format("CREATE TABLE %s (" +
-      "%s TEXT PRIMARY KEY," +
-      "%s jsonb NOT NULL," +
-      "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()," +
-      "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()" +
-      ");", collectionName, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
+        "%s TEXT PRIMARY KEY," +
+        "%s jsonb NOT NULL," +
+        "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()," +
+        "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()" +
+        ");", collectionName, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
     try {
       PreparedStatement preparedStatement = client.prepareStatement(createTableSQL);
       int result = preparedStatement.executeUpdate();
@@ -92,7 +101,7 @@ public class PostgresDatastore implements Datastore {
     }
     return false;
   }
-  
+
   @Override
   public boolean deleteCollection(String collectionName) {
     String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
@@ -106,7 +115,7 @@ public class PostgresDatastore implements Datastore {
     }
     return false;
   }
-  
+
   @Override
   public Collection getCollection(String collectionName) {
     Set<String> tables = listCollections();
@@ -115,7 +124,7 @@ public class PostgresDatastore implements Datastore {
     }
     return new PostgresCollection(client, collectionName);
   }
-  
+
   @Override
   public boolean healthCheck() {
     String healtchCheckSQL = "SELECT 1;";
@@ -125,10 +134,10 @@ public class PostgresDatastore implements Datastore {
     } catch (SQLException e) {
       LOGGER.error("Exception executing health check");
     }
-    
+
     return false;
   }
-  
+
   public Connection getPostgresClient() {
     return client;
   }
