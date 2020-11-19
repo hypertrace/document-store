@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.mongodb.BasicDBObject;
+import com.mongodb.MongoBulkWriteException;
+import com.mongodb.MongoCommandException;
 import com.mongodb.MongoServerException;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.FindIterable;
@@ -19,6 +21,7 @@ import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,6 +32,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import net.jodah.failsafe.Failsafe;
+import net.jodah.failsafe.RetryPolicy;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.Collection;
@@ -50,10 +55,42 @@ public class MongoCollection implements Collection {
   private static final String CREATED_TIME = "createdTime";
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
+  private static final int MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE = 2;
+  private static final int DELAY_BETWEEN_RETRIES_MILLIS = 10;
+  private static final int MONGODB_DUPLICATE_KEY_ERROR_CODE = 11000;
+
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
+
+  /**
+   * The current MongoDB servers we use have a known issue - https://jira.mongodb.org/browse/SERVER-47212
+   * where the findAndModify operation might fail with duplicate key exception and server was supposed to
+   * retry that but it doesn't. Since the fix isn't available in the released MongoDB versions,
+   * we are retrying the upserts in these cases in client layer so that we avoid frequent failures in this
+   * layer.
+   * TODO: This code should be removed once MongoDB server is upgraded to 4.7.0+
+   */
+  private final RetryPolicy<Object> upsertRetryPolicy = new RetryPolicy<>()
+      .handleIf(failure -> failure instanceof MongoCommandException &&
+          ((MongoCommandException) failure).getErrorCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE)
+      .withDelay(Duration.ofMillis(DELAY_BETWEEN_RETRIES_MILLIS))
+      .withMaxRetries(MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE);
+  private final RetryPolicy<Object> bulkWriteRetryPolicy = new RetryPolicy<>()
+      .handleIf(failure -> failure instanceof MongoBulkWriteException &&
+          allBulkWriteErrorsAreDueToDuplicateKey((MongoBulkWriteException) failure))
+      .withDelay(Duration.ofMillis(DELAY_BETWEEN_RETRIES_MILLIS))
+      .withMaxRetries(MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE);
 
   MongoCollection(com.mongodb.client.MongoCollection<BasicDBObject> collection) {
     this.collection = collection;
+  }
+
+  /**
+   * Returns true if all the BulkWriteErrors that are present in the given BulkWriteException have
+   * happened due to duplicate key errors.
+   */
+  private boolean allBulkWriteErrorsAreDueToDuplicateKey(MongoBulkWriteException bulkWriteException) {
+    return bulkWriteException.getWriteErrors().stream()
+        .allMatch(error -> error.getCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE);
   }
 
   @Override
@@ -75,10 +112,10 @@ public class MongoCollection implements Collection {
 
   @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
-    BasicDBObject upsertResult = collection.findOneAndUpdate(
+    BasicDBObject upsertResult = Failsafe.with(upsertRetryPolicy).get(() -> collection.findOneAndUpdate(
         this.selectionCriteriaForKey(key),
         this.prepareUpsert(key, document),
-        new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER));
+        new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER)));
     if (upsertResult == null) {
       throw new IOException("Could not upsert the document with key: " + key);
     }
@@ -330,25 +367,15 @@ public class MongoCollection implements Collection {
       List<UpdateOneModel<BasicDBObject>> bulkCollection = new ArrayList<>();
       for (Entry<Key, Document> entry : documents.entrySet()) {
         Key key = entry.getKey();
-        Document document = entry.getValue();
-
-        String jsonString = document.toJson();
-        JsonNode jsonNode = MAPPER.readTree(jsonString);
-
-        // escape "." and "$" in field names since Mongo DB does not like them
-        JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-        BasicDBObject dbObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
-
-        dbObject.put(ID_KEY, key.toString());
-        BasicDBObject doc = new BasicDBObject("$set", dbObject)
-            .append("$currentDate", new BasicDBObject("_lastUpdateTime", true))
-            .append("$setOnInsert", new BasicDBObject(CREATED_TIME, System.currentTimeMillis()));
-
         // insert or overwrite
-        bulkCollection.add(new UpdateOneModel<>(this.selectionCriteriaForKey(key), doc, new UpdateOptions().upsert(true)));
+        bulkCollection.add(new UpdateOneModel<>(
+            this.selectionCriteriaForKey(key),
+            prepareUpsert(key, entry.getValue()),
+            new UpdateOptions().upsert(true)));
       }
 
-      BulkWriteResult result = collection.bulkWrite(bulkCollection, new BulkWriteOptions().ordered(false));
+      BulkWriteResult result = Failsafe.with(bulkWriteRetryPolicy)
+          .get(() -> collection.bulkWrite(bulkCollection, new BulkWriteOptions().ordered(false)));
       LOGGER.debug(result.toString());
 
       return true;

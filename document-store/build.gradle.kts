@@ -20,6 +20,7 @@ dependencies {
   implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")
   implementation("org.slf4j:slf4j-api:1.7.25")
   implementation("com.google.guava:guava-annotations:r03")
+  implementation("net.jodah:failsafe:2.4.0")
   testImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
   testImplementation("org.mockito:mockito-core:2.19.0")
   integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
