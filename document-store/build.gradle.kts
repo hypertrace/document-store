@@ -22,6 +22,7 @@ dependencies {
   implementation("org.slf4j:slf4j-api:1.7.25")
   implementation("com.google.guava:guava-annotations:r03")
   implementation("org.apache.commons:commons-lang3:3.10")
+  implementation("net.jodah:failsafe:2.4.0")
   testImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
   testImplementation("org.mockito:mockito-core:2.19.0")
   integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
