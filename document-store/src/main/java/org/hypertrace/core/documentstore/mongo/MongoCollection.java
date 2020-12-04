@@ -51,6 +51,7 @@ public class MongoCollection implements Collection {
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoCollection.class);
   public static final String ID_KEY = "_id";
   private static final String LAST_UPDATE_TIME = "_lastUpdateTime";
+  private static final String LAST_UPDATED_TIME = "lastUpdatedTime";
   /* follow json/protobuf convention to make it deser, let's not make our life harder */
   private static final String CREATED_TIME = "createdTime";
   private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -131,6 +132,7 @@ public class MongoCollection implements Collection {
     JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
     BasicDBObject setObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
     setObject.put(ID_KEY, key.toString());
+    setObject.put(LAST_UPDATED_TIME, System.currentTimeMillis());
     return new BasicDBObject("$set", setObject)
         .append("$currentDate", new BasicDBObject(LAST_UPDATE_TIME, true))
         .append("$setOnInsert", new BasicDBObject(CREATED_TIME, System.currentTimeMillis()));
@@ -147,6 +149,7 @@ public class MongoCollection implements Collection {
       BasicDBObject dbObject =
           new BasicDBObject(
               subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
+      dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
       BasicDBObject setObject = new BasicDBObject("$set", dbObject);
 
       UpdateResult writeResult = collection.updateOne(selectionCriteriaForKey(key), setObject,

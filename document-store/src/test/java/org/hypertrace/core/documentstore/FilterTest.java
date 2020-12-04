@@ -61,4 +61,10 @@ public class FilterTest {
     Assertions.assertNotNull(filter2.getChildFilters());
     Assertions.assertEquals(0, filter2.getChildFilters().length);
   }
+
+  @Test
+  public void testFilterDate() {
+    Filter filter = new Filter();
+
+  }
 }
