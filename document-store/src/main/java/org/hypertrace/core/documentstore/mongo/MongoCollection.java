@@ -49,11 +49,14 @@ import org.slf4j.LoggerFactory;
 /** An implementation of the {@link Collection} interface with MongoDB as the backend */
 public class MongoCollection implements Collection {
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoCollection.class);
+
+  // Fields automatically added for each document
   public static final String ID_KEY = "_id";
   private static final String LAST_UPDATE_TIME = "_lastUpdateTime";
   private static final String LAST_UPDATED_TIME = "lastUpdatedTime";
   /* follow json/protobuf convention to make it deser, let's not make our life harder */
   private static final String CREATED_TIME = "createdTime";
+  
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private static final int MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE = 2;
@@ -111,6 +114,10 @@ public class MongoCollection implements Collection {
     }
   }
 
+  /**
+   * Adds the following fields automatically:
+   * _id, _lastUpdateTime, lastUpdatedTime and created Time
+   */
   @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
     BasicDBObject upsertResult = Failsafe.with(upsertRetryPolicy).get(() -> collection.findOneAndUpdate(
@@ -138,6 +145,10 @@ public class MongoCollection implements Collection {
         .append("$setOnInsert", new BasicDBObject(CREATED_TIME, System.currentTimeMillis()));
   }
 
+  /**
+   * Adds the following fields automatically:
+   * _id, _lastUpdateTime, lastUpdatedTime and created Time
+   */
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
     String jsonString = subDocument.toJson();
