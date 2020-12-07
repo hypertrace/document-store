@@ -49,10 +49,14 @@ import org.slf4j.LoggerFactory;
 /** An implementation of the {@link Collection} interface with MongoDB as the backend */
 public class MongoCollection implements Collection {
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoCollection.class);
+
+  // Fields automatically added for each document
   public static final String ID_KEY = "_id";
   private static final String LAST_UPDATE_TIME = "_lastUpdateTime";
+  private static final String LAST_UPDATED_TIME = "lastUpdatedTime";
   /* follow json/protobuf convention to make it deser, let's not make our life harder */
   private static final String CREATED_TIME = "createdTime";
+
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private static final int MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE = 2;
@@ -93,6 +97,10 @@ public class MongoCollection implements Collection {
         .allMatch(error -> error.getCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE);
   }
 
+  /**
+   * Adds the following fields automatically:
+   * _id, _lastUpdateTime, lastUpdatedTime and created Time
+   */
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
     try {
@@ -110,6 +118,10 @@ public class MongoCollection implements Collection {
     }
   }
 
+  /**
+   * Adds the following fields automatically:
+   * _id, _lastUpdateTime, lastUpdatedTime and created Time
+   */
   @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
     BasicDBObject upsertResult = Failsafe.with(upsertRetryPolicy).get(() -> collection.findOneAndUpdate(
@@ -130,12 +142,17 @@ public class MongoCollection implements Collection {
     // escape "." and "$" in field names since Mongo DB does not like them
     JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
     BasicDBObject setObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
+    long now = System.currentTimeMillis();
     setObject.put(ID_KEY, key.toString());
+    setObject.put(LAST_UPDATED_TIME, now);
     return new BasicDBObject("$set", setObject)
         .append("$currentDate", new BasicDBObject(LAST_UPDATE_TIME, true))
-        .append("$setOnInsert", new BasicDBObject(CREATED_TIME, System.currentTimeMillis()));
+        .append("$setOnInsert", new BasicDBObject(CREATED_TIME, now));
   }
 
+  /**
+   * Updates auto-field lastUpdatedTime when sub doc is updated
+   */
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
     String jsonString = subDocument.toJson();
@@ -147,6 +164,7 @@ public class MongoCollection implements Collection {
       BasicDBObject dbObject =
           new BasicDBObject(
               subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
+      dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
       BasicDBObject setObject = new BasicDBObject("$set", dbObject);
 
       UpdateResult writeResult = collection.updateOne(selectionCriteriaForKey(key), setObject,
@@ -361,6 +379,10 @@ public class MongoCollection implements Collection {
     return collection.countDocuments(new BasicDBObject(map));
   }
 
+  /**
+   * Adds the following fields automatically:
+   * _id, _lastUpdateTime, lastUpdatedTime and created Time
+   */
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
     try {
