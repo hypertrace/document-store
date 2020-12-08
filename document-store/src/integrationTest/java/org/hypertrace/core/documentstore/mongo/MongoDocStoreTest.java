@@ -19,6 +19,7 @@ import com.mongodb.client.MongoDatabase;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -44,11 +45,12 @@ public class MongoDocStoreTest {
   private static Datastore datastore;
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   /*
-   * These 2 fields should be automatically created when upserting a doc.
+   * These 3 fields should be automatically created when upserting a doc.
    * There are downstream services that depends on this. The test should verify that
    * the string is not changed.
    */
-  private static final String LAST_UPDATED_TIME_KEY = "_lastUpdateTime";
+  private static final String LAST_UPDATE_TIME_KEY = "_lastUpdateTime";
+  private static final String LAST_UPDATED_TIME_KEY = "lastUpdatedTime";
   private static final String LAST_CREATED_TIME_KEY = "createdTime";
 
   @BeforeAll
@@ -92,6 +94,7 @@ public class MongoDocStoreTest {
 
   @Test
   public void testIgnoreCaseLikeQuery() throws IOException {
+    long now = Instant.now().toEpochMilli();
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(new SingleValueKey("default", "testKey"), createDocument("name", "Bob"));
 
@@ -107,7 +110,10 @@ public class MongoDocStoreTest {
       }
       Assertions.assertFalse(documents.isEmpty());
       String persistedDocument = documents.get(0).toJson();
+      JsonNode jsonNode = OBJECT_MAPPER.reader().readTree(persistedDocument);
       Assertions.assertTrue(persistedDocument.contains("Bob"));
+      Assertions.assertTrue(jsonNode.findValue("createdTime").asLong(0) > now);
+      Assertions.assertTrue(jsonNode.findValue("lastUpdatedTime").asLong(0) > now);
     }
   }
 
@@ -190,10 +196,10 @@ public class MongoDocStoreTest {
     Assertions.assertFalse(documents.isEmpty());
     String persistedDocument = documents.get(0).toJson();
     // Assert _lastUpdateTime fields exists
-    Assertions.assertTrue(persistedDocument.contains(LAST_UPDATED_TIME_KEY));
+    Assertions.assertTrue(persistedDocument.contains(LAST_UPDATE_TIME_KEY));
     Assertions.assertTrue(persistedDocument.contains(LAST_CREATED_TIME_KEY));
     JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
-    String lastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    String lastUpdatedTime = node.findValue(LAST_UPDATE_TIME_KEY).findValue("$date").asText();
     long createdTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
 
     // Upsert again and verify that createdTime does not change, while lastUpdatedTime
@@ -207,7 +213,7 @@ public class MongoDocStoreTest {
     Assertions.assertFalse(documents.isEmpty());
     persistedDocument = documents.get(0).toJson();
     node = OBJECT_MAPPER.readTree(persistedDocument);
-    String newLastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    String newLastUpdatedTime = node.findValue(LAST_UPDATE_TIME_KEY).findValue("$date").asText();
     long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
     assertEquals(createdTime, newCreatedTime);
     Assertions.assertFalse(newLastUpdatedTime.equalsIgnoreCase(lastUpdatedTime));
@@ -228,7 +234,7 @@ public class MongoDocStoreTest {
     assertEquals(collection.search(query).next(), persistedDocument);
 
     JsonNode node = OBJECT_MAPPER.readTree(persistedDocument.toJson());
-    String lastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    String lastUpdatedTime = node.findValue(LAST_UPDATE_TIME_KEY).findValue("$date").asText();
     long createdTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
 
     objectNode = OBJECT_MAPPER.createObjectNode();
@@ -239,7 +245,7 @@ public class MongoDocStoreTest {
     // has changed and values have merged
     Document updatedDocument = collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
     node = OBJECT_MAPPER.readTree(updatedDocument.toJson());
-    String newLastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    String newLastUpdatedTime = node.findValue(LAST_UPDATE_TIME_KEY).findValue("$date").asText();
     long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
     assertEquals(createdTime, newCreatedTime);
     assertNotEquals(lastUpdatedTime, newLastUpdatedTime);
@@ -266,12 +272,14 @@ public class MongoDocStoreTest {
     Assertions.assertFalse(documents.isEmpty());
     String persistedDocument = documents.get(0).toJson();
     // Assert _lastUpdateTime fields exists
+    Assertions.assertTrue(persistedDocument.contains(LAST_UPDATE_TIME_KEY));
     Assertions.assertTrue(persistedDocument.contains(LAST_UPDATED_TIME_KEY));
     Assertions.assertTrue(persistedDocument.contains(LAST_CREATED_TIME_KEY));
-    JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
-    String lastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
-    long createdTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
 
+    JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
+    String lastUpdateTime = node.findValue(LAST_UPDATE_TIME_KEY).findValue("$date").asText();
+    long updatedTime = node.findValue(LAST_UPDATED_TIME_KEY).asLong();
+    long createdTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
     // Upsert again and verify that createdTime does not change, while lastUpdatedTime
     // has changed
     collection.bulkUpsert(Map.of(new SingleValueKey("default", "testKey"), document));
@@ -283,10 +291,12 @@ public class MongoDocStoreTest {
     Assertions.assertFalse(documents.isEmpty());
     persistedDocument = documents.get(0).toJson();
     node = OBJECT_MAPPER.readTree(persistedDocument);
-    String newLastUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).findValue("$date").asText();
+    String newLastUpdateTime = node.findValue(LAST_UPDATE_TIME_KEY).findValue("$date").asText();
+    long newUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).asLong();
     long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
     Assertions.assertEquals(createdTime, newCreatedTime);
-    Assertions.assertFalse(newLastUpdatedTime.equalsIgnoreCase(lastUpdatedTime));
+    Assertions.assertFalse(newLastUpdateTime.equalsIgnoreCase(lastUpdateTime));
+    Assertions.assertNotEquals(newUpdatedTime, updatedTime);
   }
 
   @Test
@@ -296,6 +306,8 @@ public class MongoDocStoreTest {
     objectNode.put("foo1", "bar1");
     Document document = new JSONDocument(objectNode);
     collection.upsert(new SingleValueKey("default", "testKey"), document);
+
+    long beforeUpsert = Instant.now().toEpochMilli();
 
     ObjectNode subObjectNode = new ObjectMapper().createObjectNode();
     subObjectNode.put("subfoo1", "subbar1");
@@ -309,8 +321,14 @@ public class MongoDocStoreTest {
     while (results.hasNext()) {
       documents.add(results.next());
     }
+    String persistedDocument = documents.get(0).toJson();
     Assertions.assertFalse(documents.isEmpty());
     Assertions.assertTrue(documents.get(0).toJson().contains("subdoc"));
+
+    JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
+    long newUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).asLong();
+    Assertions.assertTrue(newUpdatedTime >=  beforeUpsert);
+
   }
 
   @Test
