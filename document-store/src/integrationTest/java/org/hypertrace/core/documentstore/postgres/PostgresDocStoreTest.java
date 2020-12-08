@@ -259,6 +259,27 @@ public class PostgresDocStoreTest {
   }
 
   @Test
+  public void testInQuery() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey3"), createDocument("name", "Halo"));
+
+    List<String> inArray = new ArrayList<>();
+    inArray.add("Bob");
+    inArray.add("Alice");
+
+    Query query = new Query();
+    query.setFilter(new Filter(Filter.Op.IN, "name", inArray));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    for (; results.hasNext(); ) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(documents.size(), 2);
+  }
+
+  @Test
   public void testSearch() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     String documentString = "{\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";

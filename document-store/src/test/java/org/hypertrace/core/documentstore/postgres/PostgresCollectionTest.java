@@ -25,132 +25,136 @@ public class PostgresCollectionTest {
   }
 
   @Test
-  public void testParseQueryForNonCompositeFilter() {
+  public void testParseNonCompositeFilter() {
     {
       Filter filter = new Filter(Filter.Op.EQ, ID, "val1");
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals(ID + " = 'val1'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals(ID + " = ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GT, ID, 5);
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals(ID + " > '5'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals(ID + " > ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GTE, ID, 5);
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals(ID + " >= '5'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals(ID + " >= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LT, ID, 5);
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals(ID + " < '5'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals(ID + " < ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LTE, ID, 5);
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals(ID + " <= '5'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals(ID + " <= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LIKE, ID, "abc");
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals(ID + " ILIKE '%abc%'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals(ID + " ILIKE ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.IN, ID, List.of("abc", "xyz"));
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals(ID + " IN ('abc', 'xyz')", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals(ID + " IN (?, ?)", query);
     }
   }
 
   @Test
-  public void testParseQueryForNonCompositeFilterForJsonField() {
+  public void testParseNonCompositeFilterForJsonField() {
     {
       Filter filter = new Filter(Filter.Op.EQ, "key1", "val1");
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals("document->>'key1' = 'val1'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->>'key1' = ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GT, "key1", 5);
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals("document->>'key1' > '5'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->>'key1' > ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GTE, "key1", 5);
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals("document->>'key1' >= '5'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->>'key1' >= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LT, "key1", 5);
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals("document->>'key1' < '5'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->>'key1' < ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LTE, "key1", 5);
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals("document->>'key1' <= '5'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->>'key1' <= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LIKE, "key1", "abc");
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals("document->>'key1' ILIKE '%abc%'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->>'key1' ILIKE ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.IN, "key1", List.of("abc", "xyz"));
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals("document->>'key1' IN ('abc', 'xyz')", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->>'key1' IN (?, ?)", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.EQ, DOCUMENT_ID, "k1:k2");
-      String query = collection.parseQueryForNonCompositeFilter(filter);
-      Assertions.assertEquals("document->>'_id' = 'k1:k2'", query);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->>'_id' = ?", query);
     }
 
   }
 
   @Test
-  public void testParseQueryForNonCompositeFilterUnsupportedException() {
-    String expectedMessage = "Only Equality predicate is supported";
+  public void testNonCompositeFilterUnsupportedException() {
+    String expectedMessage = "Query operation:%s not supported";
     {
       Filter filter = new Filter(Filter.Op.EXISTS, "key1", null);
+      String expected = String.format(expectedMessage, Filter.Op.EXISTS);
       Exception exception = assertThrows(UnsupportedOperationException.class,
-          () -> collection.parseQueryForNonCompositeFilter(filter));
+          () -> collection.parseNonCompositeFilter(filter, initParams()));
       String actualMessage = exception.getMessage();
-      Assertions.assertTrue(actualMessage.contains(expectedMessage));
+      Assertions.assertTrue(actualMessage.contains(expected));
     }
     {
       Filter filter = new Filter(Filter.Op.NOT_EXISTS, "key1", null);
+      String expected = String.format(expectedMessage, Filter.Op.NOT_EXISTS);
       Exception exception = assertThrows(UnsupportedOperationException.class,
-          () -> collection.parseQueryForNonCompositeFilter(filter));
+          () -> collection.parseNonCompositeFilter(filter, initParams()));
       String actualMessage = exception.getMessage();
-      Assertions.assertTrue(actualMessage.contains(expectedMessage));
+      Assertions.assertTrue(actualMessage.contains(expected));
     }
     {
       Filter filter = new Filter(Filter.Op.NEQ, "key1", null);
+      String expected = String.format(expectedMessage, Filter.Op.NEQ);
       Exception exception = assertThrows(UnsupportedOperationException.class,
-          () -> collection.parseQueryForNonCompositeFilter(filter));
+          () -> collection.parseNonCompositeFilter(filter, initParams()));
       String actualMessage = exception.getMessage();
-      Assertions.assertTrue(actualMessage.contains(expectedMessage));
+      Assertions.assertTrue(actualMessage.contains(expected));
     }
     {
       Filter filter = new Filter(Filter.Op.CONTAINS, "key1", null);
+      String expected = String.format(expectedMessage, Filter.Op.CONTAINS);
       Exception exception = assertThrows(UnsupportedOperationException.class,
-          () -> collection.parseQueryForNonCompositeFilter(filter));
+          () -> collection.parseNonCompositeFilter(filter, initParams()));
       String actualMessage = exception.getMessage();
-      Assertions.assertTrue(actualMessage.contains(expectedMessage));
+      Assertions.assertTrue(actualMessage.contains(expected));
     }
   }
 
@@ -158,11 +162,11 @@ public class PostgresCollectionTest {
   public void testParseQueryForCompositeFilterWithNullConditions() {
     {
       Filter filter = new Filter(Filter.Op.AND, null, null);
-      Assertions.assertNull(collection.parseQuery(filter));
+      Assertions.assertNull(collection.parseFilter(filter, initParams()));
     }
     {
       Filter filter = new Filter(Filter.Op.OR, null, null);
-      Assertions.assertNull(collection.parseQuery(filter));
+      Assertions.assertNull(collection.parseFilter(filter, initParams()));
     }
   }
 
@@ -171,18 +175,18 @@ public class PostgresCollectionTest {
     {
       Filter filter =
           new Filter(Filter.Op.EQ, ID, "val1").and(new Filter(Filter.Op.EQ, CREATED_AT, "val2"));
-      String query = collection.parseQueryForCompositeFilter(filter);
+      String query = collection.parseCompositeFilter(filter, initParams());
       Assertions
-          .assertEquals(String.format("(%s = 'val1') AND (%s = 'val2')", ID, CREATED_AT), query);
+          .assertEquals(String.format("(%s = ?) AND (%s = ?)", ID, CREATED_AT), query);
     }
 
     {
       Filter filter =
           new Filter(Filter.Op.EQ, ID, "val1").or(new Filter(Filter.Op.EQ, CREATED_AT, "val2"));
 
-      String query = collection.parseQueryForCompositeFilter(filter);
+      String query = collection.parseCompositeFilter(filter, initParams());
       Assertions
-          .assertEquals(String.format("(%s = 'val1') OR (%s = 'val2')", ID, CREATED_AT), query);
+          .assertEquals(String.format("(%s = ?) OR (%s = ?)", ID, CREATED_AT), query);
     }
   }
 
@@ -191,18 +195,18 @@ public class PostgresCollectionTest {
     {
       Filter filter =
           new Filter(Filter.Op.EQ, "key1", "val1").and(new Filter(Filter.Op.EQ, "key2", "val2"));
-      String query = collection.parseQueryForCompositeFilter(filter);
+      String query = collection.parseCompositeFilter(filter, initParams());
       Assertions
-          .assertEquals("(document->>'key1' = 'val1') AND (document->>'key2' = 'val2')", query);
+          .assertEquals("(document->>'key1' = ?) AND (document->>'key2' = ?)", query);
     }
 
     {
       Filter filter =
           new Filter(Filter.Op.EQ, "key1", "val1").or(new Filter(Filter.Op.EQ, "key2", "val2"));
 
-      String query = collection.parseQueryForCompositeFilter(filter);
+      String query = collection.parseCompositeFilter(filter, initParams());
       Assertions
-          .assertEquals("(document->>'key1' = 'val1') OR (document->>'key2' = 'val2')", query);
+          .assertEquals("(document->>'key1' = ?) OR (document->>'key2' = ?)", query);
     }
   }
 
@@ -215,9 +219,9 @@ public class PostgresCollectionTest {
         new Filter(Filter.Op.EQ, ID, "val3").and(new Filter(Filter.Op.EQ, "key4", "val4"));
 
     Filter filter = filter1.or(filter2);
-    String query = collection.parseQuery(filter);
-    Assertions.assertEquals(String.format("((%s = 'val1') AND (document->>'key2' = 'val2')) " +
-        "OR ((%s = 'val3') AND (document->>'key4' = 'val4'))", ID, ID), query);
+    String query = collection.parseFilter(filter, initParams());
+    Assertions.assertEquals(String.format("((%s = ?) AND (document->>'key2' = ?)) " +
+        "OR ((%s = ?) AND (document->>'key4' = ?))", ID, ID), query);
 
   }
 
@@ -230,10 +234,14 @@ public class PostgresCollectionTest {
         new Filter(Filter.Op.EQ, "key3", "val3").and(new Filter(Filter.Op.EQ, "key4", "val4"));
 
     Filter filter = filter1.or(filter2);
-    String query = collection.parseQuery(filter);
-    Assertions.assertEquals("((document->>'key1' = 'val1') AND (document->>'key2' = 'val2')) " +
-        "OR ((document->>'key3' = 'val3') AND (document->>'key4' = 'val4'))", query);
+    String query = collection.parseFilter(filter, initParams());
+    Assertions.assertEquals("((document->>'key1' = ?) AND (document->>'key2' = ?)) " +
+        "OR ((document->>'key3' = ?) AND (document->>'key4' = ?))", query);
 
+  }
+
+  private Params.Builder initParams() {
+    return Params.newBuilder();
   }
 
 }

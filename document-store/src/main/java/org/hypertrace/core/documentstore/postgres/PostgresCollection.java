@@ -48,6 +48,8 @@ public class PostgresCollection implements Collection {
   }};
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String DOC_PATH_SEPARATOR = "\\.";
+  private static String QUESTION_MARK = "?";
+
 
   private Connection client;
   private String collectionName;
@@ -149,13 +151,13 @@ public class PostgresCollection implements Collection {
   @Override
   public Iterator<Document> search(Query query) {
     String filters = null;
-    String space = " ";
-    StringBuilder searchSQLBuilder = new StringBuilder("SELECT * FROM")
-        .append(space).append(collectionName);
+    StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ")
+        .append(collectionName);
+    Params.Builder paramsBuilder = Params.newBuilder();
 
     // If there is a filter in the query, parse it fully.
     if (query.getFilter() != null) {
-      filters = parseQuery(query.getFilter());
+      filters = parseFilter(query.getFilter(), paramsBuilder);
     }
 
     LOGGER.debug(
@@ -164,27 +166,27 @@ public class PostgresCollection implements Collection {
         filters);
 
     if (filters != null) {
-      searchSQLBuilder
+      sqlBuilder
           .append(" WHERE ").append(filters);
     }
 
     if (!query.getOrderBys().isEmpty()) {
       String orderBySQL = parseOrderByQuery(query.getOrderBys());
-      searchSQLBuilder.append(" ORDER BY ").append(orderBySQL);
+      sqlBuilder.append(" ORDER BY ").append(orderBySQL);
     }
 
     Integer limit = query.getLimit();
     if (limit != null && limit >= 0) {
-      searchSQLBuilder.append(" LIMIT ").append(limit);
+      sqlBuilder.append(" LIMIT ").append(limit);
     }
 
     Integer offset = query.getOffset();
     if (offset != null && offset >= 0) {
-      searchSQLBuilder.append(" OFFSET ").append(offset);
+      sqlBuilder.append(" OFFSET ").append(offset);
     }
 
     try {
-      PreparedStatement preparedStatement = client.prepareStatement(searchSQLBuilder.toString());
+      PreparedStatement preparedStatement = buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
       ResultSet resultSet = preparedStatement.executeQuery();
       return new PostgresResultIterator(resultSet);
     } catch (SQLException e) {
@@ -195,16 +197,16 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected String parseQuery(Filter filter) {
+  protected String parseFilter(Filter filter, Params.Builder paramsBuilder) {
     if (filter.isComposite()) {
-      return parseQueryForCompositeFilter(filter);
+      return parseCompositeFilter(filter, paramsBuilder);
     } else {
-      return parseQueryForNonCompositeFilter(filter);
+      return parseNonCompositeFilter(filter, paramsBuilder);
     }
   }
 
   @VisibleForTesting
-  protected String parseQueryForNonCompositeFilter(Filter filter) {
+  protected String parseNonCompositeFilter(Filter filter, Params.Builder paramsBuilder) {
     Filter.Op op = filter.getOp();
     Object value = filter.getValue();
     String fieldName = filter.getFieldName();
@@ -236,7 +238,10 @@ public class PostgresCollection implements Collection {
         List<Object> values = (List<Object>) value;
         String collect = values
             .stream()
-            .map(val -> "'" + val + "'")
+            .map(val -> {
+              paramsBuilder.addStringParam(String.valueOf(val));
+              return QUESTION_MARK;
+            })
             .collect(Collectors.joining(", "));
         return filterString.append("(" + collect + ")").toString();
       case CONTAINS:
@@ -246,22 +251,23 @@ public class PostgresCollection implements Collection {
       case NOT_EXISTS:
         // TODO: Checks if key does not exist
       case NEQ:
-        throw new UnsupportedOperationException("Only Equality predicate is supported");
       default:
         throw new UnsupportedOperationException(
             String.format("Query operation:%s not supported", op));
     }
-    return filterString.append("'").append(value).append("'").toString();
+    String filters = filterString.append(QUESTION_MARK).toString();
+    paramsBuilder.addStringParam(String.valueOf(value));
+    return filters;
   }
 
   @VisibleForTesting
-  protected String parseQueryForCompositeFilter(Filter filter) {
+  protected String parseCompositeFilter(Filter filter, Params.Builder paramsBuilder) {
     Filter.Op op = filter.getOp();
     switch (op) {
       case OR: {
         String childList =
             Arrays.stream(filter.getChildFilters())
-                .map(this::parseQuery)
+                .map(childFilter -> parseFilter(childFilter, paramsBuilder))
                 .filter(str -> !StringUtils.isEmpty(str))
                 .map(str -> "(" + str + ")")
                 .collect(Collectors.joining(" OR "));
@@ -270,7 +276,7 @@ public class PostgresCollection implements Collection {
       case AND: {
         String childList =
             Arrays.stream(filter.getChildFilters())
-                .map(this::parseQuery)
+                .map(childFilter -> parseFilter(childFilter, paramsBuilder))
                 .filter(str -> !StringUtils.isEmpty(str))
                 .map(str -> "(" + str + ")")
                 .collect(Collectors.joining(" AND "));
@@ -278,8 +284,22 @@ public class PostgresCollection implements Collection {
       }
       default:
         throw new UnsupportedOperationException(
-            String.format("Boolean operation:%s not supported", op));
+            String.format("Query operation:%s not supported", op));
     }
+  }
+
+  @VisibleForTesting
+  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params) throws SQLException {
+    PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
+    params.getStringParams().forEach((k, v) -> {
+      try {
+        // Postgres Index starts from 1
+        preparedStatement.setString(k+1, v);
+      } catch (SQLException e) {
+        LOGGER.error("SQLException querying documents. query: {}", sqlQuery, e);
+      }
+    });
+    return preparedStatement;
   }
 
   @VisibleForTesting
@@ -388,17 +408,19 @@ public class PostgresCollection implements Collection {
   public long total(Query query) {
     StringBuilder totalSQLBuilder = new StringBuilder("SELECT COUNT(*) FROM ")
         .append(collectionName);
+    Params.Builder paramsBuilder = Params.newBuilder();
+
     long count = -1;
     // on any in-correct filter input, it will return total without filtering
     if (query.getFilter() != null) {
-      String parsedQuery = parseQuery(query.getFilter());
+      String parsedQuery = parseFilter(query.getFilter(), paramsBuilder);
       if (parsedQuery != null) {
         totalSQLBuilder.append(" WHERE ").append(parsedQuery);
       }
     }
 
     try {
-      PreparedStatement preparedStatement = client.prepareStatement(totalSQLBuilder.toString());
+      PreparedStatement preparedStatement = buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build());
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
