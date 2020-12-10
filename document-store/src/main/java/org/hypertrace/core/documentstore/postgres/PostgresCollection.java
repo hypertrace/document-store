@@ -294,7 +294,7 @@ public class PostgresCollection implements Collection {
     params.getStringParams().forEach((k, v) -> {
       try {
         // Postgres Index starts from 1
-        preparedStatement.setString(k+1, v);
+        preparedStatement.setString(k, v);
       } catch (SQLException e) {
         LOGGER.error("SQLException querying documents. query: {}", sqlQuery, e);
       }

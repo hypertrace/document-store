@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Holds the params that need to be set in the PreparedStatement for constructing the final PQL
+ * Holds the params that need to be set in the PreparedStatement for constructing the final SQL
  * query
  */
 public class Params {
@@ -110,7 +110,7 @@ public class Params {
         private final Map<Integer, Double> doubleParams;
 
         private Builder() {
-            nextIndex = 0;
+            nextIndex = 1;
             integerParams = new HashMap<>();
             longParams = new HashMap<>();
             stringParams = new HashMap<>();

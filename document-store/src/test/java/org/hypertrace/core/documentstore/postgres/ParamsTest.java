@@ -61,13 +61,13 @@ public class ParamsTest {
     paramBuilder.addFloatParam(3L);
     paramBuilder.addDoubleParam(4L);
     Params params = paramBuilder.build();
-    int index = 0;
+    int index = 1;
     Assertions.assertEquals(params.getIntegerParams().get(index++), 1);
     Assertions.assertEquals(params.getLongParams().get(index++), 2L);
     Assertions.assertEquals(params.getStringParams().get(index++), "Alice");
     Assertions.assertEquals(params.getFloatParams().get(index++), 3L);
     Assertions.assertEquals(params.getDoubleParams().get(index), 4L);
-    Assertions.assertEquals(index, 4);
+    Assertions.assertEquals(index, 5);
   }
 
 }
