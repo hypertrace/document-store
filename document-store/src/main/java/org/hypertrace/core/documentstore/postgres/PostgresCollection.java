@@ -239,11 +239,13 @@ public class PostgresCollection implements Collection {
         String collect = values
             .stream()
             .map(val -> {
-              paramsBuilder.addStringParam(String.valueOf(val));
+              paramsBuilder.addObjectParam(val);
               return QUESTION_MARK;
             })
             .collect(Collectors.joining(", "));
-        return filterString.append("(" + collect + ")").toString();
+        return filterString.append("(")
+                .append(collect)
+                .append(")").toString();
       case CONTAINS:
         // TODO: Matches condition inside an array of documents
       case EXISTS:
@@ -256,7 +258,7 @@ public class PostgresCollection implements Collection {
             String.format("Query operation:%s not supported", op));
     }
     String filters = filterString.append(QUESTION_MARK).toString();
-    paramsBuilder.addStringParam(String.valueOf(value));
+    paramsBuilder.addObjectParam(value);
     return filters;
   }
 
@@ -289,17 +291,31 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params) throws SQLException {
+  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params) throws SQLException, RuntimeException {
     PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
-    params.getStringParams().forEach((k, v) -> {
+    params.getObjectParams().forEach((k, v) -> {
       try {
-        // Postgres Index starts from 1
-        preparedStatement.setString(k, v);
+        if (isValidType(v)) {
+          preparedStatement.setString(k, String.valueOf(v));
+        } else {
+          throw new UnsupportedOperationException("Un-supported object types in filter");
+        }
       } catch (SQLException e) {
-        LOGGER.error("SQLException querying documents. query: {}", sqlQuery, e);
+        LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
       }
     });
     return preparedStatement;
+  }
+
+  private boolean isValidType(Object v) {
+    Set<Class<?>> validClassez = new HashSet<>() {{
+      add(Double.class);
+      add(Float.class);
+      add(Integer.class);
+      add(Long.class);
+      add(String.class);
+    }};
+    return validClassez.contains(v.getClass());
   }
 
   @VisibleForTesting

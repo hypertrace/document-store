@@ -28,6 +28,8 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 public class PostgresDocStoreTest {
 
   public static final String ID = "id";
@@ -282,20 +284,75 @@ public class PostgresDocStoreTest {
   @Test
   public void testSearch() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    String documentString = "{\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
-    Document document = new JSONDocument(documentString);
-    SingleValueKey key = new SingleValueKey("default", "testKey1");
-    collection.upsert(key, document);
+    String docStr1 = "{\"amount\":1234.5,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    Document document1 = new JSONDocument(docStr1);
+    SingleValueKey key1 = new SingleValueKey("default", "testKey1");
+    collection.upsert(key1, document1);
+
+    String docStr2 = "{\"amount\":1234,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    Document document2 = new JSONDocument(docStr2);
+    SingleValueKey key2 = new SingleValueKey("default", "testKey2");
+    collection.upsert(key2, document2);
+
+    // Search integer field
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Filter.Op.EQ, "amount", 1234));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      for (; results.hasNext(); ) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(documents.size(), 1);
+    }
+
+    // Search float field
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Filter.Op.EQ, "amount", 1234.5));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      for (; results.hasNext(); ) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(documents.size(), 1);
+    }
+
+    // Search integer and float field
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Filter.Op.GTE, "amount", 123));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      for (; results.hasNext(); ) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(documents.size(), 2);
+    }
 
     // Search _id field in the document
-    Query query = new Query();
-    query.setFilter(new Filter(Filter.Op.EQ, DOCUMENT_ID, key.toString()));
-    Iterator<Document> results = collection.search(query);
-    List<Document> documents = new ArrayList<>();
-    for (; results.hasNext(); ) {
-      documents.add(results.next());
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Filter.Op.EQ, DOCUMENT_ID, key1.toString()));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      for (; results.hasNext(); ) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(documents.size(), 1);
     }
-    Assertions.assertEquals(documents.size(), 1);
+
+    // Unsupported Object Type in Filter, should throw an UnsupportedOperationException
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Filter.Op.EQ, "amount", new Filter()));
+      String expected = "Un-supported object types in filter";
+      Exception exception = assertThrows(UnsupportedOperationException.class,
+              () -> collection.search(query));
+      String actualMessage = exception.getMessage();
+      Assertions.assertTrue(actualMessage.contains(expected));
+    }
+
   }
 
   @Test
