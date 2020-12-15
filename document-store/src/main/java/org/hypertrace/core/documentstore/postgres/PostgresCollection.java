@@ -49,8 +49,8 @@ public class PostgresCollection implements Collection {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String DOC_PATH_SEPARATOR = "\\.";
 
-  private Connection client;
-  private String collectionName;
+  private final Connection client;
+  private final String collectionName;
 
   public PostgresCollection(Connection client, String collectionName) {
     this.client = client;
@@ -77,11 +77,11 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  @Override
   /**
    * For Postgres upsertAndReturn functionality is not supported directly.
    * So using direct upsert and then return document.
    */
+  @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
     try {
       boolean upsert = upsert(key, document);
@@ -92,7 +92,6 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  @Override
   /**
    * Update the sub document based on subDocPath based on longest key match.
    *
@@ -119,6 +118,7 @@ public class PostgresCollection implements Collection {
    * address.street.longitude.degree
    *
    */
+  @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
     String updateSubDocSQL = String
         .format("UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
@@ -238,7 +238,7 @@ public class PostgresCollection implements Collection {
             .stream()
             .map(val -> "'" + val + "'")
             .collect(Collectors.joining(", "));
-        return filterString.append("(" + collect + ")").toString();
+        return filterString.append("(").append(collect).append(")").toString();
       case CONTAINS:
         // TODO: Matches condition inside an array of documents
       case EXISTS:
@@ -307,13 +307,11 @@ public class PostgresCollection implements Collection {
   }
 
   private String parseOrderByQuery(List<OrderBy> orderBys) {
-    String orderBySQL = orderBys
+    return orderBys
         .stream()
         .map(orderBy -> getFieldPrefix(orderBy.getField()) + " " + (orderBy.isAsc() ? "ASC" : "DESC"))
         .filter(str -> !StringUtils.isEmpty(str))
         .collect(Collectors.joining(" , "));
-
-    return orderBySQL;
   }
 
   @Override
@@ -412,21 +410,7 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
     try {
-      PreparedStatement preparedStatement = client
-          .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS);
-      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
-
-        Key key = entry.getKey();
-        String jsonString = prepareUpsertDocument(key, entry.getValue());
-
-        preparedStatement.setString(1, key.toString());
-        preparedStatement.setString(2, jsonString);
-        preparedStatement.setString(3, jsonString);
-
-        preparedStatement.addBatch();
-      }
-
-      int[] updateCounts = preparedStatement.executeBatch();
+      int[] updateCounts = bulkUpsertImpl(documents);
 
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + Arrays.toString(updateCounts));
@@ -443,6 +427,62 @@ public class PostgresCollection implements Collection {
     }
 
     return false;
+  }
+
+  private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
+    PreparedStatement preparedStatement = client
+        .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS);
+    for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+
+      Key key = entry.getKey();
+      String jsonString = prepareUpsertDocument(key, entry.getValue());
+
+      preparedStatement.setString(1, key.toString());
+      preparedStatement.setString(2, jsonString);
+      preparedStatement.setString(3, jsonString);
+
+      preparedStatement.addBatch();
+    }
+
+    return preparedStatement.executeBatch();
+  }
+
+  @Override
+  public Iterator<Document> bulkUpsertAndReturn(Map<Key, Document> documents) throws IOException {
+    try {
+      int[] updateCounts = bulkUpsertImpl(documents);
+
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: " + Arrays.toString(updateCounts));
+      }
+
+      String collect = documents.keySet().stream()
+          .map(val -> "'" + val.toString() + "'")
+          .collect(Collectors.joining(", "));
+
+      String space = " ";
+      String query = new StringBuilder("SELECT * FROM")
+          .append(space).append(collectionName)
+          .append(" WHERE ").append(ID).append(" IN ")
+          .append("(").append(collect).append(")").toString();
+
+      try {
+        PreparedStatement preparedStatement = client.prepareStatement(query);
+        ResultSet resultSet = preparedStatement.executeQuery();
+        return new PostgresResultIterator(resultSet);
+      } catch (SQLException e) {
+        LOGGER.error("SQLException querying documents. query: {}", query, e);
+      }
+    } catch (BatchUpdateException e) {
+      LOGGER.error("BatchUpdateException bulk inserting documents.", e);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException bulk inserting documents. SQLState: {} Error Code:{}",
+          e.getSQLState(), e.getErrorCode(), e);
+    } catch (IOException e) {
+      LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
+    }
+
+    throw new IOException("Could not bulk upsert the documents.");
   }
 
   private String prepareUpsertDocument(Key key, Document document) throws IOException {
@@ -472,7 +512,7 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  class PostgresResultIterator implements Iterator {
+  static class PostgresResultIterator implements Iterator {
 
     private final ObjectMapper MAPPER = new ObjectMapper();
     ResultSet resultSet;
