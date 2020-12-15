@@ -99,7 +99,7 @@ public class PostgresDocStoreTest {
     query.setFilter(Filter.eq(ID, "default:testKey"));
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
-    for (; results.hasNext(); ) {
+    while (results.hasNext()) {
       documents.add(results.next());
     }
     Assertions.assertFalse(documents.isEmpty());
@@ -165,7 +165,12 @@ public class PostgresDocStoreTest {
     bulkMap.put(
         new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
 
-    Iterator<Document> iterator = collection.bulkUpsertAndReturn(bulkMap);
+    Iterator<Document> iterator = collection.returnAndBulkUpsert(bulkMap);
+    // Initially there shouldn't be any documents.
+    Assertions.assertFalse(iterator.hasNext());
+
+    // The operation should be idempotent, so go ahead and try again.
+    iterator = collection.returnAndBulkUpsert(bulkMap);
     List<Document> documents = new ArrayList<>();
     while (iterator.hasNext()) {
       documents.add(iterator.next());
@@ -209,7 +214,7 @@ public class PostgresDocStoreTest {
     query.setFilter(Filter.eq(ID, "default:testKey"));
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
-    for (; results.hasNext(); ) {
+    while (results.hasNext()) {
       documents.add(results.next());
     }
     Assertions.assertFalse(documents.isEmpty());
@@ -269,7 +274,7 @@ public class PostgresDocStoreTest {
   }
 
   @Test
-  public void testDrop() throws IOException {
+  public void testDrop() {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
     Assertions.assertTrue(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
@@ -289,7 +294,7 @@ public class PostgresDocStoreTest {
       query.setFilter(new Filter(Filter.Op.LIKE, "name", searchValue));
       Iterator<Document> results = collection.search(query);
       List<Document> documents = new ArrayList<>();
-      for (; results.hasNext(); ) {
+      while (results.hasNext()) {
         documents.add(results.next());
       }
       Assertions.assertFalse(documents.isEmpty());
@@ -331,7 +336,7 @@ public class PostgresDocStoreTest {
         .setFilter(new Filter(Filter.Op.EQ, "attributes.span_id.value.string", "6449f1f720c93a67"));
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
-    for (; results.hasNext(); ) {
+    while (results.hasNext()) {
       documents.add(results.next());
     }
     Assertions.assertEquals(documents.size(), 1);
@@ -387,7 +392,7 @@ public class PostgresDocStoreTest {
 
       Iterator<Document> results = collection.search(query);
       List<Document> documents = new ArrayList<>();
-      for (; results.hasNext(); ) {
+      while (results.hasNext()) {
         documents.add(results.next());
       }
 

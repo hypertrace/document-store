@@ -412,15 +412,17 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> bulkUpsertAndReturn(Map<Key, Document> documents) throws IOException {
+  public Iterator<Document> returnAndBulkUpsert(Map<Key, Document> documents) throws IOException {
     try {
+      // First get all the documents for the given keys.
+      FindIterable<BasicDBObject> cursor = collection.find(selectionCriteriaForKeys(documents.keySet()));
+      final MongoCursor<BasicDBObject> mongoCursor = cursor.cursor();
+
+      // Now go ahead and do the bulk upsert.
       BulkWriteResult result = bulkUpsertImpl(documents);
       LOGGER.debug(result.toString());
 
-      FindIterable<BasicDBObject> cursor = collection.find(selectionCriteriaForKeys(documents.keySet()));
-      final MongoCursor<BasicDBObject> mongoCursor = cursor.cursor();
       return new Iterator<>() {
-
         @Override
         public boolean hasNext() {
           return mongoCursor.hasNext();

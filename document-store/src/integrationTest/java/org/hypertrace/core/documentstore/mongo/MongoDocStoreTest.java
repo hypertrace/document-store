@@ -112,8 +112,8 @@ public class MongoDocStoreTest {
       String persistedDocument = documents.get(0).toJson();
       JsonNode jsonNode = OBJECT_MAPPER.reader().readTree(persistedDocument);
       Assertions.assertTrue(persistedDocument.contains("Bob"));
-      Assertions.assertTrue(jsonNode.findValue("createdTime").asLong(0) > now);
-      Assertions.assertTrue(jsonNode.findValue("lastUpdatedTime").asLong(0) > now);
+      Assertions.assertTrue(jsonNode.findValue("createdTime").asLong(0) >= now);
+      Assertions.assertTrue(jsonNode.findValue("lastUpdatedTime").asLong(0) >= now);
     }
   }
 
@@ -403,7 +403,12 @@ public class MongoDocStoreTest {
         new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2")
     );
 
-    Iterator<Document> iterator = collection.bulkUpsertAndReturn(documentMap);
+    Iterator<Document> iterator = collection.returnAndBulkUpsert(documentMap);
+    // Initially there shouldn't be any documents.
+    Assertions.assertFalse(iterator.hasNext());
+
+    // The operation should be idempotent so go ahead and try again.
+    iterator = collection.returnAndBulkUpsert(documentMap);
     assertEquals(2, collection.count());
     List<Document> documents = new ArrayList<>();
     while (iterator.hasNext()) {

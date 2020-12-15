@@ -448,14 +448,8 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> bulkUpsertAndReturn(Map<Key, Document> documents) throws IOException {
+  public Iterator<Document> returnAndBulkUpsert(Map<Key, Document> documents) throws IOException {
     try {
-      int[] updateCounts = bulkUpsertImpl(documents);
-
-      if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + Arrays.toString(updateCounts));
-      }
-
       String collect = documents.keySet().stream()
           .map(val -> "'" + val.toString() + "'")
           .collect(Collectors.joining(", "));
@@ -469,15 +463,17 @@ public class PostgresCollection implements Collection {
       try {
         PreparedStatement preparedStatement = client.prepareStatement(query);
         ResultSet resultSet = preparedStatement.executeQuery();
+
+        // Now go ahead and bulk upsert the documents.
+        int[] updateCounts = bulkUpsertImpl(documents);
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Write result: " + Arrays.toString(updateCounts));
+        }
+
         return new PostgresResultIterator(resultSet);
       } catch (SQLException e) {
         LOGGER.error("SQLException querying documents. query: {}", query, e);
       }
-    } catch (BatchUpdateException e) {
-      LOGGER.error("BatchUpdateException bulk inserting documents.", e);
-    } catch (SQLException e) {
-      LOGGER.error("SQLException bulk inserting documents. SQLState: {} Error Code:{}",
-          e.getSQLState(), e.getErrorCode(), e);
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
     }
