@@ -5,9 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.fge.jsonpatch.diff.JsonDiff;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.client.FindIterable;
@@ -22,9 +24,13 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
@@ -395,20 +401,24 @@ public class MongoDocStoreTest {
   }
 
   @Test
-  public void testBulkUpsertAndReturn() throws IOException {
+  public void testReturnAndBulkUpsert() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    Map<Key, Document> documentMap = Map.of(
-        new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"),
-        new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2")
+    Map<Key, Document> documentMapV1 = Map.of(
+        new SingleValueKey("default", "testKey1"), createDocument("id", "1", "testKey1", "abc-v1"),
+        new SingleValueKey("default", "testKey2"), createDocument("id", "2", "testKey2", "xyz-v1")
     );
 
-    Iterator<Document> iterator = collection.returnAndBulkUpsert(documentMap);
+    Iterator<Document> iterator = collection.returnAndBulkUpsert(documentMapV1);
     // Initially there shouldn't be any documents.
     Assertions.assertFalse(iterator.hasNext());
 
-    // The operation should be idempotent so go ahead and try again.
-    iterator = collection.returnAndBulkUpsert(documentMap);
+    // Add more details to the document and bulk upsert again.
+    Map<Key, Document> documentMapV2 = Map.of(
+        new SingleValueKey("default", "testKey1"), createDocument("id", "1", "testKey1", "abc-v2"),
+        new SingleValueKey("default", "testKey2"), createDocument("id", "2", "testKey2", "xyz-v2")
+    );
+    iterator = collection.returnAndBulkUpsert(documentMapV2);
     assertEquals(2, collection.count());
     List<Document> documents = new ArrayList<>();
     while (iterator.hasNext()) {
@@ -416,9 +426,46 @@ public class MongoDocStoreTest {
     }
     assertEquals(2, documents.size());
 
+    Map<String, JsonNode> expectedDocs = convertToMap(documentMapV1.values(), "id");
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+
+    // Verify that the documents returned were previous copies.
+    for (Map.Entry<String, JsonNode> entry: expectedDocs.entrySet()) {
+      JsonNode expected = entry.getValue();
+      JsonNode actual = actualDocs.get(entry.getKey());
+
+      Assertions.assertNotNull(actual);
+      JsonNode patch = JsonDiff.asJson(expected, actual);
+
+      // Verify that there are only additions and "no" removals in this new node.
+      Set<String> ops = new HashSet<>();
+      patch.elements().forEachRemaining(e -> {
+        if (e.has("op")) {
+          ops.add(e.get("op").asText());
+        }
+      });
+
+      Assertions.assertTrue(ops.contains("add"));
+      Assertions.assertEquals(1, ops.size());
+    }
+
     // Delete one of the documents and test again.
     collection.delete(new SingleValueKey("default", "testKey1"));
     assertEquals(1, collection.count());
+  }
+
+  private Map<String, JsonNode> convertToMap(java.util.Collection<Document> docs, String key) {
+    return docs.stream()
+        .map(d -> {
+          try {
+            return OBJECT_MAPPER.reader().readTree(d.toJson());
+          } catch (JsonProcessingException e) {
+            e.printStackTrace();
+          }
+          return null;
+        })
+        .filter(Objects::nonNull)
+        .collect(Collectors.toMap(d -> d.get(key).asText(), d -> d));
   }
 
   @Test
@@ -456,6 +503,14 @@ public class MongoDocStoreTest {
       System.out.println(dbObject);
     }
     assertEquals(1, results.size());
+  }
+
+  private Document createDocument(String ...keys) {
+    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+    for (int i = 0; i < keys.length - 1; i++) {
+      objectNode.put(keys[i], keys[i + 1]);
+    }
+    return new JSONDocument(objectNode);
   }
 
   private Document createDocument(String key, String value) {
