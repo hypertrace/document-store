@@ -30,6 +30,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import net.jodah.failsafe.Failsafe;
@@ -386,25 +387,55 @@ public class MongoCollection implements Collection {
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
     try {
-      List<UpdateOneModel<BasicDBObject>> bulkCollection = new ArrayList<>();
-      for (Entry<Key, Document> entry : documents.entrySet()) {
-        Key key = entry.getKey();
-        // insert or overwrite
-        bulkCollection.add(new UpdateOneModel<>(
-            this.selectionCriteriaForKey(key),
-            prepareUpsert(key, entry.getValue()),
-            new UpdateOptions().upsert(true)));
-      }
-
-      BulkWriteResult result = Failsafe.with(bulkWriteRetryPolicy)
-          .get(() -> collection.bulkWrite(bulkCollection, new BulkWriteOptions().ordered(false)));
+      BulkWriteResult result = bulkUpsertImpl(documents);
       LOGGER.debug(result.toString());
-
       return true;
-
     } catch (IOException | MongoServerException e) {
       LOGGER.error("Error during bulk upsert for documents:{}", documents, e);
       return false;
+    }
+  }
+
+  private BulkWriteResult bulkUpsertImpl(Map<Key, Document> documents) throws JsonProcessingException {
+    List<UpdateOneModel<BasicDBObject>> bulkCollection = new ArrayList<>();
+    for (Entry<Key, Document> entry : documents.entrySet()) {
+      Key key = entry.getKey();
+      // insert or overwrite
+      bulkCollection.add(new UpdateOneModel<>(
+          this.selectionCriteriaForKey(key),
+          prepareUpsert(key, entry.getValue()),
+          new UpdateOptions().upsert(true)));
+    }
+
+    return Failsafe.with(bulkWriteRetryPolicy)
+        .get(() -> collection.bulkWrite(bulkCollection, new BulkWriteOptions().ordered(false)));
+  }
+
+  @Override
+  public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException {
+    try {
+      // First get all the documents for the given keys.
+      FindIterable<BasicDBObject> cursor = collection.find(selectionCriteriaForKeys(documents.keySet()));
+      final MongoCursor<BasicDBObject> mongoCursor = cursor.cursor();
+
+      // Now go ahead and do the bulk upsert.
+      BulkWriteResult result = bulkUpsertImpl(documents);
+      LOGGER.debug(result.toString());
+
+      return new Iterator<>() {
+        @Override
+        public boolean hasNext() {
+          return mongoCursor.hasNext();
+        }
+
+        @Override
+        public Document next() {
+          return MongoCollection.this.dbObjectToDocument(mongoCursor.next());
+        }
+      };
+    } catch (JsonProcessingException e) {
+      LOGGER.error("Error during bulk upsert for documents:{}", documents, e);
+      throw new IOException("Error during bulk upsert.");
     }
   }
 
@@ -415,6 +446,11 @@ public class MongoCollection implements Collection {
 
   private BasicDBObject selectionCriteriaForKey(Key key) {
     return new BasicDBObject(ID_KEY, key.toString());
+  }
+
+  private BasicDBObject selectionCriteriaForKeys(Set<Key> keys) {
+    return new BasicDBObject(Map.of(ID_KEY, new BasicDBObject("$in",
+        keys.stream().map(Key::toString).collect(Collectors.toList()))));
   }
 
   private Document dbObjectToDocument(BasicDBObject dbObject) {
