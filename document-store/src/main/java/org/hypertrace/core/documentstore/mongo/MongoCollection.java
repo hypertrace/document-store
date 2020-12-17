@@ -412,7 +412,7 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> returnAndBulkUpsert(Map<Key, Document> documents) throws IOException {
+  public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException {
     try {
       // First get all the documents for the given keys.
       FindIterable<BasicDBObject> cursor = collection.find(selectionCriteriaForKeys(documents.keySet()));

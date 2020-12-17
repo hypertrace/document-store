@@ -448,7 +448,7 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> returnAndBulkUpsert(Map<Key, Document> documents) throws IOException {
+  public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException {
     try {
       String collect = documents.keySet().stream()
           .map(val -> "'" + val.toString() + "'")

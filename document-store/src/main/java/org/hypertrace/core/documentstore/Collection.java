@@ -85,7 +85,7 @@ public interface Collection {
    * This helps the clients to see how the documents were prior to upserting them and do that
    * in one less round trip.
    */
-  Iterator<Document> returnAndBulkUpsert(Map<Key, Document> documents) throws IOException;
+  Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException;
 
   /**
    * Drops a collections

@@ -409,7 +409,7 @@ public class MongoDocStoreTest {
         new SingleValueKey("default", "testKey2"), createDocument("id", "2", "testKey2", "xyz-v1")
     );
 
-    Iterator<Document> iterator = collection.returnAndBulkUpsert(documentMapV1);
+    Iterator<Document> iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV1);
     // Initially there shouldn't be any documents.
     Assertions.assertFalse(iterator.hasNext());
 
@@ -418,7 +418,7 @@ public class MongoDocStoreTest {
         new SingleValueKey("default", "testKey1"), createDocument("id", "1", "testKey1", "abc-v2"),
         new SingleValueKey("default", "testKey2"), createDocument("id", "2", "testKey2", "xyz-v2")
     );
-    iterator = collection.returnAndBulkUpsert(documentMapV2);
+    iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV2);
     assertEquals(2, collection.count());
     List<Document> documents = new ArrayList<>();
     while (iterator.hasNext()) {

@@ -165,12 +165,12 @@ public class PostgresDocStoreTest {
     bulkMap.put(
         new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
 
-    Iterator<Document> iterator = collection.returnAndBulkUpsert(bulkMap);
+    Iterator<Document> iterator = collection.bulkUpsertAndReturnOlderDocuments(bulkMap);
     // Initially there shouldn't be any documents.
     Assertions.assertFalse(iterator.hasNext());
 
     // The operation should be idempotent, so go ahead and try again.
-    iterator = collection.returnAndBulkUpsert(bulkMap);
+    iterator = collection.bulkUpsertAndReturnOlderDocuments(bulkMap);
     List<Document> documents = new ArrayList<>();
     while (iterator.hasNext()) {
       documents.add(iterator.next());
