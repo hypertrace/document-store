@@ -92,6 +92,15 @@ public class MongoCollectionTest {
       Map<String, Object> query = mongoCollection.parseQuery(filter);
       Assertions.assertEquals(new BasicDBObject("$elemMatch", "abc"), query.get("key1"));
     }
+
+    {
+      Filter filter = new Filter(Filter.Op.NEQ, "key1", "abc");
+      Map<String, Object> query = mongoCollection.parseQuery(filter);
+      BasicDBObject notEqualsAndExists = new BasicDBObject();
+      notEqualsAndExists.append("$ne", "abc");
+      notEqualsAndExists.append("$exists", true);
+      Assertions.assertEquals(notEqualsAndExists, query.get("key1"));
+    }
   }
 
   @Test

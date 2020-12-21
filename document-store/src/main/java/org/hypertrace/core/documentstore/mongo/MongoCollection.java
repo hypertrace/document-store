@@ -352,10 +352,15 @@ public class MongoCollection implements Collection {
         case NOT_EXISTS:
           map.put(filter.getFieldName(), new BasicDBObject("$exists", false));
           break;
-        case AND:
         case NEQ:
+          // $ne operator in Mongo also returns the results, where the key does not exist in the
+          // document. Hence, need to apply an additional filter where the key exists, but the value
+          // is not equal to the supplied value
+          map.put(filter.getFieldName(), new BasicDBObject("$ne", value).append("$exists", true));
+          break;
+        case AND:
         case OR:
-          throw new UnsupportedOperationException("Only Equality predicate is supported");
+          throw new UnsupportedOperationException("AND/OR operator is not supported");
         default:
           break;
       }

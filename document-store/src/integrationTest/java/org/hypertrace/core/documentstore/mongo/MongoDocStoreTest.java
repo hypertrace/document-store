@@ -505,6 +505,47 @@ public class MongoDocStoreTest {
     assertEquals(1, results.size());
   }
 
+  @Test
+  public void testNotEquals() {
+    MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017");
+
+    MongoDatabase db = mongoClient.getDatabase("default_db");
+    String collectionName = "myTest2";
+    MongoCollection<BasicDBObject> myTest2 = db.getCollection(collectionName, BasicDBObject.class);
+    myTest2.drop();
+
+    {
+      BasicDBObject basicDBObject = new BasicDBObject();
+      basicDBObject.put("testKey1", "abc1");
+      myTest2.insertOne(basicDBObject);
+    }
+    {
+      BasicDBObject basicDBObject = new BasicDBObject();
+      basicDBObject.put("testKey1", "xyz1");
+      myTest2.insertOne(basicDBObject);
+    }
+    {
+      BasicDBObject basicDBObject = new BasicDBObject();
+      basicDBObject.put("testKey2", "abc2");
+      myTest2.insertOne(basicDBObject);
+    }
+
+    BasicDBObject notEqualsAndExists = new BasicDBObject();
+    notEqualsAndExists.append("$ne", "abc1");
+    notEqualsAndExists.append("$exists", true);
+
+    FindIterable<BasicDBObject> result =
+        myTest2.find(new BasicDBObject("testKey1", notEqualsAndExists));
+    MongoCursor<BasicDBObject> cursor = result.cursor();
+    List<DBObject> results = new ArrayList<>();
+    while (cursor.hasNext()) {
+      DBObject dbObject = cursor.next();
+      results.add(dbObject);
+      System.out.println(dbObject);
+    }
+    assertEquals(1, results.size());
+  }
+
   private Document createDocument(String ...keys) {
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
     for (int i = 0; i < keys.length - 1; i++) {
