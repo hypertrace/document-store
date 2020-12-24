@@ -181,7 +181,8 @@ public class PostgresCollection implements Collection {
       searchSQLBuilder.append(" OFFSET ").append(offset);
     }
 
-    try (PreparedStatement preparedStatement = client.prepareStatement(searchSQLBuilder.toString())) {
+    try{
+      PreparedStatement preparedStatement = client.prepareStatement(searchSQLBuilder.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
       return new PostgresResultIterator(resultSet);
     } catch (SQLException e) {
@@ -441,32 +442,33 @@ public class PostgresCollection implements Collection {
 
   @Override
   public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException {
+    String query = null;
     try {
       String collect = documents.keySet().stream()
-          .map(val -> "'" + val.toString() + "'")
-          .collect(Collectors.joining(", "));
+              .map(val -> "'" + val.toString() + "'")
+              .collect(Collectors.joining(", "));
 
       String space = " ";
-      String query = new StringBuilder("SELECT * FROM")
-          .append(space).append(collectionName)
-          .append(" WHERE ").append(ID).append(" IN ")
-          .append("(").append(collect).append(")").toString();
+      query = new StringBuilder("SELECT * FROM")
+              .append(space).append(collectionName)
+              .append(" WHERE ").append(ID).append(" IN ")
+              .append("(").append(collect).append(")").toString();
 
-      try (PreparedStatement preparedStatement = client.prepareStatement(query)) {
-        ResultSet resultSet = preparedStatement.executeQuery();
+      PreparedStatement preparedStatement = client.prepareStatement(query);
+      ResultSet resultSet = preparedStatement.executeQuery();
 
-        // Now go ahead and bulk upsert the documents.
-        int[] updateCounts = bulkUpsertImpl(documents);
-        if (LOGGER.isDebugEnabled()) {
-          LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
-        }
-
-        return new PostgresResultIterator(resultSet);
-      } catch (SQLException e) {
-        LOGGER.error("SQLException querying documents. query: {}", query, e);
+      // Now go ahead and bulk upsert the documents.
+      int[] updateCounts = bulkUpsertImpl(documents);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
       }
+
+      return new PostgresResultIterator(resultSet);
+
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException querying documents. query: {}", query, e);
     }
 
     throw new IOException("Could not bulk upsert the documents.");
