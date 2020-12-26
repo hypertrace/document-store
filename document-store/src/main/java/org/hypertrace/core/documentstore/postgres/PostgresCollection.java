@@ -181,7 +181,7 @@ public class PostgresCollection implements Collection {
       searchSQLBuilder.append(" OFFSET ").append(offset);
     }
 
-    try{
+    try {
       PreparedStatement preparedStatement = client.prepareStatement(searchSQLBuilder.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
       return new PostgresResultIterator(resultSet);
@@ -332,7 +332,7 @@ public class PostgresCollection implements Collection {
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
 
     try (PreparedStatement preparedStatement = client
-            .prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+        .prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, key.toString());
       int resultSet = preparedStatement.executeUpdate();
@@ -423,7 +423,7 @@ public class PostgresCollection implements Collection {
 
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
     try (PreparedStatement preparedStatement = client
-            .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+        .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
 
         Key key = entry.getKey();
@@ -445,14 +445,14 @@ public class PostgresCollection implements Collection {
     String query = null;
     try {
       String collect = documents.keySet().stream()
-              .map(val -> "'" + val.toString() + "'")
-              .collect(Collectors.joining(", "));
+          .map(val -> "'" + val.toString() + "'")
+          .collect(Collectors.joining(", "));
 
       String space = " ";
       query = new StringBuilder("SELECT * FROM")
-              .append(space).append(collectionName)
-              .append(" WHERE ").append(ID).append(" IN ")
-              .append("(").append(collect).append(")").toString();
+          .append(space).append(collectionName)
+          .append(" WHERE ").append(ID).append(" IN ")
+          .append("(").append(collect).append(")").toString();
 
       PreparedStatement preparedStatement = client.prepareStatement(query);
       ResultSet resultSet = preparedStatement.executeQuery();
@@ -464,7 +464,6 @@ public class PostgresCollection implements Collection {
       }
 
       return new PostgresResultIterator(resultSet);
-
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
     } catch (SQLException e) {
