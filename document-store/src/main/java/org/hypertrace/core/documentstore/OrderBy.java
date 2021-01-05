@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore;
 
+import java.util.Objects;
+
 public class OrderBy {
 
   private String field;
@@ -9,7 +11,6 @@ public class OrderBy {
     this.field = field;
     this.isAsc = isAsc;
   }
-
 
   public String getField() {
     return field;
@@ -25,5 +26,31 @@ public class OrderBy {
 
   public void setIsAsc(boolean isAsc) {
     this.isAsc = isAsc;
+  }
+
+  @Override
+  public String toString() {
+    return "OrderBy{" +
+        "field='" + field + '\'' +
+        ", isAsc=" + isAsc +
+        '}';
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    OrderBy orderBy = (OrderBy) o;
+    return isAsc == orderBy.isAsc &&
+        Objects.equals(field, orderBy.field);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(field, isAsc);
   }
 }

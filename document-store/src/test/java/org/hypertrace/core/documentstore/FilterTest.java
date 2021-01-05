@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore;
 
+import org.hypertrace.core.documentstore.Filter.Op;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -60,5 +61,17 @@ public class FilterTest {
 
     Assertions.assertNotNull(filter2.getChildFilters());
     Assertions.assertEquals(0, filter2.getChildFilters().length);
+  }
+
+  @Test
+  public void testEquals() {
+    Filter filter1 = Filter.eq("entity_type", "SERVICE");
+    Filter filter2 = Filter.eq("entity_id", "pod123");
+    Filter filter3 = filter1.and(filter2);
+    Filter filter4 = new Filter(Op.AND, null, null, filter1, filter2);
+    Assertions.assertTrue(filter3.equals(filter4));
+
+    filter4.setChildFilters(new Filter[]{filter1, filter1});
+    Assertions.assertFalse(filter3.equals(filter4));
   }
 }
