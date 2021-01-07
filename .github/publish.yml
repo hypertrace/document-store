@@ -28,7 +28,7 @@ jobs:
             gradle-packages-${{ runner.os }}-${{ github.job }}
             gradle-packages-${{ runner.os }}
 
-      - name: publish docker image
+      - name: publish java artifacts
         uses: hypertrace/github-actions/gradle@main
         with: 
           args: publish
