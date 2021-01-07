@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class Query {
 
@@ -49,11 +50,12 @@ public class Query {
 
   @Override
   public String toString() {
-    if (filter == null) {
-      return new Filter().toString();
-    } else {
-      return filter.toString();
-    }
+    return "Query{" +
+        "filter=" + filter +
+        ", orderBys=" + orderBys +
+        ", offset=" + offset +
+        ", limit=" + limit +
+        '}';
   }
 
   @Override
@@ -64,7 +66,15 @@ public class Query {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Query that = (Query) o;
-    return filter.equals(that.filter) && orderBys.equals(that.orderBys);
+    Query query = (Query) o;
+    return Objects.equals(filter, query.filter) &&
+        Objects.equals(orderBys, query.orderBys) &&
+        Objects.equals(offset, query.offset) &&
+        Objects.equals(limit, query.limit);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hash(filter, orderBys, offset, limit);
   }
 }

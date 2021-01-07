@@ -34,4 +34,20 @@ public class QueryTest {
     Assertions.assertEquals("field1", query.getOrderBys().get(0).getField());
     Assertions.assertTrue(query.getOrderBys().get(0).isAsc());
   }
+
+  @Test
+  public void testEquals() {
+    Query query1 = new Query();
+    query1.setFilter(Filter.eq("entity_type", "SERVICE"));
+    query1.addOrderBy(new OrderBy("field1", true));
+
+    Query query2 = new Query();
+    query2.setFilter(Filter.eq("entity_type", "SERVICE"));
+    OrderBy orderBy = new OrderBy("field1", false);
+    query2.addOrderBy(orderBy);
+    Assertions.assertFalse(query1.equals(query2));
+
+    orderBy.setIsAsc(true);
+    Assertions.assertTrue(query1.equals(query2));
+  }
 }
