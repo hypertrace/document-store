@@ -378,6 +378,36 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testSelections() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2"));
+    assertEquals(2, collection.count());
+    Query query = new Query();
+    query.addSelection("testKey1");
+    Iterator<Document> iterator = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (iterator.hasNext()) {
+      documents.add(iterator.next());
+    }
+    assertEquals(2, documents.size());
+
+    Assertions.assertFalse(documents.isEmpty());
+
+    String document1 = documents.get(0).toJson();
+    Assertions.assertTrue(document1.contains("testKey1"));
+    JsonNode node1 = OBJECT_MAPPER.readTree(document1);
+    String value = node1.findValue("testKey1").asText();
+    Assertions.assertEquals("abc1", value);
+
+    String document2 = documents.get(1).toJson();
+    Assertions.assertFalse(document2.contains("testKey1"));
+    JsonNode node2 = OBJECT_MAPPER.readTree(document2);
+    assertTrue(node2.isEmpty());
+  }
+
+  @Test
   public void testBulkUpsert() {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
