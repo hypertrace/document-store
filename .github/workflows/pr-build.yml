@@ -1,4 +1,4 @@
-name: snyk scan
+name: build
 on:
   push:
     branches:
@@ -34,7 +34,7 @@ jobs:
         uses: hypertrace/github-actions/gradle@main
         with: 
           args: build
-          
+
   snyk-scan:
     runs-on: ubuntu-20.04
     steps:
