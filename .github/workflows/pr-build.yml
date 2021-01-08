@@ -32,7 +32,7 @@ jobs:
             gradle-packages-${{ runner.os }}-${{ github.job }}
             gradle-packages-${{ runner.os }}
 
-      - name: Unit test
+      - name: Build with Gradle
         uses: hypertrace/github-actions/gradle@main
         with: 
           args: build
