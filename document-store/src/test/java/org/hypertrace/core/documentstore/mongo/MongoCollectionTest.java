@@ -147,9 +147,12 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setLimit(10);
 
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
     FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
     MongoCursor<BasicDBObject> mongoCursor = mock(MongoCursor.class);
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
     when(cursor.cursor()).thenReturn(mongoCursor);
     when(cursor.limit(10)).thenReturn(cursor);
     mongoCollection.search(query);
@@ -162,8 +165,11 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setLimit(null);
 
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
     FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(0)).limit(anyInt());
@@ -174,8 +180,11 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setOffset(10);
 
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
     FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
     when(cursor.skip(10)).thenReturn(cursor);
     mongoCollection.search(query);
 
@@ -187,8 +196,11 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setOffset(null);
 
-    FindIterable cursor = mock(FindIterable.class);
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
+    FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(0)).skip(anyInt());
@@ -200,11 +212,16 @@ public class MongoCollectionTest {
     query.setLimit(5);
     query.setOffset(10);
 
-    FindIterable cursor = mock(FindIterable.class);
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
+    FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
+    MongoCursor<BasicDBObject> mongoCursor = mock(MongoCursor.class);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
+    when(cursor.cursor()).thenReturn(mongoCursor);
     when(cursor.limit(anyInt())).thenReturn(cursor);
     when(cursor.skip(anyInt())).thenReturn(cursor);
 
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(1)).skip(10);
