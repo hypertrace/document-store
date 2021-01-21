@@ -51,8 +51,8 @@ public class PostgresCollection implements Collection {
   private static String QUESTION_MARK = "?";
 
 
-  private Connection client;
-  private String collectionName;
+  private final Connection client;
+  private final String collectionName;
 
   public PostgresCollection(Connection client, String collectionName) {
     this.client = client;
@@ -61,16 +61,15 @@ public class PostgresCollection implements Collection {
 
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
-    try {
-      PreparedStatement preparedStatement = client
-          .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS);
+    try (PreparedStatement preparedStatement = client
+            .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       String jsonString = prepareUpsertDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, jsonString);
       int result = preparedStatement.executeUpdate();
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + result);
+        LOGGER.debug("Write result: {}", result);
       }
       return result >= 0;
     } catch (SQLException e) {
@@ -79,11 +78,11 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  @Override
   /**
    * For Postgres upsertAndReturn functionality is not supported directly.
    * So using direct upsert and then return document.
    */
+  @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
     try {
       boolean upsert = upsert(key, document);
@@ -94,7 +93,6 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  @Override
   /**
    * Update the sub document based on subDocPath based on longest key match.
    *
@@ -121,23 +119,23 @@ public class PostgresCollection implements Collection {
    * address.street.longitude.degree
    *
    */
+  @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
     String updateSubDocSQL = String
         .format("UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
             collectionName, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
     String jsonString = subDocument.toJson();
-    try {
 
-      PreparedStatement preparedStatement = client
-          .prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS);
+    try (PreparedStatement preparedStatement = client
+            .prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, key.toString());
       int resultSet = preparedStatement.executeUpdate();
 
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + resultSet);
+        LOGGER.debug("Write result: {}", resultSet);
       }
 
       return true;
@@ -243,9 +241,7 @@ public class PostgresCollection implements Collection {
               return QUESTION_MARK;
             })
             .collect(Collectors.joining(", "));
-        return filterString.append("(")
-                .append(collect)
-                .append(")").toString();
+        return filterString.append("(").append(collect).append(")").toString();
       case CONTAINS:
         // TODO: Matches condition inside an array of documents
       case EXISTS:
@@ -343,20 +339,17 @@ public class PostgresCollection implements Collection {
   }
 
   private String parseOrderByQuery(List<OrderBy> orderBys) {
-    String orderBySQL = orderBys
+    return orderBys
         .stream()
         .map(orderBy -> getFieldPrefix(orderBy.getField()) + " " + (orderBy.isAsc() ? "ASC" : "DESC"))
         .filter(str -> !StringUtils.isEmpty(str))
         .collect(Collectors.joining(" , "));
-
-    return orderBySQL;
   }
 
   @Override
   public boolean delete(Key key) {
     String deleteSQL = String.format("DELETE FROM %s WHERE %s = ?", collectionName, ID);
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(deleteSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
       preparedStatement.setString(1, key.toString());
       preparedStatement.executeUpdate();
       return true;
@@ -371,22 +364,20 @@ public class PostgresCollection implements Collection {
     String deleteSubDocSQL = String.format("UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?",
         collectionName, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
-    try {
 
-      PreparedStatement preparedStatement = client
-          .prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS);
+    try (PreparedStatement preparedStatement = client
+        .prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, key.toString());
       int resultSet = preparedStatement.executeUpdate();
 
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + resultSet);
+        LOGGER.debug("Write result: {}", resultSet);
       }
 
       return true;
     } catch (SQLException e) {
-      LOGGER
-          .error("SQLException updating sub document. key: {} subDocPath: {}", key, subDocPath, e);
+      LOGGER.error("SQLException updating sub document. key: {} subDocPath: {}", key, subDocPath, e);
     }
     return false;
   }
@@ -394,8 +385,7 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean deleteAll() {
     String deleteSQL = String.format("DELETE FROM %s", collectionName);
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(deleteSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
       preparedStatement.executeUpdate();
       return true;
     } catch (SQLException e) {
@@ -408,8 +398,7 @@ public class PostgresCollection implements Collection {
   public long count() {
     String countSQL = String.format("SELECT COUNT(*) FROM %s", collectionName);
     long count = -1;
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(countSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(countSQL)) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
@@ -435,8 +424,7 @@ public class PostgresCollection implements Collection {
       }
     }
 
-    try {
-      PreparedStatement preparedStatement = buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build());
+    try (PreparedStatement preparedStatement = client.prepareStatement(totalSQLBuilder.toString())) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
@@ -450,24 +438,10 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
     try {
-      PreparedStatement preparedStatement = client
-          .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS);
-      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
-
-        Key key = entry.getKey();
-        String jsonString = prepareUpsertDocument(key, entry.getValue());
-
-        preparedStatement.setString(1, key.toString());
-        preparedStatement.setString(2, jsonString);
-        preparedStatement.setString(3, jsonString);
-
-        preparedStatement.addBatch();
-      }
-
-      int[] updateCounts = preparedStatement.executeBatch();
+      int[] updateCounts = bulkUpsertImpl(documents);
 
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + Arrays.toString(updateCounts));
+        LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
       }
 
       return true;
@@ -481,6 +455,58 @@ public class PostgresCollection implements Collection {
     }
 
     return false;
+  }
+
+  private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
+    try (PreparedStatement preparedStatement = client
+        .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+
+        Key key = entry.getKey();
+        String jsonString = prepareUpsertDocument(key, entry.getValue());
+
+        preparedStatement.setString(1, key.toString());
+        preparedStatement.setString(2, jsonString);
+        preparedStatement.setString(3, jsonString);
+
+        preparedStatement.addBatch();
+      }
+
+      return preparedStatement.executeBatch();
+    }
+  }
+
+  @Override
+  public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException {
+    String query = null;
+    try {
+      String collect = documents.keySet().stream()
+          .map(val -> "'" + val.toString() + "'")
+          .collect(Collectors.joining(", "));
+
+      String space = " ";
+      query = new StringBuilder("SELECT * FROM")
+          .append(space).append(collectionName)
+          .append(" WHERE ").append(ID).append(" IN ")
+          .append("(").append(collect).append(")").toString();
+
+      PreparedStatement preparedStatement = client.prepareStatement(query);
+      ResultSet resultSet = preparedStatement.executeQuery();
+
+      // Now go ahead and bulk upsert the documents.
+      int[] updateCounts = bulkUpsertImpl(documents);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
+      }
+
+      return new PostgresResultIterator(resultSet);
+    } catch (IOException e) {
+      LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException querying documents. query: {}", query, e);
+    }
+
+    throw new IOException("Could not bulk upsert the documents.");
   }
 
   private String prepareUpsertDocument(Key key, Document document) throws IOException {
@@ -501,16 +527,14 @@ public class PostgresCollection implements Collection {
   @Override
   public void drop() {
     String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL)) {
       preparedStatement.executeUpdate();
-      preparedStatement.close();
     } catch (SQLException e) {
       LOGGER.error("Exception deleting table name: {}", collectionName);
     }
   }
 
-  class PostgresResultIterator implements Iterator {
+  static class PostgresResultIterator implements Iterator {
 
     private final ObjectMapper MAPPER = new ObjectMapper();
     ResultSet resultSet;

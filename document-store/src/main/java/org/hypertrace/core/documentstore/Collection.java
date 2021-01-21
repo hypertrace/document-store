@@ -81,6 +81,13 @@ public interface Collection {
   boolean bulkUpsert(Map<Key, Document> documents);
 
   /**
+   * Method to bulkUpsert the given documents and return the previous copies of those documents.
+   * This helps the clients to see how the documents were prior to upserting them and do that
+   * in one less round trip.
+   */
+  Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException;
+
+  /**
    * Drops a collections
    */
   void drop();

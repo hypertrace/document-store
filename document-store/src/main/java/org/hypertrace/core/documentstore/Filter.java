@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 public class Filter {
 
@@ -127,10 +128,17 @@ public class Filter {
     if (o == null || getClass() != o.getClass()) {
       return false;
     }
-    Filter that = (Filter) o;
-    return op.equals(that.op)
-        && fieldName.equals(that.fieldName)
-        && value.equals(that.value)
-        && Arrays.equals(childFilters, that.childFilters);
+    Filter filter = (Filter) o;
+    return op == filter.op &&
+        Objects.equals(fieldName, filter.fieldName) &&
+        Objects.equals(value, filter.value) &&
+        Arrays.equals(childFilters, filter.childFilters);
+  }
+
+  @Override
+  public int hashCode() {
+    int result = Objects.hash(op, fieldName, value);
+    result = 31 * result + Arrays.hashCode(childFilters);
+    return result;
   }
 }

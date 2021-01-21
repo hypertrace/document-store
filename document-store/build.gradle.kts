@@ -26,6 +26,7 @@ dependencies {
   testImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
   testImplementation("org.mockito:mockito-core:2.19.0")
   integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
+  integrationTestImplementation("com.github.java-json-tools:json-patch:1.13")
 }
 
 tasks.test {
