@@ -431,6 +431,57 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testWithDifferentDataTypes() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+            createDocument(
+                    new Pair("id", "testKey1"),
+                    new Pair("name", "abc1"),
+                    new Pair("size", 10))
+            );
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+            createDocument(
+                    new Pair("id", "testKey2"),
+                    new Pair("name", "abc2"),
+                    new Pair("size", 20))
+    );
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+            createDocument(
+                    new Pair("id", "testKey3"),
+                    new Pair("name", "abc3"),
+                    new Pair("size", true))
+    );
+    collection.upsert(new SingleValueKey("default", "testKey4"),
+            createDocument(
+                    new Pair("id", "testKey4"),
+                    new Pair("name", "abc4"),
+                    new Pair("size", true))
+    );
+    collection.upsert(new SingleValueKey("default", "testKey5"),
+            createDocument(
+                    new Pair("id", "testKey5"),
+                    new Pair("name", "abc5"),
+                    new Pair("size", "10"))
+    );
+    collection.upsert(new SingleValueKey("default", "testKey6"),
+            createDocument(
+                    new Pair("id", "testKey6"),
+                    new Pair("name", "abc6"),
+                    new Pair("size", "20"))
+    );
+
+    Query query = new Query();
+    query.setFilter(Filter.eq("size", "10"));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(1,documents.size());
+    datastore.deleteCollection(COLLECTION_NAME);
+  }
+  @Test
   public void testReturnAndBulkUpsert() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -546,6 +597,29 @@ public class MongoDocStoreTest {
   private Document createDocument(String key, String value) {
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
     objectNode.put(key, value);
+    return new JSONDocument(objectNode);
+  }
+
+  class Pair {
+    String key;
+    Object value;
+    public Pair(String key, Object value) {
+      this.key = key;
+      this.value = value;
+    }
+  }
+
+  private Document createDocument(Pair ...paris) {
+    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+    for (int i = 0; i < paris.length - 1; i++) {
+      if (paris[i].value instanceof Integer) {
+        objectNode.put(paris[i].key, (Integer)(paris[i].value));
+      } else if (paris[i].value instanceof Boolean) {
+        objectNode.put(paris[i].key, (Boolean) (paris[i].value));
+      } else {
+        objectNode.put(paris[i].key, (String)(paris[i].value));
+      }
+    }
     return new JSONDocument(objectNode);
   }
 }
