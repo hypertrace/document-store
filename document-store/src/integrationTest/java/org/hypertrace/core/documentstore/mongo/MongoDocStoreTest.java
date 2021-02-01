@@ -36,6 +36,7 @@ import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
@@ -58,6 +59,15 @@ public class MongoDocStoreTest {
   private static final String LAST_UPDATE_TIME_KEY = "_lastUpdateTime";
   private static final String LAST_UPDATED_TIME_KEY = "lastUpdatedTime";
   private static final String LAST_CREATED_TIME_KEY = "createdTime";
+
+  private class Pair {
+    String key;
+    Object value;
+    public Pair(String key, Object value) {
+      this.key = key;
+      this.value = value;
+    }
+  }
 
   @BeforeAll
   public static void init() {
@@ -434,30 +444,38 @@ public class MongoDocStoreTest {
   public void testWithDifferentDataTypes() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // size field with integer value
     collection.upsert(new SingleValueKey("default", "testKey1"),
-            createDocument(
-                    new Pair("id", "testKey1"),
-                    new Pair("name", "abc1"),
-                    new Pair("size", 10))
-            );
+        createDocument(
+            new Pair("id", "testKey1"),
+          new Pair("name", "abc1"),
+          new Pair("size", -10))
+    );
+
     collection.upsert(new SingleValueKey("default", "testKey2"),
             createDocument(
                     new Pair("id", "testKey2"),
                     new Pair("name", "abc2"),
-                    new Pair("size", 20))
+                    new Pair("size", -20))
     );
+
+    // size field with string value
     collection.upsert(new SingleValueKey("default", "testKey3"),
             createDocument(
                     new Pair("id", "testKey3"),
                     new Pair("name", "abc3"),
-                    new Pair("size", true))
+                    new Pair("size", false))
     );
+
     collection.upsert(new SingleValueKey("default", "testKey4"),
             createDocument(
                     new Pair("id", "testKey4"),
                     new Pair("name", "abc4"),
                     new Pair("size", true))
     );
+
+    // size field with boolean value
     collection.upsert(new SingleValueKey("default", "testKey5"),
             createDocument(
                     new Pair("id", "testKey5"),
@@ -471,16 +489,42 @@ public class MongoDocStoreTest {
                     new Pair("size", "20"))
     );
 
-    Query query = new Query();
-    query.setFilter(Filter.eq("size", "10"));
-    Iterator<Document> results = collection.search(query);
+    // query for size field with integer value
+    Query queryGt = new Query();
+    Filter filterGt = new Filter(Op.GT, "size", -30);
+    queryGt.setFilter(filterGt);
+    Iterator<Document> results = collection.search(queryGt);
     List<Document> documents = new ArrayList<>();
     while (results.hasNext()) {
       documents.add(results.next());
     }
-    Assertions.assertEquals(1,documents.size());
+    Assertions.assertEquals(2,documents.size());
+
+    // query for size field with string value
+    Query queryGtStr = new Query();
+    Filter filterGtStr = new Filter(Op.GT, "size", "1");
+    queryGtStr.setFilter(filterGtStr);
+    Iterator<Document> resultsGtStr = collection.search(queryGtStr);
+    List<Document> documentsGtStr = new ArrayList<>();
+    while (resultsGtStr.hasNext()) {
+      documentsGtStr.add(resultsGtStr.next());
+    }
+    Assertions.assertEquals(2, documentsGtStr.size());
+
+    // query for size field with boolean value
+    Query queryGtBool = new Query();
+    Filter filterGtBool = new Filter(Op.GT, "size", false);
+    queryGtStr.setFilter(filterGtBool);
+    Iterator<Document> resultsGtBool = collection.search(queryGtStr);
+    List<Document> documentsGtBool = new ArrayList<>();
+    while (resultsGtBool.hasNext()) {
+      documentsGtBool.add(resultsGtBool.next());
+    }
+    Assertions.assertEquals(1, documentsGtBool.size());
+
     datastore.deleteCollection(COLLECTION_NAME);
   }
+
   @Test
   public void testReturnAndBulkUpsert() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
@@ -600,18 +644,9 @@ public class MongoDocStoreTest {
     return new JSONDocument(objectNode);
   }
 
-  class Pair {
-    String key;
-    Object value;
-    public Pair(String key, Object value) {
-      this.key = key;
-      this.value = value;
-    }
-  }
-
   private Document createDocument(Pair ...paris) {
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-    for (int i = 0; i < paris.length - 1; i++) {
+    for (int i = 0; i < paris.length; i++) {
       if (paris[i].value instanceof Integer) {
         objectNode.put(paris[i].key, (Integer)(paris[i].value));
       } else if (paris[i].value instanceof Boolean) {

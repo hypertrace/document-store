@@ -571,6 +571,18 @@ public class PostgresCollection implements Collection {
       }
     }
 
+    private String prepareNumericBlock(String fieldName, Object value) {
+      if (value instanceof Number) {
+        String fmt = "case jsonb_typeof(%s)\n"
+            + "WHEN ‘number’ THEN (%s)::numeric > ?\n"
+            + "end";
+      } else if (value instanceof Boolean) {
+        String fmtBoolean = "case jsonb_typeof(<field>)\n"
+            + "WHEN 'boolean'  THEN (<field>)::boolean  > ?\n"
+            + "end";
+      }
+      return null;
+    }
   }
 }
 
