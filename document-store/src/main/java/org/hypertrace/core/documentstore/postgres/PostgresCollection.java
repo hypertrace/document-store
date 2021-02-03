@@ -208,8 +208,8 @@ public class PostgresCollection implements Collection {
     Filter.Op op = filter.getOp();
     Object value = filter.getValue();
     String fieldName = filter.getFieldName();
-    String prefix = getFieldPrefix(fieldName);
-    StringBuilder filterString = new StringBuilder(prefix);
+    String fullFieldName = prepareCast(getFieldPrefix(fieldName), value);
+    StringBuilder filterString = new StringBuilder(fullFieldName);
     switch (op) {
       case EQ:
         filterString.append(" = ");
@@ -292,7 +292,7 @@ public class PostgresCollection implements Collection {
     params.getObjectParams().forEach((k, v) -> {
       try {
         if (isValidType(v)) {
-          preparedStatement.setString(k, String.valueOf(v));
+          preparedStatement.setObject(k, v);
         } else {
           throw new UnsupportedOperationException("Un-supported object types in filter");
         }
@@ -310,6 +310,8 @@ public class PostgresCollection implements Collection {
       add(Integer.class);
       add(Long.class);
       add(String.class);
+      add(Boolean.class);
+      add(Number.class);
     }};
     return validClassez.contains(v.getClass());
   }
@@ -424,7 +426,7 @@ public class PostgresCollection implements Collection {
       }
     }
 
-    try (PreparedStatement preparedStatement = client.prepareStatement(totalSQLBuilder.toString())) {
+    try (PreparedStatement preparedStatement = buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build())) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
@@ -516,6 +518,17 @@ public class PostgresCollection implements Collection {
     jsonNode.put(DOCUMENT_ID, key.toString());
 
     return MAPPER.writeValueAsString(jsonNode);
+  }
+
+  private String prepareCast(String field, Object value) {
+    String fmt = "CAST (%s AS %s)";
+    if (value instanceof Number) {
+      return String.format(fmt, field, "NUMERIC");
+    } else if (value instanceof Boolean) {
+      return String.format(fmt, field, "BOOLEAN");
+    } else /* default is string */ {
+      return field;
+    }
   }
 
   private String getUpsertSQL() {

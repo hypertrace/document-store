@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.typesafe.config.Config;
@@ -13,22 +15,23 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
+import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class PostgresDocStoreTest {
 
@@ -94,7 +97,7 @@ public class PostgresDocStoreTest {
   public void testUpsert() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     boolean result = collection
-        .upsert(new SingleValueKey("default", "testKey"), createDocument("foo1", "bar1"));
+        .upsert(new SingleValueKey("default", "testKey"), Utils.createDocument("foo1", "bar1"));
     Assertions.assertTrue(result);
 
     Query query = new Query();
@@ -113,7 +116,7 @@ public class PostgresDocStoreTest {
   @Test
   public void testUpsertAndReturn() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    Document document = createDocument("foo1", "bar1");
+    Document document = Utils.createDocument("foo1", "bar1");
     Document resultDocument = collection
         .upsertAndReturn(new SingleValueKey("default", "testKey"), document);
 
@@ -124,13 +127,13 @@ public class PostgresDocStoreTest {
   public void testBulkUpsert() {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Map<Key, Document> bulkMap = new HashMap<>();
-    bulkMap.put(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
-    bulkMap.put(new SingleValueKey("default", "testKey2"), createDocument("name", "Alice"));
-    bulkMap.put(new SingleValueKey("default", "testKey3"), createDocument("name", "Alice"));
-    bulkMap.put(new SingleValueKey("default", "testKey4"), createDocument("name", "Bob"));
-    bulkMap.put(new SingleValueKey("default", "testKey5"), createDocument("name", "Alice"));
+    bulkMap.put(new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
+    bulkMap.put(new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
+    bulkMap.put(new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Alice"));
+    bulkMap.put(new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
+    bulkMap.put(new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
     bulkMap.put(
-        new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
+        new SingleValueKey("default", "testKey6"), Utils.createDocument("email", "bob@example.com"));
 
     collection.bulkUpsert(bulkMap);
 
@@ -159,13 +162,13 @@ public class PostgresDocStoreTest {
   public void testBulkUpsertAndReturn() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Map<Key, Document> bulkMap = new HashMap<>();
-    bulkMap.put(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
-    bulkMap.put(new SingleValueKey("default", "testKey2"), createDocument("name", "Alice"));
-    bulkMap.put(new SingleValueKey("default", "testKey3"), createDocument("name", "Alice"));
-    bulkMap.put(new SingleValueKey("default", "testKey4"), createDocument("name", "Bob"));
-    bulkMap.put(new SingleValueKey("default", "testKey5"), createDocument("name", "Alice"));
+    bulkMap.put(new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
+    bulkMap.put(new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
+    bulkMap.put(new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Alice"));
+    bulkMap.put(new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
+    bulkMap.put(new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
     bulkMap.put(
-        new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
+        new SingleValueKey("default", "testKey6"), Utils.createDocument("email", "bob@example.com"));
 
     Iterator<Document> iterator = collection.bulkUpsertAndReturnOlderDocuments(bulkMap);
     // Initially there shouldn't be any documents.
@@ -204,12 +207,12 @@ public class PostgresDocStoreTest {
   public void testSubDocumentUpdate() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
-    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    collection.upsert(docKey, Utils.createDocument("foo1", "bar1"));
 
-    Document subDocument = createDocument("subfoo1", "subbar1");
+    Document subDocument = Utils.createDocument("subfoo1", "subbar1");
     collection.updateSubDoc(docKey, "subdoc", subDocument);
 
-    Document nestedDocument = createDocument("nestedfoo1", "nestedbar1");
+    Document nestedDocument = Utils.createDocument("nestedfoo1", "nestedbar1");
     collection.updateSubDoc(docKey, "subdoc.nesteddoc", nestedDocument);
 
     Query query = new Query();
@@ -232,9 +235,9 @@ public class PostgresDocStoreTest {
   public void testSubDocumentDelete() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
-    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    collection.upsert(docKey, Utils.createDocument("foo1", "bar1"));
 
-    Document subDocument = createDocument("subfoo1", "subbar1");
+    Document subDocument = Utils.createDocument("subfoo1", "subbar1");
     collection.updateSubDoc(docKey, "subdoc", subDocument);
 
     boolean status = collection.deleteSubDoc(docKey, "subdoc.subfoo1");
@@ -248,7 +251,7 @@ public class PostgresDocStoreTest {
   public void testCount() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
-    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    collection.upsert(docKey, Utils.createDocument("foo1", "bar1"));
     Assertions.assertEquals(collection.count(), 1);
   }
 
@@ -256,7 +259,7 @@ public class PostgresDocStoreTest {
   public void testDelete() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
-    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    collection.upsert(docKey, Utils.createDocument("foo1", "bar1"));
 
     Assertions.assertEquals(collection.count(), 1);
     collection.delete(docKey);
@@ -268,7 +271,7 @@ public class PostgresDocStoreTest {
   public void testDeleteAll() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
-    collection.upsert(docKey, createDocument("foo1", "bar1"));
+    collection.upsert(docKey, Utils.createDocument("foo1", "bar1"));
 
     Assertions.assertEquals(collection.count(), 1);
     collection.deleteAll();
@@ -287,7 +290,7 @@ public class PostgresDocStoreTest {
   @Test
   public void testIgnoreCaseLikeQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey"), createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey"), Utils.createDocument("name", "Bob"));
 
     String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB", "BO", "bO", "Ob", "OB"};
 
@@ -308,9 +311,9 @@ public class PostgresDocStoreTest {
   @Test
   public void testInQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), createDocument("name", "Halo"));
+    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Halo"));
 
     List<String> inArray = new ArrayList<>();
     inArray.add("Bob");
@@ -423,13 +426,13 @@ public class PostgresDocStoreTest {
   @Test
   public void testTotalWithQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey4"), createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey5"), createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
     collection.upsert(
-        new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
+        new SingleValueKey("default", "testKey6"), Utils.createDocument("email", "bob@example.com"));
 
     {
       // empty query returns all the documents
@@ -455,11 +458,11 @@ public class PostgresDocStoreTest {
   @Test
   public void testOffsetLimitAndOrderBY() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("foo1", "bar1"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("foo2", "bar2"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), createDocument("foo3", "bar3"));
-    collection.upsert(new SingleValueKey("default", "testKey4"), createDocument("foo4", "bar4"));
-    collection.upsert(new SingleValueKey("default", "testKey5"), createDocument("foo5", "bar5"));
+    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("foo1", "bar1"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("foo2", "bar2"));
+    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("foo3", "bar3"));
+    collection.upsert(new SingleValueKey("default", "testKey4"), Utils.createDocument("foo4", "bar4"));
+    collection.upsert(new SingleValueKey("default", "testKey5"), Utils.createDocument("foo5", "bar5"));
 
     // Querying 5 times, to make sure the order of results is maintained with offset + limit
     for (int i = 0; i < 5; i++) {
@@ -482,11 +485,77 @@ public class PostgresDocStoreTest {
     }
   }
 
+  @Test
+  public void testWithDifferentFieldTypes() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
 
-  private Document createDocument(String key, String value) {
-    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-    objectNode.put(key, value);
-    return new JSONDocument(objectNode);
+    // size field with integer value, isCostly boolean field
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10),
+            ImmutablePair.of("isCostly", false))
+    );
+
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", -20),
+            ImmutablePair.of("isCostly", false))
+    );
+
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 5),
+            ImmutablePair.of("isCostly", true))
+    );
+
+    collection.upsert(new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 10),
+            ImmutablePair.of("isCostly", true))
+    );
+
+    // query field having int type
+    Query queryNumericField = new Query();
+    Filter filter = new Filter(Op.GT, "size", -30);
+    queryNumericField.setFilter(filter);
+    Iterator<Document> results = collection.search(queryNumericField);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(4, documents.size());
+
+    // query field having boolean field
+    Query queryBooleanField = new Query();
+    filter = new Filter(Op.GT, "isCostly", false);
+    queryBooleanField.setFilter(filter);
+    results = collection.search(queryBooleanField);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(2, documents.size());
+
+    // query string field
+    Query queryStringField = new Query();
+    filter = new Filter(Op.GT, "name", "abc2");
+    queryStringField.setFilter(filter);
+    results = collection.search(queryBooleanField);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(2, documents.size());
+
+    datastore.deleteCollection(COLLECTION_NAME);
   }
-
 }

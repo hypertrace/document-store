@@ -35,25 +35,25 @@ public class PostgresCollectionTest {
     {
       Filter filter = new Filter(Filter.Op.GT, ID, 5);
       String query = collection.parseNonCompositeFilter(filter, initParams());
-      Assertions.assertEquals(ID + " > ?", query);
+      Assertions.assertEquals("CAST (" + ID + " AS NUMERIC) > ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GTE, ID, 5);
       String query = collection.parseNonCompositeFilter(filter, initParams());
-      Assertions.assertEquals(ID + " >= ?", query);
+      Assertions.assertEquals("CAST (" + ID + " AS NUMERIC) >= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LT, ID, 5);
       String query = collection.parseNonCompositeFilter(filter, initParams());
-      Assertions.assertEquals(ID + " < ?", query);
+      Assertions.assertEquals("CAST (" + ID + " AS NUMERIC) < ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LTE, ID, 5);
       String query = collection.parseNonCompositeFilter(filter, initParams());
-      Assertions.assertEquals(ID + " <= ?", query);
+      Assertions.assertEquals("CAST (" + ID + " AS NUMERIC) <= ?", query);
     }
 
     {
@@ -80,25 +80,25 @@ public class PostgresCollectionTest {
     {
       Filter filter = new Filter(Filter.Op.GT, "key1", 5);
       String query = collection.parseNonCompositeFilter(filter, initParams());
-      Assertions.assertEquals("document->>'key1' > ?", query);
+      Assertions.assertEquals("CAST (document->>'key1' AS NUMERIC) > ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GTE, "key1", 5);
       String query = collection.parseNonCompositeFilter(filter, initParams());
-      Assertions.assertEquals("document->>'key1' >= ?", query);
+      Assertions.assertEquals("CAST (document->>'key1' AS NUMERIC) >= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LT, "key1", 5);
       String query = collection.parseNonCompositeFilter(filter, initParams());
-      Assertions.assertEquals("document->>'key1' < ?", query);
+      Assertions.assertEquals("CAST (document->>'key1' AS NUMERIC) < ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LTE, "key1", 5);
       String query = collection.parseNonCompositeFilter(filter, initParams());
-      Assertions.assertEquals("document->>'key1' <= ?", query);
+      Assertions.assertEquals("CAST (document->>'key1' AS NUMERIC) <= ?", query);
     }
 
     {
