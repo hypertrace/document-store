@@ -545,20 +545,20 @@ public class MongoDocStoreTest {
             ImmutablePair.of("isCostly", false))
     );
 
-    collection.upsert(new SingleValueKey("default", "testKey2"),
+    collection.upsert(new SingleValueKey("default", "testKey3"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey3"),
             ImmutablePair.of("name", "abc3"),
             ImmutablePair.of("size", 5),
-            ImmutablePair.of("isCostly", false))
+            ImmutablePair.of("isCostly", true))
     );
 
-    collection.upsert(new SingleValueKey("default", "testKey2"),
+    collection.upsert(new SingleValueKey("default", "testKey4"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey4"),
             ImmutablePair.of("name", "abc4"),
             ImmutablePair.of("size", 10),
-            ImmutablePair.of("isCostly", false))
+            ImmutablePair.of("isCostly", true))
     );
 
     // query field having int type
@@ -585,14 +585,14 @@ public class MongoDocStoreTest {
 
     // query string field
     Query queryStringField = new Query();
-    filter = new Filter(Op.GT, "name", "abc");
+    filter = new Filter(Op.GT, "name", "abc1");
     queryStringField.setFilter(filter);
     results = collection.search(queryBooleanField);
     documents = new ArrayList<>();
     while (results.hasNext()) {
       documents.add(results.next());
     }
-    Assertions.assertEquals(1, documents.size());
+    Assertions.assertEquals(2, documents.size());
 
     datastore.deleteCollection(COLLECTION_NAME);
   }
