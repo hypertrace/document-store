@@ -14,6 +14,8 @@ public class Utils {
     for (int i = 0; i < paris.length; i++) {
       if (paris[i].getRight() instanceof Integer) {
         objectNode.put(paris[i].getLeft(), (Integer)(paris[i].getRight()));
+      } else if (paris[i].getRight() instanceof Double) {
+        objectNode.put(paris[i].getLeft(), (Double)(paris[i].getRight()));
       } else if (paris[i].getRight() instanceof Boolean) {
         objectNode.put(paris[i].getLeft(), (Boolean) (paris[i].getRight()));
       } else {

@@ -522,6 +522,18 @@ public class PostgresCollection implements Collection {
 
   private String prepareCast(String field, Object value) {
     String fmt = "CAST (%s AS %s)";
+
+    // handle the case if the value type is collection for filter operator - `IN`
+    // Currently, for `IN` operator, we are considering List collection, and it is fair
+    // assumption that all its value of the same types. Based on that and for consistency
+    // we will use CAST ( <field name> as <type> ) for all non string operator.
+    // Ref : https://github.com/hypertrace/document-store/pull/30#discussion_r571782575
+    
+    if (value instanceof List<?> && ((List<Object>) value).size() > 0) {
+      List<Object> listValue = (List<Object>) value;
+      value = listValue.get(0);
+    }
+
     if (value instanceof Number) {
       return String.format(fmt, field, "NUMERIC");
     } else if (value instanceof Boolean) {

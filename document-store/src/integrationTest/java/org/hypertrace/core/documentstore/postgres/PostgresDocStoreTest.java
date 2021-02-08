@@ -330,6 +330,42 @@ public class PostgresDocStoreTest {
   }
 
   @Test
+  public void testInQueryWithNumberField() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10.2),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", 10.4),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false)));
+
+    List<Number> inArray = new ArrayList<>();
+    inArray.add(10.4);
+    inArray.add(30.1);
+
+    Query query = new Query();
+    query.setFilter(new Filter(Filter.Op.IN, "size", inArray));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(documents.size(), 1);
+  }
+
+  @Test
   public void testSearch() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     String docStr1 = "{\"amount\":1234.5,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
