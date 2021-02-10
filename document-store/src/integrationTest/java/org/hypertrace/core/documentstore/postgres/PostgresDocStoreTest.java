@@ -368,15 +368,20 @@ public class PostgresDocStoreTest {
   @Test
   public void testSearch() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    String docStr1 = "{\"amount\":1234.5,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    String docStr1 = "{\"amount\":1234.5,\"testKeyExist\":null,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document1 = new JSONDocument(docStr1);
     SingleValueKey key1 = new SingleValueKey("default", "testKey1");
     collection.upsert(key1, document1);
 
-    String docStr2 = "{\"amount\":1234,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    String docStr2 = "{\"amount\":1234,\"testKeyExist\":123,\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":123,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document2 = new JSONDocument(docStr2);
     SingleValueKey key2 = new SingleValueKey("default", "testKey2");
     collection.upsert(key2, document2);
+
+    String docStr3 = "{\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":null,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    Document document3 = new JSONDocument(docStr3);
+    SingleValueKey key3 = new SingleValueKey("default", "testKey3");
+    collection.upsert(key3, document3);
 
     // Search integer field
     {
@@ -387,7 +392,7 @@ public class PostgresDocStoreTest {
       for (; results.hasNext(); ) {
         documents.add(results.next());
       }
-      Assertions.assertEquals(documents.size(), 1);
+      Assertions.assertEquals(1, documents.size());
     }
 
     // Search float field
@@ -399,7 +404,7 @@ public class PostgresDocStoreTest {
       for (; results.hasNext(); ) {
         documents.add(results.next());
       }
-      Assertions.assertEquals(documents.size(), 1);
+      Assertions.assertEquals(1, documents.size());
     }
 
     // Search integer and float field
@@ -411,7 +416,7 @@ public class PostgresDocStoreTest {
       for (; results.hasNext(); ) {
         documents.add(results.next());
       }
-      Assertions.assertEquals(documents.size(), 2);
+      Assertions.assertEquals(2, documents.size());
     }
 
     // Search _id field in the document
@@ -423,7 +428,7 @@ public class PostgresDocStoreTest {
       for (; results.hasNext(); ) {
         documents.add(results.next());
       }
-      Assertions.assertEquals(documents.size(), 1);
+      Assertions.assertEquals(1, documents.size());
     }
 
     // Unsupported Object Type in Filter, should throw an UnsupportedOperationException
@@ -437,6 +442,120 @@ public class PostgresDocStoreTest {
       Assertions.assertTrue(actualMessage.contains(expected));
     }
 
+    // Field exists in the document
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.EXISTS, "testKeyExist", null));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(2, documents.size());
+    }
+
+    // Nested Field exists in the document
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.EXISTS, "attributes.trace_id.value.testKeyExistNested", null));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(2, documents.size());
+    }
+
+    // Field Not Exists in the document
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.NOT_EXISTS, "attributes.trace_id.value.testKeyExistNested", null));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(1, documents.size());
+    }
+
+  }
+
+  @Test
+  public void testExistsFilter() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey1"),
+                    ImmutablePair.of("name", "abc1"),
+                    ImmutablePair.of("size", -10.2),
+                    ImmutablePair.of("isCostly", false)));
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey2"),
+                    ImmutablePair.of("name", "abc2"),
+                    ImmutablePair.of("size", 10.4),
+                    ImmutablePair.of("isCostly", false)));
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey3"),
+                    ImmutablePair.of("name", "abc3"),
+                    ImmutablePair.of("size", 30),
+                    ImmutablePair.of("isCostly", false),
+                    ImmutablePair.of("city", "bangalore")));
+    collection.upsert(new SingleValueKey("default", "testKey4"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey4"),
+                    ImmutablePair.of("name", "abc4"),
+                    ImmutablePair.of("size", 30),
+                    ImmutablePair.of("isCostly", false),
+                    ImmutablePair.of("city", null)));
+    Query query = new Query();
+    query.setFilter(new Filter(Op.EXISTS, "city", true));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(documents.size(), 2);
+  }
+
+  @Test
+  public void testNotExistsFilter() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey1"),
+                    ImmutablePair.of("name", "abc1"),
+                    ImmutablePair.of("size", -10.2),
+                    ImmutablePair.of("isCostly", false)));
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey2"),
+                    ImmutablePair.of("name", "abc2"),
+                    ImmutablePair.of("size", 10.4),
+                    ImmutablePair.of("isCostly", false)));
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey3"),
+                    ImmutablePair.of("name", "abc3"),
+                    ImmutablePair.of("size", 30),
+                    ImmutablePair.of("isCostly", false),
+                    ImmutablePair.of("city", "bangalore")));
+    collection.upsert(new SingleValueKey("default", "testKey4"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey4"),
+                    ImmutablePair.of("name", "abc4"),
+                    ImmutablePair.of("size", 30),
+                    ImmutablePair.of("isCostly", false),
+                    ImmutablePair.of("city", null)));
+    Query query = new Query();
+    query.setFilter(new Filter(Op.EXISTS, "city", false));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(documents.size(), 2);
   }
 
   @Test

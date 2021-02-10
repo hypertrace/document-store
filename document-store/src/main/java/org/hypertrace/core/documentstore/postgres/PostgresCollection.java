@@ -48,8 +48,11 @@ public class PostgresCollection implements Collection {
   }};
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String DOC_PATH_SEPARATOR = "\\.";
-  private static String QUESTION_MARK = "?";
-
+  private static final String QUESTION_MARK = "?";
+  // postgres jsonb uses `->` instead of `.` for json field access
+  private static final String JSON_FIELD_ACCESSOR = "->";
+  // postgres operator to fetch the value of json object as text.
+  private static final String JSON_DATA_ACCESSOR = "->>";
 
   private final Connection client;
   private final String collectionName;
@@ -210,29 +213,30 @@ public class PostgresCollection implements Collection {
     String fieldName = filter.getFieldName();
     String fullFieldName = prepareCast(getFieldPrefix(fieldName), value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
+    String sqlOperator;
     switch (op) {
       case EQ:
-        filterString.append(" = ");
+        sqlOperator = " = ";
         break;
       case GT:
-        filterString.append(" > ");
+        sqlOperator = " > ";
         break;
       case LT:
-        filterString.append(" < ");
+        sqlOperator = " < ";
         break;
       case GTE:
-        filterString.append(" >= ");
+        sqlOperator = " >= ";
         break;
       case LTE:
-        filterString.append(" <= ");
+        sqlOperator = " <= ";
         break;
       case LIKE:
         // Case insensitive regex search, Append % at beginning and end of value to do a regex search
-        filterString.append(" ILIKE ");
+        sqlOperator = " ILIKE ";
         value = "%" + value + "%";
         break;
       case IN:
-        filterString.append(" IN ");
+        sqlOperator = " IN ";
         List<Object> values = (List<Object>) value;
         String collect = values
             .stream()
@@ -241,21 +245,58 @@ public class PostgresCollection implements Collection {
               return QUESTION_MARK;
             })
             .collect(Collectors.joining(", "));
-        return filterString.append("(").append(collect).append(")").toString();
+        value = "(" + collect + ")";
+        return filterString.append(sqlOperator).append(value).toString();
+      case NOT_EXISTS:
+        sqlOperator = " IS NULL ";
+        value = null;
+        // For fields inside jsonb
+        StringBuilder notExists = prepareFieldAccessorExpr(fieldName);
+        if (notExists != null) {
+          filterString = notExists;
+        }
+        break;
+      case EXISTS:
+        sqlOperator = " IS NOT NULL ";
+        value = null;
+        // For fields inside jsonb
+        StringBuilder exists = prepareFieldAccessorExpr(fieldName);
+        if (exists != null) {
+          filterString = exists;
+        }
+        break;
+      case NEQ:
+        // Disabled for parity with mongo collection API.
+        // Can be implemented by wrapping predicate for EQ in a NOT()
       case CONTAINS:
         // TODO: Matches condition inside an array of documents
-      case EXISTS:
-        // TODO: Checks if key exists
-      case NOT_EXISTS:
-        // TODO: Checks if key does not exist
-      case NEQ:
       default:
-        throw new UnsupportedOperationException(
-            String.format("Query operation:%s not supported", op));
+        throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     }
-    String filters = filterString.append(QUESTION_MARK).toString();
-    paramsBuilder.addObjectParam(value);
+
+    filterString.append(sqlOperator);
+    if (value != null)
+    {
+      filterString.append(QUESTION_MARK);
+      paramsBuilder.addObjectParam(value);
+    }
+    String filters = filterString.toString();
     return filters;
+  }
+
+  private StringBuilder prepareFieldAccessorExpr(String fieldName) {
+    // Generate json field accessor statement
+    if (!OUTER_COLUMNS.contains(fieldName)) {
+      StringBuilder filterString = new StringBuilder(DOCUMENT);
+      String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
+      for (String nestedField : nestedFields) {
+        filterString.append(JSON_FIELD_ACCESSOR)
+                .append("'").append(nestedField).append("'");
+      }
+      return filterString;
+    }
+    // Field accessor is only applicable to jsonb fields, return null otherwise
+    return null;
   }
 
   @VisibleForTesting
@@ -332,10 +373,11 @@ public class PostgresCollection implements Collection {
       fieldPrefix = new StringBuilder(DOCUMENT);
       String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
       for (int i = 0; i < nestedFields.length - 1; i++) {
-        fieldPrefix.append("->" + "'").append(nestedFields[i]).append("'");
+        fieldPrefix.append(JSON_FIELD_ACCESSOR)
+                .append("'").append(nestedFields[i]).append("'");
       }
-      fieldPrefix.append("->>").append("'").append(nestedFields[nestedFields.length - 1])
-          .append("'");
+      fieldPrefix.append(JSON_DATA_ACCESSOR)
+              .append("'").append(nestedFields[nestedFields.length - 1]).append("'");
     }
     return fieldPrefix.toString();
   }

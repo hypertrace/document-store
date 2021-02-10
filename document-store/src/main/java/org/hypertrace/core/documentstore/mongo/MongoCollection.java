@@ -369,9 +369,8 @@ public class MongoCollection implements Collection {
           break;
         case AND:
         case OR:
-          throw new UnsupportedOperationException("AND/OR operator is not supported");
         default:
-          break;
+          throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
       }
       return map;
     }
