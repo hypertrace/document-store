@@ -354,9 +354,10 @@ public class MongoCollection implements Collection {
           break;
         case NEQ:
           // $ne operator in Mongo also returns the results, where the key does not exist in the
-          // document. Hence, need to apply an additional filter where the key exists, but the value
-          // is not equal to the supplied value
-          map.put(filter.getFieldName(), new BasicDBObject("$ne", value).append("$exists", true));
+          // document. This is as per semantics of EQ vs NEQ. So, if you need documents where
+          // key exists, consumer needs to add additional filter.
+          // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
+          map.put(filter.getFieldName(), new BasicDBObject("$ne", value));
           break;
         case AND:
         case OR:

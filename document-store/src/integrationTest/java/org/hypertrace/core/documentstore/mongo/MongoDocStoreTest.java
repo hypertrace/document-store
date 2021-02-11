@@ -530,20 +530,17 @@ public class MongoDocStoreTest {
       myTest2.insertOne(basicDBObject);
     }
 
-    BasicDBObject notEqualsAndExists = new BasicDBObject();
-    notEqualsAndExists.append("$ne", "abc1");
-    notEqualsAndExists.append("$exists", true);
+    BasicDBObject notEquals = new BasicDBObject();
+    notEquals.append("$ne", "abc1");
 
-    FindIterable<BasicDBObject> result =
-        myTest2.find(new BasicDBObject("testKey1", notEqualsAndExists));
+    FindIterable<BasicDBObject> result = myTest2.find(new BasicDBObject("testKey1", notEquals));
     MongoCursor<BasicDBObject> cursor = result.cursor();
     List<DBObject> results = new ArrayList<>();
     while (cursor.hasNext()) {
       DBObject dbObject = cursor.next();
       results.add(dbObject);
-      System.out.println(dbObject);
     }
-    assertEquals(1, results.size());
+    assertEquals(2, results.size());
   }
 
   private Document createDocument(String ...keys) {
