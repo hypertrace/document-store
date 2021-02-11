@@ -360,10 +360,16 @@ public class MongoCollection implements Collection {
         case NOT_EXISTS:
           map.put(filter.getFieldName(), new BasicDBObject("$exists", false));
           break;
-        case AND:
         case NEQ:
+          // $ne operator in Mongo also returns the results, where the key does not exist in the
+          // document. This is as per semantics of EQ vs NEQ. So, if you need documents where
+          // key exists, consumer needs to add additional filter.
+          // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
+          map.put(filter.getFieldName(), new BasicDBObject("$ne", value));
+          break;
+        case AND:
         case OR:
-          throw new UnsupportedOperationException("Only Equality predicate is supported");
+          throw new UnsupportedOperationException("AND/OR operator is not supported");
         default:
           break;
       }
