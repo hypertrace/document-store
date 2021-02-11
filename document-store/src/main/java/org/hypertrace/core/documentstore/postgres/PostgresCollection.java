@@ -48,6 +48,8 @@ public class PostgresCollection implements Collection {
   }};
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String DOC_PATH_SEPARATOR = "\\.";
+  private static String QUESTION_MARK = "?";
+
 
   private final Connection client;
   private final String collectionName;
@@ -59,16 +61,15 @@ public class PostgresCollection implements Collection {
 
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
-    try {
-      PreparedStatement preparedStatement = client
-          .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS);
+    try (PreparedStatement preparedStatement = client
+            .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       String jsonString = prepareUpsertDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, jsonString);
       int result = preparedStatement.executeUpdate();
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + result);
+        LOGGER.debug("Write result: {}", result);
       }
       return result >= 0;
     } catch (SQLException e) {
@@ -125,17 +126,16 @@ public class PostgresCollection implements Collection {
             collectionName, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
     String jsonString = subDocument.toJson();
-    try {
 
-      PreparedStatement preparedStatement = client
-          .prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS);
+    try (PreparedStatement preparedStatement = client
+            .prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, key.toString());
       int resultSet = preparedStatement.executeUpdate();
 
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + resultSet);
+        LOGGER.debug("Write result: {}", resultSet);
       }
 
       return true;
@@ -149,13 +149,13 @@ public class PostgresCollection implements Collection {
   @Override
   public Iterator<Document> search(Query query) {
     String filters = null;
-    String space = " ";
-    StringBuilder searchSQLBuilder = new StringBuilder("SELECT * FROM")
-        .append(space).append(collectionName);
+    StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ")
+        .append(collectionName);
+    Params.Builder paramsBuilder = Params.newBuilder();
 
     // If there is a filter in the query, parse it fully.
     if (query.getFilter() != null) {
-      filters = parseQuery(query.getFilter());
+      filters = parseFilter(query.getFilter(), paramsBuilder);
     }
 
     LOGGER.debug(
@@ -164,27 +164,27 @@ public class PostgresCollection implements Collection {
         filters);
 
     if (filters != null) {
-      searchSQLBuilder
+      sqlBuilder
           .append(" WHERE ").append(filters);
     }
 
     if (!query.getOrderBys().isEmpty()) {
       String orderBySQL = parseOrderByQuery(query.getOrderBys());
-      searchSQLBuilder.append(" ORDER BY ").append(orderBySQL);
+      sqlBuilder.append(" ORDER BY ").append(orderBySQL);
     }
 
     Integer limit = query.getLimit();
     if (limit != null && limit >= 0) {
-      searchSQLBuilder.append(" LIMIT ").append(limit);
+      sqlBuilder.append(" LIMIT ").append(limit);
     }
 
     Integer offset = query.getOffset();
     if (offset != null && offset >= 0) {
-      searchSQLBuilder.append(" OFFSET ").append(offset);
+      sqlBuilder.append(" OFFSET ").append(offset);
     }
 
     try {
-      PreparedStatement preparedStatement = client.prepareStatement(searchSQLBuilder.toString());
+      PreparedStatement preparedStatement = buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
       ResultSet resultSet = preparedStatement.executeQuery();
       return new PostgresResultIterator(resultSet);
     } catch (SQLException e) {
@@ -195,21 +195,21 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected String parseQuery(Filter filter) {
+  protected String parseFilter(Filter filter, Params.Builder paramsBuilder) {
     if (filter.isComposite()) {
-      return parseQueryForCompositeFilter(filter);
+      return parseCompositeFilter(filter, paramsBuilder);
     } else {
-      return parseQueryForNonCompositeFilter(filter);
+      return parseNonCompositeFilter(filter, paramsBuilder);
     }
   }
 
   @VisibleForTesting
-  protected String parseQueryForNonCompositeFilter(Filter filter) {
+  protected String parseNonCompositeFilter(Filter filter, Params.Builder paramsBuilder) {
     Filter.Op op = filter.getOp();
     Object value = filter.getValue();
     String fieldName = filter.getFieldName();
-    String prefix = getFieldPrefix(fieldName);
-    StringBuilder filterString = new StringBuilder(prefix);
+    String fullFieldName = prepareCast(getFieldPrefix(fieldName), value);
+    StringBuilder filterString = new StringBuilder(fullFieldName);
     switch (op) {
       case EQ:
         filterString.append(" = ");
@@ -236,7 +236,10 @@ public class PostgresCollection implements Collection {
         List<Object> values = (List<Object>) value;
         String collect = values
             .stream()
-            .map(val -> "'" + val + "'")
+            .map(val -> {
+              paramsBuilder.addObjectParam(val);
+              return QUESTION_MARK;
+            })
             .collect(Collectors.joining(", "));
         return filterString.append("(").append(collect).append(")").toString();
       case CONTAINS:
@@ -246,22 +249,23 @@ public class PostgresCollection implements Collection {
       case NOT_EXISTS:
         // TODO: Checks if key does not exist
       case NEQ:
-        throw new UnsupportedOperationException("Only Equality predicate is supported");
       default:
         throw new UnsupportedOperationException(
             String.format("Query operation:%s not supported", op));
     }
-    return filterString.append("'").append(value).append("'").toString();
+    String filters = filterString.append(QUESTION_MARK).toString();
+    paramsBuilder.addObjectParam(value);
+    return filters;
   }
 
   @VisibleForTesting
-  protected String parseQueryForCompositeFilter(Filter filter) {
+  protected String parseCompositeFilter(Filter filter, Params.Builder paramsBuilder) {
     Filter.Op op = filter.getOp();
     switch (op) {
       case OR: {
         String childList =
             Arrays.stream(filter.getChildFilters())
-                .map(this::parseQuery)
+                .map(childFilter -> parseFilter(childFilter, paramsBuilder))
                 .filter(str -> !StringUtils.isEmpty(str))
                 .map(str -> "(" + str + ")")
                 .collect(Collectors.joining(" OR "));
@@ -270,7 +274,7 @@ public class PostgresCollection implements Collection {
       case AND: {
         String childList =
             Arrays.stream(filter.getChildFilters())
-                .map(this::parseQuery)
+                .map(childFilter -> parseFilter(childFilter, paramsBuilder))
                 .filter(str -> !StringUtils.isEmpty(str))
                 .map(str -> "(" + str + ")")
                 .collect(Collectors.joining(" AND "));
@@ -278,8 +282,38 @@ public class PostgresCollection implements Collection {
       }
       default:
         throw new UnsupportedOperationException(
-            String.format("Boolean operation:%s not supported", op));
+            String.format("Query operation:%s not supported", op));
     }
+  }
+
+  @VisibleForTesting
+  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params) throws SQLException, RuntimeException {
+    PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
+    params.getObjectParams().forEach((k, v) -> {
+      try {
+        if (isValidType(v)) {
+          preparedStatement.setObject(k, v);
+        } else {
+          throw new UnsupportedOperationException("Un-supported object types in filter");
+        }
+      } catch (SQLException e) {
+        LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
+      }
+    });
+    return preparedStatement;
+  }
+
+  private boolean isValidType(Object v) {
+    Set<Class<?>> validClassez = new HashSet<>() {{
+      add(Double.class);
+      add(Float.class);
+      add(Integer.class);
+      add(Long.class);
+      add(String.class);
+      add(Boolean.class);
+      add(Number.class);
+    }};
+    return validClassez.contains(v.getClass());
   }
 
   @VisibleForTesting
@@ -317,8 +351,7 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean delete(Key key) {
     String deleteSQL = String.format("DELETE FROM %s WHERE %s = ?", collectionName, ID);
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(deleteSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
       preparedStatement.setString(1, key.toString());
       preparedStatement.executeUpdate();
       return true;
@@ -333,22 +366,20 @@ public class PostgresCollection implements Collection {
     String deleteSubDocSQL = String.format("UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?",
         collectionName, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
-    try {
 
-      PreparedStatement preparedStatement = client
-          .prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS);
+    try (PreparedStatement preparedStatement = client
+        .prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, key.toString());
       int resultSet = preparedStatement.executeUpdate();
 
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + resultSet);
+        LOGGER.debug("Write result: {}", resultSet);
       }
 
       return true;
     } catch (SQLException e) {
-      LOGGER
-          .error("SQLException updating sub document. key: {} subDocPath: {}", key, subDocPath, e);
+      LOGGER.error("SQLException updating sub document. key: {} subDocPath: {}", key, subDocPath, e);
     }
     return false;
   }
@@ -356,8 +387,7 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean deleteAll() {
     String deleteSQL = String.format("DELETE FROM %s", collectionName);
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(deleteSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
       preparedStatement.executeUpdate();
       return true;
     } catch (SQLException e) {
@@ -370,8 +400,7 @@ public class PostgresCollection implements Collection {
   public long count() {
     String countSQL = String.format("SELECT COUNT(*) FROM %s", collectionName);
     long count = -1;
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(countSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(countSQL)) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
@@ -386,17 +415,18 @@ public class PostgresCollection implements Collection {
   public long total(Query query) {
     StringBuilder totalSQLBuilder = new StringBuilder("SELECT COUNT(*) FROM ")
         .append(collectionName);
+    Params.Builder paramsBuilder = Params.newBuilder();
+
     long count = -1;
     // on any in-correct filter input, it will return total without filtering
     if (query.getFilter() != null) {
-      String parsedQuery = parseQuery(query.getFilter());
+      String parsedQuery = parseFilter(query.getFilter(), paramsBuilder);
       if (parsedQuery != null) {
         totalSQLBuilder.append(" WHERE ").append(parsedQuery);
       }
     }
 
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(totalSQLBuilder.toString());
+    try (PreparedStatement preparedStatement = buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build())) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
@@ -413,7 +443,7 @@ public class PostgresCollection implements Collection {
       int[] updateCounts = bulkUpsertImpl(documents);
 
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + Arrays.toString(updateCounts));
+        LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
       }
 
       return true;
@@ -430,52 +460,52 @@ public class PostgresCollection implements Collection {
   }
 
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
-    PreparedStatement preparedStatement = client
-        .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS);
-    for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+    try (PreparedStatement preparedStatement = client
+        .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
 
-      Key key = entry.getKey();
-      String jsonString = prepareUpsertDocument(key, entry.getValue());
+        Key key = entry.getKey();
+        String jsonString = prepareUpsertDocument(key, entry.getValue());
 
-      preparedStatement.setString(1, key.toString());
-      preparedStatement.setString(2, jsonString);
-      preparedStatement.setString(3, jsonString);
+        preparedStatement.setString(1, key.toString());
+        preparedStatement.setString(2, jsonString);
+        preparedStatement.setString(3, jsonString);
 
-      preparedStatement.addBatch();
+        preparedStatement.addBatch();
+      }
+
+      return preparedStatement.executeBatch();
     }
-
-    return preparedStatement.executeBatch();
   }
 
   @Override
   public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException {
+    String query = null;
     try {
       String collect = documents.keySet().stream()
           .map(val -> "'" + val.toString() + "'")
           .collect(Collectors.joining(", "));
 
       String space = " ";
-      String query = new StringBuilder("SELECT * FROM")
+      query = new StringBuilder("SELECT * FROM")
           .append(space).append(collectionName)
           .append(" WHERE ").append(ID).append(" IN ")
           .append("(").append(collect).append(")").toString();
 
-      try {
-        PreparedStatement preparedStatement = client.prepareStatement(query);
-        ResultSet resultSet = preparedStatement.executeQuery();
+      PreparedStatement preparedStatement = client.prepareStatement(query);
+      ResultSet resultSet = preparedStatement.executeQuery();
 
-        // Now go ahead and bulk upsert the documents.
-        int[] updateCounts = bulkUpsertImpl(documents);
-        if (LOGGER.isDebugEnabled()) {
-          LOGGER.debug("Write result: " + Arrays.toString(updateCounts));
-        }
-
-        return new PostgresResultIterator(resultSet);
-      } catch (SQLException e) {
-        LOGGER.error("SQLException querying documents. query: {}", query, e);
+      // Now go ahead and bulk upsert the documents.
+      int[] updateCounts = bulkUpsertImpl(documents);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
       }
+
+      return new PostgresResultIterator(resultSet);
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException querying documents. query: {}", query, e);
     }
 
     throw new IOException("Could not bulk upsert the documents.");
@@ -490,6 +520,29 @@ public class PostgresCollection implements Collection {
     return MAPPER.writeValueAsString(jsonNode);
   }
 
+  private String prepareCast(String field, Object value) {
+    String fmt = "CAST (%s AS %s)";
+
+    // handle the case if the value type is collection for filter operator - `IN`
+    // Currently, for `IN` operator, we are considering List collection, and it is fair
+    // assumption that all its value of the same types. Based on that and for consistency
+    // we will use CAST ( <field name> as <type> ) for all non string operator.
+    // Ref : https://github.com/hypertrace/document-store/pull/30#discussion_r571782575
+    
+    if (value instanceof List<?> && ((List<Object>) value).size() > 0) {
+      List<Object> listValue = (List<Object>) value;
+      value = listValue.get(0);
+    }
+
+    if (value instanceof Number) {
+      return String.format(fmt, field, "NUMERIC");
+    } else if (value instanceof Boolean) {
+      return String.format(fmt, field, "BOOLEAN");
+    } else /* default is string */ {
+      return field;
+    }
+  }
+
   private String getUpsertSQL() {
     return String.format(
         "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
@@ -499,10 +552,8 @@ public class PostgresCollection implements Collection {
   @Override
   public void drop() {
     String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL)) {
       preparedStatement.executeUpdate();
-      preparedStatement.close();
     } catch (SQLException e) {
       LOGGER.error("Exception deleting table name: {}", collectionName);
     }
@@ -545,6 +596,18 @@ public class PostgresCollection implements Collection {
       }
     }
 
+    private String prepareNumericBlock(String fieldName, Object value) {
+      if (value instanceof Number) {
+        String fmt = "case jsonb_typeof(%s)\n"
+            + "WHEN ‘number’ THEN (%s)::numeric > ?\n"
+            + "end";
+      } else if (value instanceof Boolean) {
+        String fmtBoolean = "case jsonb_typeof(<field>)\n"
+            + "WHEN 'boolean'  THEN (<field>)::boolean  > ?\n"
+            + "end";
+      }
+      return null;
+    }
   }
 }
 

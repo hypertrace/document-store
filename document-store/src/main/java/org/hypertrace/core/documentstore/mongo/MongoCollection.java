@@ -15,6 +15,7 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.ReturnDocument;
 import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.UpdateOptions;
@@ -35,6 +36,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
+import org.bson.conversions.Bson;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.Collection;
@@ -218,6 +220,12 @@ public class MongoCollection implements Collection {
     if (query.getFilter() != null) {
       map = parseQuery(query.getFilter());
     }
+
+    Bson projection = new BasicDBObject();
+    if (!query.getSelections().isEmpty()) {
+      projection = Projections.include(query.getSelections());
+    }
+
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Sending query to mongo: {} : {}",
           collection.getNamespace().getCollectionName(),
@@ -226,7 +234,7 @@ public class MongoCollection implements Collection {
 
     // Assume its SimpleAndQuery for now
     BasicDBObject ref = new BasicDBObject(map);
-    FindIterable<BasicDBObject> cursor = collection.find(ref);
+    FindIterable<BasicDBObject> cursor = collection.find(ref).projection(projection);
 
     Integer offset = query.getOffset();
     if (offset != null && offset >= 0) {

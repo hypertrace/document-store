@@ -91,10 +91,8 @@ public class PostgresDatastore implements Datastore {
         "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()," +
         "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()" +
         ");", collectionName, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(createTableSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(createTableSQL)) {
       int result = preparedStatement.executeUpdate();
-      preparedStatement.close();
       return result >= 0;
     } catch (SQLException e) {
       LOGGER.error("Exception creating table name: {}", collectionName);
@@ -105,10 +103,8 @@ public class PostgresDatastore implements Datastore {
   @Override
   public boolean deleteCollection(String collectionName) {
     String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL)) {
       int result = preparedStatement.executeUpdate();
-      preparedStatement.close();
       return result >= 0;
     } catch (SQLException e) {
       LOGGER.error("Exception deleting table name: {}", collectionName);
@@ -128,13 +124,11 @@ public class PostgresDatastore implements Datastore {
   @Override
   public boolean healthCheck() {
     String healtchCheckSQL = "SELECT 1;";
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(healtchCheckSQL);
+    try (PreparedStatement preparedStatement = client.prepareStatement(healtchCheckSQL)) {
       return preparedStatement.execute();
     } catch (SQLException e) {
       LOGGER.error("Exception executing health check");
     }
-
     return false;
   }
 

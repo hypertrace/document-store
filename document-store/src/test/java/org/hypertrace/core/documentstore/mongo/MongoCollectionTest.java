@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
@@ -12,11 +13,14 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.List;
 import java.util.Map;
+
+import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Query;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 /** Unit tests for utility/helper methods in {@link MongoCollection} */
 public class MongoCollectionTest {
@@ -35,62 +39,62 @@ public class MongoCollectionTest {
     {
       Filter filter = new Filter(Filter.Op.EQ, "key1", "val1");
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals("val1", query.get("key1"));
+      assertEquals("val1", query.get("key1"));
     }
 
     {
       Filter filter = new Filter(Filter.Op.GT, "key1", 5);
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(new BasicDBObject("$gt", 5), query.get("key1"));
+      assertEquals(new BasicDBObject("$gt", 5), query.get("key1"));
     }
 
     {
       Filter filter = new Filter(Filter.Op.GTE, "key1", 5);
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(new BasicDBObject("$gte", 5), query.get("key1"));
+      assertEquals(new BasicDBObject("$gte", 5), query.get("key1"));
     }
 
     {
       Filter filter = new Filter(Filter.Op.LT, "key1", 5);
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(new BasicDBObject("$lt", 5), query.get("key1"));
+      assertEquals(new BasicDBObject("$lt", 5), query.get("key1"));
     }
 
     {
       Filter filter = new Filter(Filter.Op.LTE, "key1", 5);
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(new BasicDBObject("$lte", 5), query.get("key1"));
+      assertEquals(new BasicDBObject("$lte", 5), query.get("key1"));
     }
 
     {
       Filter filter = new Filter(Filter.Op.EXISTS, "key1", null);
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(new BasicDBObject("$exists", true), query.get("key1"));
+      assertEquals(new BasicDBObject("$exists", true), query.get("key1"));
     }
 
     {
       Filter filter = new Filter(Filter.Op.NOT_EXISTS, "key1", null);
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(new BasicDBObject("$exists", false), query.get("key1"));
+      assertEquals(new BasicDBObject("$exists", false), query.get("key1"));
     }
 
     {
       Filter filter = new Filter(Filter.Op.LIKE, "key1", ".*abc");
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(
+      assertEquals(
           new BasicDBObject("$regex", ".*abc").append("$options", "i"), query.get("key1"));
     }
 
     {
       Filter filter = new Filter(Filter.Op.IN, "key1", List.of("abc", "xyz"));
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(new BasicDBObject("$in", List.of("abc", "xyz")), query.get("key1"));
+      assertEquals(new BasicDBObject("$in", List.of("abc", "xyz")), query.get("key1"));
     }
 
     {
       Filter filter = new Filter(Filter.Op.CONTAINS, "key1", "abc");
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      Assertions.assertEquals(new BasicDBObject("$elemMatch", "abc"), query.get("key1"));
+      assertEquals(new BasicDBObject("$elemMatch", "abc"), query.get("key1"));
     }
 
     {
@@ -137,7 +141,7 @@ public class MongoCollectionTest {
 
     Filter filter = filter1.or(filter2);
     Map<String, Object> query = mongoCollection.parseQuery(filter);
-    Assertions.assertEquals(2, ((List) query.get("$or")).size());
+    assertEquals(2, ((List) query.get("$or")).size());
     Assertions.assertTrue(
         ((List) ((Map) ((List) query.get("$or")).get(0)).get("$and"))
             .containsAll(List.of(Map.of("key1", "val1"), Map.of("key2", "val2"))));
@@ -151,9 +155,12 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setLimit(10);
 
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
     FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
     MongoCursor<BasicDBObject> mongoCursor = mock(MongoCursor.class);
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
     when(cursor.cursor()).thenReturn(mongoCursor);
     when(cursor.limit(10)).thenReturn(cursor);
     mongoCollection.search(query);
@@ -166,8 +173,11 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setLimit(null);
 
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
     FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(0)).limit(anyInt());
@@ -178,8 +188,11 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setOffset(10);
 
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
     FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
     when(cursor.skip(10)).thenReturn(cursor);
     mongoCollection.search(query);
 
@@ -191,8 +204,11 @@ public class MongoCollectionTest {
     Query query = new Query();
     query.setOffset(null);
 
-    FindIterable cursor = mock(FindIterable.class);
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
+    FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(0)).skip(anyInt());
@@ -204,11 +220,16 @@ public class MongoCollectionTest {
     query.setLimit(5);
     query.setOffset(10);
 
-    FindIterable cursor = mock(FindIterable.class);
+    FindIterable<BasicDBObject> findCursor = mock(FindIterable.class);
+    FindIterable<BasicDBObject> cursor = mock(FindIterable.class);
+    MongoCursor<BasicDBObject> mongoCursor = mock(MongoCursor.class);
+
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+    when(findCursor.projection(any(Bson.class))).thenReturn(cursor);
+    when(cursor.cursor()).thenReturn(mongoCursor);
     when(cursor.limit(anyInt())).thenReturn(cursor);
     when(cursor.skip(anyInt())).thenReturn(cursor);
 
-    when(collection.find(any(BasicDBObject.class))).thenReturn(cursor);
     mongoCollection.search(query);
 
     verify(cursor, times(1)).skip(10);
@@ -230,5 +251,21 @@ public class MongoCollectionTest {
 
     mongoCollection.total(query);
     verify(collection, times(1)).countDocuments(any(BasicDBObject.class));
+  }
+
+  @Test
+  public void testProjections() {
+    Query query = new Query();
+    query.addAllSelections(List.of("proj1", "proj2"));
+
+    FindIterable findCursor = mock(FindIterable.class);
+    when(collection.find(any(BasicDBObject.class))).thenReturn(findCursor);
+
+    FindIterable projectionCursor = mock(FindIterable.class);
+    ArgumentCaptor<Bson> projectionArgumentCaptor = ArgumentCaptor.forClass(Bson.class);
+    when(findCursor.projection(projectionArgumentCaptor.capture())).thenReturn(projectionCursor);
+
+    mongoCollection.search(query);
+    assertEquals("{\"proj1\": 1, \"proj2\": 1}", projectionArgumentCaptor.getValue().toString());
   }
 }

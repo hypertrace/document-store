@@ -31,15 +31,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
+import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -102,7 +105,7 @@ public class MongoDocStoreTest {
   public void testIgnoreCaseLikeQuery() throws IOException {
     long now = Instant.now().toEpochMilli();
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey"), createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey"), Utils.createDocument("name", "Bob"));
 
     String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB", "BO", "bO", "Ob", "OB"};
 
@@ -126,13 +129,13 @@ public class MongoDocStoreTest {
   @Test
   public void testTotalWithQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey4"), createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey5"), createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Alice"));
+    collection.upsert(new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
+    collection.upsert(new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
     collection.upsert(
-        new SingleValueKey("default", "testKey6"), createDocument("email", "bob@example.com"));
+        new SingleValueKey("default", "testKey6"), Utils.createDocument("email", "bob@example.com"));
 
     {
       // empty query returns all the documents
@@ -158,11 +161,11 @@ public class MongoDocStoreTest {
   @Test
   public void testOffsetAndLimit() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("foo1", "bar1"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("foo2", "bar2"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), createDocument("foo3", "bar3"));
-    collection.upsert(new SingleValueKey("default", "testKey4"), createDocument("foo4", "bar4"));
-    collection.upsert(new SingleValueKey("default", "testKey5"), createDocument("foo5", "bar5"));
+    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("foo1", "bar1"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("foo2", "bar2"));
+    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("foo3", "bar3"));
+    collection.upsert(new SingleValueKey("default", "testKey4"), Utils.createDocument("foo4", "bar4"));
+    collection.upsert(new SingleValueKey("default", "testKey5"), Utils.createDocument("foo5", "bar5"));
 
     // Querying 5 times, to make sure the order of results is maintained with offset + limit
     for (int i = 0; i < 5; i++) {
@@ -362,8 +365,8 @@ public class MongoDocStoreTest {
   public void testSelectAll() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2"));
+    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2"));
     assertEquals(2, collection.count());
     Iterator<Document> iterator = collection.search(new Query());
     List<Document> documents = new ArrayList<>();
@@ -378,12 +381,42 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testSelections() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"));
+    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2"));
+    assertEquals(2, collection.count());
+    Query query = new Query();
+    query.addSelection("testKey1");
+    Iterator<Document> iterator = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (iterator.hasNext()) {
+      documents.add(iterator.next());
+    }
+    assertEquals(2, documents.size());
+
+    Assertions.assertFalse(documents.isEmpty());
+
+    String document1 = documents.get(0).toJson();
+    Assertions.assertTrue(document1.contains("testKey1"));
+    JsonNode node1 = OBJECT_MAPPER.readTree(document1);
+    String value = node1.findValue("testKey1").asText();
+    Assertions.assertEquals("abc1", value);
+
+    String document2 = documents.get(1).toJson();
+    Assertions.assertFalse(document2.contains("testKey1"));
+    JsonNode node2 = OBJECT_MAPPER.readTree(document2);
+    assertTrue(node2.isEmpty());
+  }
+
+  @Test
   public void testBulkUpsert() {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Map<Key, Document> documentMap = Map.of(
-        new SingleValueKey("default", "testKey1"), createDocument("testKey1", "abc1"),
-        new SingleValueKey("default", "testKey2"), createDocument("testKey2", "abc2")
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"),
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2")
     );
 
     assertTrue(collection.bulkUpsert(documentMap));
@@ -400,13 +433,177 @@ public class MongoDocStoreTest {
     assertEquals(1, collection.count());
   }
 
+  /**
+   * This is an example where same field is having different type values.
+   * e.g size field has boolean, numeric and string values.
+   * This is a valid scenario for document store, and works fine with mongodb.
+   * However, there is currently limitation on postgres as document store implementation
+   * using jsonb, and it won't work.
+   * */
+  @Test
+  public void testWithDifferentDataTypes() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // size field with integer value
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10))
+    );
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", -20))
+    );
+
+    // size field with string value
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", false))
+    );
+    collection.upsert(new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", true))
+    );
+
+    // size field with boolean value
+    collection.upsert(new SingleValueKey("default", "testKey5"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey5"),
+            ImmutablePair.of("name", "abc5"),
+            ImmutablePair.of("size", "10"))
+    );
+    collection.upsert(new SingleValueKey("default", "testKey6"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey6"),
+            ImmutablePair.of("name", "abc6"),
+            ImmutablePair.of("size", "20"))
+    );
+
+    // query for size field with integer value
+    Query queryGt = new Query();
+    Filter filterGt = new Filter(Op.GT, "size", -30);
+    queryGt.setFilter(filterGt);
+    Iterator<Document> results = collection.search(queryGt);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(2,documents.size());
+
+    // query for size field with string value
+    Query queryGtStr = new Query();
+    Filter filterGtStr = new Filter(Op.GT, "size", "1");
+    queryGtStr.setFilter(filterGtStr);
+    Iterator<Document> resultsGtStr = collection.search(queryGtStr);
+    List<Document> documentsGtStr = new ArrayList<>();
+    while (resultsGtStr.hasNext()) {
+      documentsGtStr.add(resultsGtStr.next());
+    }
+    Assertions.assertEquals(2, documentsGtStr.size());
+
+    // query for size field with boolean value
+    Query queryGtBool = new Query();
+    Filter filterGtBool = new Filter(Op.GT, "size", false);
+    queryGtStr.setFilter(filterGtBool);
+    Iterator<Document> resultsGtBool = collection.search(queryGtStr);
+    List<Document> documentsGtBool = new ArrayList<>();
+    while (resultsGtBool.hasNext()) {
+      documentsGtBool.add(resultsGtBool.next());
+    }
+    Assertions.assertEquals(1, documentsGtBool.size());
+
+    datastore.deleteCollection(COLLECTION_NAME);
+  }
+
+  @Test
+  public void testWithDifferentFieldTypes() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // size field with integer value, isCostly boolean field
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10),
+            ImmutablePair.of("isCostly", false))
+    );
+
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", -20),
+            ImmutablePair.of("isCostly", false))
+    );
+
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 5),
+            ImmutablePair.of("isCostly", true))
+    );
+
+    collection.upsert(new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 10),
+            ImmutablePair.of("isCostly", true))
+    );
+
+    // query field having int type
+    Query queryNumericField = new Query();
+    Filter filter = new Filter(Op.GT, "size", -30);
+    queryNumericField.setFilter(filter);
+    Iterator<Document> results = collection.search(queryNumericField);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(4, documents.size());
+
+    // query field having boolean field
+    Query queryBooleanField = new Query();
+    filter = new Filter(Op.GT, "isCostly", false);
+    queryBooleanField.setFilter(filter);
+    results = collection.search(queryBooleanField);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(2, documents.size());
+
+    // query string field
+    Query queryStringField = new Query();
+    filter = new Filter(Op.GT, "name", "abc1");
+    queryStringField.setFilter(filter);
+    results = collection.search(queryBooleanField);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(2, documents.size());
+
+    datastore.deleteCollection(COLLECTION_NAME);
+  }
+
   @Test
   public void testReturnAndBulkUpsert() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Map<Key, Document> documentMapV1 = Map.of(
-        new SingleValueKey("default", "testKey1"), createDocument("id", "1", "testKey1", "abc-v1"),
-        new SingleValueKey("default", "testKey2"), createDocument("id", "2", "testKey2", "xyz-v1")
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("id", "1", "testKey1", "abc-v1"),
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("id", "2", "testKey2", "xyz-v1")
     );
 
     Iterator<Document> iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV1);
@@ -415,8 +612,8 @@ public class MongoDocStoreTest {
 
     // Add more details to the document and bulk upsert again.
     Map<Key, Document> documentMapV2 = Map.of(
-        new SingleValueKey("default", "testKey1"), createDocument("id", "1", "testKey1", "abc-v2"),
-        new SingleValueKey("default", "testKey2"), createDocument("id", "2", "testKey2", "xyz-v2")
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("id", "1", "testKey1", "abc-v2"),
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("id", "2", "testKey2", "xyz-v2")
     );
     iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV2);
     assertEquals(2, collection.count());
@@ -542,18 +739,5 @@ public class MongoDocStoreTest {
     }
     assertEquals(2, results.size());
   }
-
-  private Document createDocument(String ...keys) {
-    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-    for (int i = 0; i < keys.length - 1; i++) {
-      objectNode.put(keys[i], keys[i + 1]);
-    }
-    return new JSONDocument(objectNode);
-  }
-
-  private Document createDocument(String key, String value) {
-    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-    objectNode.put(key, value);
-    return new JSONDocument(objectNode);
-  }
+  
 }
