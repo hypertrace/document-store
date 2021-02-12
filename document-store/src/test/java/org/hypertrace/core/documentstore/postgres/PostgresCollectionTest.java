@@ -33,6 +33,12 @@ public class PostgresCollectionTest {
     }
 
     {
+      Filter filter = new Filter(Filter.Op.NEQ, ID, "val1");
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals(ID + " != ?", query);
+    }
+
+    {
       Filter filter = new Filter(Filter.Op.GT, ID, 5);
       String query = collection.parseNonCompositeFilter(filter, initParams());
       Assertions.assertEquals("CAST (" + ID + " AS NUMERIC) > ?", query);
@@ -75,6 +81,12 @@ public class PostgresCollectionTest {
       Filter filter = new Filter(Filter.Op.EQ, "key1", "val1");
       String query = collection.parseNonCompositeFilter(filter, initParams());
       Assertions.assertEquals("document->>'key1' = ?", query);
+    }
+
+    {
+      Filter filter = new Filter(Filter.Op.NEQ, "key1", "val1");
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->'key1' IS NULL OR document->>'key1' != ?", query);
     }
 
     {
@@ -136,15 +148,6 @@ public class PostgresCollectionTest {
   @Test
   public void testNonCompositeFilterUnsupportedException() {
     String expectedMessage = collection.UNSUPPORTED_QUERY_OPERATION;
-    {
-      Filter filter = new Filter(Filter.Op.NEQ, "key1", null);
-      String expected = String.format(expectedMessage, Filter.Op.NEQ);
-      Exception exception = assertThrows(UnsupportedOperationException.class,
-          () -> collection.parseNonCompositeFilter(filter, initParams()));
-      String actualMessage = exception.getMessage();
-      Assertions.assertTrue(actualMessage.contains(expected));
-    }
-
     {
       Filter filter = new Filter(Filter.Op.CONTAINS, "key1", null);
       String expected = String.format(expectedMessage, Filter.Op.CONTAINS);

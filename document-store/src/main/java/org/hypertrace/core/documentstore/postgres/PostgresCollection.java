@@ -211,7 +211,7 @@ public class PostgresCollection implements Collection {
     Filter.Op op = filter.getOp();
     Object value = filter.getValue();
     String fieldName = filter.getFieldName();
-    String fullFieldName = prepareCast(getFieldPrefix(fieldName), value);
+    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName), value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
     switch (op) {
@@ -266,8 +266,19 @@ public class PostgresCollection implements Collection {
         }
         break;
       case NEQ:
-        // Disabled for parity with mongo collection API.
-        // Can be implemented by wrapping predicate for EQ in a NOT()
+        sqlOperator = " != ";
+        // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
+        // The expected behaviour is to get all documents which either satisfy non equality condition
+        // or the key doesn't exist in them
+        // Semantics for handling if key not exists and if it exists, its value
+        // doesn't equal to the filter for Jsonb document will be done as:
+        // "document->key IS NULL OR document->key->> != value"
+        StringBuilder notEquals = prepareFieldAccessorExpr(fieldName);
+        // For fields inside jsonb
+        if (notEquals != null) {
+          filterString = notEquals.append(" IS NULL OR ").append(fullFieldName);
+        }
+        break;
       case CONTAINS:
         // TODO: Matches condition inside an array of documents
       default:
@@ -367,7 +378,7 @@ public class PostgresCollection implements Collection {
    * keys. Note: It doesn't handle array elements in json document. e.g SELECT * FROM TABLE where
    * document ->> 'first' = 'name' and document -> 'address' ->> 'pin' = "00000"
    */
-  private String getFieldPrefix(String fieldName) {
+  private String prepareFieldDataAccessorExpr(String fieldName) {
     StringBuilder fieldPrefix = new StringBuilder(fieldName);
     if (!OUTER_COLUMNS.contains(fieldName)) {
       fieldPrefix = new StringBuilder(DOCUMENT);
@@ -385,7 +396,7 @@ public class PostgresCollection implements Collection {
   private String parseOrderByQuery(List<OrderBy> orderBys) {
     return orderBys
         .stream()
-        .map(orderBy -> getFieldPrefix(orderBy.getField()) + " " + (orderBy.isAsc() ? "ASC" : "DESC"))
+        .map(orderBy -> prepareFieldDataAccessorExpr(orderBy.getField()) + " " + (orderBy.isAsc() ? "ASC" : "DESC"))
         .filter(str -> !StringUtils.isEmpty(str))
         .collect(Collectors.joining(" , "));
   }

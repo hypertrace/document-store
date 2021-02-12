@@ -789,7 +789,6 @@ public class MongoDocStoreTest {
             Utils.createDocument(
                     ImmutablePair.of("key1", "abc1"),
                     ImmutablePair.of("key2", "xyz1")));
-
     collection.upsert(new SingleValueKey("default", "testKey2"),
             Utils.createDocument(
                     ImmutablePair.of("key1", "abc2"),
@@ -797,17 +796,17 @@ public class MongoDocStoreTest {
     collection.upsert(new SingleValueKey("default", "testKey3"),
             Utils.createDocument(
                     ImmutablePair.of("key1", "abc3"),
-                    ImmutablePair.of("key2", "xyz2")));
+                    ImmutablePair.of("key2", "xyz3")));
     collection.upsert(new SingleValueKey("default", "testKey4"),
             Utils.createDocument(
-                    ImmutablePair.of("key1", "abc3")));
+                    ImmutablePair.of("key1", "abc4")));
 
     collection.updateSubDoc(new SingleValueKey("default", "testKey1"),
             "subdoc", Utils.createDocument("nestedkey1", "pqr1"));
     collection.updateSubDoc(new SingleValueKey("default", "testKey2"),
             "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
     collection.updateSubDoc(new SingleValueKey("default", "testKey3"),
-            "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
+            "subdoc", Utils.createDocument("nestedkey1", "pqr3"));
 
     // NEQ on ID
     {
@@ -818,8 +817,16 @@ public class MongoDocStoreTest {
       while (results.hasNext()) {
         documents.add(results.next());
       }
+
       assertEquals(3, documents.size());
+      documents.forEach(document -> {
+        String jsonStr = document.toJson();
+        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
+                || document.toJson().contains("\"key1\":\"abc2\"")
+                || document.toJson().contains("\"key1\":\"abc4\""));
+      });
     }
+
 
     // NEQ on document fields
     {
@@ -830,7 +837,13 @@ public class MongoDocStoreTest {
       while (results.hasNext()) {
         documents.add(results.next());
       }
-      assertEquals(2, documents.size());
+      assertEquals(3, documents.size());
+      documents.forEach(document -> {
+        String jsonStr = document.toJson();
+        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
+                || document.toJson().contains("\"key1\":\"abc2\"")
+                || document.toJson().contains("\"key1\":\"abc4\""));
+      });
     }
 
     // NEQ on non existing fields
@@ -842,7 +855,13 @@ public class MongoDocStoreTest {
       while (results.hasNext()) {
         documents.add(results.next());
       }
-      assertEquals(2, documents.size());
+      assertEquals(3, documents.size());
+      documents.forEach(document -> {
+        String jsonStr = document.toJson();
+        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
+                || document.toJson().contains("\"key1\":\"abc3\"")
+                || document.toJson().contains("\"key1\":\"abc4\""));
+      });
     }
 
     // NEQ on nested fields
@@ -854,7 +873,13 @@ public class MongoDocStoreTest {
       while (results.hasNext()) {
         documents.add(results.next());
       }
-      assertEquals(2, documents.size());
+      assertEquals(3, documents.size());
+      documents.forEach(document -> {
+        String jsonStr = document.toJson();
+        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
+                || document.toJson().contains("\"key1\":\"abc3\"")
+                || document.toJson().contains("\"key1\":\"abc4\""));
+      });
     }
   }
   

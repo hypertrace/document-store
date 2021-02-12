@@ -1,6 +1,8 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -713,4 +715,108 @@ public class PostgresDocStoreTest {
 
     datastore.deleteCollection(COLLECTION_NAME);
   }
+
+  @Test
+  public void testNotEquals() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                    ImmutablePair.of("key1", "abc1"),
+                    ImmutablePair.of("key2", "xyz1")));
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+            Utils.createDocument(
+                    ImmutablePair.of("key1", "abc2"),
+                    ImmutablePair.of("key2", "xyz2")));
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+            Utils.createDocument(
+                    ImmutablePair.of("key1", "abc3"),
+                    ImmutablePair.of("key2", "xyz3")));
+    collection.upsert(new SingleValueKey("default", "testKey4"),
+            Utils.createDocument(
+                    ImmutablePair.of("key1", "abc4")));
+
+    collection.updateSubDoc(new SingleValueKey("default", "testKey1"),
+            "subdoc", Utils.createDocument("nestedkey1", "pqr1"));
+    collection.updateSubDoc(new SingleValueKey("default", "testKey2"),
+            "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
+    collection.updateSubDoc(new SingleValueKey("default", "testKey3"),
+            "subdoc", Utils.createDocument("nestedkey1", "pqr3"));
+
+    // NEQ on ID
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.NEQ, "_id", "default:testKey3"));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+
+      assertEquals(3, documents.size());
+      documents.forEach(document -> {
+        String jsonStr = document.toJson();
+        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
+                || document.toJson().contains("\"key1\":\"abc2\"")
+                || document.toJson().contains("\"key1\":\"abc4\""));
+      });
+    }
+
+
+    // NEQ on document fields
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.NEQ, "key1", "abc3"));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      assertEquals(3, documents.size());
+      documents.forEach(document -> {
+        String jsonStr = document.toJson();
+        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
+                || document.toJson().contains("\"key1\":\"abc2\"")
+                || document.toJson().contains("\"key1\":\"abc4\""));
+      });
+    }
+
+    // NEQ on non existing fields
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.NEQ, "key2", "xyz2"));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      assertEquals(3, documents.size());
+      documents.forEach(document -> {
+        String jsonStr = document.toJson();
+        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
+                || document.toJson().contains("\"key1\":\"abc3\"")
+                || document.toJson().contains("\"key1\":\"abc4\""));
+      });
+    }
+
+    // NEQ on nested fields
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.NEQ, "subdoc.nestedkey1", "pqr2"));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      assertEquals(3, documents.size());
+      documents.forEach(document -> {
+        String jsonStr = document.toJson();
+        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
+                || document.toJson().contains("\"key1\":\"abc3\"")
+                || document.toJson().contains("\"key1\":\"abc4\""));
+      });
+    }
+  }
+
 }
