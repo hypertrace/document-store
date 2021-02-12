@@ -91,4 +91,6 @@ public interface Collection {
    * Drops a collections
    */
   void drop();
+
+  String UNSUPPORTED_QUERY_OPERATION = "Query operation is not supported";
 }

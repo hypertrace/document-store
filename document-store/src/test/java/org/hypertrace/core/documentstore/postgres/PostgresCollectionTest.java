@@ -119,27 +119,23 @@ public class PostgresCollectionTest {
       Assertions.assertEquals("document->>'_id' = ?", query);
     }
 
+    {
+      Filter filter = new Filter(Filter.Op.EXISTS, "key1.key2", null);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      System.err.println(query);
+      Assertions.assertEquals("document->'key1'->'key2' IS NOT NULL ", query);
+    }
+
+    {
+      Filter filter = new Filter(Filter.Op.NOT_EXISTS, "key1", null);
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->'key1' IS NULL ", query);
+    }
   }
 
   @Test
   public void testNonCompositeFilterUnsupportedException() {
-    String expectedMessage = "Query operation:%s not supported";
-    {
-      Filter filter = new Filter(Filter.Op.EXISTS, "key1", null);
-      String expected = String.format(expectedMessage, Filter.Op.EXISTS);
-      Exception exception = assertThrows(UnsupportedOperationException.class,
-          () -> collection.parseNonCompositeFilter(filter, initParams()));
-      String actualMessage = exception.getMessage();
-      Assertions.assertTrue(actualMessage.contains(expected));
-    }
-    {
-      Filter filter = new Filter(Filter.Op.NOT_EXISTS, "key1", null);
-      String expected = String.format(expectedMessage, Filter.Op.NOT_EXISTS);
-      Exception exception = assertThrows(UnsupportedOperationException.class,
-          () -> collection.parseNonCompositeFilter(filter, initParams()));
-      String actualMessage = exception.getMessage();
-      Assertions.assertTrue(actualMessage.contains(expected));
-    }
+    String expectedMessage = collection.UNSUPPORTED_QUERY_OPERATION;
     {
       Filter filter = new Filter(Filter.Op.NEQ, "key1", null);
       String expected = String.format(expectedMessage, Filter.Op.NEQ);
@@ -148,6 +144,7 @@ public class PostgresCollectionTest {
       String actualMessage = exception.getMessage();
       Assertions.assertTrue(actualMessage.contains(expected));
     }
+
     {
       Filter filter = new Filter(Filter.Op.CONTAINS, "key1", null);
       String expected = String.format(expectedMessage, Filter.Op.CONTAINS);
