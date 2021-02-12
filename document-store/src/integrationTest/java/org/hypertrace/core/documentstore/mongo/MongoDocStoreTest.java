@@ -781,41 +781,81 @@ public class MongoDocStoreTest {
   }
 
   @Test
-  public void testNotEquals() {
-    MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017");
+  public void testNotEquals() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
 
-    MongoDatabase db = mongoClient.getDatabase("default_db");
-    String collectionName = "myTest2";
-    MongoCollection<BasicDBObject> myTest2 = db.getCollection(collectionName, BasicDBObject.class);
-    myTest2.drop();
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                    ImmutablePair.of("key1", "abc1"),
+                    ImmutablePair.of("key2", "xyz1")));
 
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+            Utils.createDocument(
+                    ImmutablePair.of("key1", "abc2"),
+                    ImmutablePair.of("key2", "xyz2")));
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+            Utils.createDocument(
+                    ImmutablePair.of("key1", "abc3"),
+                    ImmutablePair.of("key2", "xyz2")));
+    collection.upsert(new SingleValueKey("default", "testKey4"),
+            Utils.createDocument(
+                    ImmutablePair.of("key1", "abc3")));
+
+    collection.updateSubDoc(new SingleValueKey("default", "testKey1"),
+            "subdoc", Utils.createDocument("nestedkey1", "pqr1"));
+    collection.updateSubDoc(new SingleValueKey("default", "testKey2"),
+            "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
+    collection.updateSubDoc(new SingleValueKey("default", "testKey3"),
+            "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
+
+    // NEQ on ID
     {
-      BasicDBObject basicDBObject = new BasicDBObject();
-      basicDBObject.put("testKey1", "abc1");
-      myTest2.insertOne(basicDBObject);
-    }
-    {
-      BasicDBObject basicDBObject = new BasicDBObject();
-      basicDBObject.put("testKey1", "xyz1");
-      myTest2.insertOne(basicDBObject);
-    }
-    {
-      BasicDBObject basicDBObject = new BasicDBObject();
-      basicDBObject.put("testKey2", "abc2");
-      myTest2.insertOne(basicDBObject);
+      Query query = new Query();
+      query.setFilter(new Filter(Op.NEQ, "_id", "default:testKey3"));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      assertEquals(3, documents.size());
     }
 
-    BasicDBObject notEquals = new BasicDBObject();
-    notEquals.append("$ne", "abc1");
-
-    FindIterable<BasicDBObject> result = myTest2.find(new BasicDBObject("testKey1", notEquals));
-    MongoCursor<BasicDBObject> cursor = result.cursor();
-    List<DBObject> results = new ArrayList<>();
-    while (cursor.hasNext()) {
-      DBObject dbObject = cursor.next();
-      results.add(dbObject);
+    // NEQ on document fields
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.NEQ, "key1", "abc3"));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      assertEquals(2, documents.size());
     }
-    assertEquals(2, results.size());
+
+    // NEQ on non existing fields
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.NEQ, "key2", "xyz2"));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      assertEquals(2, documents.size());
+    }
+
+    // NEQ on nested fields
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Op.NEQ, "subdoc.nestedkey1", "pqr2"));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      assertEquals(2, documents.size());
+    }
   }
   
 }
