@@ -16,6 +16,7 @@ import java.util.Map;
 
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.Query;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -89,6 +90,12 @@ public class MongoCollectionTest {
       Filter filter = new Filter(Filter.Op.IN, "key1", List.of("abc", "xyz"));
       Map<String, Object> query = mongoCollection.parseQuery(filter);
       assertEquals(new BasicDBObject("$in", List.of("abc", "xyz")), query.get("key1"));
+    }
+
+    {
+      Filter filter = new Filter(Op.NOT_IN, "key1", List.of("abc", "xyz"));
+      Map<String, Object> query = mongoCollection.parseQuery(filter);
+      assertEquals(new BasicDBObject("$nin", List.of("abc", "xyz")), query.get("key1"));
     }
 
     {

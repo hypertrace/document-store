@@ -23,6 +23,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.OrderBy;
@@ -214,6 +215,7 @@ public class PostgresCollection implements Collection {
     String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName), value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
+    Boolean isMultiValued = false;
     switch (op) {
       case EQ:
         sqlOperator = " = ";
@@ -235,18 +237,28 @@ public class PostgresCollection implements Collection {
         sqlOperator = " ILIKE ";
         value = "%" + value + "%";
         break;
+      case NOT_IN:
+        // NOTE: Below two points
+        // 1. both NOT_IN and IN filter currently limited to non-array field
+        //    - https://github.com/hypertrace/document-store/issues/32#issuecomment-781411676
+        // 2. To make semantically opposite filter of IN, we need to check for if key is not present
+        //    Ref in context of NEQ - https://github.com/hypertrace/document-store/pull/20#discussion_r547101520Other
+        //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
+        StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName);
+        if (notInFilterString != null) {
+          filterString = notInFilterString.append(" IS NULL OR ").append(fullFieldName);
+        }
+        sqlOperator = " NOT IN ";
+        isMultiValued = true;
+        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        break;
       case IN:
+        // NOTE: both NOT_IN and IN filter currently limited to non-array field
+        //  - https://github.com/hypertrace/document-store/issues/32#issuecomment-781411676
         sqlOperator = " IN ";
-        List<Object> values = (List<Object>) value;
-        String collect = values
-            .stream()
-            .map(val -> {
-              paramsBuilder.addObjectParam(val);
-              return QUESTION_MARK;
-            })
-            .collect(Collectors.joining(", "));
-        value = "(" + collect + ")";
-        return filterString.append(sqlOperator).append(value).toString();
+        isMultiValued = true;
+        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        break;
       case NOT_EXISTS:
         sqlOperator = " IS NULL ";
         value = null;
@@ -288,11 +300,27 @@ public class PostgresCollection implements Collection {
     filterString.append(sqlOperator);
     if (value != null)
     {
-      filterString.append(QUESTION_MARK);
-      paramsBuilder.addObjectParam(value);
+      if(isMultiValued) {
+        filterString.append(value);
+      } else {
+        filterString.append(QUESTION_MARK);
+        paramsBuilder.addObjectParam(value);
+      }
     }
     String filters = filterString.toString();
     return filters;
+  }
+
+  private String prepareParameterizedStringForList(List<Object> values,
+      Params.Builder paramsBuilder) {
+    String collect = values
+        .stream()
+        .map(val -> {
+          paramsBuilder.addObjectParam(val);
+          return QUESTION_MARK;
+        })
+        .collect(Collectors.joining(", "));
+    return  "(" + collect + ")";
   }
 
   private StringBuilder prepareFieldAccessorExpr(String fieldName) {

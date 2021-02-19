@@ -780,6 +780,7 @@ public class MongoDocStoreTest {
     assertEquals(1, results.size());
   }
 
+
   @Test
   public void testNotEquals() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
@@ -882,5 +883,167 @@ public class MongoDocStoreTest {
       });
     }
   }
-  
+
+  @Test
+  public void testNotInQueryWithNumberField() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10.2),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("tags", List.of("black", "white")),
+            ImmutablePair.of("color", "red")));
+    collection.upsert(new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", 10.4),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("tags", List.of("gray")),
+            ImmutablePair.of("color", "gray")));
+    collection.upsert(new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("tags", List.of("brown")),
+            ImmutablePair.of("color", "blue")));
+    collection.upsert(new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 10.4),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("tags", List.of("gray")),
+            ImmutablePair.of("color", "pink")));
+
+    collection.upsert(new SingleValueKey("default", "testKey5"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey5"),
+            ImmutablePair.of("name", "abc5")));
+
+    collection.updateSubDoc(new SingleValueKey("default", "testKey1"),
+        "subdoc", Utils.createDocument("nestedkey1", "pqr1"));
+    collection.updateSubDoc(new SingleValueKey("default", "testKey2"),
+        "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
+    collection.updateSubDoc(new SingleValueKey("default", "testKey3"),
+        "subdoc", Utils.createDocument("nestedkey1", "pqr3"));
+
+
+    // check with string filed
+    List<String> names = new ArrayList<>();
+    names.add("abc3");
+    names.add("abc2");
+
+    Query query = new Query();
+    query.setFilter(new Filter(Filter.Op.NOT_IN, "name", names));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(3, documents.size());
+    documents.forEach(document -> {
+      String jsonStr = document.toJson();
+      assertTrue(jsonStr.contains("\"name\":\"abc1\"")
+          || jsonStr.contains("\"name\":\"abc4\"")
+          || jsonStr.contains("\"name\":\"abc5\""));
+    });
+
+    // check with multiple operator and + not_in with string field
+    List<String> colors = new ArrayList<>();
+    colors.add("red");
+    colors.add("pink");
+
+    query = new Query();
+    Filter[] filters = new Filter[2];
+    filters[0] = new Filter(Op.EQ, "size", 10.4);
+    filters[1] = new Filter(Filter.Op.NOT_IN, "color", colors);
+    Filter f = new Filter();
+    f.setOp(Op.OR);
+    f.setChildFilters(filters);
+    query.setFilter(f);
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(4, documents.size());
+    documents.forEach(document -> {
+      String jsonStr = document.toJson();
+      assertTrue(jsonStr.contains("\"name\":\"abc2\"")
+          || jsonStr.contains("\"name\":\"abc3\"")
+          || jsonStr.contains("\"name\":\"abc4\"")
+          || jsonStr.contains("\"name\":\"abc5\""));
+    });
+
+    // check with numeric field
+    List<Number> sizes = new ArrayList<>();
+    sizes.add(-10.2);
+    sizes.add(10.4);
+
+    query = new Query();
+    query.setFilter(new Filter(Filter.Op.NOT_IN, "size", sizes));
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(2, documents.size());
+    documents.forEach(document -> {
+      String jsonStr = document.toJson();
+      assertTrue(jsonStr.contains("\"name\":\"abc3\"")
+      || jsonStr.contains("\"name\":\"abc5\""));
+    });
+
+    // check with multiple operator and + not_in with numeric field
+    sizes = new ArrayList<>();
+    sizes.add(-10.2);
+    sizes.add(10.4);
+
+    query = new Query();
+    filters = new Filter[2];
+    filters[0] = new Filter(Op.EQ, "color", "pink");
+    filters[1] = new Filter(Filter.Op.NOT_IN, "size", sizes);
+    f = new Filter();
+    f.setOp(Op.OR);
+    f.setChildFilters(filters);
+    query.setFilter(f);
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(3, documents.size());
+    documents.forEach(document -> {
+      String jsonStr = document.toJson();
+      assertTrue(jsonStr.contains("\"name\":\"abc3\"")
+          || jsonStr.contains("\"name\":\"abc4\"")
+          || jsonStr.contains("\"name\":\"abc5\""));
+    });
+
+    // check for subDoc key
+    List<String> subDocs = new ArrayList<>();
+    subDocs.add("pqr1");
+    subDocs.add("pqr2");
+
+    query = new Query();
+    query.setFilter(new Filter(Op.NOT_IN, "subdoc.nestedkey1", subDocs));
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    assertEquals(3, documents.size());
+    documents.forEach(document -> {
+      String jsonStr = document.toJson();
+      assertTrue(jsonStr.contains("\"name\":\"abc3\"")
+          || jsonStr.contains("\"name\":\"abc4\"")
+          || jsonStr.contains("\"name\":\"abc5\""));
+    });
+  }
+
 }

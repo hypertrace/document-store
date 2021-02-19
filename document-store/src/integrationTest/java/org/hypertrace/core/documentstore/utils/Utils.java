@@ -1,7 +1,9 @@
 package org.hypertrace.core.documentstore.utils;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.List;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
@@ -18,8 +20,10 @@ public class Utils {
         objectNode.put(paris[i].getLeft(), (Double)(paris[i].getRight()));
       } else if (paris[i].getRight() instanceof Boolean) {
         objectNode.put(paris[i].getLeft(), (Boolean) (paris[i].getRight()));
-      } else {
+      } else if (paris[i].getRight() instanceof String) {
         objectNode.put(paris[i].getLeft(), (String)(paris[i].getRight()));
+      } else {
+        objectNode.putPOJO(paris[i].getLeft(), paris[i].getRight());
       }
     }
     return new JSONDocument(objectNode);

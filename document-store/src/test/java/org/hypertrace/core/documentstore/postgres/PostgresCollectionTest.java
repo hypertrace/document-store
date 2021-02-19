@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import java.sql.Connection;
 import java.util.List;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.Filter.Op;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -123,6 +124,12 @@ public class PostgresCollectionTest {
       Filter filter = new Filter(Filter.Op.IN, "key1", List.of("abc", "xyz"));
       String query = collection.parseNonCompositeFilter(filter, initParams());
       Assertions.assertEquals("document->>'key1' IN (?, ?)", query);
+    }
+
+    {
+      Filter filter = new Filter(Op.NOT_IN, "key1", List.of("abc", "xyz"));
+      String query = collection.parseNonCompositeFilter(filter, initParams());
+      Assertions.assertEquals("document->'key1' IS NULL OR document->>'key1' NOT IN (?, ?)", query);
     }
 
     {
