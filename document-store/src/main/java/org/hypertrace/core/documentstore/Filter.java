@@ -23,7 +23,8 @@ public class Filter {
     CONTAINS,
     EXISTS,
     NOT_EXISTS,
-    LIKE
+    LIKE,
+    NOT_IN
   }
 
   public Filter() {}

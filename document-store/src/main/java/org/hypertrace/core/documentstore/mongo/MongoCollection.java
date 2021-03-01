@@ -336,6 +336,9 @@ public class MongoCollection implements Collection {
           map.put(
               filter.getFieldName(), new BasicDBObject("$regex", value).append("$options", "i"));
           break;
+        case NOT_IN:
+          map.put(filter.getFieldName(), new BasicDBObject("$nin", value));
+          break;
         case IN:
           map.put(filter.getFieldName(), new BasicDBObject("$in", value));
           break;
