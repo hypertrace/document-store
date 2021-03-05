@@ -30,11 +30,20 @@ import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.utils.Utils;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.output.Slf4jLogConsumer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
+@Testcontainers
 public class PostgresDocStoreTest {
 
   public static final String ID = "id";
@@ -44,16 +53,25 @@ public class PostgresDocStoreTest {
   private static final String COLLECTION_NAME = "mytest";
 
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
-  private static Datastore datastore;
 
+  private static GenericContainer<?> postgres;
+  private static Datastore datastore;
+  private static String connectionUrl;
 
   @BeforeAll
   public static void init() {
+    postgres = new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
+        .withEnv("POSTGRES_PASSWORD", "postgres")
+        .withEnv("POSTGRES_USER", "postgres")
+        .withExposedPorts(5432)
+        .waitingFor(Wait.forListeningPort());
+    postgres.start();
 
+    connectionUrl = String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
     DatastoreProvider.register("POSTGRES", PostgresDatastore.class);
 
     Map<String, String> postgresConfig = new HashMap<>();
-    postgresConfig.putIfAbsent("url", "jdbc:postgresql://localhost:5432/");
+    postgresConfig.putIfAbsent("url", connectionUrl);
     postgresConfig.putIfAbsent("user", "postgres");
     postgresConfig.putIfAbsent("password", "postgres");
     Config config = ConfigFactory.parseMap(postgresConfig);
@@ -68,16 +86,20 @@ public class PostgresDocStoreTest {
     datastore.createCollection(COLLECTION_NAME, null);
   }
 
+  @AfterAll
+  public static void shutdown() {
+    postgres.stop();
+  }
+
   @Test
   public void testInitWithDatabase() {
     PostgresDatastore datastore = new PostgresDatastore();
     Properties properties = new Properties();
-    String url = "jdbc:postgresql://localhost:5432/";
     String user = "postgres";
     String password = "postgres";
     String database = "postgres";
 
-    properties.put("url", url);
+    properties.put("url", connectionUrl);
     properties.put("user", user);
     properties.put("password", password);
     properties.put("database", database);
@@ -86,13 +108,12 @@ public class PostgresDocStoreTest {
 
     try {
       DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();
-      Assertions.assertEquals(metaData.getURL(), url + database);
+      Assertions.assertEquals(metaData.getURL(), connectionUrl + database);
       Assertions.assertEquals(metaData.getUserName(), user);
     } catch (SQLException e) {
       System.out.println("Exception executing init test with user and password");
       Assertions.fail();
     }
-
   }
 
   @Test
@@ -980,5 +1001,4 @@ public class PostgresDocStoreTest {
       });
     }
   }
-
 }
