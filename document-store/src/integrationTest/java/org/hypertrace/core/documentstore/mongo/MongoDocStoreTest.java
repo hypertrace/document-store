@@ -43,16 +43,26 @@ import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.utils.Utils;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 /** Integration tests for the MongoDB doc store */
+@Testcontainers
 public class MongoDocStoreTest {
+
   private static final String COLLECTION_NAME = "myTest";
   private static Datastore datastore;
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+  private static GenericContainer<?> mongo;
+
   /*
    * These 3 fields should be automatically created when upserting a doc.
    * There are downstream services that depends on this. The test should verify that
@@ -64,11 +74,16 @@ public class MongoDocStoreTest {
 
   @BeforeAll
   public static void init() {
+    mongo = new GenericContainer<>(DockerImageName.parse("mongo:4.4.0"))
+        .withExposedPorts(27017)
+        .waitingFor(Wait.forListeningPort());
+    mongo.start();
+
     DatastoreProvider.register("MONGO", MongoDatastore.class);
 
     Map<String, String> mongoConfig = new HashMap<>();
     mongoConfig.putIfAbsent("host", "localhost");
-    mongoConfig.putIfAbsent("port", "27017");
+    mongoConfig.putIfAbsent("port", mongo.getMappedPort(27017).toString());
     Config config = ConfigFactory.parseMap(mongoConfig);
 
     datastore = DatastoreProvider.getDatastore("Mongo", config);
@@ -79,6 +94,11 @@ public class MongoDocStoreTest {
   public void cleanup() {
     datastore.deleteCollection(COLLECTION_NAME);
     datastore.createCollection(COLLECTION_NAME, null);
+  }
+
+  @AfterAll
+  public static void shutdown() {
+    mongo.stop();
   }
 
   @Test
@@ -745,7 +765,8 @@ public class MongoDocStoreTest {
 
   @Test
   public void testLike() {
-    MongoClient mongoClient = MongoClients.create("mongodb://localhost:27017");
+    MongoClient mongoClient = MongoClients.create(
+        "mongodb://localhost:" + mongo.getMappedPort(27017).toString());
 
     MongoDatabase db = mongoClient.getDatabase("default_db");
     String collectionName = "myTest2";
@@ -1045,5 +1066,4 @@ public class MongoDocStoreTest {
           || jsonStr.contains("\"name\":\"abc5\""));
     });
   }
-
 }
