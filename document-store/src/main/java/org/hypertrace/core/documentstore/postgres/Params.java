@@ -9,47 +9,43 @@ import java.util.Map;
  */
 public class Params {
 
-    // Map of index to the corresponding param value
+  // Map of index to the corresponding param value
+  private final Map<Integer, Object> objectParams;
+
+  private Params(Map<Integer, Object> objectParams) {
+    this.objectParams = objectParams;
+  }
+
+  @Override
+  public String toString() {
+    return "Params{" + "objectParams=" + objectParams + '}';
+  }
+
+  public Map<Integer, Object> getObjectParams() {
+    return objectParams;
+  }
+
+  public static Builder newBuilder() {
+    return new Builder();
+  }
+
+  public static class Builder {
+
+    private int nextIndex;
     private final Map<Integer, Object> objectParams;
 
-    private Params(
-            Map<Integer, Object> objectParams) {
-        this.objectParams = objectParams;
+    private Builder() {
+      nextIndex = 1;
+      objectParams = new HashMap<>();
     }
 
-    @Override
-    public String toString() {
-        return "Params{" +
-                "objectParams=" + objectParams +
-                '}';
+    public Builder addObjectParam(Object paramValue) {
+      objectParams.put(nextIndex++, paramValue);
+      return this;
     }
 
-    public Map<Integer, Object> getObjectParams() {
-        return objectParams;
+    public Params build() {
+      return new Params(objectParams);
     }
-
-    public static Builder newBuilder() {
-        return new Builder();
-    }
-
-    public static class Builder {
-
-        private int nextIndex;
-        private final Map<Integer, Object> objectParams;
-
-        private Builder() {
-            nextIndex = 1;
-            objectParams = new HashMap<>();
-        }
-
-        public Builder addObjectParam(Object paramValue) {
-            objectParams.put(nextIndex++, paramValue);
-            return this;
-        }
-
-        public Params build() {
-            return new Params(objectParams);
-        }
-    }
+  }
 }
-

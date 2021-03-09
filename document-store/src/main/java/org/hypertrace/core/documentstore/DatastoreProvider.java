@@ -1,12 +1,11 @@
 package org.hypertrace.core.documentstore;
 
 import com.typesafe.config.Config;
-import org.hypertrace.core.documentstore.mongo.MongoDatastore;
-import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
-
 import java.lang.reflect.Constructor;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.hypertrace.core.documentstore.mongo.MongoDatastore;
+import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 
 public class DatastoreProvider {
 
@@ -20,6 +19,7 @@ public class DatastoreProvider {
   /**
    * Creates a DocDatastore, currently it creates a new client/connection on every invocation. We
    * might add pooling later
+   *
    * @return {@link Datastore}
    */
   public static Datastore getDatastore(String type, Config config) {
@@ -33,7 +33,6 @@ public class DatastoreProvider {
     } catch (Exception e) {
       throw new IllegalArgumentException("Exception creating DocDatastore", e);
     }
-
   }
 
   /**
@@ -43,5 +42,4 @@ public class DatastoreProvider {
   public static void register(String type, Class<? extends Datastore> clazz) {
     registry.put(type.toLowerCase(), clazz);
   }
-
 }

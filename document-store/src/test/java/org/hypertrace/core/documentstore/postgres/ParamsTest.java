@@ -29,5 +29,4 @@ public class ParamsTest {
     Assertions.assertEquals(params.getObjectParams().get(index), 4L);
     Assertions.assertEquals(index, 5);
   }
-
 }

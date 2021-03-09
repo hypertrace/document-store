@@ -74,9 +74,10 @@ public class MongoDocStoreTest {
 
   @BeforeAll
   public static void init() {
-    mongo = new GenericContainer<>(DockerImageName.parse("mongo:4.4.0"))
-        .withExposedPorts(27017)
-        .waitingFor(Wait.forListeningPort());
+    mongo =
+        new GenericContainer<>(DockerImageName.parse("mongo:4.4.0"))
+            .withExposedPorts(27017)
+            .waitingFor(Wait.forListeningPort());
     mongo.start();
 
     DatastoreProvider.register("MONGO", MongoDatastore.class);
@@ -103,7 +104,7 @@ public class MongoDocStoreTest {
 
   @Test
   public void testCollections() {
-    for (String collection: datastore.listCollections()) {
+    for (String collection : datastore.listCollections()) {
       datastore.deleteCollection(collection);
     }
 
@@ -125,7 +126,8 @@ public class MongoDocStoreTest {
   public void testIgnoreCaseLikeQuery() throws IOException {
     long now = Instant.now().toEpochMilli();
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey"), Utils.createDocument("name", "Bob"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey"), Utils.createDocument("name", "Bob"));
 
     String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB", "BO", "bO", "Ob", "OB"};
 
@@ -149,13 +151,19 @@ public class MongoDocStoreTest {
   @Test
   public void testTotalWithQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
     collection.upsert(
-        new SingleValueKey("default", "testKey6"), Utils.createDocument("email", "bob@example.com"));
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Alice"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey6"),
+        Utils.createDocument("email", "bob@example.com"));
 
     {
       // empty query returns all the documents
@@ -181,11 +189,16 @@ public class MongoDocStoreTest {
   @Test
   public void testOffsetAndLimit() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("foo1", "bar1"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("foo2", "bar2"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("foo3", "bar3"));
-    collection.upsert(new SingleValueKey("default", "testKey4"), Utils.createDocument("foo4", "bar4"));
-    collection.upsert(new SingleValueKey("default", "testKey5"), Utils.createDocument("foo5", "bar5"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("foo1", "bar1"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("foo2", "bar2"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"), Utils.createDocument("foo3", "bar3"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"), Utils.createDocument("foo4", "bar4"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey5"), Utils.createDocument("foo5", "bar5"));
 
     // Querying 5 times, to make sure the order of results is maintained with offset + limit
     for (int i = 0; i < 5; i++) {
@@ -248,14 +261,14 @@ public class MongoDocStoreTest {
     Assertions.assertFalse(newLastUpdatedTime.equalsIgnoreCase(lastUpdatedTime));
   }
 
-
   @Test
   public void testUpsertAndReturn() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
     objectNode.put("foo1", "bar1");
     Document document = new JSONDocument(objectNode);
-    Document persistedDocument = collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
+    Document persistedDocument =
+        collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
 
     Query query = new Query();
     query.setFilter(Filter.eq("_id", "default:testKey"));
@@ -272,7 +285,8 @@ public class MongoDocStoreTest {
 
     // Upsert again and verify that createdTime does not change, while lastUpdatedTime
     // has changed and values have merged
-    Document updatedDocument = collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
+    Document updatedDocument =
+        collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
     node = OBJECT_MAPPER.readTree(updatedDocument.toJson());
     String newLastUpdatedTime = node.findValue(LAST_UPDATE_TIME_KEY).findValue("$date").asText();
     long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
@@ -356,8 +370,7 @@ public class MongoDocStoreTest {
 
     JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
     long newUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).asLong();
-    Assertions.assertTrue(newUpdatedTime >=  beforeUpsert);
-
+    Assertions.assertTrue(newUpdatedTime >= beforeUpsert);
   }
 
   @Test
@@ -385,8 +398,10 @@ public class MongoDocStoreTest {
   public void testSelectAll() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2"));
     assertEquals(2, collection.count());
     Iterator<Document> iterator = collection.search(new Query());
     List<Document> documents = new ArrayList<>();
@@ -404,8 +419,10 @@ public class MongoDocStoreTest {
   public void testSelections() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2"));
     assertEquals(2, collection.count());
     Query query = new Query();
     query.addSelection("testKey1");
@@ -434,10 +451,10 @@ public class MongoDocStoreTest {
   public void testBulkUpsert() {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    Map<Key, Document> documentMap = Map.of(
-        new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"),
-        new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2")
-    );
+    Map<Key, Document> documentMap =
+        Map.of(
+            new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"),
+            new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2"));
 
     assertTrue(collection.bulkUpsert(documentMap));
     assertEquals(2, collection.count());
@@ -454,58 +471,57 @@ public class MongoDocStoreTest {
   }
 
   /**
-   * This is an example where same field is having different type values.
-   * e.g size field has boolean, numeric and string values.
-   * This is a valid scenario for document store, and works fine with mongodb.
-   * However, there is currently limitation on postgres as document store implementation
-   * using jsonb, and it won't work.
-   * */
+   * This is an example where same field is having different type values. e.g size field has
+   * boolean, numeric and string values. This is a valid scenario for document store, and works fine
+   * with mongodb. However, there is currently limitation on postgres as document store
+   * implementation using jsonb, and it won't work.
+   */
   @Test
   public void testWithDifferentDataTypes() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
     // size field with integer value
-    collection.upsert(new SingleValueKey("default", "testKey1"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey1"),
             ImmutablePair.of("name", "abc1"),
-            ImmutablePair.of("size", -10))
-    );
-    collection.upsert(new SingleValueKey("default", "testKey2"),
+            ImmutablePair.of("size", -10)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey2"),
             ImmutablePair.of("name", "abc2"),
-            ImmutablePair.of("size", -20))
-    );
+            ImmutablePair.of("size", -20)));
 
     // size field with string value
-    collection.upsert(new SingleValueKey("default", "testKey3"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey3"),
             ImmutablePair.of("name", "abc3"),
-            ImmutablePair.of("size", false))
-    );
-    collection.upsert(new SingleValueKey("default", "testKey4"),
+            ImmutablePair.of("size", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey4"),
             ImmutablePair.of("name", "abc4"),
-            ImmutablePair.of("size", true))
-    );
+            ImmutablePair.of("size", true)));
 
     // size field with boolean value
-    collection.upsert(new SingleValueKey("default", "testKey5"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey5"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey5"),
             ImmutablePair.of("name", "abc5"),
-            ImmutablePair.of("size", "10"))
-    );
-    collection.upsert(new SingleValueKey("default", "testKey6"),
+            ImmutablePair.of("size", "10")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey6"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey6"),
             ImmutablePair.of("name", "abc6"),
-            ImmutablePair.of("size", "20"))
-    );
+            ImmutablePair.of("size", "20")));
 
     // query for size field with integer value
     Query queryGt = new Query();
@@ -516,7 +532,7 @@ public class MongoDocStoreTest {
     while (results.hasNext()) {
       documents.add(results.next());
     }
-    Assertions.assertEquals(2,documents.size());
+    Assertions.assertEquals(2, documents.size());
 
     // query for size field with string value
     Query queryGtStr = new Query();
@@ -549,37 +565,37 @@ public class MongoDocStoreTest {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
     // size field with integer value, isCostly boolean field
-    collection.upsert(new SingleValueKey("default", "testKey1"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey1"),
             ImmutablePair.of("name", "abc1"),
             ImmutablePair.of("size", -10),
-            ImmutablePair.of("isCostly", false))
-    );
+            ImmutablePair.of("isCostly", false)));
 
-    collection.upsert(new SingleValueKey("default", "testKey2"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey2"),
             ImmutablePair.of("name", "abc2"),
             ImmutablePair.of("size", -20),
-            ImmutablePair.of("isCostly", false))
-    );
+            ImmutablePair.of("isCostly", false)));
 
-    collection.upsert(new SingleValueKey("default", "testKey3"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey3"),
             ImmutablePair.of("name", "abc3"),
             ImmutablePair.of("size", 5),
-            ImmutablePair.of("isCostly", true))
-    );
+            ImmutablePair.of("isCostly", true)));
 
-    collection.upsert(new SingleValueKey("default", "testKey4"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey4"),
             ImmutablePair.of("name", "abc4"),
             ImmutablePair.of("size", 10),
-            ImmutablePair.of("isCostly", true))
-    );
+            ImmutablePair.of("isCostly", true)));
 
     // query field having int type
     Query queryNumericField = new Query();
@@ -620,32 +636,36 @@ public class MongoDocStoreTest {
   @Test
   public void testExistsFilter() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey1"),
-                    ImmutablePair.of("name", "abc1"),
-                    ImmutablePair.of("size", -10.2),
-                    ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey2"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey2"),
-                    ImmutablePair.of("name", "abc2"),
-                    ImmutablePair.of("size", 10.4),
-                    ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey3"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey3"),
-                    ImmutablePair.of("name", "abc3"),
-                    ImmutablePair.of("size", 30),
-                    ImmutablePair.of("isCostly", false),
-                    ImmutablePair.of("city", "bangalore")));
-    collection.upsert(new SingleValueKey("default", "testKey4"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey4"),
-                    ImmutablePair.of("name", "abc4"),
-                    ImmutablePair.of("size", 30),
-                    ImmutablePair.of("isCostly", false),
-                    ImmutablePair.of("city", null)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10.2),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", 10.4),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", "bangalore")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", null)));
     Query query = new Query();
     query.setFilter(new Filter(Op.EXISTS, "city", true));
     Iterator<Document> results = collection.search(query);
@@ -659,32 +679,36 @@ public class MongoDocStoreTest {
   @Test
   public void testNotExistsFilter() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey1"),
-                    ImmutablePair.of("name", "abc1"),
-                    ImmutablePair.of("size", -10.2),
-                    ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey2"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey2"),
-                    ImmutablePair.of("name", "abc2"),
-                    ImmutablePair.of("size", 10.4),
-                    ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey3"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey3"),
-                    ImmutablePair.of("name", "abc3"),
-                    ImmutablePair.of("size", 30),
-                    ImmutablePair.of("isCostly", false),
-                    ImmutablePair.of("city", "bangalore")));
-    collection.upsert(new SingleValueKey("default", "testKey4"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey4"),
-                    ImmutablePair.of("name", "abc4"),
-                    ImmutablePair.of("size", 30),
-                    ImmutablePair.of("isCostly", false),
-                    ImmutablePair.of("city", null)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10.2),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", 10.4),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", "bangalore")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", null)));
     Query query = new Query();
     query.setFilter(new Filter(Op.EXISTS, "city", false));
     Iterator<Document> results = collection.search(query);
@@ -699,20 +723,24 @@ public class MongoDocStoreTest {
   public void testReturnAndBulkUpsert() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    Map<Key, Document> documentMapV1 = Map.of(
-        new SingleValueKey("default", "testKey1"), Utils.createDocument("id", "1", "testKey1", "abc-v1"),
-        new SingleValueKey("default", "testKey2"), Utils.createDocument("id", "2", "testKey2", "xyz-v1")
-    );
+    Map<Key, Document> documentMapV1 =
+        Map.of(
+            new SingleValueKey("default", "testKey1"),
+                Utils.createDocument("id", "1", "testKey1", "abc-v1"),
+            new SingleValueKey("default", "testKey2"),
+                Utils.createDocument("id", "2", "testKey2", "xyz-v1"));
 
     Iterator<Document> iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV1);
     // Initially there shouldn't be any documents.
     Assertions.assertFalse(iterator.hasNext());
 
     // Add more details to the document and bulk upsert again.
-    Map<Key, Document> documentMapV2 = Map.of(
-        new SingleValueKey("default", "testKey1"), Utils.createDocument("id", "1", "testKey1", "abc-v2"),
-        new SingleValueKey("default", "testKey2"), Utils.createDocument("id", "2", "testKey2", "xyz-v2")
-    );
+    Map<Key, Document> documentMapV2 =
+        Map.of(
+            new SingleValueKey("default", "testKey1"),
+                Utils.createDocument("id", "1", "testKey1", "abc-v2"),
+            new SingleValueKey("default", "testKey2"),
+                Utils.createDocument("id", "2", "testKey2", "xyz-v2"));
     iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV2);
     assertEquals(2, collection.count());
     List<Document> documents = new ArrayList<>();
@@ -725,7 +753,7 @@ public class MongoDocStoreTest {
     Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
 
     // Verify that the documents returned were previous copies.
-    for (Map.Entry<String, JsonNode> entry: expectedDocs.entrySet()) {
+    for (Map.Entry<String, JsonNode> entry : expectedDocs.entrySet()) {
       JsonNode expected = entry.getValue();
       JsonNode actual = actualDocs.get(entry.getKey());
 
@@ -734,11 +762,14 @@ public class MongoDocStoreTest {
 
       // Verify that there are only additions and "no" removals in this new node.
       Set<String> ops = new HashSet<>();
-      patch.elements().forEachRemaining(e -> {
-        if (e.has("op")) {
-          ops.add(e.get("op").asText());
-        }
-      });
+      patch
+          .elements()
+          .forEachRemaining(
+              e -> {
+                if (e.has("op")) {
+                  ops.add(e.get("op").asText());
+                }
+              });
 
       Assertions.assertTrue(ops.contains("add"));
       Assertions.assertEquals(1, ops.size());
@@ -751,22 +782,23 @@ public class MongoDocStoreTest {
 
   private Map<String, JsonNode> convertToMap(java.util.Collection<Document> docs, String key) {
     return docs.stream()
-        .map(d -> {
-          try {
-            return OBJECT_MAPPER.reader().readTree(d.toJson());
-          } catch (JsonProcessingException e) {
-            e.printStackTrace();
-          }
-          return null;
-        })
+        .map(
+            d -> {
+              try {
+                return OBJECT_MAPPER.reader().readTree(d.toJson());
+              } catch (JsonProcessingException e) {
+                e.printStackTrace();
+              }
+              return null;
+            })
         .filter(Objects::nonNull)
         .collect(Collectors.toMap(d -> d.get(key).asText(), d -> d));
   }
 
   @Test
   public void testLike() {
-    MongoClient mongoClient = MongoClients.create(
-        "mongodb://localhost:" + mongo.getMappedPort(27017).toString());
+    MongoClient mongoClient =
+        MongoClients.create("mongodb://localhost:" + mongo.getMappedPort(27017).toString());
 
     MongoDatabase db = mongoClient.getDatabase("default_db");
     String collectionName = "myTest2";
@@ -801,34 +833,36 @@ public class MongoDocStoreTest {
     assertEquals(1, results.size());
   }
 
-
   @Test
   public void testNotEquals() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
-    collection.upsert(new SingleValueKey("default", "testKey1"),
-            Utils.createDocument(
-                    ImmutablePair.of("key1", "abc1"),
-                    ImmutablePair.of("key2", "xyz1")));
-    collection.upsert(new SingleValueKey("default", "testKey2"),
-            Utils.createDocument(
-                    ImmutablePair.of("key1", "abc2"),
-                    ImmutablePair.of("key2", "xyz2")));
-    collection.upsert(new SingleValueKey("default", "testKey3"),
-            Utils.createDocument(
-                    ImmutablePair.of("key1", "abc3"),
-                    ImmutablePair.of("key2", "xyz3")));
-    collection.upsert(new SingleValueKey("default", "testKey4"),
-            Utils.createDocument(
-                    ImmutablePair.of("key1", "abc4")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(ImmutablePair.of("key1", "abc1"), ImmutablePair.of("key2", "xyz1")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(ImmutablePair.of("key1", "abc2"), ImmutablePair.of("key2", "xyz2")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(ImmutablePair.of("key1", "abc3"), ImmutablePair.of("key2", "xyz3")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(ImmutablePair.of("key1", "abc4")));
 
-    collection.updateSubDoc(new SingleValueKey("default", "testKey1"),
-            "subdoc", Utils.createDocument("nestedkey1", "pqr1"));
-    collection.updateSubDoc(new SingleValueKey("default", "testKey2"),
-            "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
-    collection.updateSubDoc(new SingleValueKey("default", "testKey3"),
-            "subdoc", Utils.createDocument("nestedkey1", "pqr3"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey1"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr1"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey2"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr2"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey3"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr3"));
 
     // NEQ on ID
     {
@@ -841,14 +875,15 @@ public class MongoDocStoreTest {
       }
 
       assertEquals(3, documents.size());
-      documents.forEach(document -> {
-        String jsonStr = document.toJson();
-        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
-                || document.toJson().contains("\"key1\":\"abc2\"")
-                || document.toJson().contains("\"key1\":\"abc4\""));
-      });
+      documents.forEach(
+          document -> {
+            String jsonStr = document.toJson();
+            assertTrue(
+                jsonStr.contains("\"key1\":\"abc1\"")
+                    || document.toJson().contains("\"key1\":\"abc2\"")
+                    || document.toJson().contains("\"key1\":\"abc4\""));
+          });
     }
-
 
     // NEQ on document fields
     {
@@ -860,12 +895,14 @@ public class MongoDocStoreTest {
         documents.add(results.next());
       }
       assertEquals(3, documents.size());
-      documents.forEach(document -> {
-        String jsonStr = document.toJson();
-        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
-                || document.toJson().contains("\"key1\":\"abc2\"")
-                || document.toJson().contains("\"key1\":\"abc4\""));
-      });
+      documents.forEach(
+          document -> {
+            String jsonStr = document.toJson();
+            assertTrue(
+                jsonStr.contains("\"key1\":\"abc1\"")
+                    || document.toJson().contains("\"key1\":\"abc2\"")
+                    || document.toJson().contains("\"key1\":\"abc4\""));
+          });
     }
 
     // NEQ on non existing fields
@@ -878,12 +915,14 @@ public class MongoDocStoreTest {
         documents.add(results.next());
       }
       assertEquals(3, documents.size());
-      documents.forEach(document -> {
-        String jsonStr = document.toJson();
-        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
-                || document.toJson().contains("\"key1\":\"abc3\"")
-                || document.toJson().contains("\"key1\":\"abc4\""));
-      });
+      documents.forEach(
+          document -> {
+            String jsonStr = document.toJson();
+            assertTrue(
+                jsonStr.contains("\"key1\":\"abc1\"")
+                    || document.toJson().contains("\"key1\":\"abc3\"")
+                    || document.toJson().contains("\"key1\":\"abc4\""));
+          });
     }
 
     // NEQ on nested fields
@@ -896,19 +935,22 @@ public class MongoDocStoreTest {
         documents.add(results.next());
       }
       assertEquals(3, documents.size());
-      documents.forEach(document -> {
-        String jsonStr = document.toJson();
-        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
-                || document.toJson().contains("\"key1\":\"abc3\"")
-                || document.toJson().contains("\"key1\":\"abc4\""));
-      });
+      documents.forEach(
+          document -> {
+            String jsonStr = document.toJson();
+            assertTrue(
+                jsonStr.contains("\"key1\":\"abc1\"")
+                    || document.toJson().contains("\"key1\":\"abc3\"")
+                    || document.toJson().contains("\"key1\":\"abc4\""));
+          });
     }
   }
 
   @Test
   public void testNotInQueryWithNumberField() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey1"),
             ImmutablePair.of("name", "abc1"),
@@ -916,7 +958,8 @@ public class MongoDocStoreTest {
             ImmutablePair.of("isCostly", false),
             ImmutablePair.of("tags", List.of("black", "white")),
             ImmutablePair.of("color", "red")));
-    collection.upsert(new SingleValueKey("default", "testKey2"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey2"),
             ImmutablePair.of("name", "abc2"),
@@ -924,7 +967,8 @@ public class MongoDocStoreTest {
             ImmutablePair.of("isCostly", false),
             ImmutablePair.of("tags", List.of("gray")),
             ImmutablePair.of("color", "gray")));
-    collection.upsert(new SingleValueKey("default", "testKey3"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey3"),
             ImmutablePair.of("name", "abc3"),
@@ -932,7 +976,8 @@ public class MongoDocStoreTest {
             ImmutablePair.of("isCostly", false),
             ImmutablePair.of("tags", List.of("brown")),
             ImmutablePair.of("color", "blue")));
-    collection.upsert(new SingleValueKey("default", "testKey4"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey4"),
             ImmutablePair.of("name", "abc4"),
@@ -941,18 +986,22 @@ public class MongoDocStoreTest {
             ImmutablePair.of("tags", List.of("gray")),
             ImmutablePair.of("color", "pink")));
 
-    collection.upsert(new SingleValueKey("default", "testKey5"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey5"),
-            ImmutablePair.of("name", "abc5")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey5"),
+        Utils.createDocument(ImmutablePair.of("id", "testKey5"), ImmutablePair.of("name", "abc5")));
 
-    collection.updateSubDoc(new SingleValueKey("default", "testKey1"),
-        "subdoc", Utils.createDocument("nestedkey1", "pqr1"));
-    collection.updateSubDoc(new SingleValueKey("default", "testKey2"),
-        "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
-    collection.updateSubDoc(new SingleValueKey("default", "testKey3"),
-        "subdoc", Utils.createDocument("nestedkey1", "pqr3"));
-
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey1"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr1"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey2"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr2"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey3"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr3"));
 
     // check with string filed
     List<String> names = new ArrayList<>();
@@ -967,12 +1016,14 @@ public class MongoDocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertEquals(3, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc1\"")
-          || jsonStr.contains("\"name\":\"abc4\"")
-          || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc1\"")
+                  || jsonStr.contains("\"name\":\"abc4\"")
+                  || jsonStr.contains("\"name\":\"abc5\""));
+        });
 
     // check with multiple operator and + not_in with string field
     List<String> colors = new ArrayList<>();
@@ -993,13 +1044,15 @@ public class MongoDocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertEquals(4, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc2\"")
-          || jsonStr.contains("\"name\":\"abc3\"")
-          || jsonStr.contains("\"name\":\"abc4\"")
-          || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc2\"")
+                  || jsonStr.contains("\"name\":\"abc3\"")
+                  || jsonStr.contains("\"name\":\"abc4\"")
+                  || jsonStr.contains("\"name\":\"abc5\""));
+        });
 
     // check with numeric field
     List<Number> sizes = new ArrayList<>();
@@ -1014,11 +1067,12 @@ public class MongoDocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertEquals(2, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc3\"")
-      || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc3\"") || jsonStr.contains("\"name\":\"abc5\""));
+        });
 
     // check with multiple operator and + not_in with numeric field
     sizes = new ArrayList<>();
@@ -1039,12 +1093,14 @@ public class MongoDocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertEquals(3, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc3\"")
-          || jsonStr.contains("\"name\":\"abc4\"")
-          || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc3\"")
+                  || jsonStr.contains("\"name\":\"abc4\"")
+                  || jsonStr.contains("\"name\":\"abc5\""));
+        });
 
     // check for subDoc key
     List<String> subDocs = new ArrayList<>();
@@ -1059,11 +1115,13 @@ public class MongoDocStoreTest {
       documents.add(results.next());
     }
     assertEquals(3, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc3\"")
-          || jsonStr.contains("\"name\":\"abc4\"")
-          || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc3\"")
+                  || jsonStr.contains("\"name\":\"abc4\"")
+                  || jsonStr.contains("\"name\":\"abc5\""));
+        });
   }
 }

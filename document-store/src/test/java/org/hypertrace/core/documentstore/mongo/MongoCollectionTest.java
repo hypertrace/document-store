@@ -13,7 +13,6 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.List;
 import java.util.Map;
-
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
@@ -82,8 +81,7 @@ public class MongoCollectionTest {
     {
       Filter filter = new Filter(Filter.Op.LIKE, "key1", ".*abc");
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      assertEquals(
-          new BasicDBObject("$regex", ".*abc").append("$options", "i"), query.get("key1"));
+      assertEquals(new BasicDBObject("$regex", ".*abc").append("$options", "i"), query.get("key1"));
     }
 
     {
@@ -107,7 +105,7 @@ public class MongoCollectionTest {
     {
       Filter filter = new Filter(Filter.Op.NEQ, "key1", "abc");
       Map<String, Object> query = mongoCollection.parseQuery(filter);
-      BasicDBObject notEquals= new BasicDBObject();
+      BasicDBObject notEquals = new BasicDBObject();
       notEquals.append("$ne", "abc");
       Assertions.assertEquals(notEquals, query.get("key1"));
     }

@@ -36,10 +36,8 @@ public class MongoDatastore implements Datastore {
       connString = new ConnectionString("mongodb://" + hostName + ":" + port);
     }
 
-    MongoClientSettings settings = MongoClientSettings.builder()
-        .applyConnectionString(connString)
-        .retryWrites(true)
-        .build();
+    MongoClientSettings settings =
+        MongoClientSettings.builder().applyConnectionString(connString).retryWrites(true).build();
     client = MongoClients.create(settings);
 
     database = client.getDatabase(DEFAULT_DB_NAME);
@@ -70,7 +68,8 @@ public class MongoDatastore implements Datastore {
 
   @Override
   public boolean deleteCollection(String collectionName) {
-    com.mongodb.client.MongoCollection<Document> collection = database.getCollection(collectionName);
+    com.mongodb.client.MongoCollection<Document> collection =
+        database.getCollection(collectionName);
     collection.drop();
     return true;
   }

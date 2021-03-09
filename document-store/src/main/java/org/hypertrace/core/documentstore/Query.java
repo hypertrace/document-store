@@ -63,13 +63,18 @@ public class Query {
 
   @Override
   public String toString() {
-    return "Query{" +
-        "selections=" + selections +
-        ", filter=" + filter +
-        ", orderBys=" + orderBys +
-        ", offset=" + offset +
-        ", limit=" + limit +
-        '}';
+    return "Query{"
+        + "selections="
+        + selections
+        + ", filter="
+        + filter
+        + ", orderBys="
+        + orderBys
+        + ", offset="
+        + offset
+        + ", limit="
+        + limit
+        + '}';
   }
 
   @Override
@@ -77,11 +82,11 @@ public class Query {
     if (this == o) return true;
     if (o == null || getClass() != o.getClass()) return false;
     Query query = (Query) o;
-    return Objects.equals(selections, query.selections) &&
-        Objects.equals(filter, query.filter) &&
-        Objects.equals(orderBys, query.orderBys) &&
-        Objects.equals(offset, query.offset) &&
-        Objects.equals(limit, query.limit);
+    return Objects.equals(selections, query.selections)
+        && Objects.equals(filter, query.filter)
+        && Objects.equals(orderBys, query.orderBys)
+        && Objects.equals(offset, query.offset)
+        && Objects.equals(limit, query.limit);
   }
 
   @Override

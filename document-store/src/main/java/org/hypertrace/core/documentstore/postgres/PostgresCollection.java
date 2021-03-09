@@ -23,7 +23,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
-import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.OrderBy;
@@ -31,9 +30,7 @@ import org.hypertrace.core.documentstore.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Provides {@link Collection} implementation on Postgres using jsonb format
- */
+/** Provides {@link Collection} implementation on Postgres using jsonb format */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -42,11 +39,14 @@ public class PostgresCollection implements Collection {
   public static final String DOCUMENT = "document";
   public static final String UPDATED_AT = "updated_at";
   public static final String CREATED_AT = "created_at";
-  public static final Set<String> OUTER_COLUMNS = new HashSet<>() {{
-    add(CREATED_AT);
-    add(ID);
-    add(UPDATED_AT);
-  }};
+  public static final Set<String> OUTER_COLUMNS =
+      new HashSet<>() {
+        {
+          add(CREATED_AT);
+          add(ID);
+          add(UPDATED_AT);
+        }
+      };
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String DOC_PATH_SEPARATOR = "\\.";
   private static final String QUESTION_MARK = "?";
@@ -65,8 +65,8 @@ public class PostgresCollection implements Collection {
 
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
-    try (PreparedStatement preparedStatement = client
-            .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+    try (PreparedStatement preparedStatement =
+        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       String jsonString = prepareUpsertDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
@@ -83,8 +83,8 @@ public class PostgresCollection implements Collection {
   }
 
   /**
-   * For Postgres upsertAndReturn functionality is not supported directly.
-   * So using direct upsert and then return document.
+   * For Postgres upsertAndReturn functionality is not supported directly. So using direct upsert
+   * and then return document.
    */
   @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
@@ -100,39 +100,27 @@ public class PostgresCollection implements Collection {
   /**
    * Update the sub document based on subDocPath based on longest key match.
    *
-   * As an e.g
-   * {
-   *   "first" : "name",
-   *   "last" : "lastname"
-   *   "address" : {
-   *     "street" : "long street"
-   *     "pin" : "00000"
-   *   }
-   * }
+   * <p>As an e.g { "first" : "name", "last" : "lastname" "address" : { "street" : "long street"
+   * "pin" : "00000" } }
    *
-   * Following subDocPath will match,
-   * first
-   * address.street
-   * address
-   * address.pin
+   * <p>Following subDocPath will match, first address.street address address.pin
    *
-   * Following creates new sub-document for matching subDocPath
-   * address.street.longitude (here address.street matches)
+   * <p>Following creates new sub-document for matching subDocPath address.street.longitude (here
+   * address.street matches)
    *
-   * Following subDocPath will not match any sub document,
-   * address.street.longitude.degree
-   *
+   * <p>Following subDocPath will not match any sub document, address.street.longitude.degree
    */
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
-    String updateSubDocSQL = String
-        .format("UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
+    String updateSubDocSQL =
+        String.format(
+            "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
             collectionName, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
     String jsonString = subDocument.toJson();
 
-    try (PreparedStatement preparedStatement = client
-            .prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+    try (PreparedStatement preparedStatement =
+        client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, key.toString());
@@ -144,8 +132,12 @@ public class PostgresCollection implements Collection {
 
       return true;
     } catch (SQLException e) {
-      LOGGER.error("SQLException updating sub document. key: {} subDocPath: {} content:{}", key,
-          subDocPath, subDocument, e);
+      LOGGER.error(
+          "SQLException updating sub document. key: {} subDocPath: {} content:{}",
+          key,
+          subDocPath,
+          subDocument,
+          e);
     }
     return false;
   }
@@ -153,8 +145,7 @@ public class PostgresCollection implements Collection {
   @Override
   public Iterator<Document> search(Query query) {
     String filters = null;
-    StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ")
-        .append(collectionName);
+    StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ").append(collectionName);
     Params.Builder paramsBuilder = Params.newBuilder();
 
     // If there is a filter in the query, parse it fully.
@@ -162,14 +153,10 @@ public class PostgresCollection implements Collection {
       filters = parseFilter(query.getFilter(), paramsBuilder);
     }
 
-    LOGGER.debug(
-        "Sending query to PostgresSQL: {} : {}",
-        collectionName,
-        filters);
+    LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
 
     if (filters != null) {
-      sqlBuilder
-          .append(" WHERE ").append(filters);
+      sqlBuilder.append(" WHERE ").append(filters);
     }
 
     if (!query.getOrderBys().isEmpty()) {
@@ -188,7 +175,8 @@ public class PostgresCollection implements Collection {
     }
 
     try {
-      PreparedStatement preparedStatement = buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
       ResultSet resultSet = preparedStatement.executeQuery();
       return new PostgresResultIterator(resultSet);
     } catch (SQLException e) {
@@ -233,7 +221,8 @@ public class PostgresCollection implements Collection {
         sqlOperator = " <= ";
         break;
       case LIKE:
-        // Case insensitive regex search, Append % at beginning and end of value to do a regex search
+        // Case insensitive regex search, Append % at beginning and end of value to do a regex
+        // search
         sqlOperator = " ILIKE ";
         value = "%" + value + "%";
         break;
@@ -242,7 +231,8 @@ public class PostgresCollection implements Collection {
         // 1. both NOT_IN and IN filter currently limited to non-array field
         //    - https://github.com/hypertrace/document-store/issues/32#issuecomment-781411676
         // 2. To make semantically opposite filter of IN, we need to check for if key is not present
-        //    Ref in context of NEQ - https://github.com/hypertrace/document-store/pull/20#discussion_r547101520Other
+        //    Ref in context of NEQ -
+        // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520Other
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
         StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName);
         if (notInFilterString != null) {
@@ -280,7 +270,8 @@ public class PostgresCollection implements Collection {
       case NEQ:
         sqlOperator = " != ";
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
-        // The expected behaviour is to get all documents which either satisfy non equality condition
+        // The expected behaviour is to get all documents which either satisfy non equality
+        // condition
         // or the key doesn't exist in them
         // Semantics for handling if key not exists and if it exists, its value
         // doesn't equal to the filter for Jsonb document will be done as:
@@ -298,9 +289,8 @@ public class PostgresCollection implements Collection {
     }
 
     filterString.append(sqlOperator);
-    if (value != null)
-    {
-      if(isMultiValued) {
+    if (value != null) {
+      if (isMultiValued) {
         filterString.append(value);
       } else {
         filterString.append(QUESTION_MARK);
@@ -311,16 +301,17 @@ public class PostgresCollection implements Collection {
     return filters;
   }
 
-  private String prepareParameterizedStringForList(List<Object> values,
-      Params.Builder paramsBuilder) {
-    String collect = values
-        .stream()
-        .map(val -> {
-          paramsBuilder.addObjectParam(val);
-          return QUESTION_MARK;
-        })
-        .collect(Collectors.joining(", "));
-    return  "(" + collect + ")";
+  private String prepareParameterizedStringForList(
+      List<Object> values, Params.Builder paramsBuilder) {
+    String collect =
+        values.stream()
+            .map(
+                val -> {
+                  paramsBuilder.addObjectParam(val);
+                  return QUESTION_MARK;
+                })
+            .collect(Collectors.joining(", "));
+    return "(" + collect + ")";
   }
 
   private StringBuilder prepareFieldAccessorExpr(String fieldName) {
@@ -329,8 +320,7 @@ public class PostgresCollection implements Collection {
       StringBuilder filterString = new StringBuilder(DOCUMENT);
       String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
       for (String nestedField : nestedFields) {
-        filterString.append(JSON_FIELD_ACCESSOR)
-                .append("'").append(nestedField).append("'");
+        filterString.append(JSON_FIELD_ACCESSOR).append("'").append(nestedField).append("'");
       }
       return filterString;
     }
@@ -342,24 +332,26 @@ public class PostgresCollection implements Collection {
   protected String parseCompositeFilter(Filter filter, Params.Builder paramsBuilder) {
     Filter.Op op = filter.getOp();
     switch (op) {
-      case OR: {
-        String childList =
-            Arrays.stream(filter.getChildFilters())
-                .map(childFilter -> parseFilter(childFilter, paramsBuilder))
-                .filter(str -> !StringUtils.isEmpty(str))
-                .map(str -> "(" + str + ")")
-                .collect(Collectors.joining(" OR "));
-        return !childList.isEmpty() ? childList : null;
-      }
-      case AND: {
-        String childList =
-            Arrays.stream(filter.getChildFilters())
-                .map(childFilter -> parseFilter(childFilter, paramsBuilder))
-                .filter(str -> !StringUtils.isEmpty(str))
-                .map(str -> "(" + str + ")")
-                .collect(Collectors.joining(" AND "));
-        return !childList.isEmpty() ? childList : null;
-      }
+      case OR:
+        {
+          String childList =
+              Arrays.stream(filter.getChildFilters())
+                  .map(childFilter -> parseFilter(childFilter, paramsBuilder))
+                  .filter(str -> !StringUtils.isEmpty(str))
+                  .map(str -> "(" + str + ")")
+                  .collect(Collectors.joining(" OR "));
+          return !childList.isEmpty() ? childList : null;
+        }
+      case AND:
+        {
+          String childList =
+              Arrays.stream(filter.getChildFilters())
+                  .map(childFilter -> parseFilter(childFilter, paramsBuilder))
+                  .filter(str -> !StringUtils.isEmpty(str))
+                  .map(str -> "(" + str + ")")
+                  .collect(Collectors.joining(" AND "));
+          return !childList.isEmpty() ? childList : null;
+        }
       default:
         throw new UnsupportedOperationException(
             String.format("Query operation:%s not supported", op));
@@ -367,32 +359,39 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params) throws SQLException, RuntimeException {
+  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
+      throws SQLException, RuntimeException {
     PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
-    params.getObjectParams().forEach((k, v) -> {
-      try {
-        if (isValidType(v)) {
-          preparedStatement.setObject(k, v);
-        } else {
-          throw new UnsupportedOperationException("Un-supported object types in filter");
-        }
-      } catch (SQLException e) {
-        LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
-      }
-    });
+    params
+        .getObjectParams()
+        .forEach(
+            (k, v) -> {
+              try {
+                if (isValidType(v)) {
+                  preparedStatement.setObject(k, v);
+                } else {
+                  throw new UnsupportedOperationException("Un-supported object types in filter");
+                }
+              } catch (SQLException e) {
+                LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
+              }
+            });
     return preparedStatement;
   }
 
   private boolean isValidType(Object v) {
-    Set<Class<?>> validClassez = new HashSet<>() {{
-      add(Double.class);
-      add(Float.class);
-      add(Integer.class);
-      add(Long.class);
-      add(String.class);
-      add(Boolean.class);
-      add(Number.class);
-    }};
+    Set<Class<?>> validClassez =
+        new HashSet<>() {
+          {
+            add(Double.class);
+            add(Float.class);
+            add(Integer.class);
+            add(Long.class);
+            add(String.class);
+            add(Boolean.class);
+            add(Number.class);
+          }
+        };
     return validClassez.contains(v.getClass());
   }
 
@@ -412,19 +411,24 @@ public class PostgresCollection implements Collection {
       fieldPrefix = new StringBuilder(DOCUMENT);
       String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
       for (int i = 0; i < nestedFields.length - 1; i++) {
-        fieldPrefix.append(JSON_FIELD_ACCESSOR)
-                .append("'").append(nestedFields[i]).append("'");
+        fieldPrefix.append(JSON_FIELD_ACCESSOR).append("'").append(nestedFields[i]).append("'");
       }
-      fieldPrefix.append(JSON_DATA_ACCESSOR)
-              .append("'").append(nestedFields[nestedFields.length - 1]).append("'");
+      fieldPrefix
+          .append(JSON_DATA_ACCESSOR)
+          .append("'")
+          .append(nestedFields[nestedFields.length - 1])
+          .append("'");
     }
     return fieldPrefix.toString();
   }
 
   private String parseOrderByQuery(List<OrderBy> orderBys) {
-    return orderBys
-        .stream()
-        .map(orderBy -> prepareFieldDataAccessorExpr(orderBy.getField()) + " " + (orderBy.isAsc() ? "ASC" : "DESC"))
+    return orderBys.stream()
+        .map(
+            orderBy ->
+                prepareFieldDataAccessorExpr(orderBy.getField())
+                    + " "
+                    + (orderBy.isAsc() ? "ASC" : "DESC"))
         .filter(str -> !StringUtils.isEmpty(str))
         .collect(Collectors.joining(" , "));
   }
@@ -444,12 +448,13 @@ public class PostgresCollection implements Collection {
 
   @Override
   public boolean deleteSubDoc(Key key, String subDocPath) {
-    String deleteSubDocSQL = String.format("UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?",
-        collectionName, DOCUMENT, DOCUMENT, ID);
+    String deleteSubDocSQL =
+        String.format(
+            "UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?", collectionName, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
 
-    try (PreparedStatement preparedStatement = client
-        .prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+    try (PreparedStatement preparedStatement =
+        client.prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, key.toString());
       int resultSet = preparedStatement.executeUpdate();
@@ -460,7 +465,8 @@ public class PostgresCollection implements Collection {
 
       return true;
     } catch (SQLException e) {
-      LOGGER.error("SQLException updating sub document. key: {} subDocPath: {}", key, subDocPath, e);
+      LOGGER.error(
+          "SQLException updating sub document. key: {} subDocPath: {}", key, subDocPath, e);
     }
     return false;
   }
@@ -494,8 +500,8 @@ public class PostgresCollection implements Collection {
 
   @Override
   public long total(Query query) {
-    StringBuilder totalSQLBuilder = new StringBuilder("SELECT COUNT(*) FROM ")
-        .append(collectionName);
+    StringBuilder totalSQLBuilder =
+        new StringBuilder("SELECT COUNT(*) FROM ").append(collectionName);
     Params.Builder paramsBuilder = Params.newBuilder();
 
     long count = -1;
@@ -507,7 +513,8 @@ public class PostgresCollection implements Collection {
       }
     }
 
-    try (PreparedStatement preparedStatement = buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build())) {
+    try (PreparedStatement preparedStatement =
+        buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build())) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
@@ -531,8 +538,11 @@ public class PostgresCollection implements Collection {
     } catch (BatchUpdateException e) {
       LOGGER.error("BatchUpdateException bulk inserting documents.", e);
     } catch (SQLException e) {
-      LOGGER.error("SQLException bulk inserting documents. SQLState: {} Error Code:{}",
-          e.getSQLState(), e.getErrorCode(), e);
+      LOGGER.error(
+          "SQLException bulk inserting documents. SQLState: {} Error Code:{}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
     }
@@ -541,8 +551,8 @@ public class PostgresCollection implements Collection {
   }
 
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
-    try (PreparedStatement preparedStatement = client
-        .prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+    try (PreparedStatement preparedStatement =
+        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
 
         Key key = entry.getKey();
@@ -560,18 +570,27 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException {
+  public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
+      throws IOException {
     String query = null;
     try {
-      String collect = documents.keySet().stream()
-          .map(val -> "'" + val.toString() + "'")
-          .collect(Collectors.joining(", "));
+      String collect =
+          documents.keySet().stream()
+              .map(val -> "'" + val.toString() + "'")
+              .collect(Collectors.joining(", "));
 
       String space = " ";
-      query = new StringBuilder("SELECT * FROM")
-          .append(space).append(collectionName)
-          .append(" WHERE ").append(ID).append(" IN ")
-          .append("(").append(collect).append(")").toString();
+      query =
+          new StringBuilder("SELECT * FROM")
+              .append(space)
+              .append(collectionName)
+              .append(" WHERE ")
+              .append(ID)
+              .append(" IN ")
+              .append("(")
+              .append(collect)
+              .append(")")
+              .toString();
 
       PreparedStatement preparedStatement = client.prepareStatement(query);
       ResultSet resultSet = preparedStatement.executeQuery();
@@ -609,7 +628,7 @@ public class PostgresCollection implements Collection {
     // assumption that all its value of the same types. Based on that and for consistency
     // we will use CAST ( <field name> as <type> ) for all non string operator.
     // Ref : https://github.com/hypertrace/document-store/pull/30#discussion_r571782575
-    
+
     if (value instanceof List<?> && ((List<Object>) value).size() > 0) {
       List<Object> listValue = (List<Object>) value;
       value = listValue.get(0);
@@ -679,16 +698,14 @@ public class PostgresCollection implements Collection {
 
     private String prepareNumericBlock(String fieldName, Object value) {
       if (value instanceof Number) {
-        String fmt = "case jsonb_typeof(%s)\n"
-            + "WHEN ‘number’ THEN (%s)::numeric > ?\n"
-            + "end";
+        String fmt = "case jsonb_typeof(%s)\n" + "WHEN ‘number’ THEN (%s)::numeric > ?\n" + "end";
       } else if (value instanceof Boolean) {
-        String fmtBoolean = "case jsonb_typeof(<field>)\n"
-            + "WHEN 'boolean'  THEN (<field>)::boolean  > ?\n"
-            + "end";
+        String fmtBoolean =
+            "case jsonb_typeof(<field>)\n"
+                + "WHEN 'boolean'  THEN (<field>)::boolean  > ?\n"
+                + "end";
       }
       return null;
     }
   }
 }
-
