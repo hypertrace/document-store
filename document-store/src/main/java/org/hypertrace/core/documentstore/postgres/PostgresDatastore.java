@@ -20,9 +20,7 @@ import org.hypertrace.core.documentstore.Datastore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Provides {@link Datastore} implementation for Postgres DB.
- */
+/** Provides {@link Datastore} implementation for Postgres DB. */
 public class PostgresDatastore implements Datastore {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDatastore.class);
@@ -65,15 +63,13 @@ public class PostgresDatastore implements Datastore {
     return true;
   }
 
-  /**
-   * @return Returns Tables for a particular database
-   */
+  /** @return Returns Tables for a particular database */
   @Override
   public Set<String> listCollections() {
     Set<String> collections = new HashSet<>();
     try {
       DatabaseMetaData metaData = client.getMetaData();
-      ResultSet tables = metaData.getTables(null, null, "%", new String[]{"TABLE"});
+      ResultSet tables = metaData.getTables(null, null, "%", new String[] {"TABLE"});
       while (tables.next()) {
         collections.add(database + "." + tables.getString("TABLE_NAME"));
       }
@@ -85,12 +81,15 @@ public class PostgresDatastore implements Datastore {
 
   @Override
   public boolean createCollection(String collectionName, Map<String, String> options) {
-    String createTableSQL = String.format("CREATE TABLE %s (" +
-        "%s TEXT PRIMARY KEY," +
-        "%s jsonb NOT NULL," +
-        "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()," +
-        "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()" +
-        ");", collectionName, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
+    String createTableSQL =
+        String.format(
+            "CREATE TABLE %s ("
+                + "%s TEXT PRIMARY KEY,"
+                + "%s jsonb NOT NULL,"
+                + "%s TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
+                + "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+                + ");",
+            collectionName, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
     try (PreparedStatement preparedStatement = client.prepareStatement(createTableSQL)) {
       int result = preparedStatement.executeUpdate();
       return result >= 0;

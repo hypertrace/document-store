@@ -71,7 +71,7 @@ public class FilterTest {
     Filter filter4 = new Filter(Op.AND, null, null, filter1, filter2);
     Assertions.assertTrue(filter3.equals(filter4));
 
-    filter4.setChildFilters(new Filter[]{filter1, filter1});
+    filter4.setChildFilters(new Filter[] {filter1, filter1});
     Assertions.assertFalse(filter3.equals(filter4));
   }
 }

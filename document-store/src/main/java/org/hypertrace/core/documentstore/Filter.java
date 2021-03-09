@@ -130,10 +130,10 @@ public class Filter {
       return false;
     }
     Filter filter = (Filter) o;
-    return op == filter.op &&
-        Objects.equals(fieldName, filter.fieldName) &&
-        Objects.equals(value, filter.value) &&
-        Arrays.equals(childFilters, filter.childFilters);
+    return op == filter.op
+        && Objects.equals(fieldName, filter.fieldName)
+        && Objects.equals(value, filter.value)
+        && Arrays.equals(childFilters, filter.childFilters);
   }
 
   @Override

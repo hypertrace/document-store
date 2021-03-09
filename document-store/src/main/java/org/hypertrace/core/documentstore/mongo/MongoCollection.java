@@ -69,23 +69,31 @@ public class MongoCollection implements Collection {
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
   /**
-   * The current MongoDB servers we use have a known issue - https://jira.mongodb.org/browse/SERVER-47212
-   * where the findAndModify operation might fail with duplicate key exception and server was supposed to
-   * retry that but it doesn't. Since the fix isn't available in the released MongoDB versions,
-   * we are retrying the upserts in these cases in client layer so that we avoid frequent failures in this
-   * layer.
-   * TODO: This code should be removed once MongoDB server is upgraded to 4.7.0+
+   * The current MongoDB servers we use have a known issue -
+   * https://jira.mongodb.org/browse/SERVER-47212 where the findAndModify operation might fail with
+   * duplicate key exception and server was supposed to retry that but it doesn't. Since the fix
+   * isn't available in the released MongoDB versions, we are retrying the upserts in these cases in
+   * client layer so that we avoid frequent failures in this layer. TODO: This code should be
+   * removed once MongoDB server is upgraded to 4.7.0+
    */
-  private final RetryPolicy<Object> upsertRetryPolicy = new RetryPolicy<>()
-      .handleIf(failure -> failure instanceof MongoCommandException &&
-          ((MongoCommandException) failure).getErrorCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE)
-      .withDelay(Duration.ofMillis(DELAY_BETWEEN_RETRIES_MILLIS))
-      .withMaxRetries(MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE);
-  private final RetryPolicy<Object> bulkWriteRetryPolicy = new RetryPolicy<>()
-      .handleIf(failure -> failure instanceof MongoBulkWriteException &&
-          allBulkWriteErrorsAreDueToDuplicateKey((MongoBulkWriteException) failure))
-      .withDelay(Duration.ofMillis(DELAY_BETWEEN_RETRIES_MILLIS))
-      .withMaxRetries(MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE);
+  private final RetryPolicy<Object> upsertRetryPolicy =
+      new RetryPolicy<>()
+          .handleIf(
+              failure ->
+                  failure instanceof MongoCommandException
+                      && ((MongoCommandException) failure).getErrorCode()
+                          == MONGODB_DUPLICATE_KEY_ERROR_CODE)
+          .withDelay(Duration.ofMillis(DELAY_BETWEEN_RETRIES_MILLIS))
+          .withMaxRetries(MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE);
+
+  private final RetryPolicy<Object> bulkWriteRetryPolicy =
+      new RetryPolicy<>()
+          .handleIf(
+              failure ->
+                  failure instanceof MongoBulkWriteException
+                      && allBulkWriteErrorsAreDueToDuplicateKey((MongoBulkWriteException) failure))
+          .withDelay(Duration.ofMillis(DELAY_BETWEEN_RETRIES_MILLIS))
+          .withMaxRetries(MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE);
 
   MongoCollection(com.mongodb.client.MongoCollection<BasicDBObject> collection) {
     this.collection = collection;
@@ -95,21 +103,22 @@ public class MongoCollection implements Collection {
    * Returns true if all the BulkWriteErrors that are present in the given BulkWriteException have
    * happened due to duplicate key errors.
    */
-  private boolean allBulkWriteErrorsAreDueToDuplicateKey(MongoBulkWriteException bulkWriteException) {
+  private boolean allBulkWriteErrorsAreDueToDuplicateKey(
+      MongoBulkWriteException bulkWriteException) {
     return bulkWriteException.getWriteErrors().stream()
         .allMatch(error -> error.getCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE);
   }
 
   /**
-   * Adds the following fields automatically:
-   * _id, _lastUpdateTime, lastUpdatedTime and created Time
+   * Adds the following fields automatically: _id, _lastUpdateTime, lastUpdatedTime and created Time
    */
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
     try {
       UpdateOptions options = new UpdateOptions().upsert(true);
       UpdateResult writeResult =
-          collection.updateOne(this.selectionCriteriaForKey(key), this.prepareUpsert(key, document), options);
+          collection.updateOne(
+              this.selectionCriteriaForKey(key), this.prepareUpsert(key, document), options);
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
@@ -122,15 +131,20 @@ public class MongoCollection implements Collection {
   }
 
   /**
-   * Adds the following fields automatically:
-   * _id, _lastUpdateTime, lastUpdatedTime and created Time
+   * Adds the following fields automatically: _id, _lastUpdateTime, lastUpdatedTime and created Time
    */
   @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
-    BasicDBObject upsertResult = Failsafe.with(upsertRetryPolicy).get(() -> collection.findOneAndUpdate(
-        this.selectionCriteriaForKey(key),
-        this.prepareUpsert(key, document),
-        new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER)));
+    BasicDBObject upsertResult =
+        Failsafe.with(upsertRetryPolicy)
+            .get(
+                () ->
+                    collection.findOneAndUpdate(
+                        this.selectionCriteriaForKey(key),
+                        this.prepareUpsert(key, document),
+                        new FindOneAndUpdateOptions()
+                            .upsert(true)
+                            .returnDocument(ReturnDocument.AFTER)));
     if (upsertResult == null) {
       throw new IOException("Could not upsert the document with key: " + key);
     }
@@ -153,9 +167,7 @@ public class MongoCollection implements Collection {
         .append("$setOnInsert", new BasicDBObject(CREATED_TIME, now));
   }
 
-  /**
-   * Updates auto-field lastUpdatedTime when sub doc is updated
-   */
+  /** Updates auto-field lastUpdatedTime when sub doc is updated */
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
     String jsonString = subDocument.toJson();
@@ -170,8 +182,8 @@ public class MongoCollection implements Collection {
       dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
       BasicDBObject setObject = new BasicDBObject("$set", dbObject);
 
-      UpdateResult writeResult = collection.updateOne(selectionCriteriaForKey(key), setObject,
-          new UpdateOptions());
+      UpdateResult writeResult =
+          collection.updateOne(selectionCriteriaForKey(key), setObject, new UpdateOptions());
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
@@ -227,7 +239,8 @@ public class MongoCollection implements Collection {
     }
 
     if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Sending query to mongo: {} : {}",
+      LOGGER.debug(
+          "Sending query to mongo: {} : {}",
           collection.getNamespace().getCollectionName(),
           Arrays.toString(map.entrySet().toArray()));
     }
@@ -278,7 +291,8 @@ public class MongoCollection implements Collection {
   public boolean deleteSubDoc(Key key, String subDocPath) {
     BasicDBObject unsetObject = new BasicDBObject("$unset", new BasicDBObject(subDocPath, ""));
 
-    UpdateResult updateResult = collection.updateOne(this.selectionCriteriaForKey(key), unsetObject);
+    UpdateResult updateResult =
+        collection.updateOne(this.selectionCriteriaForKey(key), unsetObject);
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Write result: " + updateResult.toString());
     }
@@ -397,8 +411,7 @@ public class MongoCollection implements Collection {
   }
 
   /**
-   * Adds the following fields automatically:
-   * _id, _lastUpdateTime, lastUpdatedTime and created Time
+   * Adds the following fields automatically: _id, _lastUpdateTime, lastUpdatedTime and created Time
    */
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
@@ -412,15 +425,17 @@ public class MongoCollection implements Collection {
     }
   }
 
-  private BulkWriteResult bulkUpsertImpl(Map<Key, Document> documents) throws JsonProcessingException {
+  private BulkWriteResult bulkUpsertImpl(Map<Key, Document> documents)
+      throws JsonProcessingException {
     List<UpdateOneModel<BasicDBObject>> bulkCollection = new ArrayList<>();
     for (Entry<Key, Document> entry : documents.entrySet()) {
       Key key = entry.getKey();
       // insert or overwrite
-      bulkCollection.add(new UpdateOneModel<>(
-          this.selectionCriteriaForKey(key),
-          prepareUpsert(key, entry.getValue()),
-          new UpdateOptions().upsert(true)));
+      bulkCollection.add(
+          new UpdateOneModel<>(
+              this.selectionCriteriaForKey(key),
+              prepareUpsert(key, entry.getValue()),
+              new UpdateOptions().upsert(true)));
     }
 
     return Failsafe.with(bulkWriteRetryPolicy)
@@ -428,10 +443,12 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents) throws IOException {
+  public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
+      throws IOException {
     try {
       // First get all the documents for the given keys.
-      FindIterable<BasicDBObject> cursor = collection.find(selectionCriteriaForKeys(documents.keySet()));
+      FindIterable<BasicDBObject> cursor =
+          collection.find(selectionCriteriaForKeys(documents.keySet()));
       final MongoCursor<BasicDBObject> mongoCursor = cursor.cursor();
 
       // Now go ahead and do the bulk upsert.
@@ -465,8 +482,11 @@ public class MongoCollection implements Collection {
   }
 
   private BasicDBObject selectionCriteriaForKeys(Set<Key> keys) {
-    return new BasicDBObject(Map.of(ID_KEY, new BasicDBObject("$in",
-        keys.stream().map(Key::toString).collect(Collectors.toList()))));
+    return new BasicDBObject(
+        Map.of(
+            ID_KEY,
+            new BasicDBObject(
+                "$in", keys.stream().map(Key::toString).collect(Collectors.toList()))));
   }
 
   private Document dbObjectToDocument(BasicDBObject dbObject) {

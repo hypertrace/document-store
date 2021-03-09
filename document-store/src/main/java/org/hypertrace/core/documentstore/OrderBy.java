@@ -30,10 +30,7 @@ public class OrderBy {
 
   @Override
   public String toString() {
-    return "OrderBy{" +
-        "field='" + field + '\'' +
-        ", isAsc=" + isAsc +
-        '}';
+    return "OrderBy{" + "field='" + field + '\'' + ", isAsc=" + isAsc + '}';
   }
 
   @Override
@@ -45,8 +42,7 @@ public class OrderBy {
       return false;
     }
     OrderBy orderBy = (OrderBy) o;
-    return isAsc == orderBy.isAsc &&
-        Objects.equals(field, orderBy.field);
+    return isAsc == orderBy.isAsc && Objects.equals(field, orderBy.field);
   }
 
   @Override

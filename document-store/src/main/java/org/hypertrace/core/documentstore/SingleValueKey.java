@@ -35,8 +35,8 @@ public class SingleValueKey implements Key {
       return false;
     }
 
-    return Objects.equals(((SingleValueKey) o).value, this.value) &&
-        Objects.equals(((SingleValueKey) o).tenantId, this.tenantId);
+    return Objects.equals(((SingleValueKey) o).value, this.value)
+        && Objects.equals(((SingleValueKey) o).tenantId, this.tenantId);
   }
 
   @Override

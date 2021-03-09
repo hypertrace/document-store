@@ -35,10 +35,7 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
@@ -60,11 +57,12 @@ public class PostgresDocStoreTest {
 
   @BeforeAll
   public static void init() {
-    postgres = new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
-        .withEnv("POSTGRES_PASSWORD", "postgres")
-        .withEnv("POSTGRES_USER", "postgres")
-        .withExposedPorts(5432)
-        .waitingFor(Wait.forListeningPort());
+    postgres =
+        new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
+            .withEnv("POSTGRES_PASSWORD", "postgres")
+            .withEnv("POSTGRES_USER", "postgres")
+            .withExposedPorts(5432)
+            .waitingFor(Wait.forListeningPort());
     postgres.start();
 
     connectionUrl = String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
@@ -119,8 +117,9 @@ public class PostgresDocStoreTest {
   @Test
   public void testUpsert() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    boolean result = collection
-        .upsert(new SingleValueKey("default", "testKey"), Utils.createDocument("foo1", "bar1"));
+    boolean result =
+        collection.upsert(
+            new SingleValueKey("default", "testKey"), Utils.createDocument("foo1", "bar1"));
     Assertions.assertTrue(result);
 
     Query query = new Query();
@@ -140,8 +139,8 @@ public class PostgresDocStoreTest {
   public void testUpsertAndReturn() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Document document = Utils.createDocument("foo1", "bar1");
-    Document resultDocument = collection
-        .upsertAndReturn(new SingleValueKey("default", "testKey"), document);
+    Document resultDocument =
+        collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
 
     Assertions.assertEquals(document.toJson(), resultDocument.toJson());
   }
@@ -156,7 +155,8 @@ public class PostgresDocStoreTest {
     bulkMap.put(new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
     bulkMap.put(new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
     bulkMap.put(
-        new SingleValueKey("default", "testKey6"), Utils.createDocument("email", "bob@example.com"));
+        new SingleValueKey("default", "testKey6"),
+        Utils.createDocument("email", "bob@example.com"));
 
     collection.bulkUpsert(bulkMap);
 
@@ -191,7 +191,8 @@ public class PostgresDocStoreTest {
     bulkMap.put(new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
     bulkMap.put(new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
     bulkMap.put(
-        new SingleValueKey("default", "testKey6"), Utils.createDocument("email", "bob@example.com"));
+        new SingleValueKey("default", "testKey6"),
+        Utils.createDocument("email", "bob@example.com"));
 
     Iterator<Document> iterator = collection.bulkUpsertAndReturnOlderDocuments(bulkMap);
     // Initially there shouldn't be any documents.
@@ -250,7 +251,8 @@ public class PostgresDocStoreTest {
     ObjectNode jsonNode = (ObjectNode) OBJECT_MAPPER.readTree(documents.get(0).toJson());
     jsonNode.remove(CREATED_AT);
     jsonNode.remove(UPDATED_AT);
-    String expected = "{\"foo1\":\"bar1\",\"subdoc\":{\"subfoo1\":\"subbar1\",\"nesteddoc\":{\"nestedfoo1\":\"nestedbar1\"}}}";
+    String expected =
+        "{\"foo1\":\"bar1\",\"subdoc\":{\"subfoo1\":\"subbar1\",\"nesteddoc\":{\"nestedfoo1\":\"nestedbar1\"}}}";
     Assertions.assertEquals(expected, OBJECT_MAPPER.writeValueAsString(jsonNode));
   }
 
@@ -287,7 +289,6 @@ public class PostgresDocStoreTest {
     Assertions.assertEquals(collection.count(), 1);
     collection.delete(docKey);
     Assertions.assertEquals(collection.count(), 0);
-
   }
 
   @Test
@@ -313,7 +314,8 @@ public class PostgresDocStoreTest {
   @Test
   public void testIgnoreCaseLikeQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey"), Utils.createDocument("name", "Bob"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey"), Utils.createDocument("name", "Bob"));
 
     String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB", "BO", "bO", "Ob", "OB"};
 
@@ -334,9 +336,12 @@ public class PostgresDocStoreTest {
   @Test
   public void testInQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Halo"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Halo"));
 
     List<String> inArray = new ArrayList<>();
     inArray.add("Bob");
@@ -355,19 +360,22 @@ public class PostgresDocStoreTest {
   @Test
   public void testInQueryWithNumberField() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey1"),
             ImmutablePair.of("name", "abc1"),
             ImmutablePair.of("size", -10.2),
             ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey2"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey2"),
             ImmutablePair.of("name", "abc2"),
             ImmutablePair.of("size", 10.4),
             ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey3"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey3"),
             ImmutablePair.of("name", "abc3"),
@@ -391,7 +399,8 @@ public class PostgresDocStoreTest {
   @Test
   public void testNotInQueryWithNumberField() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey1"),
             ImmutablePair.of("name", "abc1"),
@@ -399,7 +408,8 @@ public class PostgresDocStoreTest {
             ImmutablePair.of("isCostly", false),
             ImmutablePair.of("tags", List.of("black", "white")),
             ImmutablePair.of("color", "red")));
-    collection.upsert(new SingleValueKey("default", "testKey2"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey2"),
             ImmutablePair.of("name", "abc2"),
@@ -407,7 +417,8 @@ public class PostgresDocStoreTest {
             ImmutablePair.of("isCostly", false),
             ImmutablePair.of("tags", List.of("gray")),
             ImmutablePair.of("color", "gray")));
-    collection.upsert(new SingleValueKey("default", "testKey3"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey3"),
             ImmutablePair.of("name", "abc3"),
@@ -415,7 +426,8 @@ public class PostgresDocStoreTest {
             ImmutablePair.of("isCostly", false),
             ImmutablePair.of("tags", List.of("brown")),
             ImmutablePair.of("color", "blue")));
-    collection.upsert(new SingleValueKey("default", "testKey4"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey4"),
             ImmutablePair.of("name", "abc4"),
@@ -424,18 +436,22 @@ public class PostgresDocStoreTest {
             ImmutablePair.of("tags", List.of("gray")),
             ImmutablePair.of("color", "pink")));
 
-    collection.upsert(new SingleValueKey("default", "testKey5"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey5"),
-            ImmutablePair.of("name", "abc5")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey5"),
+        Utils.createDocument(ImmutablePair.of("id", "testKey5"), ImmutablePair.of("name", "abc5")));
 
-    collection.updateSubDoc(new SingleValueKey("default", "testKey1"),
-        "subdoc", Utils.createDocument("nestedkey1", "pqr1"));
-    collection.updateSubDoc(new SingleValueKey("default", "testKey2"),
-        "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
-    collection.updateSubDoc(new SingleValueKey("default", "testKey3"),
-        "subdoc", Utils.createDocument("nestedkey1", "pqr3"));
-
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey1"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr1"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey2"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr2"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey3"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr3"));
 
     // check with string filed
     List<String> names = new ArrayList<>();
@@ -450,12 +466,14 @@ public class PostgresDocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertEquals(3, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc1\"")
-          || jsonStr.contains("\"name\":\"abc4\"")
-          || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc1\"")
+                  || jsonStr.contains("\"name\":\"abc4\"")
+                  || jsonStr.contains("\"name\":\"abc5\""));
+        });
 
     // check with multiple operator and + not_in with string field
     List<String> colors = new ArrayList<>();
@@ -476,13 +494,15 @@ public class PostgresDocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertEquals(4, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc2\"")
-          || jsonStr.contains("\"name\":\"abc3\"")
-          || jsonStr.contains("\"name\":\"abc4\"")
-          || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc2\"")
+                  || jsonStr.contains("\"name\":\"abc3\"")
+                  || jsonStr.contains("\"name\":\"abc4\"")
+                  || jsonStr.contains("\"name\":\"abc5\""));
+        });
 
     // check with numeric field
     List<Number> sizes = new ArrayList<>();
@@ -497,11 +517,12 @@ public class PostgresDocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertEquals(2, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc3\"")
-          || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc3\"") || jsonStr.contains("\"name\":\"abc5\""));
+        });
 
     // check with multiple operator and + not_in with numeric field
     sizes = new ArrayList<>();
@@ -522,12 +543,14 @@ public class PostgresDocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertEquals(3, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc3\"")
-          || jsonStr.contains("\"name\":\"abc4\"")
-          || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc3\"")
+                  || jsonStr.contains("\"name\":\"abc4\"")
+                  || jsonStr.contains("\"name\":\"abc5\""));
+        });
 
     // check for subDoc key
     List<String> subDocs = new ArrayList<>();
@@ -542,28 +565,33 @@ public class PostgresDocStoreTest {
       documents.add(results.next());
     }
     assertEquals(3, documents.size());
-    documents.forEach(document -> {
-      String jsonStr = document.toJson();
-      assertTrue(jsonStr.contains("\"name\":\"abc3\"")
-          || jsonStr.contains("\"name\":\"abc4\"")
-          || jsonStr.contains("\"name\":\"abc5\""));
-    });
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"name\":\"abc3\"")
+                  || jsonStr.contains("\"name\":\"abc4\"")
+                  || jsonStr.contains("\"name\":\"abc5\""));
+        });
   }
 
   @Test
   public void testSearch() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    String docStr1 = "{\"amount\":1234.5,\"testKeyExist\":null,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    String docStr1 =
+        "{\"amount\":1234.5,\"testKeyExist\":null,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document1 = new JSONDocument(docStr1);
     SingleValueKey key1 = new SingleValueKey("default", "testKey1");
     collection.upsert(key1, document1);
 
-    String docStr2 = "{\"amount\":1234,\"testKeyExist\":123,\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":123,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    String docStr2 =
+        "{\"amount\":1234,\"testKeyExist\":123,\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":123,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document2 = new JSONDocument(docStr2);
     SingleValueKey key2 = new SingleValueKey("default", "testKey2");
     collection.upsert(key2, document2);
 
-    String docStr3 = "{\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":null,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    String docStr3 =
+        "{\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":null,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document3 = new JSONDocument(docStr3);
     SingleValueKey key3 = new SingleValueKey("default", "testKey3");
     collection.upsert(key3, document3);
@@ -621,8 +649,8 @@ public class PostgresDocStoreTest {
       Query query = new Query();
       query.setFilter(new Filter(Filter.Op.EQ, "amount", new Filter()));
       String expected = "Un-supported object types in filter";
-      Exception exception = assertThrows(UnsupportedOperationException.class,
-              () -> collection.search(query));
+      Exception exception =
+          assertThrows(UnsupportedOperationException.class, () -> collection.search(query));
       String actualMessage = exception.getMessage();
       Assertions.assertTrue(actualMessage.contains(expected));
     }
@@ -654,7 +682,8 @@ public class PostgresDocStoreTest {
     // Field Not Exists in the document
     {
       Query query = new Query();
-      query.setFilter(new Filter(Op.NOT_EXISTS, "attributes.trace_id.value.testKeyExistNested", null));
+      query.setFilter(
+          new Filter(Op.NOT_EXISTS, "attributes.trace_id.value.testKeyExistNested", null));
       Iterator<Document> results = collection.search(query);
       List<Document> documents = new ArrayList<>();
       while (results.hasNext()) {
@@ -662,38 +691,41 @@ public class PostgresDocStoreTest {
       }
       Assertions.assertEquals(1, documents.size());
     }
-
   }
 
   @Test
   public void testExistsFilter() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey1"),
-                    ImmutablePair.of("name", "abc1"),
-                    ImmutablePair.of("size", -10.2),
-                    ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey2"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey2"),
-                    ImmutablePair.of("name", "abc2"),
-                    ImmutablePair.of("size", 10.4),
-                    ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey3"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey3"),
-                    ImmutablePair.of("name", "abc3"),
-                    ImmutablePair.of("size", 30),
-                    ImmutablePair.of("isCostly", false),
-                    ImmutablePair.of("city", "bangalore")));
-    collection.upsert(new SingleValueKey("default", "testKey4"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey4"),
-                    ImmutablePair.of("name", "abc4"),
-                    ImmutablePair.of("size", 30),
-                    ImmutablePair.of("isCostly", false),
-                    ImmutablePair.of("city", null)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10.2),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", 10.4),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", "bangalore")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", null)));
     Query query = new Query();
     query.setFilter(new Filter(Op.EXISTS, "city", true));
     Iterator<Document> results = collection.search(query);
@@ -707,32 +739,36 @@ public class PostgresDocStoreTest {
   @Test
   public void testNotExistsFilter() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey1"),
-                    ImmutablePair.of("name", "abc1"),
-                    ImmutablePair.of("size", -10.2),
-                    ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey2"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey2"),
-                    ImmutablePair.of("name", "abc2"),
-                    ImmutablePair.of("size", 10.4),
-                    ImmutablePair.of("isCostly", false)));
-    collection.upsert(new SingleValueKey("default", "testKey3"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey3"),
-                    ImmutablePair.of("name", "abc3"),
-                    ImmutablePair.of("size", 30),
-                    ImmutablePair.of("isCostly", false),
-                    ImmutablePair.of("city", "bangalore")));
-    collection.upsert(new SingleValueKey("default", "testKey4"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey4"),
-                    ImmutablePair.of("name", "abc4"),
-                    ImmutablePair.of("size", 30),
-                    ImmutablePair.of("isCostly", false),
-                    ImmutablePair.of("city", null)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10.2),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", 10.4),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", "bangalore")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", null)));
     Query query = new Query();
     query.setFilter(new Filter(Op.EXISTS, "city", false));
     Iterator<Document> results = collection.search(query);
@@ -746,15 +782,16 @@ public class PostgresDocStoreTest {
   @Test
   public void testSearchForNestedKey() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    String documentString = "{\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    String documentString =
+        "{\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"createdTime\":1605692185945,\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document = new JSONDocument(documentString);
     SingleValueKey key = new SingleValueKey("default", "testKey1");
     collection.upsert(key, document);
 
     // Search nested field in the document
     Query query = new Query();
-    query
-        .setFilter(new Filter(Filter.Op.EQ, "attributes.span_id.value.string", "6449f1f720c93a67"));
+    query.setFilter(
+        new Filter(Filter.Op.EQ, "attributes.span_id.value.string", "6449f1f720c93a67"));
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
     while (results.hasNext()) {
@@ -766,13 +803,19 @@ public class PostgresDocStoreTest {
   @Test
   public void testTotalWithQuery() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Alice"));
-    collection.upsert(new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
-    collection.upsert(new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
     collection.upsert(
-        new SingleValueKey("default", "testKey6"), Utils.createDocument("email", "bob@example.com"));
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Alice"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey6"),
+        Utils.createDocument("email", "bob@example.com"));
 
     {
       // empty query returns all the documents
@@ -798,11 +841,16 @@ public class PostgresDocStoreTest {
   @Test
   public void testOffsetLimitAndOrderBY() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(new SingleValueKey("default", "testKey1"), Utils.createDocument("foo1", "bar1"));
-    collection.upsert(new SingleValueKey("default", "testKey2"), Utils.createDocument("foo2", "bar2"));
-    collection.upsert(new SingleValueKey("default", "testKey3"), Utils.createDocument("foo3", "bar3"));
-    collection.upsert(new SingleValueKey("default", "testKey4"), Utils.createDocument("foo4", "bar4"));
-    collection.upsert(new SingleValueKey("default", "testKey5"), Utils.createDocument("foo5", "bar5"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("foo1", "bar1"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("foo2", "bar2"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"), Utils.createDocument("foo3", "bar3"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"), Utils.createDocument("foo4", "bar4"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey5"), Utils.createDocument("foo5", "bar5"));
 
     // Querying 5 times, to make sure the order of results is maintained with offset + limit
     for (int i = 0; i < 5; i++) {
@@ -831,37 +879,37 @@ public class PostgresDocStoreTest {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
     // size field with integer value, isCostly boolean field
-    collection.upsert(new SingleValueKey("default", "testKey1"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey1"),
             ImmutablePair.of("name", "abc1"),
             ImmutablePair.of("size", -10),
-            ImmutablePair.of("isCostly", false))
-    );
+            ImmutablePair.of("isCostly", false)));
 
-    collection.upsert(new SingleValueKey("default", "testKey2"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey2"),
             ImmutablePair.of("name", "abc2"),
             ImmutablePair.of("size", -20),
-            ImmutablePair.of("isCostly", false))
-    );
+            ImmutablePair.of("isCostly", false)));
 
-    collection.upsert(new SingleValueKey("default", "testKey3"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey3"),
             ImmutablePair.of("name", "abc3"),
             ImmutablePair.of("size", 5),
-            ImmutablePair.of("isCostly", true))
-    );
+            ImmutablePair.of("isCostly", true)));
 
-    collection.upsert(new SingleValueKey("default", "testKey4"),
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey4"),
             ImmutablePair.of("name", "abc4"),
             ImmutablePair.of("size", 10),
-            ImmutablePair.of("isCostly", true))
-    );
+            ImmutablePair.of("isCostly", true)));
 
     // query field having int type
     Query queryNumericField = new Query();
@@ -904,28 +952,31 @@ public class PostgresDocStoreTest {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
-    collection.upsert(new SingleValueKey("default", "testKey1"),
-            Utils.createDocument(
-                    ImmutablePair.of("key1", "abc1"),
-                    ImmutablePair.of("key2", "xyz1")));
-    collection.upsert(new SingleValueKey("default", "testKey2"),
-            Utils.createDocument(
-                    ImmutablePair.of("key1", "abc2"),
-                    ImmutablePair.of("key2", "xyz2")));
-    collection.upsert(new SingleValueKey("default", "testKey3"),
-            Utils.createDocument(
-                    ImmutablePair.of("key1", "abc3"),
-                    ImmutablePair.of("key2", "xyz3")));
-    collection.upsert(new SingleValueKey("default", "testKey4"),
-            Utils.createDocument(
-                    ImmutablePair.of("key1", "abc4")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(ImmutablePair.of("key1", "abc1"), ImmutablePair.of("key2", "xyz1")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(ImmutablePair.of("key1", "abc2"), ImmutablePair.of("key2", "xyz2")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(ImmutablePair.of("key1", "abc3"), ImmutablePair.of("key2", "xyz3")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(ImmutablePair.of("key1", "abc4")));
 
-    collection.updateSubDoc(new SingleValueKey("default", "testKey1"),
-            "subdoc", Utils.createDocument("nestedkey1", "pqr1"));
-    collection.updateSubDoc(new SingleValueKey("default", "testKey2"),
-            "subdoc", Utils.createDocument("nestedkey1", "pqr2"));
-    collection.updateSubDoc(new SingleValueKey("default", "testKey3"),
-            "subdoc", Utils.createDocument("nestedkey1", "pqr3"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey1"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr1"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey2"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr2"));
+    collection.updateSubDoc(
+        new SingleValueKey("default", "testKey3"),
+        "subdoc",
+        Utils.createDocument("nestedkey1", "pqr3"));
 
     // NEQ on ID
     {
@@ -938,14 +989,15 @@ public class PostgresDocStoreTest {
       }
 
       assertEquals(3, documents.size());
-      documents.forEach(document -> {
-        String jsonStr = document.toJson();
-        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
-                || document.toJson().contains("\"key1\":\"abc2\"")
-                || document.toJson().contains("\"key1\":\"abc4\""));
-      });
+      documents.forEach(
+          document -> {
+            String jsonStr = document.toJson();
+            assertTrue(
+                jsonStr.contains("\"key1\":\"abc1\"")
+                    || document.toJson().contains("\"key1\":\"abc2\"")
+                    || document.toJson().contains("\"key1\":\"abc4\""));
+          });
     }
-
 
     // NEQ on document fields
     {
@@ -957,12 +1009,14 @@ public class PostgresDocStoreTest {
         documents.add(results.next());
       }
       assertEquals(3, documents.size());
-      documents.forEach(document -> {
-        String jsonStr = document.toJson();
-        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
-                || document.toJson().contains("\"key1\":\"abc2\"")
-                || document.toJson().contains("\"key1\":\"abc4\""));
-      });
+      documents.forEach(
+          document -> {
+            String jsonStr = document.toJson();
+            assertTrue(
+                jsonStr.contains("\"key1\":\"abc1\"")
+                    || document.toJson().contains("\"key1\":\"abc2\"")
+                    || document.toJson().contains("\"key1\":\"abc4\""));
+          });
     }
 
     // NEQ on non existing fields
@@ -975,12 +1029,14 @@ public class PostgresDocStoreTest {
         documents.add(results.next());
       }
       assertEquals(3, documents.size());
-      documents.forEach(document -> {
-        String jsonStr = document.toJson();
-        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
-                || document.toJson().contains("\"key1\":\"abc3\"")
-                || document.toJson().contains("\"key1\":\"abc4\""));
-      });
+      documents.forEach(
+          document -> {
+            String jsonStr = document.toJson();
+            assertTrue(
+                jsonStr.contains("\"key1\":\"abc1\"")
+                    || document.toJson().contains("\"key1\":\"abc3\"")
+                    || document.toJson().contains("\"key1\":\"abc4\""));
+          });
     }
 
     // NEQ on nested fields
@@ -993,12 +1049,14 @@ public class PostgresDocStoreTest {
         documents.add(results.next());
       }
       assertEquals(3, documents.size());
-      documents.forEach(document -> {
-        String jsonStr = document.toJson();
-        assertTrue(jsonStr.contains("\"key1\":\"abc1\"")
-                || document.toJson().contains("\"key1\":\"abc3\"")
-                || document.toJson().contains("\"key1\":\"abc4\""));
-      });
+      documents.forEach(
+          document -> {
+            String jsonStr = document.toJson();
+            assertTrue(
+                jsonStr.contains("\"key1\":\"abc1\"")
+                    || document.toJson().contains("\"key1\":\"abc3\"")
+                    || document.toJson().contains("\"key1\":\"abc4\""));
+          });
     }
   }
 }

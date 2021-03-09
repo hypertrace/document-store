@@ -158,8 +158,10 @@ public class PostgresCollectionTest {
     {
       Filter filter = new Filter(Filter.Op.CONTAINS, "key1", null);
       String expected = String.format(expectedMessage, Filter.Op.CONTAINS);
-      Exception exception = assertThrows(UnsupportedOperationException.class,
-          () -> collection.parseNonCompositeFilter(filter, initParams()));
+      Exception exception =
+          assertThrows(
+              UnsupportedOperationException.class,
+              () -> collection.parseNonCompositeFilter(filter, initParams()));
       String actualMessage = exception.getMessage();
       Assertions.assertTrue(actualMessage.contains(expected));
     }
@@ -183,8 +185,7 @@ public class PostgresCollectionTest {
       Filter filter =
           new Filter(Filter.Op.EQ, ID, "val1").and(new Filter(Filter.Op.EQ, CREATED_AT, "val2"));
       String query = collection.parseCompositeFilter(filter, initParams());
-      Assertions
-          .assertEquals(String.format("(%s = ?) AND (%s = ?)", ID, CREATED_AT), query);
+      Assertions.assertEquals(String.format("(%s = ?) AND (%s = ?)", ID, CREATED_AT), query);
     }
 
     {
@@ -192,8 +193,7 @@ public class PostgresCollectionTest {
           new Filter(Filter.Op.EQ, ID, "val1").or(new Filter(Filter.Op.EQ, CREATED_AT, "val2"));
 
       String query = collection.parseCompositeFilter(filter, initParams());
-      Assertions
-          .assertEquals(String.format("(%s = ?) OR (%s = ?)", ID, CREATED_AT), query);
+      Assertions.assertEquals(String.format("(%s = ?) OR (%s = ?)", ID, CREATED_AT), query);
     }
   }
 
@@ -203,8 +203,7 @@ public class PostgresCollectionTest {
       Filter filter =
           new Filter(Filter.Op.EQ, "key1", "val1").and(new Filter(Filter.Op.EQ, "key2", "val2"));
       String query = collection.parseCompositeFilter(filter, initParams());
-      Assertions
-          .assertEquals("(document->>'key1' = ?) AND (document->>'key2' = ?)", query);
+      Assertions.assertEquals("(document->>'key1' = ?) AND (document->>'key2' = ?)", query);
     }
 
     {
@@ -212,8 +211,7 @@ public class PostgresCollectionTest {
           new Filter(Filter.Op.EQ, "key1", "val1").or(new Filter(Filter.Op.EQ, "key2", "val2"));
 
       String query = collection.parseCompositeFilter(filter, initParams());
-      Assertions
-          .assertEquals("(document->>'key1' = ?) OR (document->>'key2' = ?)", query);
+      Assertions.assertEquals("(document->>'key1' = ?) OR (document->>'key2' = ?)", query);
     }
   }
 
@@ -227,9 +225,11 @@ public class PostgresCollectionTest {
 
     Filter filter = filter1.or(filter2);
     String query = collection.parseFilter(filter, initParams());
-    Assertions.assertEquals(String.format("((%s = ?) AND (document->>'key2' = ?)) " +
-        "OR ((%s = ?) AND (document->>'key4' = ?))", ID, ID), query);
-
+    Assertions.assertEquals(
+        String.format(
+            "((%s = ?) AND (document->>'key2' = ?)) " + "OR ((%s = ?) AND (document->>'key4' = ?))",
+            ID, ID),
+        query);
   }
 
   @Test
@@ -242,13 +242,13 @@ public class PostgresCollectionTest {
 
     Filter filter = filter1.or(filter2);
     String query = collection.parseFilter(filter, initParams());
-    Assertions.assertEquals("((document->>'key1' = ?) AND (document->>'key2' = ?)) " +
-        "OR ((document->>'key3' = ?) AND (document->>'key4' = ?))", query);
-
+    Assertions.assertEquals(
+        "((document->>'key1' = ?) AND (document->>'key2' = ?)) "
+            + "OR ((document->>'key3' = ?) AND (document->>'key4' = ?))",
+        query);
   }
 
   private Params.Builder initParams() {
     return Params.newBuilder();
   }
-
 }

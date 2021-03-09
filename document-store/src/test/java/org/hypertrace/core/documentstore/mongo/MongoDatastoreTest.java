@@ -20,7 +20,8 @@ public class MongoDatastoreTest {
     properties.setProperty("port", String.valueOf(port));
     Config config = ConfigFactory.parseProperties(properties);
     datastore.init(config);
-    List<ServerDescription> servers = datastore.getMongoClient().getClusterDescription().getServerDescriptions();
+    List<ServerDescription> servers =
+        datastore.getMongoClient().getClusterDescription().getServerDescriptions();
     Assertions.assertEquals(servers.size(), 1);
     Assertions.assertEquals(servers.get(0).getAddress().getHost(), host);
     Assertions.assertEquals(servers.get(0).getAddress().getPort(), port);
@@ -35,7 +36,8 @@ public class MongoDatastoreTest {
     properties.setProperty("url", "mongodb://mongo-0:27017,mongo-1:27017/?replicaSet=rs0");
     Config config = ConfigFactory.parseProperties(properties);
     datastore.init(config);
-    List<ServerDescription> servers = datastore.getMongoClient().getClusterDescription().getServerDescriptions();
+    List<ServerDescription> servers =
+        datastore.getMongoClient().getClusterDescription().getServerDescriptions();
     Assertions.assertEquals(servers.size(), 2);
   }
 }
