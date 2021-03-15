@@ -25,9 +25,9 @@ public class PostgresDatastore implements Datastore {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDatastore.class);
 
-  private static String DEFAULT_USER = "postgres";
-  private static String DEFAULT_PASSWORD = "postgres";
-  private static String DEFAULT_DB_NAME = "postgres";
+  private static final String DEFAULT_USER = "postgres";
+  private static final String DEFAULT_PASSWORD = "postgres";
+  private static final String DEFAULT_DB_NAME = "postgres";
 
   private Connection client;
   private String database;
@@ -47,6 +47,7 @@ public class PostgresDatastore implements Datastore {
         url = String.format("jdbc:postgresql://%s:%s/", hostName, port);
       }
 
+      String DEFAULT_USER = "postgres";
       String user = config.hasPath("user") ? config.getString("user") : DEFAULT_USER;
       String password =
           config.hasPath("password") ? config.getString("password") : DEFAULT_PASSWORD;
@@ -91,12 +92,12 @@ public class PostgresDatastore implements Datastore {
                 + ");",
             collectionName, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
     try (PreparedStatement preparedStatement = client.prepareStatement(createTableSQL)) {
-      int result = preparedStatement.executeUpdate();
-      return result >= 0;
+      preparedStatement.executeUpdate();
     } catch (SQLException e) {
       LOGGER.error("Exception creating table name: {}", collectionName);
+      return false;
     }
-    return false;
+    return true;
   }
 
   @Override

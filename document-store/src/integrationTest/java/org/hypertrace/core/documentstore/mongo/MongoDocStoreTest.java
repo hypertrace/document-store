@@ -21,7 +21,6 @@ import com.mongodb.client.MongoDatabase;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,6 +34,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
+import org.hypertrace.core.documentstore.DocStoreTest;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
@@ -124,141 +124,22 @@ public class MongoDocStoreTest {
 
   @Test
   public void testIgnoreCaseLikeQuery() throws IOException {
-    long now = Instant.now().toEpochMilli();
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(
-        new SingleValueKey("default", "testKey"), Utils.createDocument("name", "Bob"));
-
-    String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB", "BO", "bO", "Ob", "OB"};
-
-    for (String searchValue : ignoreCaseSearchValues) {
-      Query query = new Query();
-      query.setFilter(new Filter(Filter.Op.LIKE, "name", searchValue));
-      Iterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      while (results.hasNext()) {
-        documents.add(results.next());
-      }
-      Assertions.assertFalse(documents.isEmpty());
-      String persistedDocument = documents.get(0).toJson();
-      JsonNode jsonNode = OBJECT_MAPPER.reader().readTree(persistedDocument);
-      Assertions.assertTrue(persistedDocument.contains("Bob"));
-      Assertions.assertTrue(jsonNode.findValue("createdTime").asLong(0) >= now);
-      Assertions.assertTrue(jsonNode.findValue("lastUpdatedTime").asLong(0) >= now);
-    }
+    DocStoreTest.testIgnoreCaseLikeQuery(datastore, DocStoreTest.MONGO_STORE);
   }
 
   @Test
   public void testTotalWithQuery() throws IOException {
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(
-        new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey2"), Utils.createDocument("name", "Alice"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey3"), Utils.createDocument("name", "Alice"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey4"), Utils.createDocument("name", "Bob"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey5"), Utils.createDocument("name", "Alice"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey6"),
-        Utils.createDocument("email", "bob@example.com"));
-
-    {
-      // empty query returns all the documents
-      Query query = new Query();
-      assertEquals(6, collection.total(query));
-    }
-
-    {
-      Query query = new Query();
-      query.setFilter(Filter.eq("name", "Bob"));
-      assertEquals(2, collection.total(query));
-    }
-
-    {
-      // limit should not affect the total
-      Query query = new Query();
-      query.setFilter(Filter.eq("name", "Bob"));
-      query.setLimit(1);
-      assertEquals(2, collection.total(query));
-    }
+    DocStoreTest.testTotalWithQuery(datastore);
   }
 
   @Test
-  public void testOffsetAndLimit() throws IOException {
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(
-        new SingleValueKey("default", "testKey1"), Utils.createDocument("foo1", "bar1"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey2"), Utils.createDocument("foo2", "bar2"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey3"), Utils.createDocument("foo3", "bar3"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey4"), Utils.createDocument("foo4", "bar4"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey5"), Utils.createDocument("foo5", "bar5"));
-
-    // Querying 5 times, to make sure the order of results is maintained with offset + limit
-    for (int i = 0; i < 5; i++) {
-      Query query = new Query();
-      query.setLimit(2);
-      query.setOffset(1);
-
-      Iterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      while (results.hasNext()) {
-        documents.add(results.next());
-      }
-
-      assertEquals(2, documents.size());
-      String persistedDocument1 = documents.get(0).toJson();
-      Assertions.assertTrue(persistedDocument1.contains("foo2"));
-      String persistedDocument2 = documents.get(1).toJson();
-      Assertions.assertTrue(persistedDocument2.contains("foo3"));
-    }
+  public void testOffsetLimitAndOrderBy() throws IOException {
+    DocStoreTest.testOffsetAndLimitOrderBy(datastore);
   }
 
   @Test
-  public void testUpsert() throws IOException {
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-    objectNode.put("foo1", "bar1");
-    Document document = new JSONDocument(objectNode);
-    collection.upsert(new SingleValueKey("default", "testKey"), document);
-
-    Query query = new Query();
-    query.setFilter(Filter.eq("_id", "default:testKey"));
-    Iterator<Document> results = collection.search(query);
-    List<Document> documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertFalse(documents.isEmpty());
-    String persistedDocument = documents.get(0).toJson();
-    // Assert _lastUpdateTime fields exists
-    Assertions.assertTrue(persistedDocument.contains(LAST_UPDATE_TIME_KEY));
-    Assertions.assertTrue(persistedDocument.contains(LAST_CREATED_TIME_KEY));
-    JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
-    String lastUpdatedTime = node.findValue(LAST_UPDATE_TIME_KEY).findValue("$date").asText();
-    long createdTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
-
-    // Upsert again and verify that createdTime does not change, while lastUpdatedTime
-    // has changed
-    collection.upsert(new SingleValueKey("default", "testKey"), document);
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertFalse(documents.isEmpty());
-    persistedDocument = documents.get(0).toJson();
-    node = OBJECT_MAPPER.readTree(persistedDocument);
-    String newLastUpdatedTime = node.findValue(LAST_UPDATE_TIME_KEY).findValue("$date").asText();
-    long newCreatedTime = node.findValue(LAST_CREATED_TIME_KEY).asLong();
-    assertEquals(createdTime, newCreatedTime);
-    Assertions.assertFalse(newLastUpdatedTime.equalsIgnoreCase(lastUpdatedTime));
+  public void testUpsert() throws Exception {
+    DocStoreTest.testUpsert(datastore, DocStoreTest.MONGO_STORE);
   }
 
   @Test
@@ -343,55 +224,33 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testSearchForNestedKey() throws IOException {
+    DocStoreTest.testSearchForNestedKey(datastore);
+  }
+
+  @Test
+  public void testInQuery() throws IOException {
+    DocStoreTest.testInQuery(datastore);
+  }
+
+  @Test
+  public void testDelete() throws Exception {
+    DocStoreTest.testDelete(datastore);
+  }
+
+  @Test
+  public void testDeleteAll() throws IOException {
+    DocStoreTest.testDeleteAll(datastore);
+  }
+
+  @Test
   public void testSubDocumentUpdate() throws IOException {
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    ObjectNode objectNode = new ObjectMapper().createObjectNode();
-    objectNode.put("foo1", "bar1");
-    Document document = new JSONDocument(objectNode);
-    collection.upsert(new SingleValueKey("default", "testKey"), document);
-
-    long beforeUpsert = Instant.now().toEpochMilli();
-
-    ObjectNode subObjectNode = new ObjectMapper().createObjectNode();
-    subObjectNode.put("subfoo1", "subbar1");
-    Document subDocument = new JSONDocument(subObjectNode);
-    collection.updateSubDoc(new SingleValueKey("default", "testKey"), "subdoc", subDocument);
-
-    Query query = new Query();
-    query.setFilter(Filter.eq("_id", "default:testKey"));
-    Iterator<Document> results = collection.search(query);
-    List<Document> documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    String persistedDocument = documents.get(0).toJson();
-    Assertions.assertFalse(documents.isEmpty());
-    Assertions.assertTrue(documents.get(0).toJson().contains("subdoc"));
-
-    JsonNode node = OBJECT_MAPPER.readTree(persistedDocument);
-    long newUpdatedTime = node.findValue(LAST_UPDATED_TIME_KEY).asLong();
-    Assertions.assertTrue(newUpdatedTime >= beforeUpsert);
+    DocStoreTest.testSubDocumentUpdate(datastore, DocStoreTest.MONGO_STORE);
   }
 
   @Test
   public void testSubDocumentDelete() throws IOException {
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    SingleValueKey docKey = new SingleValueKey("default", "testKey");
-    ObjectNode objectNode = new ObjectMapper().createObjectNode();
-    objectNode.put("foo1", "bar1");
-    Document document = new JSONDocument(objectNode);
-    collection.upsert(new SingleValueKey("default", "testKey"), document);
-
-    ObjectNode subObjectNode = new ObjectMapper().createObjectNode();
-    subObjectNode.put("subfoo1", "subbar1");
-    Document subDocument = new JSONDocument(subObjectNode);
-    collection.updateSubDoc(docKey, "subdoc", subDocument);
-
-    boolean status = collection.deleteSubDoc(docKey, "subdoc.subfoo1");
-    Assertions.assertTrue(status);
-
-    status = collection.deleteSubDoc(docKey, "subdoc");
-    Assertions.assertTrue(status);
+    DocStoreTest.testSubDocumentDelete(datastore);
   }
 
   @Test
@@ -449,25 +308,7 @@ public class MongoDocStoreTest {
 
   @Test
   public void testBulkUpsert() {
-    datastore.createCollection(COLLECTION_NAME, null);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    Map<Key, Document> documentMap =
-        Map.of(
-            new SingleValueKey("default", "testKey1"), Utils.createDocument("testKey1", "abc1"),
-            new SingleValueKey("default", "testKey2"), Utils.createDocument("testKey2", "abc2"));
-
-    assertTrue(collection.bulkUpsert(documentMap));
-    assertEquals(2, collection.count());
-    Iterator<Document> iterator = collection.search(new Query());
-    List<Document> documents = new ArrayList<>();
-    while (iterator.hasNext()) {
-      documents.add(iterator.next());
-    }
-    assertEquals(2, documents.size());
-
-    // Delete one of the documents and test again.
-    collection.delete(new SingleValueKey("default", "testKey1"));
-    assertEquals(1, collection.count());
+    DocStoreTest.testBulkUpsert(datastore);
   }
 
   /**
@@ -560,163 +401,18 @@ public class MongoDocStoreTest {
   }
 
   @Test
-  public void testWithDifferentFieldTypes() throws IOException {
-    datastore.createCollection(COLLECTION_NAME, null);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-
-    // size field with integer value, isCostly boolean field
-    collection.upsert(
-        new SingleValueKey("default", "testKey1"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey1"),
-            ImmutablePair.of("name", "abc1"),
-            ImmutablePair.of("size", -10),
-            ImmutablePair.of("isCostly", false)));
-
-    collection.upsert(
-        new SingleValueKey("default", "testKey2"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey2"),
-            ImmutablePair.of("name", "abc2"),
-            ImmutablePair.of("size", -20),
-            ImmutablePair.of("isCostly", false)));
-
-    collection.upsert(
-        new SingleValueKey("default", "testKey3"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey3"),
-            ImmutablePair.of("name", "abc3"),
-            ImmutablePair.of("size", 5),
-            ImmutablePair.of("isCostly", true)));
-
-    collection.upsert(
-        new SingleValueKey("default", "testKey4"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey4"),
-            ImmutablePair.of("name", "abc4"),
-            ImmutablePair.of("size", 10),
-            ImmutablePair.of("isCostly", true)));
-
-    // query field having int type
-    Query queryNumericField = new Query();
-    Filter filter = new Filter(Op.GT, "size", -30);
-    queryNumericField.setFilter(filter);
-    Iterator<Document> results = collection.search(queryNumericField);
-    List<Document> documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertEquals(4, documents.size());
-
-    // query field having boolean field
-    Query queryBooleanField = new Query();
-    filter = new Filter(Op.GT, "isCostly", false);
-    queryBooleanField.setFilter(filter);
-    results = collection.search(queryBooleanField);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertEquals(2, documents.size());
-
-    // query string field
-    Query queryStringField = new Query();
-    filter = new Filter(Op.GT, "name", "abc1");
-    queryStringField.setFilter(filter);
-    results = collection.search(queryBooleanField);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertEquals(2, documents.size());
-
-    datastore.deleteCollection(COLLECTION_NAME);
+  public void testWithDifferentFieldTypes() throws Exception {
+    DocStoreTest.testWithDifferentFieldTypes(datastore);
   }
 
   @Test
   public void testExistsFilter() throws IOException {
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(
-        new SingleValueKey("default", "testKey1"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey1"),
-            ImmutablePair.of("name", "abc1"),
-            ImmutablePair.of("size", -10.2),
-            ImmutablePair.of("isCostly", false)));
-    collection.upsert(
-        new SingleValueKey("default", "testKey2"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey2"),
-            ImmutablePair.of("name", "abc2"),
-            ImmutablePair.of("size", 10.4),
-            ImmutablePair.of("isCostly", false)));
-    collection.upsert(
-        new SingleValueKey("default", "testKey3"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey3"),
-            ImmutablePair.of("name", "abc3"),
-            ImmutablePair.of("size", 30),
-            ImmutablePair.of("isCostly", false),
-            ImmutablePair.of("city", "bangalore")));
-    collection.upsert(
-        new SingleValueKey("default", "testKey4"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey4"),
-            ImmutablePair.of("name", "abc4"),
-            ImmutablePair.of("size", 30),
-            ImmutablePair.of("isCostly", false),
-            ImmutablePair.of("city", null)));
-    Query query = new Query();
-    query.setFilter(new Filter(Op.EXISTS, "city", true));
-    Iterator<Document> results = collection.search(query);
-    List<Document> documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertEquals(documents.size(), 2);
+    DocStoreTest.testExistsFilter(datastore);
   }
 
   @Test
   public void testNotExistsFilter() throws IOException {
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(
-        new SingleValueKey("default", "testKey1"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey1"),
-            ImmutablePair.of("name", "abc1"),
-            ImmutablePair.of("size", -10.2),
-            ImmutablePair.of("isCostly", false)));
-    collection.upsert(
-        new SingleValueKey("default", "testKey2"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey2"),
-            ImmutablePair.of("name", "abc2"),
-            ImmutablePair.of("size", 10.4),
-            ImmutablePair.of("isCostly", false)));
-    collection.upsert(
-        new SingleValueKey("default", "testKey3"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey3"),
-            ImmutablePair.of("name", "abc3"),
-            ImmutablePair.of("size", 30),
-            ImmutablePair.of("isCostly", false),
-            ImmutablePair.of("city", "bangalore")));
-    collection.upsert(
-        new SingleValueKey("default", "testKey4"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey4"),
-            ImmutablePair.of("name", "abc4"),
-            ImmutablePair.of("size", 30),
-            ImmutablePair.of("isCostly", false),
-            ImmutablePair.of("city", null)));
-    Query query = new Query();
-    query.setFilter(new Filter(Op.EXISTS, "city", false));
-    Iterator<Document> results = collection.search(query);
-    List<Document> documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertEquals(documents.size(), 2);
+    DocStoreTest.testNotExistsFilter(datastore);
   }
 
   @Test
@@ -835,293 +531,21 @@ public class MongoDocStoreTest {
 
   @Test
   public void testNotEquals() throws IOException {
-    datastore.createCollection(COLLECTION_NAME, null);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-
-    collection.upsert(
-        new SingleValueKey("default", "testKey1"),
-        Utils.createDocument(ImmutablePair.of("key1", "abc1"), ImmutablePair.of("key2", "xyz1")));
-    collection.upsert(
-        new SingleValueKey("default", "testKey2"),
-        Utils.createDocument(ImmutablePair.of("key1", "abc2"), ImmutablePair.of("key2", "xyz2")));
-    collection.upsert(
-        new SingleValueKey("default", "testKey3"),
-        Utils.createDocument(ImmutablePair.of("key1", "abc3"), ImmutablePair.of("key2", "xyz3")));
-    collection.upsert(
-        new SingleValueKey("default", "testKey4"),
-        Utils.createDocument(ImmutablePair.of("key1", "abc4")));
-
-    collection.updateSubDoc(
-        new SingleValueKey("default", "testKey1"),
-        "subdoc",
-        Utils.createDocument("nestedkey1", "pqr1"));
-    collection.updateSubDoc(
-        new SingleValueKey("default", "testKey2"),
-        "subdoc",
-        Utils.createDocument("nestedkey1", "pqr2"));
-    collection.updateSubDoc(
-        new SingleValueKey("default", "testKey3"),
-        "subdoc",
-        Utils.createDocument("nestedkey1", "pqr3"));
-
-    // NEQ on ID
-    {
-      Query query = new Query();
-      query.setFilter(new Filter(Op.NEQ, "_id", "default:testKey3"));
-      Iterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      while (results.hasNext()) {
-        documents.add(results.next());
-      }
-
-      assertEquals(3, documents.size());
-      documents.forEach(
-          document -> {
-            String jsonStr = document.toJson();
-            assertTrue(
-                jsonStr.contains("\"key1\":\"abc1\"")
-                    || document.toJson().contains("\"key1\":\"abc2\"")
-                    || document.toJson().contains("\"key1\":\"abc4\""));
-          });
-    }
-
-    // NEQ on document fields
-    {
-      Query query = new Query();
-      query.setFilter(new Filter(Op.NEQ, "key1", "abc3"));
-      Iterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      while (results.hasNext()) {
-        documents.add(results.next());
-      }
-      assertEquals(3, documents.size());
-      documents.forEach(
-          document -> {
-            String jsonStr = document.toJson();
-            assertTrue(
-                jsonStr.contains("\"key1\":\"abc1\"")
-                    || document.toJson().contains("\"key1\":\"abc2\"")
-                    || document.toJson().contains("\"key1\":\"abc4\""));
-          });
-    }
-
-    // NEQ on non existing fields
-    {
-      Query query = new Query();
-      query.setFilter(new Filter(Op.NEQ, "key2", "xyz2"));
-      Iterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      while (results.hasNext()) {
-        documents.add(results.next());
-      }
-      assertEquals(3, documents.size());
-      documents.forEach(
-          document -> {
-            String jsonStr = document.toJson();
-            assertTrue(
-                jsonStr.contains("\"key1\":\"abc1\"")
-                    || document.toJson().contains("\"key1\":\"abc3\"")
-                    || document.toJson().contains("\"key1\":\"abc4\""));
-          });
-    }
-
-    // NEQ on nested fields
-    {
-      Query query = new Query();
-      query.setFilter(new Filter(Op.NEQ, "subdoc.nestedkey1", "pqr2"));
-      Iterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      while (results.hasNext()) {
-        documents.add(results.next());
-      }
-      assertEquals(3, documents.size());
-      documents.forEach(
-          document -> {
-            String jsonStr = document.toJson();
-            assertTrue(
-                jsonStr.contains("\"key1\":\"abc1\"")
-                    || document.toJson().contains("\"key1\":\"abc3\"")
-                    || document.toJson().contains("\"key1\":\"abc4\""));
-          });
-    }
+    DocStoreTest.testNotEquals(datastore);
   }
 
   @Test
   public void testNotInQueryWithNumberField() throws IOException {
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(
-        new SingleValueKey("default", "testKey1"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey1"),
-            ImmutablePair.of("name", "abc1"),
-            ImmutablePair.of("size", -10.2),
-            ImmutablePair.of("isCostly", false),
-            ImmutablePair.of("tags", List.of("black", "white")),
-            ImmutablePair.of("color", "red")));
-    collection.upsert(
-        new SingleValueKey("default", "testKey2"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey2"),
-            ImmutablePair.of("name", "abc2"),
-            ImmutablePair.of("size", 10.4),
-            ImmutablePair.of("isCostly", false),
-            ImmutablePair.of("tags", List.of("gray")),
-            ImmutablePair.of("color", "gray")));
-    collection.upsert(
-        new SingleValueKey("default", "testKey3"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey3"),
-            ImmutablePair.of("name", "abc3"),
-            ImmutablePair.of("size", 30),
-            ImmutablePair.of("isCostly", false),
-            ImmutablePair.of("tags", List.of("brown")),
-            ImmutablePair.of("color", "blue")));
-    collection.upsert(
-        new SingleValueKey("default", "testKey4"),
-        Utils.createDocument(
-            ImmutablePair.of("id", "testKey4"),
-            ImmutablePair.of("name", "abc4"),
-            ImmutablePair.of("size", 10.4),
-            ImmutablePair.of("isCostly", false),
-            ImmutablePair.of("tags", List.of("gray")),
-            ImmutablePair.of("color", "pink")));
+    DocStoreTest.testNotInQueryWithNumberField(datastore);
+  }
 
-    collection.upsert(
-        new SingleValueKey("default", "testKey5"),
-        Utils.createDocument(ImmutablePair.of("id", "testKey5"), ImmutablePair.of("name", "abc5")));
+  @Test
+  public void testCount() throws IOException {
+    DocStoreTest.testCount(datastore);
+  }
 
-    collection.updateSubDoc(
-        new SingleValueKey("default", "testKey1"),
-        "subdoc",
-        Utils.createDocument("nestedkey1", "pqr1"));
-    collection.updateSubDoc(
-        new SingleValueKey("default", "testKey2"),
-        "subdoc",
-        Utils.createDocument("nestedkey1", "pqr2"));
-    collection.updateSubDoc(
-        new SingleValueKey("default", "testKey3"),
-        "subdoc",
-        Utils.createDocument("nestedkey1", "pqr3"));
-
-    // check with string filed
-    List<String> names = new ArrayList<>();
-    names.add("abc3");
-    names.add("abc2");
-
-    Query query = new Query();
-    query.setFilter(new Filter(Filter.Op.NOT_IN, "name", names));
-    Iterator<Document> results = collection.search(query);
-    List<Document> documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertEquals(3, documents.size());
-    documents.forEach(
-        document -> {
-          String jsonStr = document.toJson();
-          assertTrue(
-              jsonStr.contains("\"name\":\"abc1\"")
-                  || jsonStr.contains("\"name\":\"abc4\"")
-                  || jsonStr.contains("\"name\":\"abc5\""));
-        });
-
-    // check with multiple operator and + not_in with string field
-    List<String> colors = new ArrayList<>();
-    colors.add("red");
-    colors.add("pink");
-
-    query = new Query();
-    Filter[] filters = new Filter[2];
-    filters[0] = new Filter(Op.EQ, "size", 10.4);
-    filters[1] = new Filter(Filter.Op.NOT_IN, "color", colors);
-    Filter f = new Filter();
-    f.setOp(Op.OR);
-    f.setChildFilters(filters);
-    query.setFilter(f);
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertEquals(4, documents.size());
-    documents.forEach(
-        document -> {
-          String jsonStr = document.toJson();
-          assertTrue(
-              jsonStr.contains("\"name\":\"abc2\"")
-                  || jsonStr.contains("\"name\":\"abc3\"")
-                  || jsonStr.contains("\"name\":\"abc4\"")
-                  || jsonStr.contains("\"name\":\"abc5\""));
-        });
-
-    // check with numeric field
-    List<Number> sizes = new ArrayList<>();
-    sizes.add(-10.2);
-    sizes.add(10.4);
-
-    query = new Query();
-    query.setFilter(new Filter(Filter.Op.NOT_IN, "size", sizes));
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertEquals(2, documents.size());
-    documents.forEach(
-        document -> {
-          String jsonStr = document.toJson();
-          assertTrue(
-              jsonStr.contains("\"name\":\"abc3\"") || jsonStr.contains("\"name\":\"abc5\""));
-        });
-
-    // check with multiple operator and + not_in with numeric field
-    sizes = new ArrayList<>();
-    sizes.add(-10.2);
-    sizes.add(10.4);
-
-    query = new Query();
-    filters = new Filter[2];
-    filters[0] = new Filter(Op.EQ, "color", "pink");
-    filters[1] = new Filter(Filter.Op.NOT_IN, "size", sizes);
-    f = new Filter();
-    f.setOp(Op.OR);
-    f.setChildFilters(filters);
-    query.setFilter(f);
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertEquals(3, documents.size());
-    documents.forEach(
-        document -> {
-          String jsonStr = document.toJson();
-          assertTrue(
-              jsonStr.contains("\"name\":\"abc3\"")
-                  || jsonStr.contains("\"name\":\"abc4\"")
-                  || jsonStr.contains("\"name\":\"abc5\""));
-        });
-
-    // check for subDoc key
-    List<String> subDocs = new ArrayList<>();
-    subDocs.add("pqr1");
-    subDocs.add("pqr2");
-
-    query = new Query();
-    query.setFilter(new Filter(Op.NOT_IN, "subdoc.nestedkey1", subDocs));
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    assertEquals(3, documents.size());
-    documents.forEach(
-        document -> {
-          String jsonStr = document.toJson();
-          assertTrue(
-              jsonStr.contains("\"name\":\"abc3\"")
-                  || jsonStr.contains("\"name\":\"abc4\"")
-                  || jsonStr.contains("\"name\":\"abc5\""));
-        });
+  @Test
+  public void testSearch() throws IOException {
+    DocStoreTest.testSearch(datastore, DocStoreTest.MONGO_STORE);
   }
 }
