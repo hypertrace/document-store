@@ -548,4 +548,71 @@ public class MongoDocStoreTest {
   public void testSearch() throws IOException {
     DocStoreTest.testSearch(datastore, DocStoreTest.MONGO_STORE);
   }
+
+  @Test
+  public void testContains() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // https://docs.mongodb.com/manual/reference/operator/query/elemMatch/
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("products",
+                List.of(
+                    Map.of("product", "abc", "score", 10),
+                    Map.of("product", "xyz", "score", 5)))
+        ));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("products",
+                List.of(
+                    Map.of("product", "abc", "score", 8),
+                    Map.of("product", "xyz", "score", 7)))
+        ));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("products",
+                List.of(
+                    Map.of("product", "abc", "score", 7),
+                    Map.of("product", "xyz", "score", 8)))
+        ));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("products",
+                List.of(
+                    Map.of("product", "abc", "score", 7),
+                    Map.of("product", "def", "score", 8)))
+        ));
+
+    // try with contains filter
+    Query query = new Query();
+    Filter filter = new Filter(Op.CONTAINS, "products", Map.of("product", "xyz"));
+    query.setFilter(filter);
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(3, documents.size());
+
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"id\":\"testKey1\"")
+                  || document.toJson().contains("\"id\":\"testKey2\"")
+                  || document.toJson().contains("\"id\":\"testKey3\""));
+        });
+  }
 }
