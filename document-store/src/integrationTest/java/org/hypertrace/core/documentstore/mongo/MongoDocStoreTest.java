@@ -559,41 +559,37 @@ public class MongoDocStoreTest {
         new SingleValueKey("default", "testKey1"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey1"),
-            ImmutablePair.of("products",
+            ImmutablePair.of(
+                "products",
                 List.of(
-                    Map.of("product", "abc", "score", 10),
-                    Map.of("product", "xyz", "score", 5)))
-        ));
+                    Map.of("product", "abc", "score", 10), Map.of("product", "xyz", "score", 5)))));
 
     collection.upsert(
         new SingleValueKey("default", "testKey2"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey2"),
-            ImmutablePair.of("products",
+            ImmutablePair.of(
+                "products",
                 List.of(
-                    Map.of("product", "abc", "score", 8),
-                    Map.of("product", "xyz", "score", 7)))
-        ));
+                    Map.of("product", "abc", "score", 8), Map.of("product", "xyz", "score", 7)))));
 
     collection.upsert(
         new SingleValueKey("default", "testKey3"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey3"),
-            ImmutablePair.of("products",
+            ImmutablePair.of(
+                "products",
                 List.of(
-                    Map.of("product", "abc", "score", 7),
-                    Map.of("product", "xyz", "score", 8)))
-        ));
+                    Map.of("product", "abc", "score", 7), Map.of("product", "xyz", "score", 8)))));
 
     collection.upsert(
         new SingleValueKey("default", "testKey4"),
         Utils.createDocument(
             ImmutablePair.of("id", "testKey4"),
-            ImmutablePair.of("products",
+            ImmutablePair.of(
+                "products",
                 List.of(
-                    Map.of("product", "abc", "score", 7),
-                    Map.of("product", "def", "score", 8)))
-        ));
+                    Map.of("product", "abc", "score", 7), Map.of("product", "def", "score", 8)))));
 
     // try with contains filter
     Query query = new Query();
