@@ -580,6 +580,7 @@ public class DocStoreTest {
         });
   }
 
+
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
   public void testSubDocumentUpdate(String dataStoreName)
@@ -1063,7 +1064,7 @@ public class DocStoreTest {
    * postgres {"foo1":"bar1","created_at":"2021-03-14 21:20:00.178909","updated_at":"2021-03-14
    * 21:20:00.178909"}
    */
-  private  void verifyTimeRelatedFieldsPresent(String doc, String dataStoreName) {
+  private static void verifyTimeRelatedFieldsPresent(String doc, String dataStoreName) {
     if (isMongo(dataStoreName)) {
       assertTrue(doc.contains(MONGO_LAST_UPDATE_TIME_KEY));
       assertTrue(doc.contains(MONGO_CREATED_TIME_KEY));
