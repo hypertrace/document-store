@@ -134,6 +134,31 @@ public class MongoCollection implements Collection {
    * Adds the following fields automatically: _id, _lastUpdateTime, lastUpdatedTime and created Time
    */
   @Override
+  public boolean upsert(Key key, Document document, Filter condition) {
+    try {
+      Map<String, Object> map = parseQuery(condition);
+      map.put(ID_KEY, key.toString());
+      BasicDBObject conditionObject = new BasicDBObject(map);
+      UpdateOptions options = new UpdateOptions().upsert(true);
+      UpdateResult writeResult =
+          collection.updateOne(conditionObject, this.prepareUpsert(key, document), options);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: " + writeResult.toString());
+      }
+
+      boolean  isInserted = writeResult.getUpsertedId() != null;
+      boolean  isUpdated = writeResult.getModifiedCount() > 0;
+
+      return (isInserted || isUpdated);
+    } catch (Exception e) {
+      LOGGER.error("Exception upserting document. key: {} content:{}", key, document, e);
+      return false;
+    }
+  }
+  /**
+   * Adds the following fields automatically: _id, _lastUpdateTime, lastUpdatedTime and created Time
+   */
+  @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
     BasicDBObject upsertResult =
         Failsafe.with(upsertRetryPolicy)

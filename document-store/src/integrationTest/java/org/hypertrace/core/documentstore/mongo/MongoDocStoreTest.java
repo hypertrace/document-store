@@ -143,6 +143,11 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testUpsertWithCondition() throws Exception {
+    DocStoreTest.testUpsertWithCondition(datastore, DocStoreTest.MONGO_STORE);
+  }
+
+  @Test
   public void testUpsertAndReturn() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();

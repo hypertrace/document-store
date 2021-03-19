@@ -81,6 +81,79 @@ public class DocStoreTest {
     }
   }
 
+  public static void testUpsertWithCondition(Datastore datastore, String dataStoreName)
+      throws Exception {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", "default:testKey1"));
+    Filter condition = new Filter(Op.EQ, "isCostly", false);
+
+    // test that document document is inserted if its not exists
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 0);
+
+    boolean bool =
+        collection.upsert(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey1"),
+                ImmutablePair.of("name", "abc1"),
+                ImmutablePair.of("size", -10),
+                ImmutablePair.of("isCostly", false)),
+            condition);
+
+    Assertions.assertTrue(bool);
+
+    // test that document is updated if condition met
+    bool =
+        collection.upsert(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey1"),
+                ImmutablePair.of("name", "abc1"),
+                ImmutablePair.of("size", 10),
+                ImmutablePair.of("isCostly", false)),
+            condition);
+
+    Assertions.assertTrue(bool);
+
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    documents.get(0).toJson().contains("\"size\":\"10\"");
+
+    // test that document is not updated if condition not met
+    condition = new Filter(Op.EQ, "isCostly", true);
+    bool =
+        collection.upsert(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey1"),
+                ImmutablePair.of("name", "abc1"),
+                ImmutablePair.of("size", 20),
+                ImmutablePair.of("isCostly", true)),
+            condition);
+
+    Assertions.assertFalse(bool);
+
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    documents.get(0).toJson().contains("\"size\":\"10\"");
+    documents.get(0).toJson().contains("\"isCostly\":\"false\"");
+  }
+
   public static void testBulkUpsert(Datastore datastore) {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Map<Key, Document> bulkMap = new HashMap<>();
