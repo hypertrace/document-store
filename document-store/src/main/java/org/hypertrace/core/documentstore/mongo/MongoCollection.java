@@ -146,8 +146,8 @@ public class MongoCollection implements Collection {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
 
-      boolean  isInserted = writeResult.getUpsertedId() != null;
-      boolean  isUpdated = writeResult.getModifiedCount() > 0;
+      boolean isInserted = writeResult.getUpsertedId() != null;
+      boolean isUpdated = writeResult.getModifiedCount() > 0;
 
       return (isInserted || isUpdated);
     } catch (Exception e) {
