@@ -52,6 +52,7 @@ public class DocStoreTest {
   private static final String MONGO_CREATED_TIME_KEY = "createdTime";
   /** Postgres related time fields */
   public static final String POSTGRES_UPDATED_AT = "updated_at";
+
   public static final String POSTGRES_CREATED_AT = "created_at";
 
   private static Map<String, Datastore> datastoreMap;
@@ -86,15 +87,16 @@ public class DocStoreTest {
             .waitingFor(Wait.forListeningPort());
     postgres.start();
 
-    String postgresConnectionUrl = String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
+    String postgresConnectionUrl =
+        String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
     DatastoreProvider.register("POSTGRES", PostgresDatastore.class);
 
     Map<String, String> postgresConfig = new HashMap<>();
     postgresConfig.putIfAbsent("url", postgresConnectionUrl);
     postgresConfig.putIfAbsent("user", "postgres");
     postgresConfig.putIfAbsent("password", "postgres");
-    Datastore postgresDatastore = DatastoreProvider
-        .getDatastore("Postgres", ConfigFactory.parseMap(postgresConfig));
+    Datastore postgresDatastore =
+        DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(postgresConfig));
     System.out.println(postgresDatastore.listCollections());
 
     datastoreMap.put(MONGO_STORE, mongoDatastore);
@@ -103,10 +105,11 @@ public class DocStoreTest {
 
   @AfterEach
   public void cleanup() {
-    datastoreMap.forEach((k, v) ->  {
-      v.deleteCollection(COLLECTION_NAME);
-      v.createCollection(COLLECTION_NAME, null);
-    });
+    datastoreMap.forEach(
+        (k, v) -> {
+          v.deleteCollection(COLLECTION_NAME);
+          v.createCollection(COLLECTION_NAME, null);
+        });
   }
 
   @AfterAll
@@ -117,10 +120,7 @@ public class DocStoreTest {
 
   @MethodSource
   private static Stream<Arguments> databaseContextProvider() {
-    return Stream.of(
-        Arguments.of(MONGO_STORE),
-        Arguments.of(POSTGRES_STORE)
-    );
+    return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
   }
 
   @ParameterizedTest
@@ -580,11 +580,9 @@ public class DocStoreTest {
         });
   }
 
-
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void testSubDocumentUpdate(String dataStoreName)
-      throws IOException {
+  public void testSubDocumentUpdate(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
@@ -660,8 +658,7 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void testIgnoreCaseLikeQuery(String dataStoreName)
-      throws IOException {
+  public void testIgnoreCaseLikeQuery(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     long now = Instant.now().toEpochMilli();
     Collection collection = datastore.getCollection(COLLECTION_NAME);

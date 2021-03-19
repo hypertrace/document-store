@@ -34,7 +34,6 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
-import org.hypertrace.core.documentstore.DocStoreTest;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
