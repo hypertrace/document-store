@@ -15,17 +15,17 @@ dependencies {
   implementation("com.google.guava:guava-annotations:r03")
   implementation("org.apache.commons:commons-lang3:3.10")
   implementation("net.jodah:failsafe:2.4.0")
-  testImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
+  testImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
+  testImplementation("org.junit.jupiter:junit-jupiter-params:5.7.0")
   testImplementation("org.mockito:mockito-core:2.19.0")
 
-  integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.6.2")
+  integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
   integrationTestImplementation("com.github.java-json-tools:json-patch:1.13")
-  integrationTestImplementation("org.junit.jupiter:junit-jupiter-api:5.6.2")
-  integrationTestImplementation("org.junit.jupiter:junit-jupiter-params:5.6.2")
-  integrationTestImplementation("org.junit.jupiter:junit-jupiter-engine:5.6.2")
+  integrationTestImplementation("org.junit.jupiter:junit-jupiter-api:5.7.0")
+  integrationTestImplementation("org.junit.jupiter:junit-jupiter-params:5.7.0")
+  integrationTestImplementation("org.junit.jupiter:junit-jupiter-engine:5.7.0")
   integrationTestImplementation("org.testcontainers:testcontainers:1.15.2")
   integrationTestImplementation("org.testcontainers:junit-jupiter:1.15.2")
-
 }
 
 tasks.test {

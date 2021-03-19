@@ -34,7 +34,6 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
-import org.hypertrace.core.documentstore.DocStoreTest;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
@@ -122,27 +121,6 @@ public class MongoDocStoreTest {
     assertTrue(datastore.deleteCollection(COLLECTION_NAME));
   }
 
-  @Test
-  public void testIgnoreCaseLikeQuery() throws IOException {
-    DocStoreTest.testIgnoreCaseLikeQuery(datastore, DocStoreTest.MONGO_STORE);
-  }
-
-  @Test
-  public void testTotalWithQuery() throws IOException {
-    DocStoreTest.testTotalWithQuery(datastore);
-  }
-
-  @Test
-  public void testOffsetLimitAndOrderBy() throws IOException {
-    DocStoreTest.testOffsetAndLimitOrderBy(datastore);
-  }
-
-  @Test
-  public void testUpsert() throws Exception {
-    DocStoreTest.testUpsert(datastore, DocStoreTest.MONGO_STORE);
-  }
-
-  @Test
   public void testUpsertAndReturn() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
@@ -224,36 +202,6 @@ public class MongoDocStoreTest {
   }
 
   @Test
-  public void testSearchForNestedKey() throws IOException {
-    DocStoreTest.testSearchForNestedKey(datastore);
-  }
-
-  @Test
-  public void testInQuery() throws IOException {
-    DocStoreTest.testInQuery(datastore);
-  }
-
-  @Test
-  public void testDelete() throws Exception {
-    DocStoreTest.testDelete(datastore);
-  }
-
-  @Test
-  public void testDeleteAll() throws IOException {
-    DocStoreTest.testDeleteAll(datastore);
-  }
-
-  @Test
-  public void testSubDocumentUpdate() throws IOException {
-    DocStoreTest.testSubDocumentUpdate(datastore, DocStoreTest.MONGO_STORE);
-  }
-
-  @Test
-  public void testSubDocumentDelete() throws IOException {
-    DocStoreTest.testSubDocumentDelete(datastore);
-  }
-
-  @Test
   public void testSelectAll() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -304,11 +252,6 @@ public class MongoDocStoreTest {
     Assertions.assertFalse(document2.contains("testKey1"));
     JsonNode node2 = OBJECT_MAPPER.readTree(document2);
     assertTrue(node2.isEmpty());
-  }
-
-  @Test
-  public void testBulkUpsert() {
-    DocStoreTest.testBulkUpsert(datastore);
   }
 
   /**
@@ -398,21 +341,6 @@ public class MongoDocStoreTest {
     Assertions.assertEquals(1, documentsGtBool.size());
 
     datastore.deleteCollection(COLLECTION_NAME);
-  }
-
-  @Test
-  public void testWithDifferentFieldTypes() throws Exception {
-    DocStoreTest.testWithDifferentFieldTypes(datastore);
-  }
-
-  @Test
-  public void testExistsFilter() throws IOException {
-    DocStoreTest.testExistsFilter(datastore);
-  }
-
-  @Test
-  public void testNotExistsFilter() throws IOException {
-    DocStoreTest.testNotExistsFilter(datastore);
   }
 
   @Test
@@ -527,26 +455,6 @@ public class MongoDocStoreTest {
       System.out.println(dbObject);
     }
     assertEquals(1, results.size());
-  }
-
-  @Test
-  public void testNotEquals() throws IOException {
-    DocStoreTest.testNotEquals(datastore);
-  }
-
-  @Test
-  public void testNotInQueryWithNumberField() throws IOException {
-    DocStoreTest.testNotInQueryWithNumberField(datastore);
-  }
-
-  @Test
-  public void testCount() throws IOException {
-    DocStoreTest.testCount(datastore);
-  }
-
-  @Test
-  public void testSearch() throws IOException {
-    DocStoreTest.testSearch(datastore, DocStoreTest.MONGO_STORE);
   }
 
   @Test

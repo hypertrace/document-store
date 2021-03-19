@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -14,11 +16,24 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
+import org.hypertrace.core.documentstore.mongo.MongoDatastore;
+import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.utils.Utils;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.shaded.com.google.common.collect.Maps;
+import org.testcontainers.utility.DockerImageName;
 
 public class DocStoreTest {
 
@@ -35,12 +50,83 @@ public class DocStoreTest {
   private static final String MONGO_LAST_UPDATE_TIME_KEY = "_lastUpdateTime";
   private static final String MONGO_LAST_UPDATED_TIME_KEY = "lastUpdatedTime";
   private static final String MONGO_CREATED_TIME_KEY = "createdTime";
-  /** Mongo related time fields */
+  /** Postgres related time fields */
   public static final String POSTGRES_UPDATED_AT = "updated_at";
 
   public static final String POSTGRES_CREATED_AT = "created_at";
 
-  public static void testUpsert(Datastore datastore, String dataStoreName) throws Exception {
+  private static Map<String, Datastore> datastoreMap;
+
+  private static GenericContainer<?> mongo;
+  private static GenericContainer<?> postgres;
+
+  @BeforeAll
+  public static void init() {
+    datastoreMap = Maps.newHashMap();
+    mongo =
+        new GenericContainer<>(DockerImageName.parse("mongo:4.4.0"))
+            .withExposedPorts(27017)
+            .waitingFor(Wait.forListeningPort());
+    mongo.start();
+
+    DatastoreProvider.register("MONGO", MongoDatastore.class);
+
+    Map<String, String> mongoConfig = new HashMap<>();
+    mongoConfig.putIfAbsent("host", "localhost");
+    mongoConfig.putIfAbsent("port", mongo.getMappedPort(27017).toString());
+    Config config = ConfigFactory.parseMap(mongoConfig);
+
+    Datastore mongoDatastore = DatastoreProvider.getDatastore("Mongo", config);
+    System.out.println(mongoDatastore.listCollections());
+
+    postgres =
+        new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
+            .withEnv("POSTGRES_PASSWORD", "postgres")
+            .withEnv("POSTGRES_USER", "postgres")
+            .withExposedPorts(5432)
+            .waitingFor(Wait.forListeningPort());
+    postgres.start();
+
+    String postgresConnectionUrl =
+        String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
+    DatastoreProvider.register("POSTGRES", PostgresDatastore.class);
+
+    Map<String, String> postgresConfig = new HashMap<>();
+    postgresConfig.putIfAbsent("url", postgresConnectionUrl);
+    postgresConfig.putIfAbsent("user", "postgres");
+    postgresConfig.putIfAbsent("password", "postgres");
+    Datastore postgresDatastore =
+        DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(postgresConfig));
+    System.out.println(postgresDatastore.listCollections());
+
+    datastoreMap.put(MONGO_STORE, mongoDatastore);
+    datastoreMap.put(POSTGRES_STORE, postgresDatastore);
+  }
+
+  @AfterEach
+  public void cleanup() {
+    datastoreMap.forEach(
+        (k, v) -> {
+          v.deleteCollection(COLLECTION_NAME);
+          v.createCollection(COLLECTION_NAME, null);
+        });
+  }
+
+  @AfterAll
+  public static void shutdown() {
+    mongo.stop();
+    postgres.stop();
+  }
+
+  @MethodSource
+  private static Stream<Arguments> databaseContextProvider() {
+    return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUpsert(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
     objectNode.put("foo1", "bar1");
@@ -81,7 +167,10 @@ public class DocStoreTest {
     }
   }
 
-  public static void testBulkUpsert(Datastore datastore) {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testBulkUpsert(String dataStoreName) {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Map<Key, Document> bulkMap = new HashMap<>();
     bulkMap.put(new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
@@ -119,7 +208,10 @@ public class DocStoreTest {
     assertEquals(5, collection.count());
   }
 
-  public static void testWithDifferentFieldTypes(Datastore datastore) throws Exception {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testWithDifferentFieldTypes(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
@@ -192,7 +284,10 @@ public class DocStoreTest {
     datastore.deleteCollection(COLLECTION_NAME);
   }
 
-  public static void testNotEquals(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testNotEquals(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
@@ -304,7 +399,10 @@ public class DocStoreTest {
     }
   }
 
-  public static void testNotInQueryWithNumberField(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testNotInQueryWithNumberField(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(
         new SingleValueKey("default", "testKey1"),
@@ -482,8 +580,10 @@ public class DocStoreTest {
         });
   }
 
-  public static void testSubDocumentUpdate(Datastore datastore, String dataStoreName)
-      throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testSubDocumentUpdate(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
     collection.upsert(docKey, Utils.createDocument("foo1", "bar1"));
@@ -523,7 +623,10 @@ public class DocStoreTest {
     Assertions.assertEquals(expected, OBJECT_MAPPER.writeValueAsString(jsonNode));
   }
 
-  public static void testSubDocumentDelete(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testSubDocumentDelete(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
     ObjectNode objectNode = new ObjectMapper().createObjectNode();
@@ -543,15 +646,20 @@ public class DocStoreTest {
     Assertions.assertTrue(status);
   }
 
-  public static void testCount(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testCount(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
     collection.upsert(docKey, Utils.createDocument("foo1", "bar1"));
     Assertions.assertEquals(collection.count(), 1);
   }
 
-  public static void testIgnoreCaseLikeQuery(Datastore datastore, String dataStoreName)
-      throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testIgnoreCaseLikeQuery(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     long now = Instant.now().toEpochMilli();
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(
@@ -578,7 +686,10 @@ public class DocStoreTest {
     }
   }
 
-  public static void testExistsFilter(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testExistsFilter(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(
         new SingleValueKey("default", "testKey1"),
@@ -620,7 +731,10 @@ public class DocStoreTest {
     Assertions.assertEquals(documents.size(), 2);
   }
 
-  public static void testNotExistsFilter(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testNotExistsFilter(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(
         new SingleValueKey("default", "testKey1"),
@@ -662,7 +776,10 @@ public class DocStoreTest {
     Assertions.assertEquals(documents.size(), 2);
   }
 
-  public static void testTotalWithQuery(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testTotalWithQuery(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(
         new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
@@ -699,7 +816,10 @@ public class DocStoreTest {
     }
   }
 
-  public static void testOffsetAndLimitOrderBy(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testOffsetAndLimitOrderBy(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(
         new SingleValueKey("default", "testKey1"), Utils.createDocument("foo1", "bar1"));
@@ -733,7 +853,10 @@ public class DocStoreTest {
     }
   }
 
-  public static void testDelete(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testDelete(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
     collection.upsert(docKey, Utils.createDocument("foo1", "bar1"));
@@ -743,7 +866,10 @@ public class DocStoreTest {
     Assertions.assertEquals(collection.count(), 0);
   }
 
-  public static void testDeleteAll(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testDeleteAll(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey docKey = new SingleValueKey("default", "testKey");
     collection.upsert(docKey, Utils.createDocument("foo1", "bar1"));
@@ -753,7 +879,10 @@ public class DocStoreTest {
     Assertions.assertEquals(collection.count(), 0);
   }
 
-  public static void testInQuery(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testInQuery(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(
         new SingleValueKey("default", "testKey1"), Utils.createDocument("name", "Bob"));
@@ -776,7 +905,10 @@ public class DocStoreTest {
     Assertions.assertEquals(documents.size(), 2);
   }
 
-  public static void testSearchForNestedKey(Datastore datastore) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testSearchForNestedKey(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     String documentString =
         "{\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
@@ -796,7 +928,10 @@ public class DocStoreTest {
     Assertions.assertEquals(documents.size(), 1);
   }
 
-  public static void testSearch(Datastore datastore, String dataStoreName) throws IOException {
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testSearch(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     String docStr1 =
         "{\"amount\":1234.5,\"testKeyExist\":null,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
