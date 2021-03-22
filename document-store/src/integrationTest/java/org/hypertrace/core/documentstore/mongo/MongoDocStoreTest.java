@@ -29,8 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.Collection;
@@ -146,14 +144,180 @@ public class MongoDocStoreTest {
 
   @Test
   public void testUpsertWithCondition() throws Exception {
-    DocStoreTest.testUpsertWithCondition(datastore, DocStoreTest.MONGO_STORE);
+    // DocStoreTest.testUpsertWithCondition(datastore, DocStoreTest.MONGO_STORE);
   }
 
   @Test
   public void testUpsertWithConditionInMultipleThreads() throws Exception {
-    DocStoreTest.testWithCondition(datastore, DocStoreTest.MONGO_STORE);
+    // DocStoreTest.testWithCondition(datastore, DocStoreTest.MONGO_STORE);
   }
 
+  private static class TestRunnable extends Thread {
+    private Datastore datastore;
+    private Collection collection;
+    private int setValue;
+    private boolean isSuccess;
+
+    public TestRunnable(Datastore datastore, int setValue) {
+      this.datastore = datastore;
+      this.collection = datastore.getCollection(COLLECTION_NAME);
+      this.setValue = setValue;
+      this.isSuccess = false;
+    }
+
+    private int getSetValue() {
+      return setValue;
+    }
+
+    private boolean getIsSuccess() {
+      return isSuccess;
+    }
+
+    @Override
+    public void run() {
+      try {
+        // fetch the document and update
+        Filter condition = new Filter(Op.EQ, "size", 0);
+        isSuccess =
+            collection.upsert(
+                new SingleValueKey("default", "testKey1"),
+                Utils.createDocument(
+                    ImmutablePair.of("id", "testKey1"),
+                    ImmutablePair.of("name", "abc1"),
+                    ImmutablePair.of("size", this.setValue),
+                    ImmutablePair.of("isCostly", false)),
+                condition);
+      } catch (Exception e) {
+        // ignore
+      }
+    }
+  }
+
+  public static void testWithCondition(Datastore datastore, String dataStoreName) throws Exception {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    List<TestRunnable> threads = new ArrayList<TestRunnable>();
+    for (int i = 0; i < 10; i++) {
+      threads.add(new TestRunnable(datastore, i + 1));
+    }
+    threads.stream().forEach(t -> t.start());
+    threads.stream()
+        .forEach(
+            t -> {
+              try {
+                t.join();
+              } catch (Exception e) {
+              }
+            });
+
+    // check only one thread successfully inserted
+    Map<String, List<TestRunnable>> resultMap = new HashMap<>();
+    threads.stream()
+        .forEach(
+            t -> {
+              if (t.getIsSuccess()) {
+                List<TestRunnable> successList = resultMap.get("success");
+                if (successList == null) {
+                  successList = new ArrayList<>();
+                }
+                successList.add(t);
+              } else {
+                List<TestRunnable> failList = resultMap.get("fail");
+                if (failList == null) {
+                  failList = new ArrayList<>();
+                }
+                failList.add(t);
+              }
+            });
+    Assertions.assertEquals(1, resultMap.get("success").size());
+    Assertions.assertEquals(9, resultMap.get("fail").size());
+
+    // assert
+    // fetch document check the size
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", "default:testKey1"));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    Map<String, Object> doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
+
+    Assertions.assertEquals(resultMap.get("success").get(0).getSetValue(), (int) doc.get("size"));
+  }
+
+  public static void testUpsertWithCondition(Datastore datastore, String dataStoreName)
+      throws Exception {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", "default:testKey1"));
+    Filter condition = new Filter(Op.EQ, "isCostly", false);
+
+    // test that document document is inserted if its not exists
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 0);
+
+    boolean bool =
+        collection.upsert(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey1"),
+                ImmutablePair.of("name", "abc1"),
+                ImmutablePair.of("size", -10),
+                ImmutablePair.of("isCostly", false)),
+            condition);
+
+    Assertions.assertTrue(bool);
+
+    // test that document is updated if condition met
+    bool =
+        collection.upsert(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey1"),
+                ImmutablePair.of("name", "abc1"),
+                ImmutablePair.of("size", 10),
+                ImmutablePair.of("isCostly", false)),
+            condition);
+
+    Assertions.assertTrue(bool);
+
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    documents.get(0).toJson().contains("\"size\":\"10\"");
+
+    // test that document is not updated if condition not met
+    condition = new Filter(Op.EQ, "isCostly", true);
+    bool =
+        collection.upsert(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey1"),
+                ImmutablePair.of("name", "abc1"),
+                ImmutablePair.of("size", 20),
+                ImmutablePair.of("isCostly", true)),
+            condition);
+
+    Assertions.assertFalse(bool);
+
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    documents.get(0).toJson().contains("\"size\":\"10\"");
+    documents.get(0).toJson().contains("\"isCostly\":\"false\"");
+  }
 
   @Test
   public void testUpsertAndReturn() throws IOException {
