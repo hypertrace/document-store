@@ -29,6 +29,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.Collection;
@@ -146,6 +148,12 @@ public class MongoDocStoreTest {
   public void testUpsertWithCondition() throws Exception {
     DocStoreTest.testUpsertWithCondition(datastore, DocStoreTest.MONGO_STORE);
   }
+
+  @Test
+  public void testUpsertWithConditionInMultipleThreads() throws Exception {
+    DocStoreTest.testWithCondition(datastore, DocStoreTest.MONGO_STORE);
+  }
+
 
   @Test
   public void testUpsertAndReturn() throws IOException {
