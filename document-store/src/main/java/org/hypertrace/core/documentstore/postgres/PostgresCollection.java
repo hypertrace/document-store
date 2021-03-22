@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Document;
@@ -66,7 +67,7 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+        client.prepareStatement(getUpsertSQL(true), Statement.RETURN_GENERATED_KEYS)) {
       String jsonString = prepareUpsertDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
@@ -83,8 +84,10 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public boolean upsert(Key key, Document document, Filter condition) throws IOException {
-    StringBuilder upsertQueryBuilder = new StringBuilder(getUpsertSQL());
+  public boolean upsert(Key key, Document document, Filter condition, @Nullable Boolean isUpsert)
+      throws IOException {
+    StringBuilder upsertQueryBuilder =
+        new StringBuilder(getUpsertSQL(isUpsert != null ? isUpsert : true));
 
     String jsonString = prepareUpsertDocument(key, document);
     Params.Builder paramsBuilder = Params.newBuilder();
@@ -92,7 +95,7 @@ public class PostgresCollection implements Collection {
     paramsBuilder.addObjectParam(jsonString);
     paramsBuilder.addObjectParam(jsonString);
 
-    if (condition != null) {
+    if (condition != null && isUpsert == true) {
       String conditionQuery = parseFilter(condition, paramsBuilder, "d");
       if (conditionQuery != null) {
         upsertQueryBuilder.append(" WHERE ").append(conditionQuery);
@@ -590,7 +593,7 @@ public class PostgresCollection implements Collection {
 
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+        client.prepareStatement(getUpsertSQL(true), Statement.RETURN_GENERATED_KEYS)) {
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
 
         Key key = entry.getKey();
@@ -681,10 +684,16 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private String getUpsertSQL() {
-    return String.format(
-        "INSERT INTO %s AS d (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
-        collectionName, ID, DOCUMENT, ID, DOCUMENT);
+  private String getUpsertSQL(boolean isUpsert) {
+    if (isUpsert) {
+      return String.format(
+          "INSERT INTO %s AS d (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
+          collectionName, ID, DOCUMENT, ID, DOCUMENT);
+    } else {
+      return String.format(
+          "INSERT INTO %s AS d (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO NOTHING ",
+          collectionName, ID, DOCUMENT, ID, DOCUMENT);
+    }
   }
 
   @Override

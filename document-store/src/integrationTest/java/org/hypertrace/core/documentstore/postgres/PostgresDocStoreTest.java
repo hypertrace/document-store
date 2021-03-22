@@ -98,16 +98,6 @@ public class PostgresDocStoreTest {
     }
   }
 
-  @Test
-  public void testUpsert() throws Exception {
-    DocStoreTest.testUpsert(datastore, DocStoreTest.POSTGRES_STORE);
-  }
-
-  @Test
-  public void testUpsertWithCondition() throws Exception {
-    //DocStoreTest.testUpsertWithCondition(datastore, DocStoreTest.POSTGRES_STORE);
-  }
-
   public void testUpsertAndReturn() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Document document = Utils.createDocument("foo1", "bar1");
