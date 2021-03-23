@@ -122,7 +122,6 @@ public class DocStoreTest {
   @MethodSource
   private static Stream<Arguments> databaseContextProvider() {
     return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
-    // return Stream.of(Arguments.of(MONGO_STORE));
   }
 
   @ParameterizedTest
