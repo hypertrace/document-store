@@ -83,6 +83,10 @@ public class PostgresCollection implements Collection {
     }
   }
 
+  /**
+   * Same as existing upsert method, however, extends the support with condition filter and optional
+   * parameter for explicitly controlling insert and update.
+   * */
   @Override
   public boolean upsert(Key key, Document document, Filter condition, @Nullable Boolean isUpsert)
       throws IOException {
@@ -95,7 +99,7 @@ public class PostgresCollection implements Collection {
     paramsBuilder.addObjectParam(jsonString);
     paramsBuilder.addObjectParam(jsonString);
 
-    if (condition != null && isUpsert == true) {
+    if (condition != null && isUpsert) {
       String conditionQuery = parseFilter(condition, paramsBuilder, "d");
       if (conditionQuery != null) {
         upsertQueryBuilder.append(" WHERE ").append(conditionQuery);

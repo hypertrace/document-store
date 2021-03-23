@@ -124,14 +124,17 @@ public class MongoCollection implements Collection {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
 
-      return writeResult.getModifiedCount() > 0;
+      return (writeResult.getUpsertedId() != null || writeResult.getModifiedCount() > 0);
     } catch (IOException e) {
       LOGGER.error("Exception upserting document. key: {} content:{}", key, document, e);
       throw e;
     }
   }
 
-  /** Same as existing upsert method, however, extends the support with condition */
+  /**
+   * Same as existing upsert method, however, extends the support with condition and optional
+   * parameter for explicitly controlling insert and update.
+   * */
   @Override
   public boolean upsert(Key key, Document document, Filter condition, @Nullable Boolean isUpsert)
       throws IOException {
@@ -145,11 +148,7 @@ public class MongoCollection implements Collection {
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
-      boolean ack = writeResult.wasAcknowledged();
-      boolean isInserted = writeResult.getUpsertedId() != null;
-      boolean isUpdated = writeResult.getModifiedCount() > 0;
-
-      return (isInserted || isUpdated);
+      return (writeResult.getUpsertedId() != null || writeResult.getModifiedCount() > 0);
     } catch (Exception e) {
       LOGGER.error("Exception upserting document. key: {} content:{}", key, document, e);
       throw new IOException(e);
