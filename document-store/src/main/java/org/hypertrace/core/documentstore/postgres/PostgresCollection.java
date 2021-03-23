@@ -86,7 +86,7 @@ public class PostgresCollection implements Collection {
   /**
    * Same as existing upsert method, however, extends the support with condition filter and optional
    * parameter for explicitly controlling insert and update.
-   * */
+   */
   @Override
   public boolean upsert(Key key, Document document, Filter condition, @Nullable Boolean isUpsert)
       throws IOException {
