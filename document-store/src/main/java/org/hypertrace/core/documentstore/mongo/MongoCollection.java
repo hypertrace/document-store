@@ -34,7 +34,6 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
 import org.bson.conversions.Bson;
@@ -136,13 +135,13 @@ public class MongoCollection implements Collection {
    * parameter for explicitly controlling insert and update.
    */
   @Override
-  public boolean upsert(Key key, Document document, Filter condition, @Nullable Boolean isUpsert)
+  public boolean upsert(Key key, Document document, Filter condition, Boolean isUpsert)
       throws IOException {
     try {
       Map<String, Object> map = parseQuery(condition);
       map.put(ID_KEY, key.toString());
       BasicDBObject conditionObject = new BasicDBObject(map);
-      UpdateOptions options = new UpdateOptions().upsert(isUpsert != null ? isUpsert : true);
+      UpdateOptions options = new UpdateOptions().upsert(isUpsert);
       UpdateResult writeResult =
           collection.updateOne(conditionObject, this.prepareUpsert(key, document), options);
       if (LOGGER.isDebugEnabled()) {

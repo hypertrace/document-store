@@ -1074,7 +1074,7 @@ public class DocStoreTest {
     }
     Assertions.assertTrue(documents.size() == 0);
 
-    boolean bool =
+    boolean succeed =
         collection.upsert(
             new SingleValueKey("default", "testKey1"),
             Utils.createDocument(
@@ -1085,10 +1085,10 @@ public class DocStoreTest {
             condition,
             true);
 
-    Assertions.assertTrue(bool);
+    Assertions.assertTrue(succeed);
 
     // test that document is updated if condition met
-    bool =
+    succeed =
         collection.upsert(
             new SingleValueKey("default", "testKey1"),
             Utils.createDocument(
@@ -1099,7 +1099,7 @@ public class DocStoreTest {
             condition,
             true);
 
-    Assertions.assertTrue(bool);
+    Assertions.assertTrue(succeed);
 
     results = collection.search(query);
     documents = new ArrayList<>();
@@ -1112,7 +1112,7 @@ public class DocStoreTest {
     // test that document is not updated if condition not met
     condition = new Filter(Op.EQ, "isCostly", true);
     try {
-      bool =
+      succeed =
           collection.upsert(
               new SingleValueKey("default", "testKey1"),
               Utils.createDocument(
@@ -1123,10 +1123,10 @@ public class DocStoreTest {
               condition,
               false);
     } catch (IOException e) {
-      bool = false;
+      succeed = false;
     }
 
-    Assertions.assertFalse(bool);
+    Assertions.assertFalse(succeed);
 
     results = collection.search(query);
     documents = new ArrayList<>();

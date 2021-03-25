@@ -88,10 +88,9 @@ public class PostgresCollection implements Collection {
    * parameter for explicitly controlling insert and update.
    */
   @Override
-  public boolean upsert(Key key, Document document, Filter condition, @Nullable Boolean isUpsert)
+  public boolean upsert(Key key, Document document, Filter condition, Boolean isUpsert)
       throws IOException {
-    StringBuilder upsertQueryBuilder =
-        new StringBuilder(getUpsertSQL(isUpsert != null ? isUpsert : true));
+    StringBuilder upsertQueryBuilder = new StringBuilder(getUpsertSQL(isUpsert));
 
     String jsonString = prepareUpsertDocument(key, document);
     Params.Builder paramsBuilder = Params.newBuilder();
@@ -224,7 +223,8 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected String parseFilter(Filter filter, Params.Builder paramsBuilder, String aliasPrefix) {
+  protected String parseFilter(
+      Filter filter, Params.Builder paramsBuilder, @Nullable String aliasPrefix) {
     if (filter.isComposite()) {
       return parseCompositeFilter(filter, paramsBuilder, aliasPrefix);
     } else {
@@ -352,7 +352,7 @@ public class PostgresCollection implements Collection {
     return "(" + collect + ")";
   }
 
-  private StringBuilder prepareFieldAccessorExpr(String fieldName, String aliasPrefix) {
+  private StringBuilder prepareFieldAccessorExpr(String fieldName, @Nullable String aliasPrefix) {
     // Generate json field accessor statement
     if (!OUTER_COLUMNS.contains(fieldName)) {
       StringBuilder filterString =
@@ -371,7 +371,7 @@ public class PostgresCollection implements Collection {
 
   @VisibleForTesting
   protected String parseCompositeFilter(
-      Filter filter, Params.Builder paramsBuilder, String aliasPrefix) {
+      Filter filter, Params.Builder paramsBuilder, @Nullable String aliasPrefix) {
     Filter.Op op = filter.getOp();
     switch (op) {
       case OR:

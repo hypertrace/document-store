@@ -98,6 +98,7 @@ public class PostgresDocStoreTest {
     }
   }
 
+  @Test
   public void testUpsertAndReturn() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Document document = Utils.createDocument("foo1", "bar1");
