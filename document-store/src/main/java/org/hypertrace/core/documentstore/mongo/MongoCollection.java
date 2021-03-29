@@ -20,6 +20,7 @@ import com.mongodb.client.model.ReturnDocument;
 import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
+import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
 import java.time.Duration;
@@ -40,6 +41,7 @@ import org.bson.conversions.Bson;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.Collection;
+import org.hypertrace.core.documentstore.DocStoreResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
@@ -153,6 +155,62 @@ public class MongoCollection implements Collection {
       throw new IOException(e);
     }
   }
+
+  /**
+   * Update an existing document if condition is evaluated to true. Conditional will help in
+   * providing optimistic locking support for concurrency update.
+   */
+  @Override
+  public DocStoreResult update(Key key, Document document, Filter condition) throws IOException {
+    try {
+      DocStoreResult.Builder resultBuilder = DocStoreResult.Builder.newBuilder();
+      Map<String, Object> conditionMap = parseQuery(condition);
+      conditionMap.put(ID_KEY, key.toString());
+      BasicDBObject conditionObject = new BasicDBObject(conditionMap);
+      UpdateOptions options = new UpdateOptions().upsert(false);
+
+      UpdateResult writeResult =
+          collection.updateOne(conditionObject, this.prepareUpsert(key, document), options);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Update result: " + writeResult.toString());
+      }
+      boolean success = writeResult.getModifiedCount() > 0;
+      resultBuilder.setSuccess(success).setResultCount(writeResult.getModifiedCount());
+      resultBuilder =
+          success
+              ? resultBuilder.setMessage("Successfully updated document with key:" + key.toString())
+              : resultBuilder.setMessage("Failed to update document with key:" + key.toString());
+      return resultBuilder.build();
+    } catch (Exception e) {
+      LOGGER.error("Exception updating document. key: {} content:{}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  /** create a new doc if one doesn't exists */
+  @Override
+  public DocStoreResult create(Key key, Document document) throws IOException {
+    try {
+      DocStoreResult.Builder resultBuilder = DocStoreResult.Builder.newBuilder();
+      BasicDBObject basicDBObject = this.prepareInsert(key, document);
+      InsertOneResult insertOneResult = collection.insertOne(basicDBObject);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Insert result: " + insertOneResult.toString());
+      }
+      boolean success = insertOneResult.getInsertedId() != null;
+      resultBuilder.setSuccess(success).setResultCount(1);
+      resultBuilder =
+          success
+              ? resultBuilder.setMessage(
+                  "Successfully inserted document with key:" + key.toString())
+              : resultBuilder.setMessage("Failed to insert document with key:" + key.toString());
+      return resultBuilder.build();
+    } catch (Exception e) {
+      LOGGER.error("Exception inserting document. key: {} content:{}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
   /**
    * Adds the following fields automatically: _id, _lastUpdateTime, lastUpdatedTime and created Time
    */
@@ -188,6 +246,21 @@ public class MongoCollection implements Collection {
     return new BasicDBObject("$set", setObject)
         .append("$currentDate", new BasicDBObject(LAST_UPDATE_TIME, true))
         .append("$setOnInsert", new BasicDBObject(CREATED_TIME, now));
+  }
+
+  private BasicDBObject prepareInsert(Key key, Document document) throws JsonProcessingException {
+    String jsonString = document.toJson();
+    JsonNode jsonNode = MAPPER.readTree(jsonString);
+
+    // escape "." and "$" in field names since Mongo DB does not like them
+    JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
+    BasicDBObject insertDbObject =
+        BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
+    long now = System.currentTimeMillis();
+    insertDbObject.put(ID_KEY, key.toString());
+    insertDbObject.put(LAST_UPDATED_TIME, now);
+    insertDbObject.put(CREATED_TIME, now);
+    return insertDbObject;
   }
 
   /** Updates auto-field lastUpdatedTime when sub doc is updated */

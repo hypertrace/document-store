@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.utils.CreateUpdateThread.FAILURE;
+import static org.hypertrace.core.documentstore.utils.CreateUpdateThread.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -18,11 +20,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
+import org.hypertrace.core.documentstore.utils.CreateUpdateThread;
+import org.hypertrace.core.documentstore.utils.CreateUpdateThread.Operation;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -121,7 +126,9 @@ public class DocStoreTest {
 
   @MethodSource
   private static Stream<Arguments> databaseContextProvider() {
-    return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
+    // return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
+    // return Stream.of(Arguments.of(MONGO_STORE));
+    return Stream.of(Arguments.of(POSTGRES_STORE));
   }
 
   @ParameterizedTest
@@ -1058,6 +1065,69 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
+  public void testCreateWithMultipleThreads(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
+
+    Map<String, List<CreateUpdateThread>> resultMap =
+        executeCreateUpdateThreads(collection, Operation.CREATE);
+
+    Assertions.assertEquals(1, resultMap.get(SUCCESS).size());
+    Assertions.assertEquals(4, resultMap.get(FAILURE).size());
+
+    // check the inserted document and thread result matches
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", documentKey.toString()));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    Map<String, Object> doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
+    Assertions.assertEquals(resultMap.get(SUCCESS).get(0).getTestValue(), (int) doc.get("size"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUpdateWithMultipleThreads(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
+
+    // create document
+    Document document =
+        Utils.createDocument(
+            ImmutablePair.of("id", documentKey.getValue()),
+            ImmutablePair.of("name", "inserted"),
+            ImmutablePair.of("size", RandomUtils.nextInt(1, 6)));
+    DocStoreResult result = collection.create(documentKey, document);
+    Assertions.assertTrue(result.isSuccess());
+
+    Map<String, List<CreateUpdateThread>> resultMap =
+        executeCreateUpdateThreads(collection, Operation.UPDATE);
+
+    Assertions.assertEquals(1, resultMap.get(SUCCESS).size());
+    Assertions.assertEquals(4, resultMap.get(FAILURE).size());
+
+    // check the inserted document and thread result matches
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", documentKey.toString()));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    Map<String, Object> doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
+    Assertions.assertEquals(
+        "thread-" + resultMap.get(SUCCESS).get(0).getTestValue(), doc.get("name"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
   public void testUpsertWithCondition(String dataStoreName) throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -1236,6 +1306,45 @@ public class DocStoreTest {
         // exception is consider as failure
       }
     }
+  }
+
+  private Map<String, List<CreateUpdateThread>> executeCreateUpdateThreads(
+      Collection collection, Operation operation) {
+    SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
+    List<CreateUpdateThread> threads = new ArrayList<CreateUpdateThread>();
+    IntStream.range(1, 6)
+        .forEach(
+            number ->
+                threads.add(new CreateUpdateThread(collection, documentKey, number, operation)));
+    threads.stream().forEach(t -> t.start());
+    threads.stream()
+        .forEach(
+            t -> {
+              try {
+                t.join();
+              } catch (InterruptedException ex) {
+                // result of such threads are consider as failure
+              }
+            });
+
+    Map<String, List<CreateUpdateThread>> resultMap =
+        new HashMap<>() {
+          {
+            put(SUCCESS, new ArrayList());
+            put(FAILURE, new ArrayList());
+          }
+        };
+
+    threads.stream()
+        .forEach(
+            t -> {
+              if (t.getTestResult().isSuccess()) {
+                resultMap.get(SUCCESS).add(t);
+              } else {
+                resultMap.get(FAILURE).add(t);
+              }
+            });
+    return resultMap;
   }
 
   /**

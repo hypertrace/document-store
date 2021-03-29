@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Collection;
+import org.hypertrace.core.documentstore.DocStoreResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
@@ -112,6 +113,64 @@ public class PostgresCollection implements Collection {
         LOGGER.debug("Write result: {}", result);
       }
       return result > 0;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  /**
+   * Update an existing document if condition is evaluated to true. Conditional will help in
+   * providing optimistic locking support for concurrency update.
+   */
+  @Override
+  public DocStoreResult update(Key key, Document document, Filter condition) throws IOException {
+    StringBuilder upsertQueryBuilder = new StringBuilder(getUpdateSQL());
+
+    String jsonString = prepareDocument(key, document);
+    Params.Builder paramsBuilder = Params.newBuilder();
+    paramsBuilder.addObjectParam(key.toString());
+    paramsBuilder.addObjectParam(jsonString);
+
+    if (condition != null) {
+      String conditionQuery = parseFilter(condition, paramsBuilder, "d");
+      if (conditionQuery != null) {
+        upsertQueryBuilder.append(" WHERE ").append(conditionQuery);
+      }
+    }
+
+    try (PreparedStatement preparedStatement =
+        buildPreparedStatement(upsertQueryBuilder.toString(), paramsBuilder.build())) {
+      int result = preparedStatement.executeUpdate();
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", result);
+      }
+      return DocStoreResult.Builder.newBuilder()
+          .setSuccess(result > 0)
+          .setResultCount(result)
+          .build();
+    } catch (SQLException e) {
+      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  /** create a new doc if one doesn't exists */
+  @Override
+  public DocStoreResult create(Key key, Document document) throws IOException {
+    try (PreparedStatement preparedStatement =
+        client.prepareStatement(getInsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+      String jsonString = prepareDocument(key, document);
+      preparedStatement.setString(1, key.toString());
+      preparedStatement.setString(2, jsonString);
+      int result = preparedStatement.executeUpdate();
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Create result: {}", result);
+      }
+      return DocStoreResult.Builder.newBuilder()
+          .setSuccess(result > 0)
+          .setResultCount(result)
+          .build();
     } catch (SQLException e) {
       LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
       throw new IOException(e);
@@ -665,6 +724,15 @@ public class PostgresCollection implements Collection {
     return MAPPER.writeValueAsString(jsonNode);
   }
 
+  private String prepareDocument(Key key, Document document) throws IOException {
+    String jsonString = document.toJson();
+
+    ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(jsonString);
+    jsonNode.put(DOCUMENT_ID, key.toString());
+
+    return MAPPER.writeValueAsString(jsonNode);
+  }
+
   private String prepareCast(String field, Object value) {
     String fmt = "CAST (%s AS %s)";
 
@@ -686,6 +754,17 @@ public class PostgresCollection implements Collection {
     } else /* default is string */ {
       return field;
     }
+  }
+
+  private String getInsertSQL() {
+    return String.format(
+        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb)",
+        collectionName, ID, DOCUMENT, ID, DOCUMENT);
+  }
+
+  private String getUpdateSQL() {
+    return String.format(
+        "UPDATE %s AS d SET (%s, %s) = ( ?, ? :: jsonb) ", collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
   private String getUpsertSQL(boolean isUpsert) {
