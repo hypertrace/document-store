@@ -208,33 +208,32 @@ public class MongoCollection implements Collection {
   }
 
   private BasicDBObject prepareUpsert(Key key, Document document) throws JsonProcessingException {
-    String jsonString = document.toJson();
-    JsonNode jsonNode = MAPPER.readTree(jsonString);
-
-    // escape "." and "$" in field names since Mongo DB does not like them
-    JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-    BasicDBObject setObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
     long now = System.currentTimeMillis();
-    setObject.put(ID_KEY, key.toString());
-    setObject.put(LAST_UPDATED_TIME, now);
+    BasicDBObject setObject = prepareDocument(key, document, now);
     return new BasicDBObject("$set", setObject)
         .append("$currentDate", new BasicDBObject(LAST_UPDATE_TIME, true))
         .append("$setOnInsert", new BasicDBObject(CREATED_TIME, now));
   }
 
   private BasicDBObject prepareInsert(Key key, Document document) throws JsonProcessingException {
+    long now = System.currentTimeMillis();
+    BasicDBObject insertDbObject = prepareDocument(key, document, now);
+    insertDbObject.put(CREATED_TIME, now);
+    return insertDbObject;
+  }
+
+  private BasicDBObject prepareDocument(Key key, Document document, long currentTime)
+      throws JsonProcessingException {
     String jsonString = document.toJson();
     JsonNode jsonNode = MAPPER.readTree(jsonString);
 
     // escape "." and "$" in field names since Mongo DB does not like them
     JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-    BasicDBObject insertDbObject =
-        BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
+    BasicDBObject basicDBObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
     long now = System.currentTimeMillis();
-    insertDbObject.put(ID_KEY, key.toString());
-    insertDbObject.put(LAST_UPDATED_TIME, now);
-    insertDbObject.put(CREATED_TIME, now);
-    return insertDbObject;
+    basicDBObject.put(ID_KEY, key.toString());
+    basicDBObject.put(LAST_UPDATED_TIME, now);
+    return basicDBObject;
   }
 
   /** Updates auto-field lastUpdatedTime when sub doc is updated */
