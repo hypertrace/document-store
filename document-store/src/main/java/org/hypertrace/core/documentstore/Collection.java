@@ -94,10 +94,10 @@ public interface Collection {
   void drop();
 
   /**
-   * create a new doc if one doesn't exists
+   * create a new document if one doesn't exists with the key
    *
    * @param key Unique key of the document in the collection.
-   * @param document Document to be inserted.
+   * @param document Document to be created.
    * @return an instance of {@link DocStoreResult}
    */
   DocStoreResult create(Key key, Document document) throws IOException;
@@ -107,7 +107,7 @@ public interface Collection {
    * providing optimistic locking support for concurrency update.
    *
    * @param key Unique key of the document in the collection.
-   * @param document Document to be upserted.
+   * @param document Document to be updated.
    * @param condition Filter condition to be evaluated, on success update the document
    * @return an instance of {@link DocStoreResult}
    */

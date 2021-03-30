@@ -110,17 +110,19 @@ public class PostgresCollection implements Collection {
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: {}", result);
       }
-      return DocStoreResult.Builder.newBuilder()
-          .setSuccess(result > 0)
-          .setResultCount(result)
-          .build();
+      DocStoreResult.Builder resultBuilder = DocStoreResult.Builder.newBuilder();
+      resultBuilder.setSuccess(result > 0).setResultCount(result);
+      if (result <= 0) {
+        resultBuilder.setFailureMessage("Failed to update document with key:" + key.toString());
+      }
+      return resultBuilder.build();
     } catch (SQLException e) {
       LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
       throw new IOException(e);
     }
   }
 
-  /** create a new doc if one doesn't exists */
+  /** create a new document if one doesn't exists with key */
   @Override
   public DocStoreResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -132,12 +134,14 @@ public class PostgresCollection implements Collection {
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Create result: {}", result);
       }
-      return DocStoreResult.Builder.newBuilder()
-          .setSuccess(result > 0)
-          .setResultCount(result)
-          .build();
+      DocStoreResult.Builder resultBuilder = DocStoreResult.Builder.newBuilder();
+      resultBuilder.setSuccess(result > 0).setResultCount(result);
+      if (result <= 0) {
+        resultBuilder.setFailureMessage("Failed to create document with key:" + key.toString());
+      }
+      return resultBuilder.build();
     } catch (SQLException e) {
-      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      LOGGER.error("SQLException creating document. key: {} content:{}", key, document, e);
       throw new IOException(e);
     }
   }

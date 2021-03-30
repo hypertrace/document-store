@@ -152,12 +152,9 @@ public class MongoCollection implements Collection {
       }
       boolean success = writeResult.getModifiedCount() > 0;
       resultBuilder.setSuccess(success).setResultCount(writeResult.getModifiedCount());
-      resultBuilder =
-          success
-              ? resultBuilder.setFailureMessage(
-                  "Successfully updated document with key:" + key.toString())
-              : resultBuilder.setFailureMessage(
-                  "Failed to update document with key:" + key.toString());
+      if (!success) {
+        resultBuilder.setFailureMessage("Failed to update document with key:" + key.toString());
+      }
       return resultBuilder.build();
     } catch (Exception e) {
       LOGGER.error("Exception updating document. key: {} content:{}", key, document, e);
@@ -165,7 +162,7 @@ public class MongoCollection implements Collection {
     }
   }
 
-  /** create a new doc if one doesn't exists */
+  /** create a new document if one doesn't exists with key */
   @Override
   public DocStoreResult create(Key key, Document document) throws IOException {
     try {
@@ -173,19 +170,16 @@ public class MongoCollection implements Collection {
       BasicDBObject basicDBObject = this.prepareInsert(key, document);
       InsertOneResult insertOneResult = collection.insertOne(basicDBObject);
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Insert result: " + insertOneResult.toString());
+        LOGGER.debug("Create result: " + insertOneResult.toString());
       }
       boolean success = insertOneResult.getInsertedId() != null;
       resultBuilder.setSuccess(success).setResultCount(1);
-      resultBuilder =
-          success
-              ? resultBuilder.setFailureMessage(
-                  "Successfully inserted document with key:" + key.toString())
-              : resultBuilder.setFailureMessage(
-                  "Failed to insert document with key:" + key.toString());
+      if (!success) {
+        resultBuilder.setFailureMessage("Failed to create document with key:" + key.toString());
+      }
       return resultBuilder.build();
     } catch (Exception e) {
-      LOGGER.error("Exception inserting document. key: {} content:{}", key, document, e);
+      LOGGER.error("Exception creating document. key: {} content:{}", key, document, e);
       throw new IOException(e);
     }
   }
