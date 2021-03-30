@@ -140,7 +140,8 @@ public class MongoCollection implements Collection {
   public DocStoreResult update(Key key, Document document, Filter condition) throws IOException {
     try {
       DocStoreResult.Builder resultBuilder = DocStoreResult.Builder.newBuilder();
-      Map<String, Object> conditionMap = parseQuery(condition);
+      Map<String, Object> conditionMap =
+          condition != null ? parseQuery(condition) : new HashMap<>();
       conditionMap.put(ID_KEY, key.toString());
       BasicDBObject conditionObject = new BasicDBObject(conditionMap);
       UpdateOptions options = new UpdateOptions().upsert(false);
