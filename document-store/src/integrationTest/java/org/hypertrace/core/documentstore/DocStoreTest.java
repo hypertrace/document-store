@@ -1134,7 +1134,7 @@ public class DocStoreTest {
     query.setFilter(Filter.eq("_id", "default:testKey1"));
     Filter condition = new Filter(Op.EQ, "isCostly", false);
 
-    // test that document document is inserted if its not exists
+    // test that document is inserted if its not exists
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
     while (results.hasNext()) {
@@ -1172,7 +1172,8 @@ public class DocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertTrue(documents.size() == 1);
-    documents.get(0).toJson().contains("\"size\":\"10\"");
+    Map<String, Object> doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
+    Assertions.assertEquals(10, (int) doc.get("size"));
 
     // test that document is not updated if condition not met
     condition = new Filter(Op.EQ, "isCostly", true);
@@ -1199,8 +1200,9 @@ public class DocStoreTest {
       documents.add(results.next());
     }
     Assertions.assertTrue(documents.size() == 1);
-    documents.get(0).toJson().contains("\"size\":\"10\"");
-    documents.get(0).toJson().contains("\"isCostly\":\"false\"");
+    doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
+    Assertions.assertEquals(10, (int) doc.get("size"));
+    Assertions.assertFalse((boolean) doc.get("isCostly"));
   }
 
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
