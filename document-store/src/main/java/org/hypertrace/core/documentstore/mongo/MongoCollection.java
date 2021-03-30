@@ -222,7 +222,7 @@ public class MongoCollection implements Collection {
     return insertDbObject;
   }
 
-  private BasicDBObject prepareDocument(Key key, Document document, long currentTime)
+  private BasicDBObject prepareDocument(Key key, Document document, long now)
       throws JsonProcessingException {
     String jsonString = document.toJson();
     JsonNode jsonNode = MAPPER.readTree(jsonString);
@@ -230,7 +230,6 @@ public class MongoCollection implements Collection {
     // escape "." and "$" in field names since Mongo DB does not like them
     JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
     BasicDBObject basicDBObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
-    long now = System.currentTimeMillis();
     basicDBObject.put(ID_KEY, key.toString());
     basicDBObject.put(LAST_UPDATED_TIME, now);
     return basicDBObject;
