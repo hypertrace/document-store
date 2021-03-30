@@ -103,7 +103,7 @@ public interface Collection {
   DocStoreResult create(Key key, Document document) throws IOException;
 
   /**
-   * Update an existing document if condition is evaluated to true. Conditional will help in
+   * Update an existing document if condition is evaluated to true. Condition will help in
    * providing optimistic locking support for concurrency update.
    *
    * @param key Unique key of the document in the collection.
