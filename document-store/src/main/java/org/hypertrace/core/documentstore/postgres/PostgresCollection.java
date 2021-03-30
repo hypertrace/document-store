@@ -21,13 +21,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Collection;
-import org.hypertrace.core.documentstore.DocStoreResult;
+import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.Query;
+import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -89,7 +90,7 @@ public class PostgresCollection implements Collection {
    * providing optimistic locking support for concurrency update.
    */
   @Override
-  public DocStoreResult update(Key key, Document document, Filter condition) throws IOException {
+  public UpdateResult update(Key key, Document document, Filter condition) throws IOException {
     StringBuilder upsertQueryBuilder = new StringBuilder(getUpdateSQL());
 
     String jsonString = prepareDocument(key, document);
@@ -110,12 +111,7 @@ public class PostgresCollection implements Collection {
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: {}", result);
       }
-      DocStoreResult.Builder resultBuilder = DocStoreResult.Builder.newBuilder();
-      resultBuilder.setSuccess(result > 0).setResultCount(result);
-      if (result <= 0) {
-        resultBuilder.setFailureMessage("Failed to update document with key:" + key.toString());
-      }
-      return resultBuilder.build();
+      return new UpdateResult(result);
     } catch (SQLException e) {
       LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
       throw new IOException(e);
@@ -124,7 +120,7 @@ public class PostgresCollection implements Collection {
 
   /** create a new document if one doesn't exists with key */
   @Override
-  public DocStoreResult create(Key key, Document document) throws IOException {
+  public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
         client.prepareStatement(getInsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       String jsonString = prepareDocument(key, document);
@@ -134,12 +130,7 @@ public class PostgresCollection implements Collection {
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Create result: {}", result);
       }
-      DocStoreResult.Builder resultBuilder = DocStoreResult.Builder.newBuilder();
-      resultBuilder.setSuccess(result > 0).setResultCount(result);
-      if (result <= 0) {
-        resultBuilder.setFailureMessage("Failed to create document with key:" + key.toString());
-      }
-      return resultBuilder.build();
+      return new CreateResult(result);
     } catch (SQLException e) {
       LOGGER.error("SQLException creating document. key: {} content:{}", key, document, e);
       throw new IOException(e);

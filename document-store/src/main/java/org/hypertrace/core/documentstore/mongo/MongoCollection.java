@@ -41,7 +41,7 @@ import org.bson.conversions.Bson;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.Collection;
-import org.hypertrace.core.documentstore.DocStoreResult;
+import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
@@ -137,9 +137,9 @@ public class MongoCollection implements Collection {
    * providing optimistic locking support for concurrency update.
    */
   @Override
-  public DocStoreResult update(Key key, Document document, Filter condition) throws IOException {
+  public org.hypertrace.core.documentstore.UpdateResult update(
+      Key key, Document document, Filter condition) throws IOException {
     try {
-      DocStoreResult.Builder resultBuilder = DocStoreResult.Builder.newBuilder();
       Map<String, Object> conditionMap =
           condition != null ? parseQuery(condition) : new HashMap<>();
       conditionMap.put(ID_KEY, key.toString());
@@ -151,12 +151,7 @@ public class MongoCollection implements Collection {
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Update result: " + writeResult.toString());
       }
-      boolean success = writeResult.getModifiedCount() > 0;
-      resultBuilder.setSuccess(success).setResultCount(writeResult.getModifiedCount());
-      if (!success) {
-        resultBuilder.setFailureMessage("Failed to update document with key:" + key.toString());
-      }
-      return resultBuilder.build();
+      return new org.hypertrace.core.documentstore.UpdateResult(writeResult.getModifiedCount());
     } catch (Exception e) {
       LOGGER.error("Exception updating document. key: {} content:{}", key, document, e);
       throw new IOException(e);
@@ -165,20 +160,14 @@ public class MongoCollection implements Collection {
 
   /** create a new document if one doesn't exists with key */
   @Override
-  public DocStoreResult create(Key key, Document document) throws IOException {
+  public CreateResult create(Key key, Document document) throws IOException {
     try {
-      DocStoreResult.Builder resultBuilder = DocStoreResult.Builder.newBuilder();
       BasicDBObject basicDBObject = this.prepareInsert(key, document);
       InsertOneResult insertOneResult = collection.insertOne(basicDBObject);
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Create result: " + insertOneResult.toString());
       }
-      boolean success = insertOneResult.getInsertedId() != null;
-      resultBuilder.setSuccess(success).setResultCount(1);
-      if (!success) {
-        resultBuilder.setFailureMessage("Failed to create document with key:" + key.toString());
-      }
-      return resultBuilder.build();
+      return insertOneResult.getInsertedId() != null ? new CreateResult(1) : new CreateResult(0);
     } catch (Exception e) {
       LOGGER.error("Exception creating document. key: {} content:{}", key, document, e);
       throw new IOException(e);

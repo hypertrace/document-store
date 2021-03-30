@@ -1101,8 +1101,8 @@ public class DocStoreTest {
             ImmutablePair.of("id", documentKey.getValue()),
             ImmutablePair.of("name", "inserted"),
             ImmutablePair.of("size", RandomUtils.nextInt(1, 6)));
-    DocStoreResult result = collection.create(documentKey, document);
-    Assertions.assertTrue(result.isSuccess());
+    CreateResult createResult = collection.create(documentKey, document);
+    Assertions.assertTrue(createResult.getCreatedCount() == 1);
 
     Map<String, List<CreateUpdateTestThread>> resultMap =
         executeCreateUpdateThreads(collection, Operation.UPDATE, 5, documentKey);
@@ -1142,7 +1142,7 @@ public class DocStoreTest {
     }
     Assertions.assertTrue(documents.size() == 0);
 
-    DocStoreResult docStoreResult =
+    CreateResult createResult =
         collection.create(
             new SingleValueKey("default", "testKey1"),
             Utils.createDocument(
@@ -1151,10 +1151,10 @@ public class DocStoreTest {
                 ImmutablePair.of("size", -10),
                 ImmutablePair.of("isCostly", false)));
 
-    Assertions.assertTrue(docStoreResult.isSuccess());
+    Assertions.assertTrue(createResult.getCreatedCount() == 1);
 
     // test that document is updated if condition met
-    docStoreResult =
+    UpdateResult updateResult =
         collection.update(
             new SingleValueKey("default", "testKey1"),
             Utils.createDocument(
@@ -1164,7 +1164,7 @@ public class DocStoreTest {
                 ImmutablePair.of("isCostly", false)),
             condition);
 
-    Assertions.assertTrue(docStoreResult.isSuccess());
+    Assertions.assertTrue(updateResult.getUpdatedCount() == 1);
 
     results = collection.search(query);
     documents = new ArrayList<>();
@@ -1177,9 +1177,8 @@ public class DocStoreTest {
 
     // test that document is not updated if condition not met
     condition = new Filter(Op.EQ, "isCostly", true);
-    docStoreResult = DocStoreResult.Builder.newBuilder().build();
     try {
-      docStoreResult =
+      updateResult =
           collection.update(
               new SingleValueKey("default", "testKey1"),
               Utils.createDocument(
@@ -1189,10 +1188,10 @@ public class DocStoreTest {
                   ImmutablePair.of("isCostly", true)),
               condition);
     } catch (IOException e) {
-      docStoreResult = DocStoreResult.Builder.newBuilder().build();
+      updateResult = new UpdateResult(0);
     }
 
-    Assertions.assertFalse(docStoreResult.isSuccess());
+    Assertions.assertTrue(updateResult.getUpdatedCount() == 0);
 
     results = collection.search(query);
     documents = new ArrayList<>();
@@ -1235,7 +1234,7 @@ public class DocStoreTest {
     threads.stream()
         .forEach(
             t -> {
-              if (t.getTestResult().isSuccess()) {
+              if (t.getTestResult()) {
                 resultMap.get(SUCCESS).add(t);
               } else {
                 resultMap.get(FAILURE).add(t);

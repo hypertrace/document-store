@@ -98,9 +98,9 @@ public interface Collection {
    *
    * @param key Unique key of the document in the collection.
    * @param document Document to be created.
-   * @return an instance of {@link DocStoreResult}
+   * @return an instance of {@link CreateResult}
    */
-  DocStoreResult create(Key key, Document document) throws IOException;
+  CreateResult create(Key key, Document document) throws IOException;
 
   /**
    * Update an existing document if condition is evaluated to true. Condition will help in providing
@@ -109,9 +109,9 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param document Document to be updated.
    * @param condition Filter condition to be evaluated if present, on success update the document
-   * @return an instance of {@link DocStoreResult}
+   * @return an instance of {@link UpdateResult}
    */
-  DocStoreResult update(Key key, Document document, Filter condition) throws IOException;
+  UpdateResult update(Key key, Document document, Filter condition) throws IOException;
 
   String UNSUPPORTED_QUERY_OPERATION = "Query operation is not supported";
 }

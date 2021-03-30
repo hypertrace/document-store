@@ -3,16 +3,18 @@ package org.hypertrace.core.documentstore.utils;
 import java.io.IOException;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.Collection;
-import org.hypertrace.core.documentstore.DocStoreResult;
+import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.SingleValueKey;
+import org.hypertrace.core.documentstore.UpdateResult;
 
 public class CreateUpdateTestThread extends Thread {
   private Collection collection;
   private int testValue;
-  private DocStoreResult testResult;
+  private CreateResult createTestResult;
+  private UpdateResult updateTestResult;
   private SingleValueKey documentKey;
   private Operation operation;
 
@@ -30,15 +32,29 @@ public class CreateUpdateTestThread extends Thread {
     this.testValue = testValue;
     this.documentKey = documentKey;
     this.operation = operation;
-    this.testResult = DocStoreResult.Builder.newBuilder().build();
   }
 
   public int getTestValue() {
     return testValue;
   }
 
-  public DocStoreResult getTestResult() {
-    return testResult;
+  public boolean getTestResult() {
+    boolean success = false;
+    switch (operation) {
+      case CREATE:
+        if (createTestResult != null) {
+          success = createTestResult.getCreatedCount() > 0;
+        }
+        break;
+      case UPDATE:
+        if (updateTestResult != null) {
+          success = updateTestResult.getUpdatedCount() > 0;
+        }
+        break;
+      default:
+        break;
+    }
+    return success;
   }
 
   @Override
@@ -68,7 +84,7 @@ public class CreateUpdateTestThread extends Thread {
 
     // do conditional update
     Filter condition = new Filter(Op.EQ, "size", this.testValue);
-    testResult = collection.update(documentKey, document, condition);
+    updateTestResult = collection.update(documentKey, document, condition);
   }
 
   private void createRun() throws IOException {
@@ -77,6 +93,6 @@ public class CreateUpdateTestThread extends Thread {
             ImmutablePair.of("id", documentKey.getValue()),
             ImmutablePair.of("name", String.format("thread-%s", this.testValue)),
             ImmutablePair.of("size", this.testValue));
-    testResult = collection.create(documentKey, document);
+    createTestResult = collection.create(documentKey, document);
   }
 }
