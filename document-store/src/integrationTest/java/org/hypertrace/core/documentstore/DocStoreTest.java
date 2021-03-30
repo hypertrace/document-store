@@ -1069,7 +1069,7 @@ public class DocStoreTest {
     SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
 
     Map<String, List<CreateUpdateTestThread>> resultMap =
-        executeCreateUpdateThreads(collection, Operation.CREATE);
+        executeCreateUpdateThreads(collection, Operation.CREATE, 5, documentKey);
 
     Assertions.assertEquals(1, resultMap.get(SUCCESS).size());
     Assertions.assertEquals(4, resultMap.get(FAILURE).size());
@@ -1105,7 +1105,7 @@ public class DocStoreTest {
     Assertions.assertTrue(result.isSuccess());
 
     Map<String, List<CreateUpdateTestThread>> resultMap =
-        executeCreateUpdateThreads(collection, Operation.UPDATE);
+        executeCreateUpdateThreads(collection, Operation.UPDATE, 5, documentKey);
 
     Assertions.assertEquals(1, resultMap.get(SUCCESS).size());
     Assertions.assertEquals(4, resultMap.get(FAILURE).size());
@@ -1206,10 +1206,9 @@ public class DocStoreTest {
   }
 
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
-      Collection collection, Operation operation) {
-    SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
+      Collection collection, Operation operation, int numThreads, SingleValueKey documentKey) {
     List<CreateUpdateTestThread> threads = new ArrayList<CreateUpdateTestThread>();
-    IntStream.range(1, 6)
+    IntStream.range(1, numThreads + 1)
         .forEach(
             number ->
                 threads.add(

@@ -25,9 +25,9 @@ public class CreateUpdateTestThread extends Thread {
   public static final String FAILURE = "failure";
 
   public CreateUpdateTestThread(
-      Collection collection, SingleValueKey documentKey, int setValue, Operation operation) {
+      Collection collection, SingleValueKey documentKey, int testValue, Operation operation) {
     this.collection = collection;
-    this.testValue = setValue;
+    this.testValue = testValue;
     this.documentKey = documentKey;
     this.operation = operation;
     this.testResult = DocStoreResult.Builder.newBuilder().build();
