@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore;
 
-import static org.hypertrace.core.documentstore.utils.CreateUpdateThread.FAILURE;
-import static org.hypertrace.core.documentstore.utils.CreateUpdateThread.SUCCESS;
+import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
+import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -26,8 +26,8 @@ import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
-import org.hypertrace.core.documentstore.utils.CreateUpdateThread;
-import org.hypertrace.core.documentstore.utils.CreateUpdateThread.Operation;
+import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
+import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.Operation;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -1070,7 +1070,7 @@ public class DocStoreTest {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
 
-    Map<String, List<CreateUpdateThread>> resultMap =
+    Map<String, List<CreateUpdateTestThread>> resultMap =
         executeCreateUpdateThreads(collection, Operation.CREATE);
 
     Assertions.assertEquals(1, resultMap.get(SUCCESS).size());
@@ -1106,7 +1106,7 @@ public class DocStoreTest {
     DocStoreResult result = collection.create(documentKey, document);
     Assertions.assertTrue(result.isSuccess());
 
-    Map<String, List<CreateUpdateThread>> resultMap =
+    Map<String, List<CreateUpdateTestThread>> resultMap =
         executeCreateUpdateThreads(collection, Operation.UPDATE);
 
     Assertions.assertEquals(1, resultMap.get(SUCCESS).size());
@@ -1128,7 +1128,7 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void testUpsertWithCondition(String dataStoreName) throws Exception {
+  public void testUpdateWithCondition(String dataStoreName) throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
@@ -1144,32 +1144,29 @@ public class DocStoreTest {
     }
     Assertions.assertTrue(documents.size() == 0);
 
-    boolean succeed =
-        collection.upsert(
+    DocStoreResult docStoreResult =
+        collection.create(
             new SingleValueKey("default", "testKey1"),
             Utils.createDocument(
                 ImmutablePair.of("id", "testKey1"),
                 ImmutablePair.of("name", "abc1"),
                 ImmutablePair.of("size", -10),
-                ImmutablePair.of("isCostly", false)),
-            condition,
-            true);
+                ImmutablePair.of("isCostly", false)));
 
-    Assertions.assertTrue(succeed);
+    Assertions.assertTrue(docStoreResult.isSuccess());
 
     // test that document is updated if condition met
-    succeed =
-        collection.upsert(
+    docStoreResult =
+        collection.update(
             new SingleValueKey("default", "testKey1"),
             Utils.createDocument(
                 ImmutablePair.of("id", "testKey1"),
                 ImmutablePair.of("name", "abc1"),
                 ImmutablePair.of("size", 10),
                 ImmutablePair.of("isCostly", false)),
-            condition,
-            true);
+            condition);
 
-    Assertions.assertTrue(succeed);
+    Assertions.assertTrue(docStoreResult.isSuccess());
 
     results = collection.search(query);
     documents = new ArrayList<>();
@@ -1181,22 +1178,22 @@ public class DocStoreTest {
 
     // test that document is not updated if condition not met
     condition = new Filter(Op.EQ, "isCostly", true);
+    docStoreResult = DocStoreResult.Builder.newBuilder().build();
     try {
-      succeed =
-          collection.upsert(
+      docStoreResult =
+          collection.update(
               new SingleValueKey("default", "testKey1"),
               Utils.createDocument(
                   ImmutablePair.of("id", "testKey1"),
                   ImmutablePair.of("name", "abc1"),
                   ImmutablePair.of("size", 20),
                   ImmutablePair.of("isCostly", true)),
-              condition,
-              false);
+              condition);
     } catch (IOException e) {
-      succeed = false;
+      docStoreResult = DocStoreResult.Builder.newBuilder().build();
     }
 
-    Assertions.assertFalse(succeed);
+    Assertions.assertFalse(docStoreResult.isSuccess());
 
     results = collection.search(query);
     documents = new ArrayList<>();
@@ -1208,114 +1205,15 @@ public class DocStoreTest {
     documents.get(0).toJson().contains("\"isCostly\":\"false\"");
   }
 
-  @ParameterizedTest
-  @MethodSource("databaseContextProvider")
-  public void testConditionalUpsertWithMultipleThreads(String dataStoreName) throws Exception {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-
-    List<UpsertThread> threads = new ArrayList<UpsertThread>();
-    SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
-    IntStream.range(1, 11)
-        .forEach(number -> threads.add(new UpsertThread(datastore, documentKey, number)));
-    threads.stream().forEach(t -> t.start());
-    threads.stream()
-        .forEach(
-            t -> {
-              try {
-                t.join();
-              } catch (InterruptedException ex) {
-                // result of such threads are consider as failure
-              }
-            });
-
-    // check only one thread successfully inserted
-    String SUCCESS = "success";
-    String FAILURE = "failure";
-
-    Map<String, List<UpsertThread>> resultMap =
-        new HashMap<>() {
-          {
-            put(SUCCESS, new ArrayList());
-            put(FAILURE, new ArrayList());
-          }
-        };
-
-    threads.stream()
-        .forEach(
-            t -> {
-              if (t.getIsSuccess()) {
-                resultMap.get(SUCCESS).add(t);
-              } else {
-                resultMap.get(FAILURE).add(t);
-              }
-            });
-
-    Assertions.assertEquals(1, resultMap.get(SUCCESS).size());
-    Assertions.assertEquals(9, resultMap.get(FAILURE).size());
-
-    // check the inserted document and thread result matches
-    Query query = new Query();
-    query.setFilter(Filter.eq("_id", documentKey.toString()));
-    Iterator<Document> results = collection.search(query);
-    List<Document> documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
-    Assertions.assertTrue(documents.size() == 1);
-    Map<String, Object> doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
-    Assertions.assertEquals(resultMap.get(SUCCESS).get(0).getSetValue(), (int) doc.get("size"));
-  }
-
-  private static class UpsertThread extends Thread {
-    private Collection collection;
-    private int setValue;
-    private boolean isSuccess;
-    private SingleValueKey documentKey;
-
-    public UpsertThread(Datastore datastore, SingleValueKey documentKey, int setValue) {
-      this.collection = datastore.getCollection(COLLECTION_NAME);
-      this.setValue = setValue;
-      this.isSuccess = false;
-      this.documentKey = documentKey;
-    }
-
-    public int getSetValue() {
-      return setValue;
-    }
-
-    public boolean getIsSuccess() {
-      return isSuccess;
-    }
-
-    @Override
-    public void run() {
-      try {
-        Document document =
-            Utils.createDocument(
-                ImmutablePair.of("id", documentKey.getValue()),
-                ImmutablePair.of("name", "abc1"),
-                ImmutablePair.of("size", this.setValue),
-                ImmutablePair.of("isCostly", false));
-
-        // do conditional update
-        Filter condition = new Filter(Op.EQ, "size", 0);
-        isSuccess = collection.upsert(documentKey, document, condition, true);
-
-      } catch (Exception e) {
-        // exception is consider as failure
-      }
-    }
-  }
-
-  private Map<String, List<CreateUpdateThread>> executeCreateUpdateThreads(
+  private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
       Collection collection, Operation operation) {
     SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
-    List<CreateUpdateThread> threads = new ArrayList<CreateUpdateThread>();
+    List<CreateUpdateTestThread> threads = new ArrayList<CreateUpdateTestThread>();
     IntStream.range(1, 6)
         .forEach(
             number ->
-                threads.add(new CreateUpdateThread(collection, documentKey, number, operation)));
+                threads.add(
+                    new CreateUpdateTestThread(collection, documentKey, number, operation)));
     threads.stream().forEach(t -> t.start());
     threads.stream()
         .forEach(
@@ -1327,7 +1225,7 @@ public class DocStoreTest {
               }
             });
 
-    Map<String, List<CreateUpdateThread>> resultMap =
+    Map<String, List<CreateUpdateTestThread>> resultMap =
         new HashMap<>() {
           {
             put(SUCCESS, new ArrayList());

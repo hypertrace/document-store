@@ -133,30 +133,6 @@ public class MongoCollection implements Collection {
   }
 
   /**
-   * Same as existing upsert method, however, extends the support with condition and optional
-   * parameter for explicitly controlling insert and update.
-   */
-  @Override
-  public boolean upsert(Key key, Document document, Filter condition, Boolean isUpsert)
-      throws IOException {
-    try {
-      Map<String, Object> map = parseQuery(condition);
-      map.put(ID_KEY, key.toString());
-      BasicDBObject conditionObject = new BasicDBObject(map);
-      UpdateOptions options = new UpdateOptions().upsert(isUpsert);
-      UpdateResult writeResult =
-          collection.updateOne(conditionObject, this.prepareUpsert(key, document), options);
-      if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + writeResult.toString());
-      }
-      return (writeResult.getUpsertedId() != null || writeResult.getModifiedCount() > 0);
-    } catch (Exception e) {
-      LOGGER.error("Exception upserting document. key: {} content:{}", key, document, e);
-      throw new IOException(e);
-    }
-  }
-
-  /**
    * Update an existing document if condition is evaluated to true. Conditional will help in
    * providing optimistic locking support for concurrency update.
    */
@@ -178,8 +154,10 @@ public class MongoCollection implements Collection {
       resultBuilder.setSuccess(success).setResultCount(writeResult.getModifiedCount());
       resultBuilder =
           success
-              ? resultBuilder.setMessage("Successfully updated document with key:" + key.toString())
-              : resultBuilder.setMessage("Failed to update document with key:" + key.toString());
+              ? resultBuilder.setFailureMessage(
+                  "Successfully updated document with key:" + key.toString())
+              : resultBuilder.setFailureMessage(
+                  "Failed to update document with key:" + key.toString());
       return resultBuilder.build();
     } catch (Exception e) {
       LOGGER.error("Exception updating document. key: {} content:{}", key, document, e);
@@ -201,9 +179,10 @@ public class MongoCollection implements Collection {
       resultBuilder.setSuccess(success).setResultCount(1);
       resultBuilder =
           success
-              ? resultBuilder.setMessage(
+              ? resultBuilder.setFailureMessage(
                   "Successfully inserted document with key:" + key.toString())
-              : resultBuilder.setMessage("Failed to insert document with key:" + key.toString());
+              : resultBuilder.setFailureMessage(
+                  "Failed to insert document with key:" + key.toString());
       return resultBuilder.build();
     } catch (Exception e) {
       LOGGER.error("Exception inserting document. key: {} content:{}", key, document, e);

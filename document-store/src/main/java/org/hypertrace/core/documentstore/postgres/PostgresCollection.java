@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.DocStoreResult;
@@ -29,6 +28,7 @@ import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.Query;
+import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -68,8 +68,8 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(getUpsertSQL(true), Statement.RETURN_GENERATED_KEYS)) {
-      String jsonString = prepareUpsertDocument(key, document);
+        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+      String jsonString = prepareDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, jsonString);
@@ -78,41 +78,6 @@ public class PostgresCollection implements Collection {
         LOGGER.debug("Write result: {}", result);
       }
       return result >= 0;
-    } catch (SQLException e) {
-      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
-      throw new IOException(e);
-    }
-  }
-
-  /**
-   * Same as existing upsert method, however, extends the support with condition filter and optional
-   * parameter for explicitly controlling insert and update.
-   */
-  @Override
-  public boolean upsert(Key key, Document document, Filter condition, Boolean isUpsert)
-      throws IOException {
-    StringBuilder upsertQueryBuilder = new StringBuilder(getUpsertSQL(isUpsert));
-
-    String jsonString = prepareUpsertDocument(key, document);
-    Params.Builder paramsBuilder = Params.newBuilder();
-    paramsBuilder.addObjectParam(key.toString());
-    paramsBuilder.addObjectParam(jsonString);
-    paramsBuilder.addObjectParam(jsonString);
-
-    if (condition != null && isUpsert) {
-      String conditionQuery = parseFilter(condition, paramsBuilder, "d");
-      if (conditionQuery != null) {
-        upsertQueryBuilder.append(" WHERE ").append(conditionQuery);
-      }
-    }
-
-    try (PreparedStatement preparedStatement =
-        buildPreparedStatement(upsertQueryBuilder.toString(), paramsBuilder.build())) {
-      int result = preparedStatement.executeUpdate();
-      if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: {}", result);
-      }
-      return result > 0;
     } catch (SQLException e) {
       LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
       throw new IOException(e);
@@ -133,7 +98,7 @@ public class PostgresCollection implements Collection {
     paramsBuilder.addObjectParam(jsonString);
 
     if (condition != null) {
-      String conditionQuery = parseFilter(condition, paramsBuilder, "d");
+      String conditionQuery = parseFilter(condition, paramsBuilder);
       if (conditionQuery != null) {
         upsertQueryBuilder.append(" WHERE ").append(conditionQuery);
       }
@@ -245,7 +210,7 @@ public class PostgresCollection implements Collection {
 
     // If there is a filter in the query, parse it fully.
     if (query.getFilter() != null) {
-      filters = parseFilter(query.getFilter(), paramsBuilder, null);
+      filters = parseFilter(query.getFilter(), paramsBuilder);
     }
 
     LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
@@ -282,22 +247,20 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected String parseFilter(
-      Filter filter, Params.Builder paramsBuilder, @Nullable String aliasPrefix) {
+  protected String parseFilter(Filter filter, Builder paramsBuilder) {
     if (filter.isComposite()) {
-      return parseCompositeFilter(filter, paramsBuilder, aliasPrefix);
+      return parseCompositeFilter(filter, paramsBuilder);
     } else {
-      return parseNonCompositeFilter(filter, paramsBuilder, aliasPrefix);
+      return parseNonCompositeFilter(filter, paramsBuilder);
     }
   }
 
   @VisibleForTesting
-  protected String parseNonCompositeFilter(
-      Filter filter, Params.Builder paramsBuilder, String aliasPrefix) {
+  protected String parseNonCompositeFilter(Filter filter, Builder paramsBuilder) {
     Filter.Op op = filter.getOp();
     Object value = filter.getValue();
     String fieldName = filter.getFieldName();
-    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName, aliasPrefix), value);
+    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName), value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
     Boolean isMultiValued = false;
@@ -331,7 +294,7 @@ public class PostgresCollection implements Collection {
         //    Ref in context of NEQ -
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520Other
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
-        StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName, aliasPrefix);
+        StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName);
         if (notInFilterString != null) {
           filterString = notInFilterString.append(" IS NULL OR ").append(fullFieldName);
         }
@@ -350,7 +313,7 @@ public class PostgresCollection implements Collection {
         sqlOperator = " IS NULL ";
         value = null;
         // For fields inside jsonb
-        StringBuilder notExists = prepareFieldAccessorExpr(fieldName, aliasPrefix);
+        StringBuilder notExists = prepareFieldAccessorExpr(fieldName);
         if (notExists != null) {
           filterString = notExists;
         }
@@ -359,7 +322,7 @@ public class PostgresCollection implements Collection {
         sqlOperator = " IS NOT NULL ";
         value = null;
         // For fields inside jsonb
-        StringBuilder exists = prepareFieldAccessorExpr(fieldName, aliasPrefix);
+        StringBuilder exists = prepareFieldAccessorExpr(fieldName);
         if (exists != null) {
           filterString = exists;
         }
@@ -373,7 +336,7 @@ public class PostgresCollection implements Collection {
         // Semantics for handling if key not exists and if it exists, its value
         // doesn't equal to the filter for Jsonb document will be done as:
         // "document->key IS NULL OR document->key->> != value"
-        StringBuilder notEquals = prepareFieldAccessorExpr(fieldName, aliasPrefix);
+        StringBuilder notEquals = prepareFieldAccessorExpr(fieldName);
         // For fields inside jsonb
         if (notEquals != null) {
           filterString = notEquals.append(" IS NULL OR ").append(fullFieldName);
@@ -411,13 +374,10 @@ public class PostgresCollection implements Collection {
     return "(" + collect + ")";
   }
 
-  private StringBuilder prepareFieldAccessorExpr(String fieldName, @Nullable String aliasPrefix) {
+  private StringBuilder prepareFieldAccessorExpr(String fieldName) {
     // Generate json field accessor statement
     if (!OUTER_COLUMNS.contains(fieldName)) {
-      StringBuilder filterString =
-          (aliasPrefix != null)
-              ? new StringBuilder(aliasPrefix + "." + DOCUMENT)
-              : new StringBuilder(DOCUMENT);
+      StringBuilder filterString = new StringBuilder(DOCUMENT);
       String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
       for (String nestedField : nestedFields) {
         filterString.append(JSON_FIELD_ACCESSOR).append("'").append(nestedField).append("'");
@@ -429,15 +389,14 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected String parseCompositeFilter(
-      Filter filter, Params.Builder paramsBuilder, @Nullable String aliasPrefix) {
+  protected String parseCompositeFilter(Filter filter, Builder paramsBuilder) {
     Filter.Op op = filter.getOp();
     switch (op) {
       case OR:
         {
           String childList =
               Arrays.stream(filter.getChildFilters())
-                  .map(childFilter -> parseFilter(childFilter, paramsBuilder, aliasPrefix))
+                  .map(childFilter -> parseFilter(childFilter, paramsBuilder))
                   .filter(str -> !StringUtils.isEmpty(str))
                   .map(str -> "(" + str + ")")
                   .collect(Collectors.joining(" OR "));
@@ -447,7 +406,7 @@ public class PostgresCollection implements Collection {
         {
           String childList =
               Arrays.stream(filter.getChildFilters())
-                  .map(childFilter -> parseFilter(childFilter, paramsBuilder, aliasPrefix))
+                  .map(childFilter -> parseFilter(childFilter, paramsBuilder))
                   .filter(str -> !StringUtils.isEmpty(str))
                   .map(str -> "(" + str + ")")
                   .collect(Collectors.joining(" AND "));
@@ -506,13 +465,10 @@ public class PostgresCollection implements Collection {
    * keys. Note: It doesn't handle array elements in json document. e.g SELECT * FROM TABLE where
    * document ->> 'first' = 'name' and document -> 'address' ->> 'pin' = "00000"
    */
-  private String prepareFieldDataAccessorExpr(String fieldName, String aliasPrefix) {
+  private String prepareFieldDataAccessorExpr(String fieldName) {
     StringBuilder fieldPrefix = new StringBuilder(fieldName);
     if (!OUTER_COLUMNS.contains(fieldName)) {
-      fieldPrefix =
-          aliasPrefix == null
-              ? new StringBuilder(DOCUMENT)
-              : new StringBuilder(aliasPrefix + "." + DOCUMENT);
+      fieldPrefix = new StringBuilder(DOCUMENT);
       String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
       for (int i = 0; i < nestedFields.length - 1; i++) {
         fieldPrefix.append(JSON_FIELD_ACCESSOR).append("'").append(nestedFields[i]).append("'");
@@ -530,7 +486,7 @@ public class PostgresCollection implements Collection {
     return orderBys.stream()
         .map(
             orderBy ->
-                prepareFieldDataAccessorExpr(orderBy.getField(), null)
+                prepareFieldDataAccessorExpr(orderBy.getField())
                     + " "
                     + (orderBy.isAsc() ? "ASC" : "DESC"))
         .filter(str -> !StringUtils.isEmpty(str))
@@ -611,7 +567,7 @@ public class PostgresCollection implements Collection {
     long count = -1;
     // on any in-correct filter input, it will return total without filtering
     if (query.getFilter() != null) {
-      String parsedQuery = parseFilter(query.getFilter(), paramsBuilder, null);
+      String parsedQuery = parseFilter(query.getFilter(), paramsBuilder);
       if (parsedQuery != null) {
         totalSQLBuilder.append(" WHERE ").append(parsedQuery);
       }
@@ -656,11 +612,11 @@ public class PostgresCollection implements Collection {
 
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(getUpsertSQL(true), Statement.RETURN_GENERATED_KEYS)) {
+        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
 
         Key key = entry.getKey();
-        String jsonString = prepareUpsertDocument(key, entry.getValue());
+        String jsonString = prepareDocument(key, entry.getValue());
 
         preparedStatement.setString(1, key.toString());
         preparedStatement.setString(2, jsonString);
@@ -715,15 +671,6 @@ public class PostgresCollection implements Collection {
     throw new IOException("Could not bulk upsert the documents.");
   }
 
-  private String prepareUpsertDocument(Key key, Document document) throws IOException {
-    String jsonString = document.toJson();
-
-    ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(jsonString);
-    jsonNode.put(DOCUMENT_ID, key.toString());
-
-    return MAPPER.writeValueAsString(jsonNode);
-  }
-
   private String prepareDocument(Key key, Document document) throws IOException {
     String jsonString = document.toJson();
 
@@ -764,19 +711,14 @@ public class PostgresCollection implements Collection {
 
   private String getUpdateSQL() {
     return String.format(
-        "UPDATE %s AS d SET (%s, %s) = ( ?, ? :: jsonb) ", collectionName, ID, DOCUMENT, ID, DOCUMENT);
+        "UPDATE %s AS d SET (%s, %s) = ( ?, ? :: jsonb) ",
+        collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
-  private String getUpsertSQL(boolean isUpsert) {
-    if (isUpsert) {
-      return String.format(
-          "INSERT INTO %s AS d (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
-          collectionName, ID, DOCUMENT, ID, DOCUMENT);
-    } else {
-      return String.format(
-          "INSERT INTO %s AS d (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO NOTHING ",
-          collectionName, ID, DOCUMENT, ID, DOCUMENT);
-    }
+  private String getUpsertSQL() {
+    return String.format(
+        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
+        collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
   @Override

@@ -9,7 +9,7 @@ import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.SingleValueKey;
 
-public class CreateUpdateThread extends Thread {
+public class CreateUpdateTestThread extends Thread {
   private Collection collection;
   private int testValue;
   private DocStoreResult testResult;
@@ -24,7 +24,7 @@ public class CreateUpdateThread extends Thread {
   public static final String SUCCESS = "success";
   public static final String FAILURE = "failure";
 
-  public CreateUpdateThread(
+  public CreateUpdateTestThread(
       Collection collection, SingleValueKey documentKey, int setValue, Operation operation) {
     this.collection = collection;
     this.testValue = setValue;

@@ -2,34 +2,38 @@ package org.hypertrace.core.documentstore;
 
 /*
  * Represent the base result for all the newly added document store APIs.
+ *
  * */
 public class DocStoreResult {
   private boolean success;
   private long resultCount;
-  private String message;
+  private String failureMessage;
 
   public DocStoreResult(Builder builder) {
     this.success = builder.success;
     this.resultCount = builder.resultCount;
-    this.message = builder.message;
+    this.failureMessage = builder.failureMessage;
   }
 
+  /** Return True if the operation was successful */
   public boolean isSuccess() {
     return success;
   }
 
+  /** Returns the number of documents successfully inserted or updated */
   public long getResultCount() {
     return resultCount;
   }
 
-  public String getMessage() {
-    return message;
+  /** Additional message in case of operation failed */
+  public String getFailureMessage() {
+    return failureMessage;
   }
 
   public static class Builder {
     private boolean success;
     private long resultCount;
-    private String message;
+    private String failureMessage;
 
     private Builder() {}
 
@@ -47,8 +51,8 @@ public class DocStoreResult {
       return this;
     }
 
-    public Builder setMessage(String message) {
-      this.message = message;
+    public Builder setFailureMessage(String failureMessage) {
+      this.failureMessage = failureMessage;
       return this;
     }
 
