@@ -167,7 +167,7 @@ public class MongoCollection implements Collection {
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Create result: " + insertOneResult.toString());
       }
-      return insertOneResult.getInsertedId() != null ? new CreateResult(1) : new CreateResult(0);
+      return new CreateResult(insertOneResult.getInsertedId() != null);
     } catch (Exception e) {
       LOGGER.error("Exception creating document. key: {} content:{}", key, document, e);
       throw new IOException(e);

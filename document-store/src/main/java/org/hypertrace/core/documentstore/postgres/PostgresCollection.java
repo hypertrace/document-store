@@ -130,7 +130,7 @@ public class PostgresCollection implements Collection {
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Create result: {}", result);
       }
-      return new CreateResult(result);
+      return new CreateResult(result > 0);
     } catch (SQLException e) {
       LOGGER.error("SQLException creating document. key: {} content:{}", key, document, e);
       throw new IOException(e);
@@ -706,8 +706,7 @@ public class PostgresCollection implements Collection {
 
   private String getUpdateSQL() {
     return String.format(
-        "UPDATE %s AS d SET (%s, %s) = ( ?, ? :: jsonb) ",
-        collectionName, ID, DOCUMENT, ID, DOCUMENT);
+        "UPDATE %s SET (%s, %s) = ( ?, ? :: jsonb) ", collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
   private String getUpsertSQL() {

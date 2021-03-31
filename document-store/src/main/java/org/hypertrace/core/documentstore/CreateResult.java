@@ -4,13 +4,13 @@ package org.hypertrace.core.documentstore;
  * Represent the result object for CREATE operation of document store APIs.
  * */
 public class CreateResult {
-  private long createdCount;
+  private boolean succeed;
 
-  public CreateResult(long createdCount) {
-    this.createdCount = createdCount;
+  public CreateResult(boolean succeed) {
+    this.succeed = succeed;
   }
 
-  public long getCreatedCount() {
-    return createdCount;
+  public boolean isSucceed() {
+    return succeed;
   }
 }

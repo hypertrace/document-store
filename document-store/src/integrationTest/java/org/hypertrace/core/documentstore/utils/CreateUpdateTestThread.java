@@ -10,7 +10,7 @@ import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 
-public class CreateUpdateTestThread extends Thread {
+public final class CreateUpdateTestThread extends Thread {
   private Collection collection;
   private int testValue;
   private CreateResult createTestResult;
@@ -43,7 +43,7 @@ public class CreateUpdateTestThread extends Thread {
     switch (operation) {
       case CREATE:
         if (createTestResult != null) {
-          success = createTestResult.getCreatedCount() > 0;
+          success = createTestResult.isSucceed();
         }
         break;
       case UPDATE:

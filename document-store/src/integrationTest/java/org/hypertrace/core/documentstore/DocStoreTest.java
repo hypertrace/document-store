@@ -1102,7 +1102,7 @@ public class DocStoreTest {
             ImmutablePair.of("name", "inserted"),
             ImmutablePair.of("size", RandomUtils.nextInt(1, 6)));
     CreateResult createResult = collection.create(documentKey, document);
-    Assertions.assertTrue(createResult.getCreatedCount() == 1);
+    Assertions.assertTrue(createResult.isSucceed());
 
     Map<String, List<CreateUpdateTestThread>> resultMap =
         executeCreateUpdateThreads(collection, Operation.UPDATE, 5, documentKey);
@@ -1151,7 +1151,7 @@ public class DocStoreTest {
                 ImmutablePair.of("size", -10),
                 ImmutablePair.of("isCostly", false)));
 
-    Assertions.assertTrue(createResult.getCreatedCount() == 1);
+    Assertions.assertTrue(createResult.isSucceed());
 
     // test that document is updated if condition met
     UpdateResult updateResult =
