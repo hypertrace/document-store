@@ -153,7 +153,7 @@ public class MongoCollection implements Collection {
       }
       return new org.hypertrace.core.documentstore.UpdateResult(writeResult.getModifiedCount());
     } catch (Exception e) {
-      LOGGER.error("Exception updating document. key: {} content:{}", key, document, e);
+      LOGGER.error("Exception updating document. key: {} content: {}", key, document, e);
       throw new IOException(e);
     }
   }
