@@ -141,7 +141,7 @@ public class MongoCollection implements Collection {
       Key key, Document document, Filter condition) throws IOException {
     try {
       Map<String, Object> conditionMap =
-          condition != null ? parseQuery(condition) : new HashMap<>();
+          condition == null ? new HashMap<>() : parseQuery(condition);
       conditionMap.put(ID_KEY, key.toString());
       BasicDBObject conditionObject = new BasicDBObject(conditionMap);
       UpdateOptions options = new UpdateOptions().upsert(false);
