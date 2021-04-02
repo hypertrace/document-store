@@ -113,7 +113,7 @@ public class PostgresCollection implements Collection {
       }
       return new UpdateResult(result);
     } catch (SQLException e) {
-      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      LOGGER.error("SQLException inserting document. key: {} content: {}", key, document, e);
       throw new IOException(e);
     }
   }
