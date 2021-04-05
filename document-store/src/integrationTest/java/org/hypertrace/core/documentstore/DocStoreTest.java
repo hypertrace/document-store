@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
+import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -16,12 +18,16 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
+import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
+import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.Operation;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -1053,6 +1059,188 @@ public class DocStoreTest {
         assertTrue(exception.getMessage().contains(expected));
       }
     }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testCreateWithMultipleThreads(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
+
+    Map<String, List<CreateUpdateTestThread>> resultMap =
+        executeCreateUpdateThreads(collection, Operation.CREATE, 5, documentKey);
+
+    Assertions.assertEquals(1, resultMap.get(SUCCESS).size());
+    Assertions.assertEquals(4, resultMap.get(FAILURE).size());
+
+    // check the inserted document and thread result matches
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", documentKey.toString()));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    Map<String, Object> doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
+    Assertions.assertEquals(resultMap.get(SUCCESS).get(0).getTestValue(), (int) doc.get("size"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUpdateWithMultipleThreads(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
+
+    // create document
+    Document document =
+        Utils.createDocument(
+            ImmutablePair.of("id", documentKey.getValue()),
+            ImmutablePair.of("name", "inserted"),
+            ImmutablePair.of("size", RandomUtils.nextInt(1, 6)));
+    CreateResult createResult = collection.create(documentKey, document);
+    Assertions.assertTrue(createResult.isSucceed());
+
+    Map<String, List<CreateUpdateTestThread>> resultMap =
+        executeCreateUpdateThreads(collection, Operation.UPDATE, 5, documentKey);
+
+    Assertions.assertEquals(1, resultMap.get(SUCCESS).size());
+    Assertions.assertEquals(4, resultMap.get(FAILURE).size());
+
+    // check the inserted document and thread result matches
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", documentKey.toString()));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    Map<String, Object> doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
+    Assertions.assertEquals(
+        "thread-" + resultMap.get(SUCCESS).get(0).getTestValue(), doc.get("name"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUpdateWithCondition(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    Query query = new Query();
+    query.setFilter(Filter.eq("_id", "default:testKey1"));
+    Filter condition = new Filter(Op.EQ, "isCostly", false);
+
+    // test that document is inserted if its not exists
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 0);
+
+    CreateResult createResult =
+        collection.create(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey1"),
+                ImmutablePair.of("name", "abc1"),
+                ImmutablePair.of("size", -10),
+                ImmutablePair.of("isCostly", false)));
+
+    Assertions.assertTrue(createResult.isSucceed());
+
+    // test that document is updated if condition met
+    UpdateResult updateResult =
+        collection.update(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey1"),
+                ImmutablePair.of("name", "abc1"),
+                ImmutablePair.of("size", 10),
+                ImmutablePair.of("isCostly", false)),
+            condition);
+
+    Assertions.assertTrue(updateResult.getUpdatedCount() == 1);
+
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    Map<String, Object> doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
+    Assertions.assertEquals(10, (int) doc.get("size"));
+
+    // test that document is not updated if condition not met
+    condition = new Filter(Op.EQ, "isCostly", true);
+    try {
+      updateResult =
+          collection.update(
+              new SingleValueKey("default", "testKey1"),
+              Utils.createDocument(
+                  ImmutablePair.of("id", "testKey1"),
+                  ImmutablePair.of("name", "abc1"),
+                  ImmutablePair.of("size", 20),
+                  ImmutablePair.of("isCostly", true)),
+              condition);
+    } catch (IOException e) {
+      updateResult = new UpdateResult(0);
+    }
+
+    Assertions.assertTrue(updateResult.getUpdatedCount() == 0);
+
+    results = collection.search(query);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertTrue(documents.size() == 1);
+    doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
+    Assertions.assertEquals(10, (int) doc.get("size"));
+    Assertions.assertFalse((boolean) doc.get("isCostly"));
+  }
+
+  private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
+      Collection collection, Operation operation, int numThreads, SingleValueKey documentKey) {
+    List<CreateUpdateTestThread> threads = new ArrayList<CreateUpdateTestThread>();
+    IntStream.range(1, numThreads + 1)
+        .forEach(
+            number ->
+                threads.add(
+                    new CreateUpdateTestThread(collection, documentKey, number, operation)));
+    threads.stream().forEach(t -> t.start());
+    threads.stream()
+        .forEach(
+            t -> {
+              try {
+                t.join();
+              } catch (InterruptedException ex) {
+                // result of such threads are consider as failure
+              }
+            });
+
+    Map<String, List<CreateUpdateTestThread>> resultMap =
+        new HashMap<>() {
+          {
+            put(SUCCESS, new ArrayList());
+            put(FAILURE, new ArrayList());
+          }
+        };
+
+    threads.stream()
+        .forEach(
+            t -> {
+              if (t.getTestResult()) {
+                resultMap.get(SUCCESS).add(t);
+              } else {
+                resultMap.get(FAILURE).add(t);
+              }
+            });
+    return resultMap;
   }
 
   /**

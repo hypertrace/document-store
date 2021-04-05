@@ -93,5 +93,25 @@ public interface Collection {
   /** Drops a collections */
   void drop();
 
+  /**
+   * create a new document if one doesn't exists with the key
+   *
+   * @param key Unique key of the document in the collection.
+   * @param document Document to be created.
+   * @return an instance of {@link CreateResult}
+   */
+  CreateResult create(Key key, Document document) throws IOException;
+
+  /**
+   * Update an existing document if condition is evaluated to true. Condition will help in providing
+   * optimistic locking support for concurrency update.
+   *
+   * @param key Unique key of the document in the collection.
+   * @param document Document to be updated.
+   * @param condition Filter condition to be evaluated if present, on success update the document
+   * @return an instance of {@link UpdateResult}
+   */
+  UpdateResult update(Key key, Document document, Filter condition) throws IOException;
+
   String UNSUPPORTED_QUERY_OPERATION = "Query operation is not supported";
 }

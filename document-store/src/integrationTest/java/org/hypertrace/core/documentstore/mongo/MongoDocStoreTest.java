@@ -121,6 +121,7 @@ public class MongoDocStoreTest {
     assertTrue(datastore.deleteCollection(COLLECTION_NAME));
   }
 
+  @Test
   public void testUpsertAndReturn() throws IOException {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();

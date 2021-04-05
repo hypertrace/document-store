@@ -21,12 +21,15 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Collection;
+import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.Query;
+import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,7 +70,7 @@ public class PostgresCollection implements Collection {
   public boolean upsert(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
         client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
-      String jsonString = prepareUpsertDocument(key, document);
+      String jsonString = prepareDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, jsonString);
@@ -78,6 +81,58 @@ public class PostgresCollection implements Collection {
       return result >= 0;
     } catch (SQLException e) {
       LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  /**
+   * Update an existing document if condition is evaluated to true. Conditional will help in
+   * providing optimistic locking support for concurrency update.
+   */
+  @Override
+  public UpdateResult update(Key key, Document document, Filter condition) throws IOException {
+    StringBuilder upsertQueryBuilder = new StringBuilder(getUpdateSQL());
+
+    String jsonString = prepareDocument(key, document);
+    Params.Builder paramsBuilder = Params.newBuilder();
+    paramsBuilder.addObjectParam(key.toString());
+    paramsBuilder.addObjectParam(jsonString);
+
+    if (condition != null) {
+      String conditionQuery = parseFilter(condition, paramsBuilder);
+      if (conditionQuery != null) {
+        upsertQueryBuilder.append(" WHERE ").append(conditionQuery);
+      }
+    }
+
+    try (PreparedStatement preparedStatement =
+        buildPreparedStatement(upsertQueryBuilder.toString(), paramsBuilder.build())) {
+      int result = preparedStatement.executeUpdate();
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", result);
+      }
+      return new UpdateResult(result);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException inserting document. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  /** create a new document if one doesn't exists with key */
+  @Override
+  public CreateResult create(Key key, Document document) throws IOException {
+    try (PreparedStatement preparedStatement =
+        client.prepareStatement(getInsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+      String jsonString = prepareDocument(key, document);
+      preparedStatement.setString(1, key.toString());
+      preparedStatement.setString(2, jsonString);
+      int result = preparedStatement.executeUpdate();
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Create result: {}", result);
+      }
+      return new CreateResult(result > 0);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException creating document. key: {} content:{}", key, document, e);
       throw new IOException(e);
     }
   }
@@ -187,7 +242,7 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected String parseFilter(Filter filter, Params.Builder paramsBuilder) {
+  protected String parseFilter(Filter filter, Builder paramsBuilder) {
     if (filter.isComposite()) {
       return parseCompositeFilter(filter, paramsBuilder);
     } else {
@@ -196,7 +251,7 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected String parseNonCompositeFilter(Filter filter, Params.Builder paramsBuilder) {
+  protected String parseNonCompositeFilter(Filter filter, Builder paramsBuilder) {
     Filter.Op op = filter.getOp();
     Object value = filter.getValue();
     String fieldName = filter.getFieldName();
@@ -329,7 +384,7 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected String parseCompositeFilter(Filter filter, Params.Builder paramsBuilder) {
+  protected String parseCompositeFilter(Filter filter, Builder paramsBuilder) {
     Filter.Op op = filter.getOp();
     switch (op) {
       case OR:
@@ -556,7 +611,7 @@ public class PostgresCollection implements Collection {
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
 
         Key key = entry.getKey();
-        String jsonString = prepareUpsertDocument(key, entry.getValue());
+        String jsonString = prepareDocument(key, entry.getValue());
 
         preparedStatement.setString(1, key.toString());
         preparedStatement.setString(2, jsonString);
@@ -611,7 +666,7 @@ public class PostgresCollection implements Collection {
     throw new IOException("Could not bulk upsert the documents.");
   }
 
-  private String prepareUpsertDocument(Key key, Document document) throws IOException {
+  private String prepareDocument(Key key, Document document) throws IOException {
     String jsonString = document.toJson();
 
     ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(jsonString);
@@ -641,6 +696,17 @@ public class PostgresCollection implements Collection {
     } else /* default is string */ {
       return field;
     }
+  }
+
+  private String getInsertSQL() {
+    return String.format(
+        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb)",
+        collectionName, ID, DOCUMENT, ID, DOCUMENT);
+  }
+
+  private String getUpdateSQL() {
+    return String.format(
+        "UPDATE %s SET (%s, %s) = ( ?, ? :: jsonb) ", collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
   private String getUpsertSQL() {
