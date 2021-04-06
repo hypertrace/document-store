@@ -34,6 +34,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
 import org.bson.conversions.Bson;
@@ -123,13 +124,36 @@ public class MongoCollection implements Collection {
         LOGGER.debug("Write result: " + writeResult.toString());
       }
 
-      return writeResult.getModifiedCount() > 0;
+      return (writeResult.getUpsertedId() != null || writeResult.getModifiedCount() > 0);
     } catch (IOException e) {
       LOGGER.error("Exception upserting document. key: {} content:{}", key, document, e);
       throw e;
     }
   }
 
+  /**
+   * Same as existing upsert method, however, extends the support with condition and optional
+   * parameter for explicitly controlling insert and update.
+   * */
+  @Override
+  public boolean upsert(Key key, Document document, Filter condition, @Nullable Boolean isUpsert)
+      throws IOException {
+    try {
+      Map<String, Object> map = parseQuery(condition);
+      map.put(ID_KEY, key.toString());
+      BasicDBObject conditionObject = new BasicDBObject(map);
+      UpdateOptions options = new UpdateOptions().upsert(isUpsert != null ? isUpsert : true);
+      UpdateResult writeResult =
+          collection.updateOne(conditionObject, this.prepareUpsert(key, document), options);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: " + writeResult.toString());
+      }
+      return (writeResult.getUpsertedId() == null || writeResult.getModifiedCount() > 0);
+    } catch (Exception e) {
+      LOGGER.error("Exception upserting document. key: {} content:{}", key, document, e);
+      throw new IOException(e);
+    }
+  }
   /**
    * Adds the following fields automatically: _id, _lastUpdateTime, lastUpdatedTime and created Time
    */

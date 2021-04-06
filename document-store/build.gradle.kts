@@ -8,6 +8,7 @@ plugins {
 
 dependencies {
   api("com.typesafe:config:1.3.2")
+  api("com.google.code.findbugs:jsr305:3.0.2")
   implementation("org.postgresql:postgresql:42.2.13")
   implementation("org.mongodb:mongodb-driver-sync:4.1.2")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")

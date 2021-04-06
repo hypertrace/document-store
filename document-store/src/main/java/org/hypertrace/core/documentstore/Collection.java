@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
+import javax.annotation.Nullable;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
@@ -15,6 +16,21 @@ public interface Collection {
    * @return True if this operation resulted in update of an existing document. False, otherwise.
    */
   boolean upsert(Key key, Document document) throws IOException;
+
+  /**
+   * Upsert (create a new doc or update if one already exists) the given document into the doc store
+   * if condition is evaluated to true. Provides optimistic lock support for concurrency update.
+   *
+   * @param key Unique key of the document in the collection.
+   * @param document Document to be upserted.
+   * @param condition Filter condition to be evaluated, on success update the document
+   * @param isUpsert Optional parameter to explicitly control insert or update, default is true.
+   *                 True indicates if the document doesn't exist, it will insert a new document
+   *                 False indicates if the document exists, update it otherwise don't do anything.
+   * @return True if success. False otherwise.
+   */
+  boolean upsert(Key key, Document document, Filter condition, @Nullable Boolean isUpsert)
+      throws IOException;
 
   /**
    * Upsert (create a new doc or update if one already exists) the given document into the doc
