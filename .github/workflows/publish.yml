@@ -33,7 +33,8 @@ jobs:
         with: 
           args: publish
         env:
-          ORG_GRADLE_PROJECT_publishUser: ${{ secrets.BINTRAY_USER }}
-          ORG_GRADLE_PROJECT_publishApiKey: ${{ secrets.BINTRAY_API_KEY }}
+          ORG_GRADLE_PROJECT_artifactory_contextUrl: ${{ secrets.ARTIFACTORY_CONTEXT_URL }}
+          ORG_GRADLE_PROJECT_artifactory_user: ${{ secrets.ARTIFACTORY_PUBLISH_USER }}
+          ORG_GRADLE_PROJECT_artifactory_password: ${{ secrets.ARTIFACTORY_PUBLISH_TOKEN }}
 
 
