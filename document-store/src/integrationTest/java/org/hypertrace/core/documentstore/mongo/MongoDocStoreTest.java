@@ -32,7 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.apache.commons.lang3.tuple.Triple;
+import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
@@ -168,14 +168,14 @@ public class MongoDocStoreTest {
     objectNode.put("foo1", "bar1");
     objectNode.put("timestamp", 100);
 
-    List<Triple<Key, Document, Filter>> toUpdate = new ArrayList<>();
+    List<BulkUpdateRequest> toUpdate = new ArrayList<>();
     toUpdate.add(
-        Triple.of(
+        new BulkUpdateRequest(
             new SingleValueKey("tenant-1", "testKey1"),
             new JSONDocument(objectNode),
             new Filter(Op.LT, "timestamp", 100)));
     toUpdate.add(
-        Triple.of(
+        new BulkUpdateRequest(
             new SingleValueKey("tenant-1", "testKey2"),
             new JSONDocument(objectNode),
             new Filter(Op.LT, "timestamp", 100)));
@@ -205,15 +205,15 @@ public class MongoDocStoreTest {
     updatedObject.put("foo1", "bar1");
     updatedObject.put("timestamp", 110);
 
-    List<Triple<Key, Document, Filter>> toUpdate = new ArrayList<>();
+    List<BulkUpdateRequest> toUpdate = new ArrayList<>();
     toUpdate.add(
-        Triple.of(
+        new BulkUpdateRequest(
             new SingleValueKey("tenant-1", "testKey1"),
             new JSONDocument(updatedObject),
             new Filter(Op.LT, "timestamp", 100)));
 
     toUpdate.add(
-        Triple.of(
+        new BulkUpdateRequest(
             new SingleValueKey("tenant-1", "testKey2"),
             new JSONDocument(updatedObject),
             new Filter(Op.LT, "timestamp", 100)));

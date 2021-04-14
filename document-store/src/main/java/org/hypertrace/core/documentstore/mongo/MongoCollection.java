@@ -37,10 +37,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
-import org.apache.commons.lang3.tuple.Triple;
 import org.bson.conversions.Bson;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
+import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
@@ -138,28 +138,29 @@ public class MongoCollection implements Collection {
    * Bulk updates existing documents if condition for the corresponding document evaluates to true.
    */
   @Override
-  public BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents)
-      throws Exception {
+  public BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception {
     try {
-      BulkWriteResult result = bulkUpdateImpl(documents);
+      BulkWriteResult result = bulkUpdateImpl(bulkUpdateRequests);
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug(result.toString());
       }
       return new BulkUpdateResult(result.getModifiedCount());
     } catch (IOException | MongoServerException e) {
-      LOGGER.error("Error during bulk update for documents:{}", documents, e);
+      LOGGER.error("Error during bulk update for documents:{}", bulkUpdateRequests, e);
       throw new Exception(e);
     }
   }
 
-  private BulkWriteResult bulkUpdateImpl(List<Triple<Key, Document, Filter>> documents)
+  private BulkWriteResult bulkUpdateImpl(List<BulkUpdateRequest> bulkUpdateRequests)
       throws JsonProcessingException {
     List<UpdateOneModel<BasicDBObject>> bulkCollection = new ArrayList<>();
-    for (Triple<Key, Document, Filter> entry : documents) {
-      Key key = entry.getLeft();
+    for (BulkUpdateRequest bulkUpdateRequest : bulkUpdateRequests) {
+      Key key = bulkUpdateRequest.getKey();
 
       Map<String, Object> conditionMap =
-          entry.getRight() == null ? new HashMap<>() : parseQuery(entry.getRight());
+          bulkUpdateRequest.getFilter() == null
+              ? new HashMap<>()
+              : parseQuery(bulkUpdateRequest.getFilter());
       conditionMap.put(ID_KEY, key.toString());
       BasicDBObject conditionObject = new BasicDBObject(conditionMap);
 
@@ -167,7 +168,7 @@ public class MongoCollection implements Collection {
       bulkCollection.add(
           new UpdateOneModel<>(
               conditionObject,
-              prepareUpsert(key, entry.getMiddle()),
+              prepareUpsert(key, bulkUpdateRequest.getDocument()),
               new UpdateOptions().upsert(false)));
     }
 

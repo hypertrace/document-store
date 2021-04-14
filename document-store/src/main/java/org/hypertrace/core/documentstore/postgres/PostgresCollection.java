@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Triple;
+import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
@@ -140,8 +140,7 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents)
-      throws Exception {
+  public BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception {
     throw new UnsupportedOperationException();
   }
 

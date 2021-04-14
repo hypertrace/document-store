@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.lang3.tuple.Triple;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
@@ -110,7 +109,7 @@ public interface Collection {
    * @param documents to be updated in bulk
    * @return true if operation succeeded
    */
-  BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents) throws Exception;
+  BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception;
 
   /**
    * Update an existing document if condition is evaluated to true. Condition will help in providing
