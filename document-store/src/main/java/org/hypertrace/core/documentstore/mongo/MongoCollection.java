@@ -37,6 +37,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.commons.lang3.tuple.Triple;
 import org.bson.conversions.Bson;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
@@ -130,6 +132,44 @@ public class MongoCollection implements Collection {
       LOGGER.error("Exception upserting document. key: {} content:{}", key, document, e);
       throw e;
     }
+  }
+
+  /**
+   * Bulk updates existing documents if condition for the corresponding document evaluates to true.
+   */
+  @Override
+  public boolean bulkUpdate(List<Triple<Key, Document, Filter>> documents) {
+    try {
+      BulkWriteResult result = bulkUpdateImpl(documents);
+      LOGGER.debug(result.toString());
+      return true;
+    } catch (IOException | MongoServerException e) {
+      LOGGER.error("Error during bulk update for documents:{}", documents, e);
+      return false;
+    }
+  }
+
+  private BulkWriteResult bulkUpdateImpl(List<Triple<Key, Document, Filter>> documents)
+      throws JsonProcessingException {
+    List<UpdateOneModel<BasicDBObject>> bulkCollection = new ArrayList<>();
+    for (Triple<Key, Document, Filter> entry : documents) {
+      Key key = entry.getLeft();
+
+      Map<String, Object> conditionMap =
+          entry.getRight() == null ? new HashMap<>() : parseQuery(entry.getRight());
+      conditionMap.put(ID_KEY, key.toString());
+      BasicDBObject conditionObject = new BasicDBObject(conditionMap);
+
+      // update if filter condition is satisfied
+      bulkCollection.add(
+          new UpdateOneModel<>(
+              conditionObject,
+              prepareUpsert(key, entry.getMiddle()),
+              new UpdateOptions().upsert(false)));
+    }
+
+    return Failsafe.with(bulkWriteRetryPolicy)
+        .get(() -> collection.bulkWrite(bulkCollection, new BulkWriteOptions().ordered(false)));
   }
 
   /**

@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.tuple.Triple;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
@@ -135,6 +136,11 @@ public class PostgresCollection implements Collection {
       LOGGER.error("SQLException creating document. key: {} content:{}", key, document, e);
       throw new IOException(e);
     }
+  }
+
+  @Override
+  public boolean bulkUpdate(List<Triple<Key, Document, Filter>> documents) {
+    throw new UnsupportedOperationException();
   }
 
   /**
