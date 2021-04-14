@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
 /** Interface spec for common operations on a collection of documents */
@@ -101,6 +102,14 @@ public interface Collection {
    * @return an instance of {@link CreateResult}
    */
   CreateResult create(Key key, Document document) throws IOException;
+
+  /**
+   * Updates existing documents if the corresponding Filter condition evaluates to true
+   *
+   * @param documents to be updated in bulk
+   * @return an instance of {@link BulkUpdateResult}
+   */
+  BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception;
 
   /**
    * Update an existing document if condition is evaluated to true. Condition will help in providing

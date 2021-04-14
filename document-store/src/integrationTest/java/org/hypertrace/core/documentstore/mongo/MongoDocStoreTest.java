@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.mongo;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -31,6 +32,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.hypertrace.core.documentstore.BulkUpdateRequest;
+import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
@@ -155,6 +158,76 @@ public class MongoDocStoreTest {
 
     assertEquals("bar1", node.get("foo1").asText());
     assertEquals("bar2", node.get("foo2").asText());
+  }
+
+  @Test
+  public void whenBulkUpdatingNonExistentRecords_thenExpectNothingToBeUpdatedOrCreated()
+      throws Exception {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+    objectNode.put("foo1", "bar1");
+    objectNode.put("timestamp", 100);
+
+    List<BulkUpdateRequest> toUpdate = new ArrayList<>();
+    toUpdate.add(
+        new BulkUpdateRequest(
+            new SingleValueKey("tenant-1", "testKey1"),
+            new JSONDocument(objectNode),
+            new Filter(Op.LT, "timestamp", 100)));
+    toUpdate.add(
+        new BulkUpdateRequest(
+            new SingleValueKey("tenant-1", "testKey2"),
+            new JSONDocument(objectNode),
+            new Filter(Op.LT, "timestamp", 100)));
+
+    BulkUpdateResult result = collection.bulkUpdate(toUpdate);
+    Assertions.assertEquals(0, result.getUpdatedCount());
+
+    Query query = new Query();
+    query.setFilter(
+        new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
+    Iterator<Document> it = collection.search(query);
+    assertFalse(it.hasNext());
+  }
+
+  @Test
+  public void whenBulkUpdatingExistingRecords_thenExpectOnlyRecordsWhoseConditionsMatchToBeUpdated()
+      throws Exception {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    ObjectNode persistedObject = OBJECT_MAPPER.createObjectNode();
+    persistedObject.put("foo1", "bar1");
+    persistedObject.put("timestamp", 90);
+
+    collection.create(
+        new SingleValueKey("tenant-1", "testKey1"), new JSONDocument(persistedObject));
+
+    ObjectNode updatedObject = OBJECT_MAPPER.createObjectNode();
+    updatedObject.put("foo1", "bar1");
+    updatedObject.put("timestamp", 110);
+
+    List<BulkUpdateRequest> toUpdate = new ArrayList<>();
+    toUpdate.add(
+        new BulkUpdateRequest(
+            new SingleValueKey("tenant-1", "testKey1"),
+            new JSONDocument(updatedObject),
+            new Filter(Op.LT, "timestamp", 100)));
+
+    toUpdate.add(
+        new BulkUpdateRequest(
+            new SingleValueKey("tenant-1", "testKey2"),
+            new JSONDocument(updatedObject),
+            new Filter(Op.LT, "timestamp", 100)));
+
+    BulkUpdateResult result = collection.bulkUpdate(toUpdate);
+    Assertions.assertEquals(1, result.getUpdatedCount());
+
+    Query query = new Query();
+    query.setFilter(
+        new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
+    Iterator<Document> it = collection.search(query);
+    JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
+    Long timestamp = root.findValue("timestamp").asLong();
+    Assertions.assertEquals(110, timestamp);
   }
 
   @Test
