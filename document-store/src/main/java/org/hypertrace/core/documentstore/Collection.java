@@ -107,7 +107,7 @@ public interface Collection {
    * Updates existing documents if the corresponding Filter condition evaluates to true
    *
    * @param documents to be updated in bulk
-   * @return true if operation succeeded
+   * @return an instance of {@link BulkUpdateResult}
    */
   BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception;
 
