@@ -106,11 +106,11 @@ public interface Collection {
 
   /**
    * Updates existing documents if the corresponding Filter condition evaluates to true
+   *
    * @param documents to be updated in bulk
    * @return true if operation succeeded
    */
   BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents) throws Exception;
-
 
   /**
    * Update an existing document if condition is evaluated to true. Condition will help in providing

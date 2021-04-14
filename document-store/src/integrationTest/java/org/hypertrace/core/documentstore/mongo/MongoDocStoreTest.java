@@ -169,17 +169,23 @@ public class MongoDocStoreTest {
     objectNode.put("timestamp", 100);
 
     List<Triple<Key, Document, Filter>> toUpdate = new ArrayList<>();
-    toUpdate.add(Triple.of(new SingleValueKey("tenant-1", "testKey1"), new JSONDocument(objectNode),
-        new Filter(Op.LT, "timestamp", 100)));
-    toUpdate.add(Triple.of(new SingleValueKey("tenant-1", "testKey2"), new JSONDocument(objectNode),
-        new Filter(Op.LT, "timestamp", 100)));
+    toUpdate.add(
+        Triple.of(
+            new SingleValueKey("tenant-1", "testKey1"),
+            new JSONDocument(objectNode),
+            new Filter(Op.LT, "timestamp", 100)));
+    toUpdate.add(
+        Triple.of(
+            new SingleValueKey("tenant-1", "testKey2"),
+            new JSONDocument(objectNode),
+            new Filter(Op.LT, "timestamp", 100)));
 
     BulkUpdateResult result = collection.bulkUpdate(toUpdate);
     Assertions.assertEquals(0, result.getUpdatedCount());
 
     Query query = new Query();
-    query
-        .setFilter(new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
+    query.setFilter(
+        new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
     Iterator<Document> it = collection.search(query);
     assertFalse(it.hasNext());
   }
@@ -192,26 +198,32 @@ public class MongoDocStoreTest {
     persistedObject.put("foo1", "bar1");
     persistedObject.put("timestamp", 90);
 
-    collection.create(new SingleValueKey("tenant-1", "testKey1"), new JSONDocument(persistedObject));
+    collection.create(
+        new SingleValueKey("tenant-1", "testKey1"), new JSONDocument(persistedObject));
 
     ObjectNode updatedObject = OBJECT_MAPPER.createObjectNode();
     updatedObject.put("foo1", "bar1");
     updatedObject.put("timestamp", 110);
 
-
     List<Triple<Key, Document, Filter>> toUpdate = new ArrayList<>();
-    toUpdate.add(Triple.of(new SingleValueKey("tenant-1", "testKey1"), new JSONDocument(updatedObject),
-        new Filter(Op.LT, "timestamp", 100)));
+    toUpdate.add(
+        Triple.of(
+            new SingleValueKey("tenant-1", "testKey1"),
+            new JSONDocument(updatedObject),
+            new Filter(Op.LT, "timestamp", 100)));
 
-    toUpdate.add(Triple.of(new SingleValueKey("tenant-1", "testKey2"), new JSONDocument(updatedObject),
-        new Filter(Op.LT, "timestamp", 100)));
+    toUpdate.add(
+        Triple.of(
+            new SingleValueKey("tenant-1", "testKey2"),
+            new JSONDocument(updatedObject),
+            new Filter(Op.LT, "timestamp", 100)));
 
     BulkUpdateResult result = collection.bulkUpdate(toUpdate);
     Assertions.assertEquals(1, result.getUpdatedCount());
 
     Query query = new Query();
-    query
-        .setFilter(new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
+    query.setFilter(
+        new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
     Iterator<Document> it = collection.search(query);
     JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
     Long timestamp = root.findValue("timestamp").asLong();

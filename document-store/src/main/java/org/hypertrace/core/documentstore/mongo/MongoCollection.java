@@ -37,7 +37,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.bson.conversions.Bson;
 import org.bson.json.JsonMode;
@@ -139,10 +138,11 @@ public class MongoCollection implements Collection {
    * Bulk updates existing documents if condition for the corresponding document evaluates to true.
    */
   @Override
-  public BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents) throws Exception {
+  public BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents)
+      throws Exception {
     try {
       BulkWriteResult result = bulkUpdateImpl(documents);
-      if(LOGGER.isDebugEnabled()) {
+      if (LOGGER.isDebugEnabled()) {
         LOGGER.debug(result.toString());
       }
       return new BulkUpdateResult(result.getModifiedCount());

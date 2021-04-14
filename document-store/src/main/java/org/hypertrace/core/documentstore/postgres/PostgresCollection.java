@@ -140,7 +140,8 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents) throws Exception {
+  public BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents)
+      throws Exception {
     throw new UnsupportedOperationException();
   }
 
