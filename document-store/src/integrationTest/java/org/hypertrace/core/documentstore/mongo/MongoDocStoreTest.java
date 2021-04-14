@@ -33,6 +33,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Triple;
+import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
@@ -173,8 +174,8 @@ public class MongoDocStoreTest {
     toUpdate.add(Triple.of(new SingleValueKey("tenant-1", "testKey2"), new JSONDocument(objectNode),
         new Filter(Op.LT, "timestamp", 100)));
 
-    boolean result = collection.bulkUpdate(toUpdate);
-    Assertions.assertTrue(result);
+    BulkUpdateResult result = collection.bulkUpdate(toUpdate);
+    Assertions.assertEquals(0, result.getUpdatedCount());
 
     Query query = new Query();
     query
@@ -205,9 +206,8 @@ public class MongoDocStoreTest {
     toUpdate.add(Triple.of(new SingleValueKey("tenant-1", "testKey2"), new JSONDocument(updatedObject),
         new Filter(Op.LT, "timestamp", 100)));
 
-    boolean result = collection.bulkUpdate(toUpdate);
-    Assertions.assertTrue(result);
-    Assertions.assertEquals(1, collection.count());
+    BulkUpdateResult result = collection.bulkUpdate(toUpdate);
+    Assertions.assertEquals(1, result.getUpdatedCount());
 
     Query query = new Query();
     query

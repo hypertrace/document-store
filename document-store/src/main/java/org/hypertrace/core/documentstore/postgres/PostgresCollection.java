@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Triple;
+import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
@@ -139,7 +140,7 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public boolean bulkUpdate(List<Triple<Key, Document, Filter>> documents) {
+  public BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents) throws Exception {
     throw new UnsupportedOperationException();
   }
 

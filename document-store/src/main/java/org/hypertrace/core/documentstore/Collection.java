@@ -109,7 +109,7 @@ public interface Collection {
    * @param documents to be updated in bulk
    * @return true if operation succeeded
    */
-  boolean bulkUpdate(List<Triple<Key, Document, Filter>> documents);
+  BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents) throws Exception;
 
 
   /**

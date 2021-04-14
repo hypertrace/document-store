@@ -42,6 +42,7 @@ import org.apache.commons.lang3.tuple.Triple;
 import org.bson.conversions.Bson;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
+import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
@@ -138,14 +139,16 @@ public class MongoCollection implements Collection {
    * Bulk updates existing documents if condition for the corresponding document evaluates to true.
    */
   @Override
-  public boolean bulkUpdate(List<Triple<Key, Document, Filter>> documents) {
+  public BulkUpdateResult bulkUpdate(List<Triple<Key, Document, Filter>> documents) throws Exception {
     try {
       BulkWriteResult result = bulkUpdateImpl(documents);
-      LOGGER.debug(result.toString());
-      return true;
+      if(LOGGER.isDebugEnabled()) {
+        LOGGER.debug(result.toString());
+      }
+      return new BulkUpdateResult(result.getModifiedCount());
     } catch (IOException | MongoServerException e) {
       LOGGER.error("Error during bulk update for documents:{}", documents, e);
-      return false;
+      throw new Exception(e);
     }
   }
 
