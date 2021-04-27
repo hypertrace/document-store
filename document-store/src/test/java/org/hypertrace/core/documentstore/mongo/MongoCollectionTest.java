@@ -16,6 +16,7 @@ import java.util.Map;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
+import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.Query;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -153,6 +154,14 @@ public class MongoCollectionTest {
     Assertions.assertTrue(
         ((List) ((Map) ((List) query.get("$or")).get(1)).get("$and"))
             .containsAll(List.of(Map.of("key3", "val3"), Map.of("key4", "val4"))));
+  }
+
+  @Test
+  public void testParseOrderByQuery() {
+    List<OrderBy> orderBys = List
+        .of(new OrderBy("key1", true), new OrderBy("key2", false), new OrderBy("key3", true));
+    assertEquals(Map.of("key1", 1, "key2", -1, "key3", 1),
+        mongoCollection.parseOrderByQuery(orderBys));
   }
 
   @Test

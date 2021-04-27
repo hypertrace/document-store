@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -361,9 +362,7 @@ public class MongoCollection implements Collection {
     }
 
     if (!query.getOrderBys().isEmpty()) {
-      Map<String, Object> orderbyMap = new HashMap<>();
-      parseOrderByQuery(query.getOrderBys(), orderbyMap);
-      BasicDBObject orderBy = new BasicDBObject(orderbyMap);
+      BasicDBObject orderBy = new BasicDBObject(parseOrderByQuery(query.getOrderBys()));
       cursor.sort(orderBy);
     }
 
@@ -409,10 +408,13 @@ public class MongoCollection implements Collection {
     return true;
   }
 
-  private void parseOrderByQuery(List<OrderBy> orderBys, Map<String, Object> orderbyMap) {
+  @VisibleForTesting
+  LinkedHashMap<String, Object> parseOrderByQuery(List<OrderBy> orderBys) {
+    LinkedHashMap<String, Object> orderByMap = new LinkedHashMap<>();
     for (OrderBy orderBy : orderBys) {
-      orderbyMap.put(orderBy.getField(), (orderBy.isAsc() ? 1 : -1));
+      orderByMap.put(orderBy.getField(), (orderBy.isAsc() ? 1 : -1));
     }
+    return orderByMap;
   }
 
   @VisibleForTesting
