@@ -158,10 +158,10 @@ public class MongoCollectionTest {
 
   @Test
   public void testParseOrderByQuery() {
-    List<OrderBy> orderBys = List
-        .of(new OrderBy("key1", true), new OrderBy("key2", false), new OrderBy("key3", true));
-    assertEquals(Map.of("key1", 1, "key2", -1, "key3", 1),
-        mongoCollection.parseOrderByQuery(orderBys));
+    List<OrderBy> orderBys =
+        List.of(new OrderBy("key1", true), new OrderBy("key2", false), new OrderBy("key3", true));
+    assertEquals(
+        Map.of("key1", 1, "key2", -1, "key3", 1), mongoCollection.parseOrderByQuery(orderBys));
   }
 
   @Test
