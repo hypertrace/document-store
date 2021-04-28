@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.util.List;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
+import org.hypertrace.core.documentstore.OrderBy;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -235,6 +236,15 @@ class PostgresQueryParserTest {
         "((document->>'key1' = ?) AND (document->>'key2' = ?)) "
             + "OR ((document->>'key3' = ?) AND (document->>'key4' = ?))",
         query);
+  }
+
+  @Test
+  void testParseOrderBys() {
+    List<OrderBy> orderBys =
+        List.of(new OrderBy("key1", true), new OrderBy("key2", false), new OrderBy("key3", true));
+    Assertions.assertEquals(
+        "document->>'key1' ASC , document->>'key2' DESC , document->>'key3' ASC",
+        PostgresQueryParser.parseOrderBys(orderBys));
   }
 
   private Params.Builder initParams() {
