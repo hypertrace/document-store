@@ -844,6 +844,9 @@ public class DocStoreTest {
       query.setLimit(2);
       query.setOffset(1);
       query.addOrderBy(new OrderBy("_id", true));
+      query.addOrderBy(new OrderBy("foo1", true));
+      query.addOrderBy(new OrderBy("foo2", true));
+      query.addOrderBy(new OrderBy("foo3", true));
 
       Iterator<Document> results = collection.search(query);
       List<Document> documents = new ArrayList<>();
