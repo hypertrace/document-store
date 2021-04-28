@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.OrderBy;
 
-public class MongoQueryParser {
+class MongoQueryParser {
 
   static Map<String, Object> parseFilter(Filter filter) {
     if (filter.isComposite()) {
