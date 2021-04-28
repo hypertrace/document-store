@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.google.common.annotations.VisibleForTesting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.MongoCommandException;
@@ -26,7 +25,6 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -48,7 +46,6 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
-import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -160,7 +157,7 @@ public class MongoCollection implements Collection {
       Map<String, Object> conditionMap =
           bulkUpdateRequest.getFilter() == null
               ? new HashMap<>()
-              : parseQuery(bulkUpdateRequest.getFilter());
+              : MongoQueryParser.parseFilter(bulkUpdateRequest.getFilter());
       conditionMap.put(ID_KEY, key.toString());
       BasicDBObject conditionObject = new BasicDBObject(conditionMap);
 
@@ -185,7 +182,7 @@ public class MongoCollection implements Collection {
       Key key, Document document, Filter condition) throws IOException {
     try {
       Map<String, Object> conditionMap =
-          condition == null ? new HashMap<>() : parseQuery(condition);
+          condition == null ? new HashMap<>() : MongoQueryParser.parseFilter(condition);
       conditionMap.put(ID_KEY, key.toString());
       BasicDBObject conditionObject = new BasicDBObject(conditionMap);
       UpdateOptions options = new UpdateOptions().upsert(false);
@@ -331,7 +328,7 @@ public class MongoCollection implements Collection {
 
     // If there is a filter in the query, parse it fully.
     if (query.getFilter() != null) {
-      map = parseQuery(query.getFilter());
+      map = MongoQueryParser.parseFilter(query.getFilter());
     }
 
     Bson projection = new BasicDBObject();
@@ -361,9 +358,8 @@ public class MongoCollection implements Collection {
     }
 
     if (!query.getOrderBys().isEmpty()) {
-      Map<String, Object> orderbyMap = new HashMap<>();
-      parseOrderByQuery(query.getOrderBys(), orderbyMap);
-      BasicDBObject orderBy = new BasicDBObject(orderbyMap);
+      BasicDBObject orderBy =
+          new BasicDBObject(MongoQueryParser.parseOrderBys(query.getOrderBys()));
       cursor.sort(orderBy);
     }
 
@@ -409,91 +405,6 @@ public class MongoCollection implements Collection {
     return true;
   }
 
-  private void parseOrderByQuery(List<OrderBy> orderBys, Map<String, Object> orderbyMap) {
-    for (OrderBy orderBy : orderBys) {
-      orderbyMap.put(orderBy.getField(), (orderBy.isAsc() ? 1 : -1));
-    }
-  }
-
-  @VisibleForTesting
-  Map<String, Object> parseQuery(Filter filter) {
-    if (filter.isComposite()) {
-      Filter.Op op = filter.getOp();
-      switch (op) {
-        case OR:
-        case AND:
-          {
-            List<Map<String, Object>> childMapList =
-                Arrays.stream(filter.getChildFilters())
-                    .map(this::parseQuery)
-                    .filter(map -> !map.isEmpty())
-                    .collect(Collectors.toList());
-            if (!childMapList.isEmpty()) {
-              return Map.of("$" + op.name().toLowerCase(), childMapList);
-            } else {
-              return Collections.emptyMap();
-            }
-          }
-        default:
-          throw new UnsupportedOperationException(
-              String.format("Boolean operation:%s not supported", op));
-      }
-    } else {
-      Filter.Op op = filter.getOp();
-      Object value = filter.getValue();
-      Map<String, Object> map = new HashMap<>();
-      switch (op) {
-        case EQ:
-          map.put(filter.getFieldName(), value);
-          break;
-        case LIKE:
-          // Case insensitive regex search
-          map.put(
-              filter.getFieldName(), new BasicDBObject("$regex", value).append("$options", "i"));
-          break;
-        case NOT_IN:
-          map.put(filter.getFieldName(), new BasicDBObject("$nin", value));
-          break;
-        case IN:
-          map.put(filter.getFieldName(), new BasicDBObject("$in", value));
-          break;
-        case CONTAINS:
-          map.put(filter.getFieldName(), new BasicDBObject("$elemMatch", filter.getValue()));
-          break;
-        case GT:
-          map.put(filter.getFieldName(), new BasicDBObject("$gt", value));
-          break;
-        case LT:
-          map.put(filter.getFieldName(), new BasicDBObject("$lt", value));
-          break;
-        case GTE:
-          map.put(filter.getFieldName(), new BasicDBObject("$gte", value));
-          break;
-        case LTE:
-          map.put(filter.getFieldName(), new BasicDBObject("$lte", value));
-          break;
-        case EXISTS:
-          map.put(filter.getFieldName(), new BasicDBObject("$exists", true));
-          break;
-        case NOT_EXISTS:
-          map.put(filter.getFieldName(), new BasicDBObject("$exists", false));
-          break;
-        case NEQ:
-          // $ne operator in Mongo also returns the results, where the key does not exist in the
-          // document. This is as per semantics of EQ vs NEQ. So, if you need documents where
-          // key exists, consumer needs to add additional filter.
-          // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
-          map.put(filter.getFieldName(), new BasicDBObject("$ne", value));
-          break;
-        case AND:
-        case OR:
-        default:
-          throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
-      }
-      return map;
-    }
-  }
-
   @Override
   public long count() {
     return collection.countDocuments();
@@ -505,7 +416,7 @@ public class MongoCollection implements Collection {
 
     // If there is a filter in the query, parse it fully.
     if (query.getFilter() != null) {
-      map = parseQuery(query.getFilter());
+      map = MongoQueryParser.parseFilter(query.getFilter());
     }
 
     return collection.countDocuments(new BasicDBObject(map));
