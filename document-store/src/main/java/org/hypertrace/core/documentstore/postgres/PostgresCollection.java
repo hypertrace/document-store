@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
@@ -491,7 +492,9 @@ public class PostgresCollection implements Collection {
   static class PostgresResultIterator implements Iterator {
 
     private final ObjectMapper MAPPER = new ObjectMapper();
-    ResultSet resultSet;
+    private ResultSet resultSet;
+    private boolean didNext = false;
+    private boolean hasNext = false;
 
     public PostgresResultIterator(ResultSet resultSet) {
       this.resultSet = resultSet;
@@ -500,7 +503,11 @@ public class PostgresCollection implements Collection {
     @Override
     public boolean hasNext() {
       try {
-        return resultSet.next();
+        if (!didNext) {
+          hasNext = resultSet.next();
+          didNext = true;
+        }
+        return hasNext;
       } catch (SQLException e) {
         LOGGER.error("SQLException iterating documents.", e);
       }
@@ -510,19 +517,27 @@ public class PostgresCollection implements Collection {
     @Override
     public Document next() {
       try {
-        String documentString = resultSet.getString(DOCUMENT);
-        ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
-        jsonNode.remove(DOCUMENT_ID);
-        // Add Timestamps to Document
-        Timestamp createdAt = resultSet.getTimestamp(CREATED_AT);
-        Timestamp updatedAt = resultSet.getTimestamp(UPDATED_AT);
-        jsonNode.put(CREATED_AT, String.valueOf(createdAt));
-        jsonNode.put(UPDATED_AT, String.valueOf(updatedAt));
-
-        return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+        if (!didNext) {
+          resultSet.next();
+        }
+        didNext = false;
+        return prepareDocument();
       } catch (IOException | SQLException e) {
         return JSONDocument.errorDocument(e.getMessage());
       }
+    }
+
+    private Document prepareDocument() throws SQLException, JsonProcessingException, IOException {
+      String documentString = resultSet.getString(DOCUMENT);
+      ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
+      jsonNode.remove(DOCUMENT_ID);
+      // Add Timestamps to Document
+      Timestamp createdAt = resultSet.getTimestamp(CREATED_AT);
+      Timestamp updatedAt = resultSet.getTimestamp(UPDATED_AT);
+      jsonNode.put(CREATED_AT, String.valueOf(createdAt));
+      jsonNode.put(UPDATED_AT, String.valueOf(updatedAt));
+
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
     }
 
     private String prepareNumericBlock(String fieldName, Object value) {

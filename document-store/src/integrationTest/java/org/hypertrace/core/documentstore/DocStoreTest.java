@@ -1207,6 +1207,60 @@ public class DocStoreTest {
     Assertions.assertFalse((boolean) doc.get("isCostly"));
   }
 
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testSearchIteratorInterface(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    String docStr1 =
+        "{\"amount\":1234.5,\"testKeyExist\":null,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    Document document1 = new JSONDocument(docStr1);
+    SingleValueKey key1 = new SingleValueKey("default", "testKey1");
+    collection.upsert(key1, document1);
+
+    String docStr2 =
+        "{\"amount\":1234,\"testKeyExist\":123,\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":123,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    Document document2 = new JSONDocument(docStr2);
+    SingleValueKey key2 = new SingleValueKey("default", "testKey2");
+    collection.upsert(key2, document2);
+
+    String docStr3 =
+        "{\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":null,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+    Document document3 = new JSONDocument(docStr3);
+    SingleValueKey key3 = new SingleValueKey("default", "testKey3");
+    collection.upsert(key3, document3);
+
+    // Search _id field in the document
+    // Creates the pattern where [hashNext, hashNext, next, hasNext, next] is called.
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Filter.Op.EQ, "_id", key1.toString()));
+      Iterator<Document> results = collection.search(query);
+      if (!results.hasNext()) {
+        Assertions.assertFalse(false);
+      }
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(1, documents.size());
+    }
+
+    // Search _id field in the document
+    // Creates the pattern where [next, hashNext] is called.
+    {
+      Query query = new Query();
+      query.setFilter(new Filter(Filter.Op.EQ, "_id", key1.toString()));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (true) {
+        documents.add(results.next());
+        if (!results.hasNext()) break;
+      }
+      Assertions.assertEquals(1, documents.size());
+    }
+  }
+
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
       Collection collection, Operation operation, int numThreads, SingleValueKey documentKey) {
     List<CreateUpdateTestThread> threads = new ArrayList<CreateUpdateTestThread>();
