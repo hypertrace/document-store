@@ -1237,7 +1237,7 @@ public class DocStoreTest {
       query.setFilter(new Filter(Filter.Op.EQ, "_id", key1.toString()));
       Iterator<Document> results = collection.search(query);
       if (!results.hasNext()) {
-        Assertions.assertFalse(false);
+        Assertions.fail();
       }
       List<Document> documents = new ArrayList<>();
       while (results.hasNext()) {
