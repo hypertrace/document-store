@@ -493,7 +493,7 @@ public class PostgresCollection implements Collection {
 
     private final ObjectMapper MAPPER = new ObjectMapper();
     private ResultSet resultSet;
-    private boolean didNext = false;
+    private boolean cursorMovedForward = false;
     private boolean hasNext = false;
 
     public PostgresResultIterator(ResultSet resultSet) {
@@ -503,9 +503,9 @@ public class PostgresCollection implements Collection {
     @Override
     public boolean hasNext() {
       try {
-        if (!didNext) {
+        if (!cursorMovedForward) {
           hasNext = resultSet.next();
-          didNext = true;
+          cursorMovedForward = true;
         }
         return hasNext;
       } catch (SQLException e) {
@@ -517,10 +517,11 @@ public class PostgresCollection implements Collection {
     @Override
     public Document next() {
       try {
-        if (!didNext) {
+        if (!cursorMovedForward) {
           resultSet.next();
         }
-        didNext = false;
+        // reset the cursorMovedForward state, if it was forwarded in hasNext.
+        cursorMovedForward = false;
         return prepareDocument();
       } catch (IOException | SQLException e) {
         return JSONDocument.errorDocument(e.getMessage());
