@@ -190,6 +190,12 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
+  public boolean updateSubDoc(Set<Key> keys, String subDocPath, Document subDocument) {
+    // empty
+    return true;
+  }
+
+  @Override
   public Iterator<Document> search(Query query) {
     String filters = null;
     StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ").append(collectionName);

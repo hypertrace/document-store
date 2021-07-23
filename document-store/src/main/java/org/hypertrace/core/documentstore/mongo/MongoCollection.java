@@ -294,6 +294,30 @@ public class MongoCollection implements Collection {
     }
   }
 
+  @Override
+  public boolean updateSubDoc(Set<Key> keys, String subDocPath, Document subDocument) {
+    String jsonString = subDocument.toJson();
+    try {
+      JsonNode jsonNode = MAPPER.readTree(jsonString);
+      // escape "." and "$" in field names since Mongo DB does not like them
+      JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
+      BasicDBObject dbObject =
+          new BasicDBObject(
+              subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
+      dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
+      BasicDBObject setObject = new BasicDBObject("$set", dbObject);
+      UpdateResult writeResult =
+          collection.updateMany(selectionCriteriaForKeys(keys), setObject, new UpdateOptions());
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: " + writeResult.toString());
+      }
+      return true;
+    } catch (Exception e) {
+      LOGGER.error("Exception inserting document. key: {} content:{}", keys, subDocument);
+      return false;
+    }
+  }
+
   private JsonNode recursiveClone(JsonNode src, Function<String, String> function) {
     if (!src.isObject()) {
       return src;

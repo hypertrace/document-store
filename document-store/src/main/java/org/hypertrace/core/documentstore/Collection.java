@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
@@ -42,6 +43,8 @@ public interface Collection {
    * @param query filter to query matching documents
    * @return {@link Iterator} of matching documents
    */
+  boolean updateSubDoc(Set<Key> keys, String subDocPath, Document subDocument);
+
   Iterator<Document> search(Query query);
 
   /**
