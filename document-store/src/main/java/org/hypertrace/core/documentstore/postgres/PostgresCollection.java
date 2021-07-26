@@ -191,8 +191,34 @@ public class PostgresCollection implements Collection {
 
   @Override
   public boolean updateSubDoc(Set<Key> keys, String subDocPath, Document subDocument) {
-    // empty
-    return true;
+    String updateSubDocSQL =
+        String.format(
+            "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s in ?",
+            collectionName, DOCUMENT, DOCUMENT, ID);
+    String jsonSubDocPath = getJsonSubDocPath(subDocPath);
+    String jsonString = subDocument.toJson();
+
+    try (PreparedStatement preparedStatement =
+        client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+      preparedStatement.setString(1, jsonSubDocPath);
+      preparedStatement.setString(2, jsonString);
+      preparedStatement.setString(3, keys.toString());
+      int resultSet = preparedStatement.executeUpdate();
+
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", resultSet);
+      }
+
+      return true;
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException updating sub document. key: {} subDocPath: {} content:{}",
+          keys,
+          subDocPath,
+          subDocument,
+          e);
+    }
+    return false;
   }
 
   @Override

@@ -38,13 +38,20 @@ public interface Collection {
   boolean updateSubDoc(Key key, String subDocPath, Document subDocument);
 
   /**
+   * Update a sub documnet
+   *
+   * @param keys a set of keys of the documents in the collection
+   * @param subDocPath Path to the sub document that needs to be updated
+   * @param subDocument Sub document that needs to be updated at the above path
+   */
+  boolean updateSubDoc(Set<Key> keys, String subDocPath, Document subDocument);
+
+  /**
    * Search for documents matching the query
    *
    * @param query filter to query matching documents
    * @return {@link Iterator} of matching documents
    */
-  boolean updateSubDoc(Set<Key> keys, String subDocPath, Document subDocument);
-
   Iterator<Document> search(Query query);
 
   /**

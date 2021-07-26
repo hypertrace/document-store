@@ -289,7 +289,7 @@ public class MongoCollection implements Collection {
       // docs.
       return true;
     } catch (IOException e) {
-      LOGGER.error("Exception inserting document. key: {} content:{}", key, subDocument);
+      LOGGER.error("Exception updating document. key: {} content:{}", key, subDocument);
       return false;
     }
   }
@@ -313,7 +313,7 @@ public class MongoCollection implements Collection {
       }
       return true;
     } catch (Exception e) {
-      LOGGER.error("Exception inserting document. key: {} content:{}", keys, subDocument);
+      LOGGER.error("Exception updating document. key: {} content:{}", keys, subDocument);
       return false;
     }
   }
