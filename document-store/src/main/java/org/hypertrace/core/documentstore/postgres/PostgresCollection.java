@@ -190,33 +190,32 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public boolean updateSubDoc(Set<Key> keys, String subDocPath, Document subDocument) {
+  public boolean bulkUpdateSubDoc(Map<Key, Map<String, Document>> bulkUpdate) {
     String updateSubDocSQL =
         String.format(
             "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s in ?",
             collectionName, DOCUMENT, DOCUMENT, ID);
-    String jsonSubDocPath = getJsonSubDocPath(subDocPath);
-    String jsonString = subDocument.toJson();
-
-    try (PreparedStatement preparedStatement =
-        client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
-      preparedStatement.setString(1, jsonSubDocPath);
-      preparedStatement.setString(2, jsonString);
-      preparedStatement.setString(3, keys.toString());
-      int resultSet = preparedStatement.executeUpdate();
-
-      if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: {}", resultSet);
+    try {
+      PreparedStatement preparedStatement = client.prepareStatement(updateSubDocSQL);
+      for (Key key : bulkUpdate.keySet()) {
+        Map<String, Document> entityUpdateOperations = bulkUpdate.get(key);
+        for (String subDocPath : entityUpdateOperations.keySet()) {
+          Document subDocument = entityUpdateOperations.get(subDocPath);
+          String jsonSubDocPath = getJsonSubDocPath(subDocPath);
+          String jsonString = subDocument.toJson();
+          preparedStatement.setString(1, jsonSubDocPath);
+          preparedStatement.setString(2, jsonString);
+          preparedStatement.setString(3, key.toString());
+          preparedStatement.addBatch();
+        }
       }
-
+      int[] updateCounts = preparedStatement.executeBatch();
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", updateCounts);
+      }
       return true;
     } catch (SQLException e) {
-      LOGGER.error(
-          "SQLException updating sub document. key: {} subDocPath: {} content:{}",
-          keys,
-          subDocPath,
-          subDocument,
-          e);
+      LOGGER.error("SQLException updating sub document.", e);
     }
     return false;
   }

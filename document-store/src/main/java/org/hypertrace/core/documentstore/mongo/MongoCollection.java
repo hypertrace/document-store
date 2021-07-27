@@ -16,6 +16,7 @@ import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.ReturnDocument;
+import com.mongodb.client.model.UpdateManyModel;
 import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
@@ -283,7 +284,7 @@ public class MongoCollection implements Collection {
       UpdateResult writeResult =
           collection.updateOne(selectionCriteriaForKey(key), setObject, new UpdateOptions());
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + writeResult.toString());
+        LOGGER.debug("Write result: " + writeResult);
       }
       // TODO:look into the writeResult to ensure it was successful. Was not easy to find this from
       // docs.
@@ -295,27 +296,37 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public boolean updateSubDoc(Set<Key> keys, String subDocPath, Document subDocument) {
-    String jsonString = subDocument.toJson();
-    try {
-      JsonNode jsonNode = MAPPER.readTree(jsonString);
-      // escape "." and "$" in field names since Mongo DB does not like them
-      JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-      BasicDBObject dbObject =
-          new BasicDBObject(
-              subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
-      dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
-      BasicDBObject setObject = new BasicDBObject("$set", dbObject);
-      UpdateResult writeResult =
-          collection.updateMany(selectionCriteriaForKeys(keys), setObject, new UpdateOptions());
-      if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + writeResult.toString());
+  public boolean bulkUpdateSubDoc(Map<Key, Map<String, Document>> bulkUpdate) {
+    List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate = new ArrayList<>();
+    for (Key key : bulkUpdate.keySet()) {
+      Map<String, Document> entityUpdateOperations = bulkUpdate.get(key);
+      List<BasicDBObject> updateOperations = new ArrayList<>();
+      for (String subDocPath : entityUpdateOperations.keySet()) {
+        Document subDocument = entityUpdateOperations.get(subDocPath);
+        String jsonString = subDocument.toJson();
+        try {
+          JsonNode jsonNode = MAPPER.readTree(jsonString);
+          // escape "." and "$" in field names since Mongo DB does not like them
+          JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
+          BasicDBObject dbObject =
+              new BasicDBObject(
+                  subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
+          dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
+          BasicDBObject setObject = new BasicDBObject("$set", dbObject);
+          updateOperations.add(setObject);
+        } catch (Exception e) {
+          LOGGER.error("Exception updating document. key: {} content:{}", key, subDocument);
+          return false;
+        }
       }
-      return true;
-    } catch (Exception e) {
-      LOGGER.error("Exception updating document. key: {} content:{}", keys, subDocument);
-      return false;
+      bulkWriteUpdate.add(
+          new UpdateManyModel(selectionCriteriaForKey(key), updateOperations, new UpdateOptions()));
     }
+    BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Write result: " + writeResult);
+    }
+    return true;
   }
 
   private JsonNode recursiveClone(JsonNode src, Function<String, String> function) {

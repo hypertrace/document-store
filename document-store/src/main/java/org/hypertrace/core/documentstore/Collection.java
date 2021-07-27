@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
@@ -40,11 +39,9 @@ public interface Collection {
   /**
    * Update a sub documnet
    *
-   * @param keys a set of keys of the documents in the collection
-   * @param subDocPath Path to the sub document that needs to be updated
-   * @param subDocument Sub document that needs to be updated at the above path
+   * @param bulkUpdate contains the mapping of key and the corresponding update operation
    */
-  boolean updateSubDoc(Set<Key> keys, String subDocPath, Document subDocument);
+  boolean bulkUpdateSubDoc(Map<Key, Map<String, Document>> bulkUpdate);
 
   /**
    * Search for documents matching the query
