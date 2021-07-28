@@ -33,6 +33,7 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param subDocPath Path to the sub document that needs to be updated
    * @param subDocument Sub document that needs to be updated at the above path
+   * @deprecated use {@link #bulkUpdateSubDocs(Map)} ()} instead.
    */
   @Deprecated
   boolean updateSubDoc(Key key, String subDocPath, Document subDocument);
@@ -43,7 +44,7 @@ public interface Collection {
    * @param documents contains the mapping of key and the corresponding update queries
    * @return the update count or -1 if there is any exception
    */
-  int bulkUpdateSubDoc(Map<Key, Map<String, Document>> documents);
+  BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents) throws Exception;
 
   /**
    * Search for documents matching the query

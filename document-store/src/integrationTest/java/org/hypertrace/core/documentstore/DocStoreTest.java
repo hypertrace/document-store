@@ -632,7 +632,7 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void bulkUpdateSubDocForNonExisting(String dataStoreName) throws Exception {
+  public void bulkUpdateSubDocForNonExistingDocuments(String dataStoreName) throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Map<Key, Map<String, Document>> toUpdate = new HashMap<>();
@@ -643,7 +643,8 @@ public class DocStoreTest {
     subDoc2.put("subDocPath2", Utils.createDocument("timestamp", "100"));
     toUpdate.put(key1, subDoc1);
     toUpdate.put(key2, subDoc2);
-    int result = collection.bulkUpdateSubDoc(toUpdate);
+    BulkUpdateResult bulkUpdateResult = collection.bulkUpdateSubDocs(toUpdate);
+    long result = bulkUpdateResult.getUpdatedCount();
     assertEquals(0, result);
   }
 
@@ -653,13 +654,14 @@ public class DocStoreTest {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Map<Key, Map<String, Document>> toUpdate = new HashMap<>();
-    int result = collection.bulkUpdateSubDoc(toUpdate);
+    BulkUpdateResult bulkUpdateResult = collection.bulkUpdateSubDocs(toUpdate);
+    long result = bulkUpdateResult.getUpdatedCount();
     assertEquals(0, result);
   }
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void bulkUpdateSubDocOnlyForExisting(String dataStoreName) throws Exception {
+  public void bulkUpdateSubDocOnlyForExistingDocuments(String dataStoreName) throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Key key1 = new SingleValueKey("tenant-1", "testKey1");
@@ -674,11 +676,13 @@ public class DocStoreTest {
         subDoc3 = new HashMap<>();
     subDoc1.put("subDocPath1", Utils.createDocument("nested1", "100"));
     subDoc2.put("subDocPath2", Utils.createDocument("nested2", "100"));
-    subDoc3.put("subDocPath3", Utils.createDocument("nested3", "100"));
+    // update on already existing subDocPath
+    subDoc3.put("foo3", Utils.createDocument("nested3", "100"));
     toUpdate.put(key1, subDoc1);
     toUpdate.put(key2, subDoc2);
     toUpdate.put(key3, subDoc3);
-    int result = collection.bulkUpdateSubDoc(toUpdate);
+    BulkUpdateResult bulkUpdateResult = collection.bulkUpdateSubDocs(toUpdate);
+    long result = bulkUpdateResult.getUpdatedCount();
     assertEquals(2, result);
 
     Query query = new Query();
@@ -692,7 +696,7 @@ public class DocStoreTest {
     query.setFilter(new Filter(Op.EQ, "_id", key3.toString()));
     it = collection.search(query);
     root = OBJECT_MAPPER.readTree(it.next().toJson());
-    nestedTimestamp = root.findValue("subDocPath3").toString();
+    nestedTimestamp = root.findValue("foo3").toString();
     assertEquals("{\"nested3\":\"100\"}", nestedTimestamp);
 
     query = new Query();

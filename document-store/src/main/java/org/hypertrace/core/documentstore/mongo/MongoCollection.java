@@ -296,7 +296,8 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public int bulkUpdateSubDoc(Map<Key, Map<String, Document>> documents) {
+  public BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents)
+      throws Exception {
     List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate = new ArrayList<>();
     for (Key key : documents.keySet()) {
       Map<String, Document> subDocuments = documents.get(key);
@@ -316,20 +317,20 @@ public class MongoCollection implements Collection {
           updateOperations.add(setObject);
         } catch (Exception e) {
           LOGGER.error("Exception updating document. key: {} content:{}", key, subDocument);
-          return -1;
+          throw e;
         }
       }
       bulkWriteUpdate.add(
           new UpdateManyModel(selectionCriteriaForKey(key), updateOperations, new UpdateOptions()));
     }
     if (bulkWriteUpdate.isEmpty()) {
-      return 0;
+      return new BulkUpdateResult(0);
     }
     BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Write result: " + writeResult);
     }
-    return writeResult.getModifiedCount() + writeResult.getInsertedCount();
+    return new BulkUpdateResult(writeResult.getModifiedCount());
   }
 
   private JsonNode recursiveClone(JsonNode src, Function<String, String> function) {

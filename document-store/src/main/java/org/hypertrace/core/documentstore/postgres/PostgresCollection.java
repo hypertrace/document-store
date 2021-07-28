@@ -190,7 +190,8 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public int bulkUpdateSubDoc(Map<Key, Map<String, Document>> documents) {
+  public BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents)
+      throws Exception {
     String updateSubDocSQL =
         String.format(
             "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s = ?",
@@ -217,10 +218,10 @@ public class PostgresCollection implements Collection {
       for (int update : updateCounts) {
         totalUpdateCount += update;
       }
-      return totalUpdateCount;
+      return new BulkUpdateResult(totalUpdateCount);
     } catch (SQLException e) {
       LOGGER.error("SQLException updating sub document.", e);
-      return -1;
+      throw e;
     }
   }
 
