@@ -34,14 +34,16 @@ public interface Collection {
    * @param subDocPath Path to the sub document that needs to be updated
    * @param subDocument Sub document that needs to be updated at the above path
    */
+  @Deprecated
   boolean updateSubDoc(Key key, String subDocPath, Document subDocument);
 
   /**
-   * Update a sub documnet
+   * Updates sub documents
    *
-   * @param bulkUpdate contains the mapping of key and the corresponding update operation
+   * @param documents contains the mapping of key and the corresponding update queries
+   * @return the update count or -1 if there is any exception
    */
-  boolean bulkUpdateSubDoc(Map<Key, Map<String, Document>> bulkUpdate);
+  int bulkUpdateSubDoc(Map<Key, Map<String, Document>> documents);
 
   /**
    * Search for documents matching the query
@@ -60,7 +62,7 @@ public interface Collection {
   boolean delete(Key key);
 
   /**
-   * Deletes a sub documents
+   * Deletes a sub document
    *
    * @param key Unique key of the document in the collection
    * @param subDocPath Path to the sub document that needs to be updated

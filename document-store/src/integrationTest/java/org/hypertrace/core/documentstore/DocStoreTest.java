@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -627,6 +628,77 @@ public class DocStoreTest {
       jsonNode.remove(POSTGRES_UPDATED_AT);
     }
     Assertions.assertEquals(expected, OBJECT_MAPPER.writeValueAsString(jsonNode));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void bulkUpdateSubDocForNonExisting(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Map<String, Document>> toUpdate = new HashMap<>();
+    Key key1 = new SingleValueKey("tenant-1", "testKey1");
+    Key key2 = new SingleValueKey("tenant-2", "testKey2");
+    Map<String, Document> subDoc1 = new HashMap<>(), subDoc2 = new HashMap<>();
+    subDoc1.put("subDocPath1", Utils.createDocument("timestamp", "100"));
+    subDoc2.put("subDocPath2", Utils.createDocument("timestamp", "100"));
+    toUpdate.put(key1, subDoc1);
+    toUpdate.put(key2, subDoc2);
+    int result = collection.bulkUpdateSubDoc(toUpdate);
+    assertEquals(0, result);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void bulkUpdateSubDocForEmptyMap(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Map<String, Document>> toUpdate = new HashMap<>();
+    int result = collection.bulkUpdateSubDoc(toUpdate);
+    assertEquals(0, result);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void bulkUpdateSubDocOnlyForExisting(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("tenant-1", "testKey1");
+    Key key2 = new SingleValueKey("tenant-2", "testKey2");
+    Key key3 = new SingleValueKey("tenant-3", "testKey3");
+    collection.upsert(key1, Utils.createDocument("foo1", "bar1"));
+    collection.upsert(key3, Utils.createDocument("foo3", "bar3"));
+
+    Map<Key, Map<String, Document>> toUpdate = new HashMap<>();
+    Map<String, Document> subDoc1 = new HashMap<>(),
+        subDoc2 = new HashMap<>(),
+        subDoc3 = new HashMap<>();
+    subDoc1.put("subDocPath1", Utils.createDocument("nested1", "100"));
+    subDoc2.put("subDocPath2", Utils.createDocument("nested2", "100"));
+    subDoc3.put("subDocPath3", Utils.createDocument("nested3", "100"));
+    toUpdate.put(key1, subDoc1);
+    toUpdate.put(key2, subDoc2);
+    toUpdate.put(key3, subDoc3);
+    int result = collection.bulkUpdateSubDoc(toUpdate);
+    assertEquals(2, result);
+
+    Query query = new Query();
+    query.setFilter(new Filter(Op.EQ, "_id", key1.toString()));
+    Iterator<Document> it = collection.search(query);
+    JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
+    String nestedTimestamp = root.findValue("subDocPath1").toString();
+    assertEquals("{\"nested1\":\"100\"}", nestedTimestamp);
+
+    query = new Query();
+    query.setFilter(new Filter(Op.EQ, "_id", key3.toString()));
+    it = collection.search(query);
+    root = OBJECT_MAPPER.readTree(it.next().toJson());
+    nestedTimestamp = root.findValue("subDocPath3").toString();
+    assertEquals("{\"nested3\":\"100\"}", nestedTimestamp);
+
+    query = new Query();
+    query.setFilter(new Filter(Op.EQ, "_id", key2.toString()));
+    it = collection.search(query);
+    assertFalse(it.hasNext());
   }
 
   @ParameterizedTest

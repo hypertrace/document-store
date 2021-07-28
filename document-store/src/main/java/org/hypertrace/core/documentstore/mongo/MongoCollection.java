@@ -296,13 +296,13 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public boolean bulkUpdateSubDoc(Map<Key, Map<String, Document>> bulkUpdate) {
+  public int bulkUpdateSubDoc(Map<Key, Map<String, Document>> documents) {
     List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate = new ArrayList<>();
-    for (Key key : bulkUpdate.keySet()) {
-      Map<String, Document> entityUpdateOperations = bulkUpdate.get(key);
+    for (Key key : documents.keySet()) {
+      Map<String, Document> subDocuments = documents.get(key);
       List<BasicDBObject> updateOperations = new ArrayList<>();
-      for (String subDocPath : entityUpdateOperations.keySet()) {
-        Document subDocument = entityUpdateOperations.get(subDocPath);
+      for (String subDocPath : subDocuments.keySet()) {
+        Document subDocument = subDocuments.get(subDocPath);
         String jsonString = subDocument.toJson();
         try {
           JsonNode jsonNode = MAPPER.readTree(jsonString);
@@ -316,17 +316,20 @@ public class MongoCollection implements Collection {
           updateOperations.add(setObject);
         } catch (Exception e) {
           LOGGER.error("Exception updating document. key: {} content:{}", key, subDocument);
-          return false;
+          return -1;
         }
       }
       bulkWriteUpdate.add(
           new UpdateManyModel(selectionCriteriaForKey(key), updateOperations, new UpdateOptions()));
     }
+    if (bulkWriteUpdate.isEmpty()) {
+      return 0;
+    }
     BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Write result: " + writeResult);
     }
-    return true;
+    return writeResult.getModifiedCount() + writeResult.getInsertedCount();
   }
 
   private JsonNode recursiveClone(JsonNode src, Function<String, String> function) {

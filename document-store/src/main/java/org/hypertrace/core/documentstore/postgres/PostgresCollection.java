@@ -190,17 +190,17 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public boolean bulkUpdateSubDoc(Map<Key, Map<String, Document>> bulkUpdate) {
+  public int bulkUpdateSubDoc(Map<Key, Map<String, Document>> documents) {
     String updateSubDocSQL =
         String.format(
-            "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s in ?",
+            "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s = ?",
             collectionName, DOCUMENT, DOCUMENT, ID);
     try {
       PreparedStatement preparedStatement = client.prepareStatement(updateSubDocSQL);
-      for (Key key : bulkUpdate.keySet()) {
-        Map<String, Document> entityUpdateOperations = bulkUpdate.get(key);
-        for (String subDocPath : entityUpdateOperations.keySet()) {
-          Document subDocument = entityUpdateOperations.get(subDocPath);
+      for (Key key : documents.keySet()) {
+        Map<String, Document> subDocuments = documents.get(key);
+        for (String subDocPath : subDocuments.keySet()) {
+          Document subDocument = subDocuments.get(subDocPath);
           String jsonSubDocPath = getJsonSubDocPath(subDocPath);
           String jsonString = subDocument.toJson();
           preparedStatement.setString(1, jsonSubDocPath);
@@ -213,11 +213,15 @@ public class PostgresCollection implements Collection {
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: {}", updateCounts);
       }
-      return true;
+      int totalUpdateCount = 0;
+      for (int update : updateCounts) {
+        totalUpdateCount += update;
+      }
+      return totalUpdateCount;
     } catch (SQLException e) {
       LOGGER.error("SQLException updating sub document.", e);
+      return -1;
     }
-    return false;
   }
 
   @Override
