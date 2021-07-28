@@ -41,7 +41,7 @@ public interface Collection {
   /**
    * Updates sub documents
    *
-   * @param documents contains the mapping of key and the corresponding update queries
+   * @param documents contains the mapping of key and the corresponding sub doc update queries
    * @return the update count or -1 if there is any exception
    */
   BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents) throws Exception;
