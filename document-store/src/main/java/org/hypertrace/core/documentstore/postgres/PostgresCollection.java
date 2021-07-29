@@ -190,6 +190,42 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
+  public BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents)
+      throws Exception {
+    String updateSubDocSQL =
+        String.format(
+            "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s = ?",
+            collectionName, DOCUMENT, DOCUMENT, ID);
+    try {
+      PreparedStatement preparedStatement = client.prepareStatement(updateSubDocSQL);
+      for (Key key : documents.keySet()) {
+        Map<String, Document> subDocuments = documents.get(key);
+        for (String subDocPath : subDocuments.keySet()) {
+          Document subDocument = subDocuments.get(subDocPath);
+          String jsonSubDocPath = getJsonSubDocPath(subDocPath);
+          String jsonString = subDocument.toJson();
+          preparedStatement.setString(1, jsonSubDocPath);
+          preparedStatement.setString(2, jsonString);
+          preparedStatement.setString(3, key.toString());
+          preparedStatement.addBatch();
+        }
+      }
+      int[] updateCounts = preparedStatement.executeBatch();
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", updateCounts);
+      }
+      int totalUpdateCount = 0;
+      for (int update : updateCounts) {
+        totalUpdateCount += update;
+      }
+      return new BulkUpdateResult(totalUpdateCount);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException updating sub document.", e);
+      throw e;
+    }
+  }
+
+  @Override
   public Iterator<Document> search(Query query) {
     String filters = null;
     StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ").append(collectionName);

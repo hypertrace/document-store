@@ -16,6 +16,7 @@ import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.ReturnDocument;
+import com.mongodb.client.model.UpdateManyModel;
 import com.mongodb.client.model.UpdateOneModel;
 import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
@@ -283,15 +284,53 @@ public class MongoCollection implements Collection {
       UpdateResult writeResult =
           collection.updateOne(selectionCriteriaForKey(key), setObject, new UpdateOptions());
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + writeResult.toString());
+        LOGGER.debug("Write result: " + writeResult);
       }
       // TODO:look into the writeResult to ensure it was successful. Was not easy to find this from
       // docs.
       return true;
     } catch (IOException e) {
-      LOGGER.error("Exception inserting document. key: {} content:{}", key, subDocument);
+      LOGGER.error("Exception updating document. key: {} content:{}", key, subDocument);
       return false;
     }
+  }
+
+  @Override
+  public BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents)
+      throws Exception {
+    List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate = new ArrayList<>();
+    for (Key key : documents.keySet()) {
+      Map<String, Document> subDocuments = documents.get(key);
+      List<BasicDBObject> updateOperations = new ArrayList<>();
+      for (String subDocPath : subDocuments.keySet()) {
+        Document subDocument = subDocuments.get(subDocPath);
+        String jsonString = subDocument.toJson();
+        try {
+          JsonNode jsonNode = MAPPER.readTree(jsonString);
+          // escape "." and "$" in field names since Mongo DB does not like them
+          JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
+          BasicDBObject dbObject =
+              new BasicDBObject(
+                  subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
+          dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
+          BasicDBObject setObject = new BasicDBObject("$set", dbObject);
+          updateOperations.add(setObject);
+        } catch (Exception e) {
+          LOGGER.error("Exception updating document. key: {} content:{}", key, subDocument);
+          throw e;
+        }
+      }
+      bulkWriteUpdate.add(
+          new UpdateManyModel(selectionCriteriaForKey(key), updateOperations, new UpdateOptions()));
+    }
+    if (bulkWriteUpdate.isEmpty()) {
+      return new BulkUpdateResult(0);
+    }
+    BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Write result: " + writeResult);
+    }
+    return new BulkUpdateResult(writeResult.getModifiedCount());
   }
 
   private JsonNode recursiveClone(JsonNode src, Function<String, String> function) {
