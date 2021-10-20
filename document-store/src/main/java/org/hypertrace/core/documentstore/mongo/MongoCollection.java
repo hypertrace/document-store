@@ -266,9 +266,7 @@ public class MongoCollection implements Collection {
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
     try {
-      BasicDBObject dbObject =
-          new BasicDBObject(
-              subDocPath, getSanitizedObject(subDocument));
+      BasicDBObject dbObject = new BasicDBObject(subDocPath, getSanitizedObject(subDocument));
       dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
       BasicDBObject setObject = new BasicDBObject("$set", dbObject);
 
@@ -296,9 +294,7 @@ public class MongoCollection implements Collection {
       for (String subDocPath : subDocuments.keySet()) {
         Document subDocument = subDocuments.get(subDocPath);
         try {
-          BasicDBObject dbObject =
-              new BasicDBObject(
-                  subDocPath, getSanitizedObject(subDocument));
+          BasicDBObject dbObject = new BasicDBObject(subDocPath, getSanitizedObject(subDocument));
           dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
           BasicDBObject setObject = new BasicDBObject("$set", dbObject);
           updateOperations.add(setObject);
