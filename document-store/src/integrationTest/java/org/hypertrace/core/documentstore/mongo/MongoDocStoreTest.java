@@ -593,4 +593,63 @@ public class MongoDocStoreTest {
                   || document.toJson().contains("\"id\":\"testKey3\""));
         });
   }
+
+  @Test
+  public void testBulkUpsertAndVerifyUpdatedTime1() throws Exception {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    collection.upsert(
+        key1,
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1")))))))));
+
+    Key key2 = new SingleValueKey("default", "testKey2");
+    collection.upsert(
+        key2,
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label2")))))))));
+
+    Key key3 = new SingleValueKey("default", "testKey3");
+    collection.upsert(
+        key3,
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("attributes", Map.of("name", "testKey3"))));
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    collection.bulkAddToArrayValue(
+        Set.of(key1, key2, key3), "attributes.labels.valueList.values", subDocuments);
+
+    String test = "abc1";
+
+    String test1 = "abc1";
+  }
 }

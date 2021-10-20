@@ -226,6 +226,18 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
+  public BulkUpdateResult bulkAddToArrayValue(
+      Set<Key> keys, String subDocPath, List<Document> subDocuments) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public BulkUpdateResult bulkRemoveFromArrayValue(
+      Set<Key> keys, String subDocPath, List<Document> documents) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public Iterator<Document> search(Query query) {
     String filters = null;
     StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ").append(collectionName);
