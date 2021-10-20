@@ -256,12 +256,7 @@ public class MongoCollection implements Collection {
 
   private BasicDBObject prepareDocument(Key key, Document document, long now)
       throws JsonProcessingException {
-    String jsonString = document.toJson();
-    JsonNode jsonNode = MAPPER.readTree(jsonString);
-
-    // escape "." and "$" in field names since Mongo DB does not like them
-    JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-    BasicDBObject basicDBObject = BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode));
+    BasicDBObject basicDBObject = getSanitizedObject(document);
     basicDBObject.put(ID_KEY, key.toString());
     basicDBObject.put(LAST_UPDATED_TIME, now);
     return basicDBObject;
@@ -270,15 +265,8 @@ public class MongoCollection implements Collection {
   /** Updates auto-field lastUpdatedTime when sub doc is updated */
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
-    String jsonString = subDocument.toJson();
     try {
-      JsonNode jsonNode = MAPPER.readTree(jsonString);
-
-      // escape "." and "$" in field names since Mongo DB does not like them
-      JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-      BasicDBObject dbObject =
-          new BasicDBObject(
-              subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
+      BasicDBObject dbObject = getSanitizedObject(subDocument);
       dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
       BasicDBObject setObject = new BasicDBObject("$set", dbObject);
 
@@ -305,14 +293,8 @@ public class MongoCollection implements Collection {
       List<BasicDBObject> updateOperations = new ArrayList<>();
       for (String subDocPath : subDocuments.keySet()) {
         Document subDocument = subDocuments.get(subDocPath);
-        String jsonString = subDocument.toJson();
         try {
-          JsonNode jsonNode = MAPPER.readTree(jsonString);
-          // escape "." and "$" in field names since Mongo DB does not like them
-          JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-          BasicDBObject dbObject =
-              new BasicDBObject(
-                  subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
+          BasicDBObject dbObject = getSanitizedObject(subDocument);
           dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
           BasicDBObject setObject = new BasicDBObject("$set", dbObject);
           updateOperations.add(setObject);
@@ -340,11 +322,7 @@ public class MongoCollection implements Collection {
     List<BasicDBObject> basicDBObjects = new ArrayList<>();
     try {
       for (Document subDocument : request.getSubDocuments()) {
-        String jsonString = subDocument.toJson();
-        JsonNode jsonNode = MAPPER.readTree(jsonString);
-        JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-        String sanitizedJsonString = MAPPER.writeValueAsString(sanitizedJsonNode);
-        basicDBObjects.add(BasicDBObject.parse(sanitizedJsonString));
+        basicDBObjects.add(getSanitizedObject(subDocument));
       }
     } catch (Exception e) {
       LOGGER.error(
@@ -375,9 +353,7 @@ public class MongoCollection implements Collection {
             new UpdateManyModel(
                 selectionCriteriaForKeys(request.getKeys()), operationObject, new UpdateOptions()));
     BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Write result: " + writeResult);
-    }
+    LOGGER.debug("Write result for bulkOperationOnArrayValue: {}", writeResult);
     return new BulkUpdateResult(writeResult.getModifiedCount());
   }
 
@@ -402,6 +378,15 @@ public class MongoCollection implements Collection {
     BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, basicDBObjects);
     subDocPathObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
     return new BasicDBObject("$set", subDocPathObject);
+  }
+
+  private BasicDBObject getSanitizedObject(Document document) throws JsonProcessingException {
+    String jsonString = document.toJson();
+    JsonNode jsonNode = MAPPER.readTree(jsonString);
+    // escape "." and "$" in field names since Mongo DB does not like them
+    JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
+    String sanitizedJsonString = MAPPER.writeValueAsString(sanitizedJsonNode);
+    return BasicDBObject.parse(sanitizedJsonString);
   }
 
   private JsonNode recursiveClone(JsonNode src, Function<String, String> function) {
