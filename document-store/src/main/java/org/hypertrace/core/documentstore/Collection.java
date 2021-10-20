@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
@@ -48,26 +47,12 @@ public interface Collection {
   BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents) throws Exception;
 
   /**
-   * Bulk operation to add to the array value for the given set of keys at given sub doc path
+   * Bulk operation on array value for the given set of keys at given sub doc path
    *
-   * @param keys the keys
-   * @param subDocPath the sub doc path
-   * @param documents the documents
+   * @param request bullk array value update request
    * @return the bulk update result
    */
-  BulkUpdateResult bulkAddToArrayValue(Set<Key> keys, String subDocPath, List<Document> documents)
-      throws Exception;
-
-  /**
-   * Bulk operation to remove from the array value for the given set of keys at given sub doc path
-   *
-   * @param keys the keys
-   * @param subDocPath the sub doc path
-   * @param documents the documents
-   * @return the bulk update result
-   */
-  BulkUpdateResult bulkRemoveFromArrayValue(
-      Set<Key> keys, String subDocPath, List<Document> documents) throws Exception;
+  BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) throws Exception;
 
   /**
    * Search for documents matching the query

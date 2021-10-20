@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
@@ -226,14 +227,7 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public BulkUpdateResult bulkAddToArrayValue(
-      Set<Key> keys, String subDocPath, List<Document> subDocuments) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public BulkUpdateResult bulkRemoveFromArrayValue(
-      Set<Key> keys, String subDocPath, List<Document> documents) {
+  public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) {
     throw new UnsupportedOperationException();
   }
 

@@ -39,6 +39,7 @@ import net.jodah.failsafe.RetryPolicy;
 import org.bson.conversions.Bson;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
+import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
@@ -334,52 +335,11 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public BulkUpdateResult bulkAddToArrayValue(
-      Set<Key> keys, String subDocPath, List<Document> subDocuments) throws Exception {
-    List<BasicDBObject> basicDBObjects = getSubDocObjects(keys, subDocPath, subDocuments);
-    BasicDBObject eachObject = new BasicDBObject("$each", basicDBObjects);
-    BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, eachObject);
-    BasicDBObject addToSetObject =
-        new BasicDBObject("$addToSet", subDocPathObject)
-            .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
-
-    List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate =
-        List.of(
-            new UpdateManyModel(
-                selectionCriteriaForKeys(keys), addToSetObject, new UpdateOptions()));
-    BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Write result: " + writeResult);
-    }
-    return new BulkUpdateResult(writeResult.getModifiedCount());
-  }
-
-  @Override
-  public BulkUpdateResult bulkRemoveFromArrayValue(
-      Set<Key> keys, String subDocPath, List<Document> subDocuments) throws Exception {
-    List<BasicDBObject> basicDBObjects = getSubDocObjects(keys, subDocPath, subDocuments);
-    BasicDBObject inObject = new BasicDBObject("$in", basicDBObjects);
-    BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, inObject);
-    BasicDBObject pullObject =
-        new BasicDBObject("$pull", subDocPathObject)
-            .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
-
-    List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate =
-        List.of(
-            new UpdateManyModel(selectionCriteriaForKeys(keys), pullObject, new UpdateOptions()));
-    BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Write result: " + writeResult);
-    }
-    return new BulkUpdateResult(writeResult.getModifiedCount());
-  }
-
-  private List<BasicDBObject> getSubDocObjects(
-      Set<Key> keys, String subDocPath, List<Document> subDocuments)
-      throws JsonProcessingException {
+  public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request)
+      throws Exception {
     List<BasicDBObject> basicDBObjects = new ArrayList<>();
     try {
-      for (Document subDocument : subDocuments) {
+      for (Document subDocument : request.getSubDocuments()) {
         String jsonString = subDocument.toJson();
         JsonNode jsonNode = MAPPER.readTree(jsonString);
         JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
@@ -388,13 +348,60 @@ public class MongoCollection implements Collection {
       }
     } catch (Exception e) {
       LOGGER.error(
-          "Exception updating document. keys: {} subDocPath {} subDocuments :{}",
-          keys,
-          subDocPath,
-          subDocuments);
+          "Exception updating document. keys: {} operation {} subDocPath {} subDocuments :{}",
+          request.getKeys(),
+          request.getOperation(),
+          request.getSubDocPath(),
+          request.getSubDocuments());
       throw e;
     }
-    return basicDBObjects;
+    BasicDBObject operationObject;
+    switch (request.getOperation()) {
+      case ADD:
+        operationObject = getAddOperationObject(request.getSubDocPath(), basicDBObjects);
+        break;
+      case REMOVE:
+        operationObject = getRemoveOperationObject(request.getSubDocPath(), basicDBObjects);
+        break;
+      case SET:
+        operationObject = getSetOperationObject(request.getSubDocPath(), basicDBObjects);
+        break;
+      default:
+        throw new UnsupportedOperationException("Unknown operation : " + request.getOperation());
+    }
+
+    List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate =
+        List.of(
+            new UpdateManyModel(
+                selectionCriteriaForKeys(request.getKeys()), operationObject, new UpdateOptions()));
+    BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Write result: " + writeResult);
+    }
+    return new BulkUpdateResult(writeResult.getModifiedCount());
+  }
+
+  private BasicDBObject getAddOperationObject(
+      String subDocPath, List<BasicDBObject> basicDBObjects) {
+    BasicDBObject eachObject = new BasicDBObject("$each", basicDBObjects);
+    BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, eachObject);
+    return new BasicDBObject("$addToSet", subDocPathObject)
+            .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
+  }
+
+  private BasicDBObject getRemoveOperationObject(
+      String subDocPath, List<BasicDBObject> basicDBObjects) {
+    BasicDBObject inObject = new BasicDBObject("$in", basicDBObjects);
+    BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, inObject);
+    return new BasicDBObject("$pull", subDocPathObject)
+            .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
+  }
+
+  private BasicDBObject getSetOperationObject(
+      String subDocPath, List<BasicDBObject> basicDBObjects) {
+    BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, basicDBObjects);
+    subDocPathObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
+    return new BasicDBObject("$set", subDocPathObject);
   }
 
   private JsonNode recursiveClone(JsonNode src, Function<String, String> function) {
