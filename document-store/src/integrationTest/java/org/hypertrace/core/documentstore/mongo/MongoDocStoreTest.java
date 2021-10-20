@@ -734,7 +734,7 @@ public class MongoDocStoreTest {
     BulkUpdateResult bulkUpdateResult =
         collection.bulkAddToArrayValue(
             Set.of(key1, key2, key3, key4), "attributes.labels.valueList.values", subDocuments);
-    assertEquals(3, bulkUpdateResult.getUpdatedCount());
+    assertEquals(4, bulkUpdateResult.getUpdatedCount());
 
     // get all documents
     Query query = new Query();
