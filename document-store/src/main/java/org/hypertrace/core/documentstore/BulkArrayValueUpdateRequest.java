@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Set;
 
 public class BulkArrayValueUpdateRequest {
@@ -8,10 +8,10 @@ public class BulkArrayValueUpdateRequest {
   private final Set<Key> keys;
   private final String subDocPath;
   private final Operation operation;
-  private final List<Document> subDocuments;
+  private final Collection<Document> subDocuments;
 
   public BulkArrayValueUpdateRequest(
-      Set<Key> keys, String subDocPath, Operation operation, List<Document> subDocuments) {
+      Set<Key> keys, String subDocPath, Operation operation, Collection<Document> subDocuments) {
     this.keys = keys;
     this.subDocPath = subDocPath;
     this.operation = operation;
@@ -30,7 +30,7 @@ public class BulkArrayValueUpdateRequest {
     return operation;
   }
 
-  public List<Document> getSubDocuments() {
+  public Collection<Document> getSubDocuments() {
     return subDocuments;
   }
 

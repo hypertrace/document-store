@@ -386,7 +386,7 @@ public class MongoCollection implements Collection {
     BasicDBObject eachObject = new BasicDBObject("$each", basicDBObjects);
     BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, eachObject);
     return new BasicDBObject("$addToSet", subDocPathObject)
-            .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
+        .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
   }
 
   private BasicDBObject getRemoveOperationObject(
@@ -394,7 +394,7 @@ public class MongoCollection implements Collection {
     BasicDBObject inObject = new BasicDBObject("$in", basicDBObjects);
     BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, inObject);
     return new BasicDBObject("$pull", subDocPathObject)
-            .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
+        .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
   }
 
   private BasicDBObject getSetOperationObject(

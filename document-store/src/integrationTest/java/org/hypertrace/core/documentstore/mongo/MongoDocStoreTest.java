@@ -735,7 +735,12 @@ public class MongoDocStoreTest {
         Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
     List<Document> subDocuments = List.of(label2Document, label3Document);
 
-    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest = new BulkArrayValueUpdateRequest(Set.of(key1, key2, key3, key4), "attributes.labels.valueList.values", ADD, subDocuments);
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1, key2, key3, key4),
+            "attributes.labels.valueList.values",
+            ADD,
+            subDocuments);
     BulkUpdateResult bulkUpdateResult =
         collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
     assertEquals(4, bulkUpdateResult.getUpdatedCount());
@@ -885,9 +890,14 @@ public class MongoDocStoreTest {
         Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
     List<Document> subDocuments = List.of(label2Document, label3Document);
 
-    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest = new BulkArrayValueUpdateRequest(Set.of(key1, key2, key3, key4), "attributes.labels.valueList.values", REMOVE, subDocuments);
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1, key2, key3, key4),
+            "attributes.labels.valueList.values",
+            REMOVE,
+            subDocuments);
     BulkUpdateResult bulkUpdateResult =
-            collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
     assertEquals(4, bulkUpdateResult.getUpdatedCount());
 
     // get all documents
@@ -925,138 +935,143 @@ public class MongoDocStoreTest {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Key key1 = new SingleValueKey("default", "testKey1");
     Document key1InsertedDocument =
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
                     ImmutablePair.of(
-                            "attributes",
-                            Map.of(
-                                    "name",
-                                    "testKey1",
-                                    "labels",
-                                    ImmutablePair.of(
-                                            "valueList",
-                                            ImmutablePair.of(
-                                                    "values",
-                                                    List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
     Document key1ExpectedDocument =
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
                     ImmutablePair.of(
-                            "attributes",
-                            Map.of(
-                                    "name",
-                                    "testKey1",
-                                    "labels",
-                                    ImmutablePair.of(
-                                            "valueList",
-                                            ImmutablePair.of(
-                                                    "values",
-                                                    List.of(
-                                                            ImmutablePair.of("value", Map.of("string", "Label2")),
-                                                            ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
     collection.upsert(key1, key1InsertedDocument);
 
     Key key2 = new SingleValueKey("default", "testKey2");
     Document key2InsertedDocument =
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
                     ImmutablePair.of(
-                            "attributes",
-                            Map.of(
-                                    "name",
-                                    "testKey2",
-                                    "labels",
-                                    ImmutablePair.of(
-                                            "valueList",
-                                            ImmutablePair.of(
-                                                    "values",
-                                                    List.of(ImmutablePair.of("value", Map.of("string", "Label2"))))))));
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label2"))))))));
     Document key2ExpectedDocument =
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
                     ImmutablePair.of(
-                            "attributes",
-                            Map.of(
-                                    "name",
-                                    "testKey2",
-                                    "labels",
-                                    ImmutablePair.of(
-                                            "valueList",
-                                            ImmutablePair.of(
-                                                    "values",
-                                                    List.of(
-                                                            ImmutablePair.of("value", Map.of("string", "Label2")),
-                                                            ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
     collection.upsert(key2, key2InsertedDocument);
 
     Key key3 = new SingleValueKey("default", "testKey3");
     Document key3InsertedDocument =
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey3"),
-                    ImmutablePair.of("attributes", Map.of("name", "testKey3")));
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("attributes", Map.of("name", "testKey3")));
     Document key3ExpectedDocument =
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey3",
+                    "labels",
                     ImmutablePair.of(
-                            "attributes",
-                            Map.of(
-                                    "name",
-                                    "testKey3",
-                                    "labels",
-                                    ImmutablePair.of(
-                                            "valueList",
-                                            ImmutablePair.of(
-                                                    "values",
-                                                    List.of(
-                                                            ImmutablePair.of("value", Map.of("string", "Label2")),
-                                                            ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
     collection.upsert(key3, key3InsertedDocument);
 
     Key key4 = new SingleValueKey("default", "testKey4");
     Document key4InsertedDocument =
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
                     ImmutablePair.of(
-                            "attributes",
-                            Map.of(
-                                    "name",
-                                    "testKey4",
-                                    "labels",
-                                    ImmutablePair.of(
-                                            "valueList",
-                                            ImmutablePair.of(
-                                                    "values",
-                                                    List.of(
-                                                            ImmutablePair.of("value", Map.of("string", "Label1")),
-                                                            ImmutablePair.of("value", Map.of("string", "Label2")),
-                                                            ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
     Document key4ExpectedDocument =
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
                     ImmutablePair.of(
-                            "attributes",
-                            Map.of(
-                                    "name",
-                                    "testKey4",
-                                    "labels",
-                                    ImmutablePair.of(
-                                            "valueList",
-                                            ImmutablePair.of(
-                                                    "values",
-                                                    List.of(
-                                                            ImmutablePair.of("value", Map.of("string", "Label2")),
-                                                            ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
     collection.upsert(key4, key4InsertedDocument);
 
     Document label2Document =
-            Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
     Document label3Document =
-            Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
     List<Document> subDocuments = List.of(label2Document, label3Document);
 
-    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest = new BulkArrayValueUpdateRequest(Set.of(key1, key2, key3, key4), "attributes.labels.valueList.values", SET, subDocuments);
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1, key2, key3, key4),
+            "attributes.labels.valueList.values",
+            SET,
+            subDocuments);
     BulkUpdateResult bulkUpdateResult =
-            collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
     assertEquals(4, bulkUpdateResult.getUpdatedCount());
 
     // get all documents
@@ -1071,13 +1086,13 @@ public class MongoDocStoreTest {
 
     Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
     Map<String, JsonNode> expectedDocs =
-            convertToMap(
-                    List.of(
-                            key1ExpectedDocument,
-                            key2ExpectedDocument,
-                            key3ExpectedDocument,
-                            key4ExpectedDocument),
-                    "id");
+        convertToMap(
+            List.of(
+                key1ExpectedDocument,
+                key2ExpectedDocument,
+                key3ExpectedDocument,
+                key4ExpectedDocument),
+            "id");
 
     // Verify that the documents returned are as expected
     for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
