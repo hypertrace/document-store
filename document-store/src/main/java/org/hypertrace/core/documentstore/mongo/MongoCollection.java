@@ -265,15 +265,10 @@ public class MongoCollection implements Collection {
   /** Updates auto-field lastUpdatedTime when sub doc is updated */
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
-    String jsonString = subDocument.toJson();
     try {
-      JsonNode jsonNode = MAPPER.readTree(jsonString);
-
-      // escape "." and "$" in field names since Mongo DB does not like them
-      JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
       BasicDBObject dbObject =
           new BasicDBObject(
-              subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
+              subDocPath, getSanitizedObject(subDocument));
       dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
       BasicDBObject setObject = new BasicDBObject("$set", dbObject);
 
@@ -300,14 +295,10 @@ public class MongoCollection implements Collection {
       List<BasicDBObject> updateOperations = new ArrayList<>();
       for (String subDocPath : subDocuments.keySet()) {
         Document subDocument = subDocuments.get(subDocPath);
-        String jsonString = subDocument.toJson();
         try {
-          JsonNode jsonNode = MAPPER.readTree(jsonString);
-          // escape "." and "$" in field names since Mongo DB does not like them
-          JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
           BasicDBObject dbObject =
               new BasicDBObject(
-                  subDocPath, BasicDBObject.parse(MAPPER.writeValueAsString(sanitizedJsonNode)));
+                  subDocPath, getSanitizedObject(subDocument));
           dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
           BasicDBObject setObject = new BasicDBObject("$set", dbObject);
           updateOperations.add(setObject);
@@ -380,9 +371,8 @@ public class MongoCollection implements Collection {
 
   private BasicDBObject getRemoveOperationObject(
       String subDocPath, List<BasicDBObject> basicDBObjects) {
-    BasicDBObject inObject = new BasicDBObject("$in", basicDBObjects);
-    BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, inObject);
-    return new BasicDBObject("$pull", subDocPathObject)
+    BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, basicDBObjects);
+    return new BasicDBObject("$pullAll", subDocPathObject)
         .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
   }
 
