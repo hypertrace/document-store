@@ -15,7 +15,6 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
    * @return True if this operation resulted in update of an existing document. False, otherwise.
-   * @throws IOException the io exception
    */
   boolean upsert(Key key, Document document) throws IOException;
 
@@ -26,7 +25,6 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
    * @return Returns the updated document regardless if an update occurred
-   * @throws IOException the io exception
    */
   Document upsertAndReturn(Key key, Document document) throws IOException;
 
@@ -36,7 +34,6 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param subDocPath Path to the sub document that needs to be updated
    * @param subDocument Sub document that needs to be updated at the above path
-   * @return the boolean
    * @deprecated use {@link #bulkUpdateSubDocs(Map)} ()} instead.
    */
   @Deprecated
@@ -47,7 +44,6 @@ public interface Collection {
    *
    * @param documents contains the mapping of key and the corresponding sub doc update queries
    * @return the update count or -1 if there is any exception
-   * @throws Exception the exception
    */
   BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents) throws Exception;
 
@@ -105,25 +101,16 @@ public interface Collection {
    */
   boolean deleteAll();
 
-  /**
-   * Count long.
-   *
-   * @return the number of documents in the collection
-   */
+  /** @return the number of documents in the collection */
   long count();
 
   /**
-   * Total long.
-   *
-   * @param query the query
    * @return the total number of documents matching the query applying the filters passed, and
    *     ignoring offset and limit
    */
   long total(Query query);
 
   /**
-   * Bulk upsert boolean.
-   *
    * @param documents to be upserted in bulk
    * @return true if the operation succeeded
    */
@@ -133,10 +120,6 @@ public interface Collection {
    * Method to bulkUpsert the given documents and return the previous copies of those documents.
    * This helps the clients to see how the documents were prior to upserting them and do that in one
    * less round trip.
-   *
-   * @param documents the documents
-   * @return the iterator
-   * @throws IOException the io exception
    */
   Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException;
@@ -150,16 +133,14 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param document Document to be created.
    * @return an instance of {@link CreateResult}
-   * @throws IOException the io exception
    */
   CreateResult create(Key key, Document document) throws IOException;
 
   /**
    * Updates existing documents if the corresponding Filter condition evaluates to true
    *
-   * @param bulkUpdateRequests the bulk update requests
+   * @param documents to be updated in bulk
    * @return an instance of {@link BulkUpdateResult}
-   * @throws Exception the exception
    */
   BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception;
 
@@ -171,10 +152,8 @@ public interface Collection {
    * @param document Document to be updated.
    * @param condition Filter condition to be evaluated if present, on success update the document
    * @return an instance of {@link UpdateResult}
-   * @throws IOException the io exception
    */
   UpdateResult update(Key key, Document document, Filter condition) throws IOException;
 
-  /** The constant UNSUPPORTED_QUERY_OPERATION. */
   String UNSUPPORTED_QUERY_OPERATION = "Query operation is not supported";
 }

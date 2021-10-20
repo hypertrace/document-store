@@ -336,40 +336,20 @@ public class MongoCollection implements Collection {
   @Override
   public BulkUpdateResult bulkAddToArrayValue(
       Set<Key> keys, String subDocPath, List<Document> subDocuments) throws Exception {
-    BasicDBObject selectionCriteria = selectionCriteriaForKeys(keys);
-    List<BasicDBObject> basicDBObjects = new ArrayList<>();
-    try {
-      for (Document subDocument : subDocuments) {
-        String jsonString = subDocument.toJson();
-        JsonNode jsonNode = MAPPER.readTree(jsonString);
-        JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
-        String sanitizedJsonString = MAPPER.writeValueAsString(sanitizedJsonNode);
-        basicDBObjects.add(BasicDBObject.parse(sanitizedJsonString));
-      }
-    } catch (Exception e) {
-      LOGGER.error(
-          "Exception updating document. keys: {} subDocPath {} subDocuments :{}",
-          keys,
-          subDocPath,
-          subDocuments);
-      throw e;
-    }
+    List<BasicDBObject> basicDBObjects = getSubDocObjects(keys, subDocPath, subDocuments);
     BasicDBObject eachObject = new BasicDBObject("$each", basicDBObjects);
     BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, eachObject);
-    BasicDBObject addToSetObject = new BasicDBObject("$addToSet", subDocPathObject);
-    // BasicDBObject updateTimeObject =
-    //     new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis());
-    // BasicDBObject setObject = new BasicDBObject("$set", updateTimeObject);
-    List<BasicDBObject> updateOperations = new ArrayList<>();
-    updateOperations.add(addToSetObject);
-    // updateOperations.add(setObject);
+    BasicDBObject addToSetObject =
+        new BasicDBObject("$addToSet", subDocPathObject)
+            .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
 
-    List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate = new ArrayList<>();
-    bulkWriteUpdate.add(
-        new UpdateManyModel(selectionCriteria, updateOperations, new UpdateOptions()));
+    List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate =
+        List.of(
+            new UpdateManyModel(
+                selectionCriteriaForKeys(keys), addToSetObject, new UpdateOptions()));
     BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
     if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Update result: " + writeResult);
+      LOGGER.debug("Write result: " + writeResult);
     }
     return new BulkUpdateResult(writeResult.getModifiedCount());
   }
@@ -377,7 +357,26 @@ public class MongoCollection implements Collection {
   @Override
   public BulkUpdateResult bulkRemoveFromArrayValue(
       Set<Key> keys, String subDocPath, List<Document> subDocuments) throws Exception {
-    BasicDBObject selectionCriteria = selectionCriteriaForKeys(keys);
+    List<BasicDBObject> basicDBObjects = getSubDocObjects(keys, subDocPath, subDocuments);
+    BasicDBObject inObject = new BasicDBObject("$in", basicDBObjects);
+    BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, inObject);
+    BasicDBObject pullObject =
+        new BasicDBObject("$pull", subDocPathObject)
+            .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
+
+    List<UpdateManyModel<BasicDBObject>> bulkWriteUpdate =
+        List.of(
+            new UpdateManyModel(selectionCriteriaForKeys(keys), pullObject, new UpdateOptions()));
+    BulkWriteResult writeResult = collection.bulkWrite(bulkWriteUpdate);
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Write result: " + writeResult);
+    }
+    return new BulkUpdateResult(writeResult.getModifiedCount());
+  }
+
+  private List<BasicDBObject> getSubDocObjects(
+      Set<Key> keys, String subDocPath, List<Document> subDocuments)
+      throws JsonProcessingException {
     List<BasicDBObject> basicDBObjects = new ArrayList<>();
     try {
       for (Document subDocument : subDocuments) {
@@ -395,22 +394,7 @@ public class MongoCollection implements Collection {
           subDocuments);
       throw e;
     }
-    BasicDBObject inObject = new BasicDBObject("$in", basicDBObjects);
-    BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, inObject);
-    BasicDBObject pullObject = new BasicDBObject("$pull", subDocPathObject);
-    BasicDBObject updateTimeObject =
-        new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis());
-    BasicDBObject setObject = new BasicDBObject("$set", updateTimeObject);
-    List<BasicDBObject> updateOperations = new ArrayList<>();
-    updateOperations.add(pullObject);
-    updateOperations.add(setObject);
-
-    UpdateResult updateResult =
-        collection.updateMany(selectionCriteria, updateOperations, new UpdateOptions());
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Update result: " + updateResult);
-    }
-    return new BulkUpdateResult(updateResult.getModifiedCount());
+    return basicDBObjects;
   }
 
   private JsonNode recursiveClone(JsonNode src, Function<String, String> function) {
