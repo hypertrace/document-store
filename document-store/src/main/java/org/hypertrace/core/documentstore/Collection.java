@@ -47,6 +47,14 @@ public interface Collection {
   BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents) throws Exception;
 
   /**
+   * Bulk operation on array value for the given set of keys at given sub doc path
+   *
+   * @param request bullk array value update request
+   * @return the bulk update result
+   */
+  BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) throws Exception;
+
+  /**
    * Search for documents matching the query
    *
    * @param query filter to query matching documents
