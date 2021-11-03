@@ -5,13 +5,13 @@ import java.util.List;
 import java.util.Objects;
 
 public class Query {
-
-  // support only filter for now. Add aggregations and group by later.
   private final List<String> selections = new ArrayList<>();
   private Filter filter;
   private final List<OrderBy> orderBys = new ArrayList<>();
   private Integer offset;
   private Integer limit;
+  private GroupBy groupBy;
+  private Filter groupingFilter; // Similar to HAVING clause in SQL
 
   public void addAllSelections(List<String> selections) {
     this.selections.addAll(selections);
@@ -61,6 +61,22 @@ public class Query {
     this.limit = limit;
   }
 
+  public GroupBy getGroupBy() {
+    return groupBy;
+  }
+
+  public void setGroupBy(GroupBy groupBy) {
+    this.groupBy = groupBy;
+  }
+
+  public Filter getGroupingFilter() {
+    return groupingFilter;
+  }
+
+  public void setGroupingFilter(Filter groupingFilter) {
+    this.groupingFilter = groupingFilter;
+  }
+
   @Override
   public String toString() {
     return "Query{"
@@ -70,6 +86,10 @@ public class Query {
         + filter
         + ", orderBys="
         + orderBys
+        + ", groupBy="
+        + groupBy
+        + ", groupingFilter="
+        + groupingFilter
         + ", offset="
         + offset
         + ", limit="
@@ -85,12 +105,14 @@ public class Query {
     return Objects.equals(selections, query.selections)
         && Objects.equals(filter, query.filter)
         && Objects.equals(orderBys, query.orderBys)
+        && Objects.equals(groupBy, query.groupBy)
+        && Objects.equals(groupingFilter, query.groupingFilter)
         && Objects.equals(offset, query.offset)
         && Objects.equals(limit, query.limit);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(selections, filter, orderBys, offset, limit);
+    return Objects.hash(selections, filter, orderBys, groupBy, groupingFilter, offset, limit);
   }
 }

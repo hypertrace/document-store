@@ -8,6 +8,8 @@ plugins {
 
 dependencies {
   api("com.typesafe:config:1.3.2")
+  annotationProcessor("org.projectlombok:lombok:1.18.22")
+  implementation("org.projectlombok:lombok:1.18.22")
   implementation("org.postgresql:postgresql:42.2.13")
   implementation("org.mongodb:mongodb-driver-sync:4.1.2")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")
@@ -15,6 +17,9 @@ dependencies {
   implementation("com.google.guava:guava-annotations:r03")
   implementation("org.apache.commons:commons-lang3:3.10")
   implementation("net.jodah:failsafe:2.4.0")
+
+  testAnnotationProcessor("org.projectlombok:lombok:1.18.22")
+  testImplementation("org.projectlombok:lombok:1.18.22")
   testImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
   testImplementation("org.junit.jupiter:junit-jupiter-params:5.7.0")
   testImplementation("org.mockito:mockito-core:2.19.0")

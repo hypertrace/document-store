@@ -275,6 +275,11 @@ public class PostgresCollection implements Collection {
     return Collections.emptyIterator();
   }
 
+  @Override
+  public Iterator<Document> aggregate(Query query) {
+    throw new UnsupportedOperationException();
+  }
+
   @VisibleForTesting
   protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
       throws SQLException, RuntimeException {
