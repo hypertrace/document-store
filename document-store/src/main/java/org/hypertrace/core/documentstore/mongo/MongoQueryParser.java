@@ -11,7 +11,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.GroupBy;
+import org.hypertrace.core.documentstore.GroupingSpec;
 import org.hypertrace.core.documentstore.OrderBy;
+import org.hypertrace.core.documentstore.expression.BinaryOperatorExpression;
+import org.hypertrace.core.documentstore.expression.Expression;
+import org.hypertrace.core.documentstore.expression.LiteralExpression;
+import org.hypertrace.core.documentstore.expression.UnaryOperatorExpression;
 
 class MongoQueryParser {
 
@@ -99,5 +105,33 @@ class MongoQueryParser {
       orderByMap.put(orderBy.getField(), (orderBy.isAsc() ? 1 : -1));
     }
     return orderByMap;
+  }
+
+  static LinkedHashMap<String, Object> parseGroupBy(GroupBy groupBy) {
+    LinkedHashMap<String, Object> groupByMap = new LinkedHashMap<>();
+    groupByMap.put(MongoCollection.ID_KEY, parseExpression(groupBy.getKey()));
+
+    for (GroupingSpec aggr : groupBy.getGroupingSpecs()) {
+      LinkedHashMap<String, Object> accumulatorMap = new LinkedHashMap<>();
+      accumulatorMap.put(
+          "$" + aggr.getAccumulator().name().toLowerCase(), parseExpression(aggr.getExpression()));
+      groupByMap.put(aggr.getAlias(), accumulatorMap);
+    }
+
+    return groupByMap;
+  }
+
+  static Object parseExpression(Expression expression) {
+    if (expression instanceof LiteralExpression) {
+      return new MongoLiteralExpressionParser().parseExpression((LiteralExpression) expression);
+    } else if (expression instanceof UnaryOperatorExpression) {
+      return new MongoUnaryOperatorExpressionParser()
+          .parseExpression((UnaryOperatorExpression) expression);
+    } else if (expression instanceof BinaryOperatorExpression) {
+      return new MongoBinaryOperatorExpressionParser()
+          .parseExpression((BinaryOperatorExpression) expression);
+    } else {
+      throw new IllegalArgumentException("Unknown expression type");
+    }
   }
 }

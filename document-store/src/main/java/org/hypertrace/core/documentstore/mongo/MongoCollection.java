@@ -10,6 +10,7 @@ import com.mongodb.MongoBulkWriteException;
 import com.mongodb.MongoCommandException;
 import com.mongodb.MongoServerException;
 import com.mongodb.bulk.BulkWriteResult;
+import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.BulkWriteOptions;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -418,58 +420,35 @@ public class MongoCollection implements Collection {
 
   @Override
   public Iterator<Document> search(Query query) {
-    Map<String, Object> map = new HashMap<>();
+    BasicDBObject ref = new BasicDBObject(parseFilter(query.getFilter()));
+    FindIterable<BasicDBObject> cursor = collection.find(ref);
+    final MongoCursor<BasicDBObject> mongoCursor = processCursor(query, cursor);
+    return getIteratorFromCursor(mongoCursor);
+  }
 
-    // If there is a filter in the query, parse it fully.
-    if (query.getFilter() != null) {
-      map = MongoQueryParser.parseFilter(query.getFilter());
-    }
+  @Override
+  public Iterator<Document> aggregate(Query query) {
+    Map<String, Object> whereFilterMap = parseFilter(query.getFilter());
+    BasicDBObject whereFilters = new BasicDBObject(Map.of("$match", whereFilterMap));
 
-    Bson projection = new BasicDBObject();
-    if (!query.getSelections().isEmpty()) {
-      projection = Projections.include(query.getSelections());
-    }
+    LinkedHashMap<String, Object> groupByMap = MongoQueryParser.parseGroupBy(query.getGroupBy());
+    BasicDBObject groupBy = new BasicDBObject(Map.of("$group", groupByMap));
 
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug(
-          "Sending query to mongo: {} : {}",
-          collection.getNamespace().getCollectionName(),
-          Arrays.toString(map.entrySet().toArray()));
-    }
+    Map<String, Object> havingFilterMap = parseFilter(query.getFilter());
+    BasicDBObject havingFilters = new BasicDBObject(Map.of("$match", havingFilterMap));
 
-    // Assume its SimpleAndQuery for now
-    BasicDBObject ref = new BasicDBObject(map);
-    FindIterable<BasicDBObject> cursor = collection.find(ref).projection(projection);
-
-    Integer offset = query.getOffset();
-    if (offset != null && offset >= 0) {
-      cursor = cursor.skip(offset);
-    }
-
-    Integer limit = query.getLimit();
-    if (limit != null && limit >= 0) {
-      cursor = cursor.limit(limit);
-    }
+    List<BasicDBObject> pipeline = Arrays.asList(whereFilters, groupBy, havingFilters);
 
     if (!query.getOrderBys().isEmpty()) {
-      BasicDBObject orderBy =
-          new BasicDBObject(MongoQueryParser.parseOrderBys(query.getOrderBys()));
-      cursor.sort(orderBy);
+      LinkedHashMap<String, Object> orderByMap =
+          MongoQueryParser.parseOrderBys(query.getOrderBys());
+      BasicDBObject orderBy = new BasicDBObject(Map.of("$sort", orderByMap));
+      pipeline.add(orderBy);
     }
 
+    AggregateIterable<BasicDBObject> cursor = collection.aggregate(pipeline);
     final MongoCursor<BasicDBObject> mongoCursor = cursor.cursor();
-    return new Iterator<>() {
-
-      @Override
-      public boolean hasNext() {
-        return mongoCursor.hasNext();
-      }
-
-      @Override
-      public Document next() {
-        return MongoCollection.this.dbObjectToDocument(mongoCursor.next());
-      }
-    };
+    return getIteratorFromCursor(mongoCursor);
   }
 
   @Override
@@ -612,5 +591,91 @@ public class MongoCollection implements Collection {
       // throwing exception is not very useful here.
       return JSONDocument.errorDocument(e.getMessage());
     }
+  }
+
+  private Map<String, Object> parseFilter(Filter filter) {
+    Map<String, Object> map = new HashMap<>();
+
+    // If there is a filter in the query, parse it fully.
+    if (filter != null) {
+      map = MongoQueryParser.parseFilter(filter);
+    }
+
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug(
+          "Sending query to mongo: {} : {}",
+          collection.getNamespace().getCollectionName(),
+          Arrays.toString(map.entrySet().toArray()));
+    }
+
+    return map;
+  }
+
+  private MongoCursor<BasicDBObject> processCursor(
+      Query query, FindIterable<BasicDBObject> cursor) {
+    cursor = applyProjections(query, cursor);
+    applySorting(query, cursor);
+    cursor = applyPagination(query, cursor);
+
+    return cursor.cursor();
+  }
+
+  private Iterator<Document> getIteratorFromCursor(MongoCursor<BasicDBObject> cursor) {
+    return new Iterator<>() {
+
+      @Override
+      public boolean hasNext() {
+        return cursor.hasNext();
+      }
+
+      @Override
+      public Document next() {
+        return MongoCollection.this.dbObjectToDocument(cursor.next());
+      }
+    };
+  }
+
+  private FindIterable<BasicDBObject> applyProjections(
+      Query query, FindIterable<BasicDBObject> cursor) {
+    Bson projection = new BasicDBObject();
+    if (!query.getSelections().isEmpty()) {
+      projection = Projections.include(query.getSelections());
+    }
+
+    return cursor.projection(projection);
+  }
+
+  private FindIterable<BasicDBObject> applyPagination(
+      Query query, FindIterable<BasicDBObject> cursor) {
+    cursor = applySkip(query, cursor);
+    cursor = applyLimit(query, cursor);
+
+    return cursor;
+  }
+
+  private void applySorting(Query query, FindIterable<BasicDBObject> cursor) {
+    if (!query.getOrderBys().isEmpty()) {
+      BasicDBObject orderBy =
+          new BasicDBObject(MongoQueryParser.parseOrderBys(query.getOrderBys()));
+      cursor.sort(orderBy);
+    }
+  }
+
+  private FindIterable<BasicDBObject> applySkip(Query query, FindIterable<BasicDBObject> cursor) {
+    Integer offset = query.getOffset();
+    if (offset != null && offset >= 0) {
+      cursor = cursor.skip(offset);
+    }
+
+    return cursor;
+  }
+
+  private FindIterable<BasicDBObject> applyLimit(Query query, FindIterable<BasicDBObject> cursor) {
+    Integer limit = query.getLimit();
+    if (limit != null && limit >= 0) {
+      cursor = cursor.limit(limit);
+    }
+
+    return cursor;
   }
 }

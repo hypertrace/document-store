@@ -63,6 +63,14 @@ public interface Collection {
   Iterator<Document> search(Query query);
 
   /**
+   * Aggregate documents matching the query
+   *
+   * @param query aggregation specification to collect matching documents
+   * @return {@link Iterator} of aggregated matching documents
+   */
+  Iterator<Document> aggregate(Query query);
+
+  /**
    * Delete the document with the given key.
    *
    * @param key The {@link Key} of the document to be deleted.
