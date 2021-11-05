@@ -434,7 +434,7 @@ public class MongoCollection implements Collection {
     LinkedHashMap<String, Object> groupByMap = MongoQueryParser.parseGroupBy(query.getGroupBy());
     BasicDBObject groupBy = new BasicDBObject(Map.of("$group", groupByMap));
 
-    Map<String, Object> havingFilterMap = parseFilter(query.getFilter());
+    Map<String, Object> havingFilterMap = parseFilter(query.getGroupingFilter());
     BasicDBObject havingFilters = new BasicDBObject(Map.of("$match", havingFilterMap));
 
     List<BasicDBObject> pipeline = Arrays.asList(whereFilters, groupBy, havingFilters);
