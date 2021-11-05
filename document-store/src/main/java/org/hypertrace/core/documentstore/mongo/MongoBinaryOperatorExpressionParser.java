@@ -7,9 +7,13 @@ import org.hypertrace.core.documentstore.expression.BinaryOperatorExpression;
 
 // Ref.: https://docs.mongodb.com/manual/meta/aggregation-quick-reference/#operator-expressions
 public class MongoBinaryOperatorExpressionParser
-    implements MongoExpressionParser<BinaryOperatorExpression> {
+    extends MongoExpressionParser<BinaryOperatorExpression> {
+  public MongoBinaryOperatorExpressionParser(BinaryOperatorExpression expression) {
+    super(expression);
+  }
+
   @Override
-  public LinkedHashMap<String, Object> parseExpression(BinaryOperatorExpression expression) {
+  public LinkedHashMap<String, Object> parse() {
     LinkedHashMap<String, Object> map = new LinkedHashMap<>();
     List<Object> operands =
         Arrays.asList(

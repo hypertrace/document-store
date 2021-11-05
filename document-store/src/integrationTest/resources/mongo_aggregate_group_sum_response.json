@@ -1,0 +1,14 @@
+[
+  {
+    "item": "xyz",
+    "total": 100
+  },
+  {
+    "item": "abc",
+    "total": 70
+  },
+  {
+    "item": "def",
+    "total": 37.5
+  }
+]

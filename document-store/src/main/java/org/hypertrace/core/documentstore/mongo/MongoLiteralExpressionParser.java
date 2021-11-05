@@ -2,9 +2,14 @@ package org.hypertrace.core.documentstore.mongo;
 
 import org.hypertrace.core.documentstore.expression.LiteralExpression;
 
-public class MongoLiteralExpressionParser implements MongoExpressionParser<LiteralExpression> {
+public class MongoLiteralExpressionParser extends MongoExpressionParser<LiteralExpression> {
+
+  public MongoLiteralExpressionParser(LiteralExpression expression) {
+    super(expression);
+  }
+
   @Override
-  public String parseExpression(LiteralExpression expression) {
+  public String parse() {
     return "$" + expression.getLiteral();
   }
 }

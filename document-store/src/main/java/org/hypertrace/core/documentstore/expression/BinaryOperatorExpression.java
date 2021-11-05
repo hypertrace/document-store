@@ -8,9 +8,9 @@ import lombok.Getter;
 @Getter
 @EqualsAndHashCode
 public class BinaryOperatorExpression implements OperatorExpression {
-  private Expression operand1; // Operand on the left side of the expression
-  private BinaryOperator operation;
-  private Expression operand2; // Operand on the right side of the expression
+  private final Expression operand1; // Operand on the left side of the expression
+  private final BinaryOperator operation;
+  private final Expression operand2; // Operand on the right side of the expression
 
   @Override
   public String toString() {

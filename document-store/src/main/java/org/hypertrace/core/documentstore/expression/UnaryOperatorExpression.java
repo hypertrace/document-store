@@ -8,8 +8,8 @@ import lombok.Getter;
 @Getter
 @EqualsAndHashCode
 public class UnaryOperatorExpression implements OperatorExpression {
-  private Expression operand;
-  private UnaryOperator operation;
+  private final Expression operand;
+  private final UnaryOperator operation;
 
   @Override
   public String toString() {

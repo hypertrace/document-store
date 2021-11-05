@@ -15,6 +15,7 @@ import org.hypertrace.core.documentstore.GroupBy;
 import org.hypertrace.core.documentstore.GroupingSpec;
 import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.expression.BinaryOperatorExpression;
+import org.hypertrace.core.documentstore.expression.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.Expression;
 import org.hypertrace.core.documentstore.expression.LiteralExpression;
 import org.hypertrace.core.documentstore.expression.UnaryOperatorExpression;
@@ -122,16 +123,24 @@ class MongoQueryParser {
   }
 
   static Object parseExpression(Expression expression) {
-    if (expression instanceof LiteralExpression) {
-      return new MongoLiteralExpressionParser().parseExpression((LiteralExpression) expression);
+    if (expression == null) {
+      return null;
+    }
+
+    MongoExpressionParser<? extends Expression> parser;
+
+    if (expression instanceof ConstantExpression) {
+      parser = new MongoConstantExpressionParser((ConstantExpression) expression);
+    } else if (expression instanceof LiteralExpression) {
+      parser = new MongoLiteralExpressionParser((LiteralExpression) expression);
     } else if (expression instanceof UnaryOperatorExpression) {
-      return new MongoUnaryOperatorExpressionParser()
-          .parseExpression((UnaryOperatorExpression) expression);
+      parser = new MongoUnaryOperatorExpressionParser((UnaryOperatorExpression) expression);
     } else if (expression instanceof BinaryOperatorExpression) {
-      return new MongoBinaryOperatorExpressionParser()
-          .parseExpression((BinaryOperatorExpression) expression);
+      parser = new MongoBinaryOperatorExpressionParser((BinaryOperatorExpression) expression);
     } else {
       throw new IllegalArgumentException("Unknown expression type");
     }
+
+    return parser.parse();
   }
 }

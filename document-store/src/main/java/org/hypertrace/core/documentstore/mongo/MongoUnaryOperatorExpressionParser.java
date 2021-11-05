@@ -5,9 +5,14 @@ import org.hypertrace.core.documentstore.expression.UnaryOperatorExpression;
 
 // Ref.: https://docs.mongodb.com/manual/meta/aggregation-quick-reference/#operator-expressions
 public class MongoUnaryOperatorExpressionParser
-    implements MongoExpressionParser<UnaryOperatorExpression> {
+    extends MongoExpressionParser<UnaryOperatorExpression> {
+
+  public MongoUnaryOperatorExpressionParser(UnaryOperatorExpression expression) {
+    super(expression);
+  }
+
   @Override
-  public LinkedHashMap<String, Object> parseExpression(UnaryOperatorExpression expression) {
+  public LinkedHashMap<String, Object> parse() {
     LinkedHashMap<String, Object> map = new LinkedHashMap<>();
     map.put(
         "$" + expression.getOperation().name().toLowerCase(),

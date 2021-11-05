@@ -428,16 +428,23 @@ public class MongoCollection implements Collection {
 
   @Override
   public Iterator<Document> aggregate(Query query) {
+    List<BasicDBObject> pipeline = new ArrayList<>();
+
     Map<String, Object> whereFilterMap = parseFilter(query.getFilter());
-    BasicDBObject whereFilters = new BasicDBObject(Map.of("$match", whereFilterMap));
+    if (!whereFilterMap.isEmpty()) {
+      BasicDBObject whereFilters = new BasicDBObject(Map.of("$match", whereFilterMap));
+      pipeline.add(whereFilters);
+    }
 
     LinkedHashMap<String, Object> groupByMap = MongoQueryParser.parseGroupBy(query.getGroupBy());
     BasicDBObject groupBy = new BasicDBObject(Map.of("$group", groupByMap));
+    pipeline.add(groupBy);
 
     Map<String, Object> havingFilterMap = parseFilter(query.getGroupingFilter());
-    BasicDBObject havingFilters = new BasicDBObject(Map.of("$match", havingFilterMap));
-
-    List<BasicDBObject> pipeline = Arrays.asList(whereFilters, groupBy, havingFilters);
+    if (!havingFilterMap.isEmpty()) {
+      BasicDBObject havingFilters = new BasicDBObject(Map.of("$match", havingFilterMap));
+      pipeline.add(havingFilters);
+    }
 
     if (!query.getOrderBys().isEmpty()) {
       LinkedHashMap<String, Object> orderByMap =

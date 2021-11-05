@@ -44,10 +44,18 @@ import org.hypertrace.core.documentstore.DatastoreProvider;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
+import org.hypertrace.core.documentstore.GroupBy;
+import org.hypertrace.core.documentstore.GroupBy.Accumulator;
+import org.hypertrace.core.documentstore.GroupingSpec;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
+import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
+import org.hypertrace.core.documentstore.expression.BinaryOperator;
+import org.hypertrace.core.documentstore.expression.BinaryOperatorExpression;
+import org.hypertrace.core.documentstore.expression.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.LiteralExpression;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -1101,5 +1109,71 @@ public class MongoDocStoreTest {
       JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
       assertEquals(expectedAttributesJsonNode, attributesJsonNode);
     }
+  }
+
+  @Test
+  public void testAggregateSimple() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Document> documents = Utils.createDocumentsFromResource("mongo_collection_data.json");
+
+    collection.bulkUpsert(documents);
+
+    GroupingSpec spec = new GroupingSpec(new ConstantExpression(1), Accumulator.SUM, "count");
+    GroupBy groupBy = new GroupBy(null, List.of(spec));
+    Query query = new Query();
+
+    query.setGroupBy(groupBy);
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo_aggregate_count_response.json");
+  }
+
+  @Test
+  public void testAggregateWithFiltersAndOrdering() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Document> documents = Utils.createDocumentsFromResource("mongo_collection_data.json");
+
+    collection.bulkUpsert(documents);
+
+    GroupingSpec spec1 =
+        new GroupingSpec(
+            new BinaryOperatorExpression(
+                new LiteralExpression("price"),
+                BinaryOperator.MULTIPLY,
+                new LiteralExpression("quantity")),
+            Accumulator.SUM,
+            "total");
+    GroupingSpec spec2 = new GroupingSpec(new LiteralExpression("item"), Accumulator.FIRST, "item");
+    GroupBy groupBy = new GroupBy(new LiteralExpression("item"), List.of(spec1, spec2));
+
+    Query query = new Query();
+    query.setGroupBy(groupBy);
+
+    OrderBy orderBy = new OrderBy("total", false);
+    query.addOrderBy(orderBy);
+
+    Filter havingFilter = new Filter(Op.GTE, "total", 25);
+    query.setGroupingFilter(havingFilter);
+
+    Filter whereFilter = new Filter(Op.NEQ, "quantity", 10);
+    query.setFilter(whereFilter);
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo_aggregate_group_sum_response.json");
+  }
+
+  private static void assertDocsEqual(Iterator<Document> documents, String filePath)
+      throws IOException {
+    String fileContent = Utils.readFileFromResource(filePath).orElseThrow();
+    List<Map<String, Object>> expected = Utils.convertJsonToMap(fileContent);
+
+    List<Map<String, Object>> actual = new ArrayList<>();
+    while (documents.hasNext()) {
+      actual.add(Utils.convertDocumentToMap(documents.next()));
+    }
+
+    assertEquals(expected, actual);
   }
 }
