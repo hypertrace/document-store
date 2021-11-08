@@ -6,11 +6,11 @@ import lombok.AllArgsConstructor;
 import lombok.Value;
 
 /**
- *  Expression representing either a string constant, a numeric constant or a list of string/numeric constants.
+ * Expression representing either a string constant, a numeric constant or a list of string/numeric
+ * constants.
  *
- *  Example:
- *    ConstantExpression.of(5);           // Numeric constant
- *    ConstantExpression.of("const");     // String constant
+ * <p>Example: ConstantExpression.of(5); // Numeric constant ConstantExpression.of("const"); //
+ * String constant
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)

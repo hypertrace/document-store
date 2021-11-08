@@ -6,8 +6,8 @@ public enum ArithmeticOperator {
   FLOOR,
 
   // Binary operations
-  SUBTRACT,               // Minuend and then subtrahend
-  DIVIDE,                 // Dividend and then divisor
+  SUBTRACT, // Minuend and then subtrahend
+  DIVIDE, // Dividend and then divisor
 
   // n-ary operations
   ADD,

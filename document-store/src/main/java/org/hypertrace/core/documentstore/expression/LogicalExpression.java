@@ -3,29 +3,17 @@ package org.hypertrace.core.documentstore.expression;
 import lombok.Value;
 
 /**
- *  Expression to connect 2 or more relational expressions.
+ * Expression to connect 2 or more relational expressions.
  *
- *  Example:
- *     percentage >= 90 AND (college = 'IIT' OR college = 'NIT')
+ * <p>Example: percentage >= 90 AND (college = 'IIT' OR college = 'NIT')
  *
- *  can be constructed as
+ * <p>can be constructed as
  *
- *  LogicalExpression.of(
- *      RelationalExpression.of(
- *          LiteralExpression.of("percentage"),
- *          RelationalOperator.GTE,
- *          ConstantExpression.of(90)),
- *      LogicalOperator.AND,
- *      LogicalExpression.of(
- *          RelationalExpression.of(
- *              LiteralExpression.of("college"),
- *              RelationalOperator.EQ,
- *              ConstantExpression.of("IIT")),
- *          LogicalOperator.OR,
- *          RelationalExpression.of(
- *              LiteralExpression.of("college"),
- *              RelationalOperator.EQ,
- *              ConstantExpression.of("NIT"))));
+ * <p>LogicalExpression.of( RelationalExpression.of( LiteralExpression.of("percentage"),
+ * RelationalOperator.GTE, ConstantExpression.of(90)), LogicalOperator.AND, LogicalExpression.of(
+ * RelationalExpression.of( LiteralExpression.of("college"), RelationalOperator.EQ,
+ * ConstantExpression.of("IIT")), LogicalOperator.OR, RelationalExpression.of(
+ * LiteralExpression.of("college"), RelationalOperator.EQ, ConstantExpression.of("NIT"))));
  */
 @Value(staticConstructor = "of")
 public class LogicalExpression implements Filterable {
