@@ -9,8 +9,10 @@ import lombok.Value;
  * Expression representing either a string constant, a numeric constant or a list of string/numeric
  * constants.
  *
- * <p>Example: ConstantExpression.of(5); // Numeric constant ConstantExpression.of("const"); //
- * String constant
+ * <p>Example: <code>
+ *    ConstantExpression.of(5);           // Numeric constant
+ *    ConstantExpression.of("const");     // String constant
+ *  </code>
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
