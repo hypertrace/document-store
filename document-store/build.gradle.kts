@@ -8,6 +8,8 @@ plugins {
 
 dependencies {
   api("com.typesafe:config:1.3.2")
+  annotationProcessor("org.projectlombok:lombok:1.18.22")
+  compileOnly("org.projectlombok:lombok:1.18.22")
   implementation("org.postgresql:postgresql:42.2.13")
   implementation("org.mongodb:mongodb-driver-sync:4.1.2")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")
