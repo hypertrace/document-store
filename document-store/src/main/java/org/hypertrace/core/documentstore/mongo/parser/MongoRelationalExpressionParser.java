@@ -23,7 +23,8 @@ public class MongoRelationalExpressionParser {
     return generateMap(key, value, operator);
   }
 
-  private static Map<String, Object> generateMap(String key, Object value, RelationalOperator operator) {
+  private static Map<String, Object> generateMap(
+      String key, Object value, RelationalOperator operator) {
     Map<String, Object> map = new HashMap<>();
     switch (operator) {
       case EQ:
@@ -31,8 +32,7 @@ public class MongoRelationalExpressionParser {
         break;
       case LIKE:
         // Case insensitive regex search
-        map.put(
-            key, new BasicDBObject("$regex", value).append("$options", "i"));
+        map.put(key, new BasicDBObject("$regex", value).append("$options", "i"));
         break;
       case NOT_IN:
         map.put(key, new BasicDBObject("$nin", value));

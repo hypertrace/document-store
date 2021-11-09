@@ -7,7 +7,7 @@ import org.hypertrace.core.documentstore.expression.RelationalExpression;
 import org.hypertrace.core.documentstore.parser.IFilteringExpressionParser;
 
 public class MongoFilteringExpressionParser implements IFilteringExpressionParser {
-  private final static String FILTER_CLAUSE = "$match";
+  private static final String FILTER_CLAUSE = "$match";
 
   @Override
   public Object parse(LogicalExpression expression) {

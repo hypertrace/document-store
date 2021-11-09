@@ -52,8 +52,7 @@ import org.hypertrace.core.documentstore.expression.SelectingExpression;
  *                     .operator(ADD)
  *                     .operand(IdentifierExpression.of("col8")).build(),
  *                 DESC))
- *         .offset(5)
- *         .limit(10)
+ *         .paginationDefinition(PaginationDefinition.of(5, 10))
  *         .build();
  *  </code>
  */
@@ -68,8 +67,7 @@ public class Query {
 
   @Singular List<SortingDefinition> sortingDefinitions;
 
-  int offset;
-  int limit;
+  PaginationDefinition paginationDefinition;
 
   public static class QueryBuilder {
     private List<Selection> selections;

@@ -10,10 +10,14 @@ import org.hypertrace.core.documentstore.query.Query;
 // TODO: Remove this testing class
 public class MongoQueryParserTest {
   public static void main(String[] args) {
-    Query query = Query.builder()
-        .filter(RelationalExpression.of(IdentifierExpression.of("col1"), RelationalOperator.GT,
-            ConstantExpression.of(7)))
-        .build();
+    Query query =
+        Query.builder()
+            .filter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("col1"),
+                    RelationalOperator.GT,
+                    ConstantExpression.of(7)))
+            .build();
 
     FilteringExpression whereFilter = query.getFilter();
     MongoFilteringExpressionParser parser = new MongoFilteringExpressionParser();
