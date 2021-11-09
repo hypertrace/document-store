@@ -38,8 +38,8 @@ import org.hypertrace.core.documentstore.expression.SelectingExpression;
  *             IdentifierExpression.of("col2"),
  *             NEQ,
  *             IdentifierExpression.of("col3"))))
- *         .groupBy(IdentifierExpression.of("col4"))
- *         .groupBy(IdentifierExpression.of("col6"))
+ *         .aggregation(IdentifierExpression.of("col4"))
+ *         .aggregation(IdentifierExpression.of("col6"))
  *         .havingFilter(
  *             RelationalExpression.of(
  *                 AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
@@ -63,18 +63,18 @@ public class Query {
   List<Selection> selections;
   FilteringExpression filter;
 
-  @Singular List<GroupingExpression> groupBys;
-  FilteringExpression groupingFilter;
+  @Singular List<GroupingExpression> aggregations;
+  FilteringExpression aggregationFilter;
 
   @Singular List<SortingDefinition> sortingDefinitions;
 
   int offset;
   int limit;
 
-  public static class GenericQueryBuilder {
+  public static class QueryBuilder {
     private List<Selection> selections;
 
-    public GenericQueryBuilder selection(SelectingExpression expression) {
+    public QueryBuilder selection(SelectingExpression expression) {
       if (selections == null) {
         selections = new ArrayList<>();
       }
@@ -83,7 +83,7 @@ public class Query {
       return this;
     }
 
-    public GenericQueryBuilder selection(SelectingExpression expression, String alias) {
+    public QueryBuilder selection(SelectingExpression expression, String alias) {
       if (selections == null) {
         selections = new ArrayList<>();
       }
