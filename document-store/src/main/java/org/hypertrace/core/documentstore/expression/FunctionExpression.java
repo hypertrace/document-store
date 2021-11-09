@@ -4,6 +4,9 @@ import java.util.List;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
+import org.hypertrace.core.documentstore.parser.IGroupingExpressionParser;
+import org.hypertrace.core.documentstore.parser.ISelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.ISortingExpressionParser;
 
 /**
  * Expression representing arithmetic operations in a query.
@@ -25,7 +28,23 @@ import lombok.Value;
  */
 @Value
 @Builder
-public class ArithmeticExpression implements Groupable, Projectable, Sortable {
-  @Singular List<Projectable> operands;
-  ArithmeticOperator operator;
+public class FunctionExpression
+    implements GroupingExpression, SelectingExpression, SortingExpression {
+  @Singular List<SelectingExpression> operands;
+  FunctionOperator operator;
+
+  @Override
+  public void parse(IGroupingExpressionParser parser) {
+    parser.parse(this);
+  }
+
+  @Override
+  public void parse(ISelectingExpressionParser parser) {
+    parser.parse(this);
+  }
+
+  @Override
+  public void parse(ISortingExpressionParser parser) {
+    parser.parse(this);
+  }
 }

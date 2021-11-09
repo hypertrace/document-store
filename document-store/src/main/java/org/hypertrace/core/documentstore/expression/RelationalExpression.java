@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.expression;
 
 import lombok.Value;
+import org.hypertrace.core.documentstore.parser.IFilteringExpressionParser;
 
 /**
  * Expression representing a condition for filtering
@@ -15,8 +16,13 @@ import lombok.Value;
  * </code>
  */
 @Value(staticConstructor = "of")
-public class RelationalExpression implements Filterable {
-  Projectable operand1;
+public class RelationalExpression implements FilteringExpression {
+  SelectingExpression operand1;
   RelationalOperator operator;
-  Projectable operand2;
+  SelectingExpression operand2;
+
+  @Override
+  public void parse(IFilteringExpressionParser parser) {
+    parser.parse(this);
+  }
 }

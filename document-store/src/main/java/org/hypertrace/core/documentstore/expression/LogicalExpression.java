@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.expression;
 
 import lombok.Value;
+import org.hypertrace.core.documentstore.parser.IFilteringExpressionParser;
 
 /**
  * Expression to connect 2 or more relational expressions.
@@ -10,25 +11,30 @@ import lombok.Value;
  *  </code> can be constructed as <code>
  *    LogicalExpression.of(
  *      RelationalExpression.of(
- *          LiteralExpression.of("percentage"),
+ *          IdentifierExpression.of("percentage"),
  *          RelationalOperator.GTE,
  *          ConstantExpression.of(90)),
  *      LogicalOperator.AND,
  *      LogicalExpression.of(
  *          RelationalExpression.of(
- *              LiteralExpression.of("college"),
+ *              IdentifierExpression.of("college"),
  *              RelationalOperator.EQ,
  *              ConstantExpression.of("IIT")),
  *          LogicalOperator.OR,
  *          RelationalExpression.of(
- *              LiteralExpression.of("college"),
+ *              IdentifierExpression.of("college"),
  *              RelationalOperator.EQ,
  *              ConstantExpression.of("NIT"))));
  *  </code>
  */
 @Value(staticConstructor = "of")
-public class LogicalExpression implements Filterable {
-  Filterable expression1;
+public class LogicalExpression implements FilteringExpression {
+  FilteringExpression expression1;
   LogicalOperator operator;
-  Filterable expression2;
+  FilteringExpression expression2;
+
+  @Override
+  public void parse(IFilteringExpressionParser parser) {
+    parser.parse(this);
+  }
 }

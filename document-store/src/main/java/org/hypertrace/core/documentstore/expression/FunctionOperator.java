@@ -1,0 +1,13 @@
+package org.hypertrace.core.documentstore.expression;
+
+public enum FunctionOperator {
+  // Unary operations
+  ABS,
+  FLOOR,
+
+  // n-ary operations
+  ADD,
+  DIVIDE, // Dividend and then divisors (Left to right associative),
+  MULTIPLY,
+  SUBTRACT, // Minuend and then subtrahends (Left to right associative),
+}

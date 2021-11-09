@@ -4,6 +4,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
+import org.hypertrace.core.documentstore.parser.ISelectingExpressionParser;
 
 /**
  * Expression representing either a string constant, a numeric constant or a list of string/numeric
@@ -16,7 +17,7 @@ import lombok.Value;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ConstantExpression implements Projectable {
+public class ConstantExpression implements SelectingExpression {
   Object value;
 
   public static ConstantExpression of(String value) {
@@ -33,5 +34,10 @@ public class ConstantExpression implements Projectable {
 
   public static ConstantExpression ofNumbers(List<? extends Number> value) {
     return new ConstantExpression(value);
+  }
+
+  @Override
+  public void parse(ISelectingExpressionParser parser) {
+    parser.parse(this);
   }
 }

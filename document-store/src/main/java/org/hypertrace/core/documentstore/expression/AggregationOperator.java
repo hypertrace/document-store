@@ -1,7 +1,8 @@
 package org.hypertrace.core.documentstore.expression;
 
-public enum Aggregator {
-  COUNT,
-  SUM,
+public enum AggregationOperator {
   AVG,
+  COUNT,
+  DISTINCT_COUNT,
+  SUM,
 }
