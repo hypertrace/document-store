@@ -4,9 +4,9 @@ import org.hypertrace.core.documentstore.expression.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.IdentifierExpression;
-import org.hypertrace.core.documentstore.parser.ISelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
 
-public class MongoSelectingExpressionParser implements ISelectingExpressionParser {
+public class MongoSelectingExpressionParser implements SelectingExpressionParser {
 
   @Override
   public Object parse(AggregateExpression expression) {

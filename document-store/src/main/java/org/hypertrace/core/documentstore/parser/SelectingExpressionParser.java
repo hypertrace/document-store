@@ -5,7 +5,7 @@ import org.hypertrace.core.documentstore.expression.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.IdentifierExpression;
 
-public interface ISelectingExpressionParser {
+public interface SelectingExpressionParser {
   Object parse(AggregateExpression expression);
 
   Object parse(ConstantExpression expression);

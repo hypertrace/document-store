@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.expression;
 
 import lombok.Value;
-import org.hypertrace.core.documentstore.parser.IFilteringExpressionParser;
+import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
 
 /**
  * Expression representing a condition for filtering
@@ -22,7 +22,7 @@ public class RelationalExpression implements FilteringExpression {
   SelectingExpression operand2;
 
   @Override
-  public Object parse(IFilteringExpressionParser parser) {
+  public Object parse(FilteringExpressionParser parser) {
     return parser.parse(this);
   }
 }

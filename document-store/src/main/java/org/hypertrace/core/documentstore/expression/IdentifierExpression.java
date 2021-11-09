@@ -1,9 +1,9 @@
 package org.hypertrace.core.documentstore.expression;
 
 import lombok.Value;
-import org.hypertrace.core.documentstore.parser.IGroupingExpressionParser;
-import org.hypertrace.core.documentstore.parser.ISelectingExpressionParser;
-import org.hypertrace.core.documentstore.parser.ISortingExpressionParser;
+import org.hypertrace.core.documentstore.parser.GroupingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
 
 /**
  * Expression representing either a literal (or a column name)
@@ -16,17 +16,17 @@ public class IdentifierExpression
   String name;
 
   @Override
-  public Object parse(IGroupingExpressionParser parser) {
+  public Object parse(GroupingExpressionParser parser) {
     return parser.parse(this);
   }
 
   @Override
-  public Object parse(ISelectingExpressionParser parser) {
+  public Object parse(SelectingExpressionParser parser) {
     return parser.parse(this);
   }
 
   @Override
-  public Object parse(ISortingExpressionParser parser) {
+  public Object parse(SortingExpressionParser parser) {
     return parser.parse(this);
   }
 }

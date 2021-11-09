@@ -4,7 +4,7 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
-import org.hypertrace.core.documentstore.parser.ISelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
 
 /**
  * Expression representing either a string constant, a numeric constant or a list of string/numeric
@@ -37,7 +37,7 @@ public class ConstantExpression implements SelectingExpression {
   }
 
   @Override
-  public Object parse(ISelectingExpressionParser parser) {
+  public Object parse(SelectingExpressionParser parser) {
     return parser.parse(this);
   }
 }

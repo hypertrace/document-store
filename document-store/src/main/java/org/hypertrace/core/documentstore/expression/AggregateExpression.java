@@ -1,8 +1,8 @@
 package org.hypertrace.core.documentstore.expression;
 
 import lombok.Value;
-import org.hypertrace.core.documentstore.parser.ISelectingExpressionParser;
-import org.hypertrace.core.documentstore.parser.ISortingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
 
 /**
  * Expression representing aggregation in a query.
@@ -17,12 +17,12 @@ public class AggregateExpression implements SelectingExpression, SortingExpressi
   SelectingExpression expression;
 
   @Override
-  public Object parse(ISelectingExpressionParser parser) {
+  public Object parse(SelectingExpressionParser parser) {
     return parser.parse(this);
   }
 
   @Override
-  public Object parse(ISortingExpressionParser parser) {
+  public Object parse(SortingExpressionParser parser) {
     return parser.parse(this);
   }
 }
