@@ -37,7 +37,7 @@ public class ConstantExpression implements SelectingExpression {
   }
 
   @Override
-  public void parse(ISelectingExpressionParser parser) {
-    parser.parse(this);
+  public Object parse(ISelectingExpressionParser parser) {
+    return parser.parse(this);
   }
 }

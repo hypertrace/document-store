@@ -4,7 +4,7 @@ import org.hypertrace.core.documentstore.expression.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.RelationalExpression;
 
 public interface IFilteringExpressionParser {
-  void parse(LogicalExpression expression);
+  Object parse(LogicalExpression expression);
 
-  void parse(RelationalExpression expression);
+  Object parse(RelationalExpression expression);
 }

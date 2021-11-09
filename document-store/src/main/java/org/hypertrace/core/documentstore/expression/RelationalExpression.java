@@ -22,7 +22,7 @@ public class RelationalExpression implements FilteringExpression {
   SelectingExpression operand2;
 
   @Override
-  public void parse(IFilteringExpressionParser parser) {
-    parser.parse(this);
+  public Object parse(IFilteringExpressionParser parser) {
+    return parser.parse(this);
   }
 }

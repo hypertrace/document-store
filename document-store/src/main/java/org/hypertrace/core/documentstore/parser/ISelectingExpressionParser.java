@@ -6,11 +6,11 @@ import org.hypertrace.core.documentstore.expression.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.IdentifierExpression;
 
 public interface ISelectingExpressionParser {
-  void parse(AggregateExpression expression);
+  Object parse(AggregateExpression expression);
 
-  void parse(ConstantExpression expression);
+  Object parse(ConstantExpression expression);
 
-  void parse(FunctionExpression expression);
+  Object parse(FunctionExpression expression);
 
-  void parse(IdentifierExpression expression);
+  Object parse(IdentifierExpression expression);
 }

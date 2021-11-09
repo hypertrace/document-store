@@ -34,7 +34,7 @@ public class LogicalExpression implements FilteringExpression {
   FilteringExpression expression2;
 
   @Override
-  public void parse(IFilteringExpressionParser parser) {
-    parser.parse(this);
+  public Object parse(IFilteringExpressionParser parser) {
+    return parser.parse(this);
   }
 }

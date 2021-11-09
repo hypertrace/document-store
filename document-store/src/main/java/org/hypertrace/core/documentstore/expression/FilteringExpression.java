@@ -7,5 +7,5 @@ import org.hypertrace.core.documentstore.parser.IFilteringExpressionParser;
  * HAVING clause of the query.
  */
 public interface FilteringExpression {
-  void parse(IFilteringExpressionParser parser);
+  Object parse(IFilteringExpressionParser parser);
 }

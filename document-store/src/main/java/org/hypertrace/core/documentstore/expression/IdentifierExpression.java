@@ -16,17 +16,17 @@ public class IdentifierExpression
   String name;
 
   @Override
-  public void parse(IGroupingExpressionParser parser) {
-    parser.parse(this);
+  public Object parse(IGroupingExpressionParser parser) {
+    return parser.parse(this);
   }
 
   @Override
-  public void parse(ISelectingExpressionParser parser) {
-    parser.parse(this);
+  public Object parse(ISelectingExpressionParser parser) {
+    return parser.parse(this);
   }
 
   @Override
-  public void parse(ISortingExpressionParser parser) {
-    parser.parse(this);
+  public Object parse(ISortingExpressionParser parser) {
+    return parser.parse(this);
   }
 }
