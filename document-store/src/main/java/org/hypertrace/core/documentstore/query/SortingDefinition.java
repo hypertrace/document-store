@@ -2,7 +2,7 @@ package org.hypertrace.core.documentstore.query;
 
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.SortingExpression;
-import org.hypertrace.core.documentstore.expression.SortingOperator;
+import org.hypertrace.core.documentstore.expression.SortingOrder;
 
 /**
  * A generic ORDER BY definition that supports expressions. Note that this class is a more general
@@ -11,5 +11,5 @@ import org.hypertrace.core.documentstore.expression.SortingOperator;
 @Value(staticConstructor = "of")
 public class SortingDefinition {
   SortingExpression expression;
-  SortingOperator order;
+  SortingOrder order;
 }

@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.expression;
 
-public enum SortingOperator {
+public enum SortingOrder {
   ASC,
   DESC,
 }
