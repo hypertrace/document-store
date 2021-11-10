@@ -1,5 +1,12 @@
-package org.hypertrace.core.documentstore.expression;
+package org.hypertrace.core.documentstore.expression.impl;
 
+import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
+
+import java.util.List;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
+import lombok.Builder;
+import lombok.Singular;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
@@ -29,11 +36,23 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
  *              ConstantExpression.of("NIT"))));
  *  </code>
  */
-@Value(staticConstructor = "of")
+@Value
+@Builder
 public class LogicalExpression implements FilteringExpression {
-  FilteringExpression expression1;
-  LogicalOperator operator;
-  FilteringExpression expression2;
+
+  @Singular
+  @Size(min = 2)
+  @NotNull
+  List<@NotNull FilteringExpression> operands;
+
+  @NotNull LogicalOperator operator;
+
+  public static class LogicalExpressionBuilder {
+
+    public LogicalExpression build() {
+      return validateAndReturn(new LogicalExpression(operands, operator));
+    }
+  }
 
   @Override
   public Object parse(FilteringExpressionParser parser) {

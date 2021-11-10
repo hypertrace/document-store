@@ -6,7 +6,7 @@ import com.mongodb.BasicDBObject;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import org.hypertrace.core.documentstore.expression.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
@@ -31,7 +31,7 @@ public class MongoRelationalExpressionParser {
         map.put(key, value);
         break;
       case LIKE:
-        // Case insensitive regex search
+        // Case-insensitive RegEx search
         map.put(key, new BasicDBObject("$regex", value).append("$options", "i"));
         break;
       case NOT_IN:

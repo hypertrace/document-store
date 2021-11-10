@@ -70,8 +70,6 @@ public class Query {
   PaginationDefinition paginationDefinition;
 
   public static class QueryBuilder {
-    private List<Selection> selections;
-
     public QueryBuilder selection(SelectingExpression expression) {
       if (selections == null) {
         selections = new ArrayList<>();

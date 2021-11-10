@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.query;
 
 import lombok.Value;
-import org.hypertrace.core.documentstore.expression.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
 /**

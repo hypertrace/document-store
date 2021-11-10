@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
-import org.hypertrace.core.documentstore.expression.FunctionExpression;
-import org.hypertrace.core.documentstore.expression.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.GroupingExpressionParser;
 
 public class MongoGroupingExpressionParser implements GroupingExpressionParser {

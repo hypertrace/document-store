@@ -1,9 +1,9 @@
 package org.hypertrace.core.documentstore.parser;
 
-import org.hypertrace.core.documentstore.expression.AggregateExpression;
-import org.hypertrace.core.documentstore.expression.ConstantExpression;
-import org.hypertrace.core.documentstore.expression.FunctionExpression;
-import org.hypertrace.core.documentstore.expression.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
 public interface SelectingExpressionParser {
   Object parse(AggregateExpression expression);

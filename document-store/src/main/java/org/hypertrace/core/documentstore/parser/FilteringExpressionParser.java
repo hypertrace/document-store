@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.parser;
 
-import org.hypertrace.core.documentstore.expression.LogicalExpression;
-import org.hypertrace.core.documentstore.expression.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 
 public interface FilteringExpressionParser {
   Object parse(LogicalExpression expression);

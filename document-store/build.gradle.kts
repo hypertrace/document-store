@@ -5,11 +5,38 @@ plugins {
   id("org.hypertrace.jacoco-report-plugin") version "0.2.0"
   id("org.hypertrace.integration-test-plugin") version "0.2.0"
 }
+/*
+<dependency>
+    <groupId>javax.validation</groupId>
+    <artifactId>validation-api</artifactId>
+    <version>2.0.1.Final</version>
+</dependency>
 
+<!-- Hibernate validator - Bean validation API Implementation -->
+<dependency>
+    <groupId>org.hibernate</groupId>
+    <artifactId>hibernate-validator</artifactId>
+    <version>6.0.11.Final</version>
+</dependency>
+
+<!-- Verify validation annotations usage at compile time -->
+<dependency>
+  <groupId>org.hibernate</groupId>
+  <artifactId>hibernate-validator-annotation-processor</artifactId>
+  <version>6.0.11.Final</version>
+</dependency>
+
+ */
 dependencies {
   api("com.typesafe:config:1.3.2")
   annotationProcessor("org.projectlombok:lombok:1.18.22")
   compileOnly("org.projectlombok:lombok:1.18.22")
+  compileOnly("javax.validation:validation-api:2.0.1.Final")
+  compileOnly("org.hibernate:hibernate-validator-annotation-processor:7.0.1.Final")
+  implementation("javax.el:javax.el-api:3.0.1-b06")
+  implementation("org.hibernate:hibernate-validator:7.0.1.Final")
+  implementation("org.apache.commons:commons-collections4:4.4")
+  implementation("org.glassfish.web:javax.el:2.2.6")
   implementation("org.postgresql:postgresql:42.2.13")
   implementation("org.mongodb:mongodb-driver-sync:4.1.2")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")
@@ -28,6 +55,9 @@ dependencies {
   integrationTestImplementation("org.junit.jupiter:junit-jupiter-engine:5.7.0")
   integrationTestImplementation("org.testcontainers:testcontainers:1.15.2")
   integrationTestImplementation("org.testcontainers:junit-jupiter:1.15.2")
+}
+repositories {
+  mavenCentral()
 }
 
 tasks.test {

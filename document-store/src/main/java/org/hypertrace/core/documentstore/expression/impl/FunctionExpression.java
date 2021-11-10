@@ -1,6 +1,10 @@
-package org.hypertrace.core.documentstore.expression;
+package org.hypertrace.core.documentstore.expression.impl;
+
+import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
 
 import java.util.List;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
@@ -34,8 +38,20 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
 @Builder
 public class FunctionExpression
     implements GroupingExpression, SelectingExpression, SortingExpression {
-  @Singular List<SelectingExpression> operands;
-  FunctionOperator operator;
+
+  @Singular
+  @NotNull
+  @Size(min = 1)
+  List<@NotNull SelectingExpression> operands;
+
+  @NotNull FunctionOperator operator;
+
+  public static class FunctionExpressionBuilder {
+
+    public FunctionExpression build() {
+      return validateAndReturn(new FunctionExpression(operands, operator));
+    }
+  }
 
   @Override
   public Object parse(GroupingExpressionParser parser) {

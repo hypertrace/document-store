@@ -1,5 +1,10 @@
-package org.hypertrace.core.documentstore.expression;
+package org.hypertrace.core.documentstore.expression.impl;
 
+import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
+
+import javax.validation.constraints.NotNull;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
@@ -18,11 +23,20 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
  *         ConstantExpression.ofStrings("Traceable", "Harness"))));
  * </code>
  */
-@Value(staticConstructor = "of")
+@Value
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class RelationalExpression implements FilteringExpression {
-  SelectingExpression operand1;
-  RelationalOperator operator;
-  SelectingExpression operand2;
+
+  @NotNull SelectingExpression operand1;
+
+  @NotNull RelationalOperator operator;
+
+  @NotNull SelectingExpression operand2;
+
+  public static RelationalExpression of(
+      SelectingExpression operand1, RelationalOperator operator, SelectingExpression operand2) {
+    return validateAndReturn(new RelationalExpression(operand1, operator, operand2));
+  }
 
   @Override
   public Object parse(FilteringExpressionParser parser) {

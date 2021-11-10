@@ -1,5 +1,10 @@
-package org.hypertrace.core.documentstore.expression;
+package org.hypertrace.core.documentstore.expression.impl;
 
+import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
+
+import javax.validation.constraints.NotBlank;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
@@ -13,10 +18,16 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
  *
  * <p>Example: LiteralExpression.of("col1");
  */
-@Value(staticConstructor = "of")
+@Value
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class IdentifierExpression
     implements GroupingExpression, SelectingExpression, SortingExpression {
-  String name;
+
+  @NotBlank String name;
+
+  public static IdentifierExpression of(String name) {
+    return validateAndReturn(new IdentifierExpression(name));
+  }
 
   @Override
   public Object parse(GroupingExpressionParser parser) {
