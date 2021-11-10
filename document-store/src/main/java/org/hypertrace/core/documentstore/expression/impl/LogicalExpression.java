@@ -5,6 +5,8 @@ import static org.hypertrace.core.documentstore.expression.Utils.validateAndRetu
 import java.util.List;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
@@ -38,6 +40,7 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
  */
 @Value
 @Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class LogicalExpression implements FilteringExpression {
 
   @Singular
@@ -48,7 +51,6 @@ public class LogicalExpression implements FilteringExpression {
   @NotNull LogicalOperator operator;
 
   public static class LogicalExpressionBuilder {
-
     public LogicalExpression build() {
       return validateAndReturn(new LogicalExpression(operands, operator));
     }

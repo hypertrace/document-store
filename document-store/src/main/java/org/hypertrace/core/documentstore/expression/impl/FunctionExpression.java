@@ -5,6 +5,8 @@ import static org.hypertrace.core.documentstore.expression.Utils.validateAndRetu
 import java.util.List;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
@@ -36,6 +38,7 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
  */
 @Value
 @Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class FunctionExpression
     implements GroupingExpression, SelectingExpression, SortingExpression {
 
@@ -44,7 +47,6 @@ public class FunctionExpression
   @NotNull FunctionOperator operator;
 
   public static class FunctionExpressionBuilder {
-
     public FunctionExpression build() {
       return validateAndReturn(new FunctionExpression(operands, operator));
     }
