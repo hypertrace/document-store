@@ -1,6 +1,9 @@
 package org.hypertrace.core.documentstore.expression;
 
 import lombok.Value;
+import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
+import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
+import org.hypertrace.core.documentstore.expression.type.SortingExpression;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
 import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
 

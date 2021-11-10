@@ -1,10 +1,10 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import org.hypertrace.core.documentstore.expression.ConstantExpression;
-import org.hypertrace.core.documentstore.expression.FilteringExpression;
 import org.hypertrace.core.documentstore.expression.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.RelationalExpression;
-import org.hypertrace.core.documentstore.expression.RelationalOperator;
+import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
+import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.query.Query;
 
 // TODO: Remove this testing class

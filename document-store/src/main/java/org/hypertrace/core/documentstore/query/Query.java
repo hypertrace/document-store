@@ -5,9 +5,9 @@ import java.util.List;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
-import org.hypertrace.core.documentstore.expression.FilteringExpression;
-import org.hypertrace.core.documentstore.expression.GroupingExpression;
-import org.hypertrace.core.documentstore.expression.SelectingExpression;
+import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
+import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
 /**
  * A generic query definition that supports expressions. Note that this class is a more general

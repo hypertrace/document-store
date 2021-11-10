@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.expression;
+package org.hypertrace.core.documentstore.expression.operators;
 
 public enum FunctionOperator {
   // Unary operations

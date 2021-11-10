@@ -1,6 +1,8 @@
 package org.hypertrace.core.documentstore.expression;
 
 import lombok.Value;
+import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
+import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
 
 /**

@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.expression;
+package org.hypertrace.core.documentstore.expression.type;
 
 import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
 

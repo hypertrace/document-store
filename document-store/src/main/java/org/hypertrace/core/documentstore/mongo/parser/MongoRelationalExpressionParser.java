@@ -7,8 +7,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import org.hypertrace.core.documentstore.expression.RelationalExpression;
-import org.hypertrace.core.documentstore.expression.RelationalOperator;
-import org.hypertrace.core.documentstore.expression.SelectingExpression;
+import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
+import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
 public class MongoRelationalExpressionParser {
   static Map<String, Object> parse(RelationalExpression expression) {

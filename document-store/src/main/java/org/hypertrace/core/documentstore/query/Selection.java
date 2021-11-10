@@ -2,7 +2,7 @@ package org.hypertrace.core.documentstore.query;
 
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.SelectingExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
 /**
  * A generic selection definition that supports expressions with aliases (used in the response). For
