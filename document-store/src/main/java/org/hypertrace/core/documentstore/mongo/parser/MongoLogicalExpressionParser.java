@@ -10,8 +10,10 @@ public class MongoLogicalExpressionParser {
 
   static Map<String, Object> parse(LogicalExpression expression) {
     FilteringExpressionParser parser = new MongoFilteringExpressionParser();
-    List<Object> parsed = expression.getOperands().stream().map(exp -> exp.parse(parser)).collect(
-        Collectors.toList());
+    List<Object> parsed =
+        expression.getOperands().stream()
+            .map(exp -> exp.parse(parser))
+            .collect(Collectors.toList());
     String key = "$" + expression.getOperator().name().toLowerCase();
     return Map.of(key, parsed);
   }

@@ -1,13 +1,17 @@
 package org.hypertrace.core.documentstore.query;
 
-import java.util.ArrayList;
+import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
+
 import java.util.List;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
 /**
  * A generic query definition that supports expressions. Note that this class is a more general
@@ -57,35 +61,38 @@ import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
  *  </code>
  */
 @Value
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
 public class Query {
-  List<Selection> selections;
+
+  @Size(min = 1)
+  List<@NotNull Selection> selections;
+
   FilteringExpression filter;
 
-  @Singular List<GroupingExpression> aggregations;
+  @Singular
+  @Size(min = 1)
+  List<@NotNull GroupingExpression> aggregations;
+
   FilteringExpression aggregationFilter;
 
-  @Singular List<SortingDefinition> sortingDefinitions;
+  @Singular
+  @Size(min = 1)
+  List<@NotNull SortingDefinition> sortingDefinitions;
 
   PaginationDefinition paginationDefinition;
 
   public static class QueryBuilder {
-    public QueryBuilder selection(SelectingExpression expression) {
-      if (selections == null) {
-        selections = new ArrayList<>();
-      }
 
-      selections.add(Selection.of(expression));
-      return this;
-    }
-
-    public QueryBuilder selection(SelectingExpression expression, String alias) {
-      if (selections == null) {
-        selections = new ArrayList<>();
-      }
-
-      selections.add(Selection.of(expression, alias));
-      return this;
+    public Query build() {
+      return validateAndReturn(
+          new Query(
+              selections,
+              filter,
+              aggregations,
+              aggregationFilter,
+              sortingDefinitions,
+              paginationDefinition));
     }
   }
 }

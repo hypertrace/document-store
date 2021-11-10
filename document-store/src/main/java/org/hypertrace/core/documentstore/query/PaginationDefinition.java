@@ -1,9 +1,21 @@
 package org.hypertrace.core.documentstore.query;
 
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Value;
 
-@Value(staticConstructor = "of")
+@Value
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class PaginationDefinition {
-  Integer offset;
+
   Integer limit;
+  Integer offset;
+
+  public static PaginationDefinition of(int limit) {
+    return new PaginationDefinition(limit, 0);
+  }
+
+  public static PaginationDefinition of(int limit, int offset) {
+    return new PaginationDefinition(limit, offset);
+  }
 }
