@@ -7,6 +7,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
@@ -19,9 +20,9 @@ import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 public class Selection {
 
   // Special selection representing the selection of all the columns
-  public static final Selection ALL = new Selection(null, null);
+  public static final Selection ALL = new Selection(ConstantExpression.of((String) null), null);
 
-  @NotNull SelectingExpression expression; // Can be null only in the case of select all columns
+  @NotNull SelectingExpression expression;
 
   // Alias is optional. Handling missing aliases can be implemented in the respective parsers
   String alias;

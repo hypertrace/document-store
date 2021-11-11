@@ -35,7 +35,8 @@ public class MongoSortingExpressionParser implements SortingExpressionParser {
   @Override
   public Map<String, Object> parse(final FunctionExpression expression) {
     throw new UnsupportedOperationException(
-        String.format("Cannot sort a function ($%s) in MongoDB.",
+        String.format(
+            "Cannot sort a function ($%s) in MongoDB.",
             expression.getOperator().name().toLowerCase()));
   }
 
@@ -53,8 +54,8 @@ public class MongoSortingExpressionParser implements SortingExpressionParser {
     return new BasicDBObject(SORT_CLAUSE, getOrders(sortingDefinitions));
   }
 
-  public static void applySorting(FindIterable<BasicDBObject> iterable,
-      List<SortingDefinition> sortingDefinitions) {
+  public static void applySorting(
+      FindIterable<BasicDBObject> iterable, List<SortingDefinition> sortingDefinitions) {
     if (CollectionUtils.isEmpty(sortingDefinitions)) {
       return;
     }
@@ -63,13 +64,14 @@ public class MongoSortingExpressionParser implements SortingExpressionParser {
   }
 
   private static Map<String, Object> getOrders(List<SortingDefinition> sortingDefinitions) {
-    return sortingDefinitions
-        .stream()
+    return sortingDefinitions.stream()
         .map(MongoSortingExpressionParser::parse)
-        .reduce(new LinkedHashMap<>(), (first, second) -> {
-          first.putAll(second);
-          return first;
-        });
+        .reduce(
+            new LinkedHashMap<>(),
+            (first, second) -> {
+              first.putAll(second);
+              return first;
+            });
   }
 
   private int getOrder() {

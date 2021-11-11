@@ -90,8 +90,6 @@ public class Query {
   public static class QueryBuilder {
 
     public Query build() {
-      fillMissingSelections();
-
       return validateAndReturn(
           new Query(
               selections,
@@ -119,12 +117,6 @@ public class Query {
 
       sortingDefinitions.add(SortingDefinition.of(expression, order));
       return this;
-    }
-
-    private void fillMissingSelections() {
-      if (CollectionUtils.isEmpty(selections)) {
-        selections = List.of(Selection.ALL);
-      }
     }
 
     private void addSelection(Selection selection) {

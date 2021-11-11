@@ -28,29 +28,33 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
     return Map.of(MongoCollection.ID_KEY, identifier);
   }
 
-  public static BasicDBObject getGroupClause(final List<Selection> selections,
-      final List<GroupingExpression> expressions) {
+  public static BasicDBObject getGroupClause(
+      final List<Selection> selections, final List<GroupingExpression> expressions) {
     Map<String, Object> groupExp;
 
     if (expressions == null) {
       groupExp = Map.of();
     } else {
-      groupExp = expressions
-          .stream()
-          .map(MongoGroupingExpressionParser::parse)
-          .reduce(new LinkedHashMap<>(), (first, second) -> {
-            first.putAll(second);
-            return first;
-          });
+      groupExp =
+          expressions.stream()
+              .map(MongoGroupingExpressionParser::parse)
+              .reduce(
+                  new LinkedHashMap<>(),
+                  (first, second) -> {
+                    first.putAll(second);
+                    return first;
+                  });
     }
 
-    Map<String, Object> definition = selections
-        .stream()
-        .map(MongoGroupingExpressionParser::parse)
-        .reduce(new LinkedHashMap<>(), (first, second) -> {
-          first.putAll(second);
-          return first;
-        });
+    Map<String, Object> definition =
+        selections.stream()
+            .map(MongoGroupingExpressionParser::parse)
+            .reduce(
+                new LinkedHashMap<>(),
+                (first, second) -> {
+                  first.putAll(second);
+                  return first;
+                });
 
     definition.putAll(groupExp);
     return new BasicDBObject(GROUP_CLAUSE, definition);

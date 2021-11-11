@@ -40,11 +40,11 @@ public class MongoSelectingExpressionParser implements SelectingExpressionParser
   public static Bson getSelections(final List<Selection> selections) {
     // TODO: Handle all
     MongoSelectingExpressionParser parser = new MongoSelectingExpressionParser();
-    List<String> selected = selections
-        .stream()
-        .filter(not(Selection::isAggregation))
-        .map(exp -> exp.getExpression().parse(parser).toString())
-        .collect(Collectors.toList());
+    List<String> selected =
+        selections.stream()
+            .filter(not(Selection::isAggregation))
+            .map(exp -> exp.getExpression().parse(parser).toString())
+            .collect(Collectors.toList());
 
     return Projections.include(selected);
   }

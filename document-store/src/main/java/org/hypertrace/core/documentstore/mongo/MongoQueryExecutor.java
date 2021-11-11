@@ -23,7 +23,8 @@ import org.hypertrace.core.documentstore.query.Query;
 
 public class MongoQueryExecutor {
 
-  public static Iterator<Document> find(final Query query,
+  public static Iterator<Document> find(
+      final Query query,
       final com.mongodb.client.MongoCollection<BasicDBObject> collection,
       final Function<BasicDBObject, Document> convertor) {
 
@@ -37,29 +38,31 @@ public class MongoQueryExecutor {
     return getIteratorFromCursor(iterable.cursor(), convertor);
   }
 
-  public static Iterator<Document> aggregate(final Query query,
+  public static Iterator<Document> aggregate(
+      final Query query,
       final com.mongodb.client.MongoCollection<BasicDBObject> collection,
       final Function<BasicDBObject, Document> convertor) {
     BasicDBObject filterClause = MongoFilteringExpressionParser.getFilterClause(query.getFilter());
-    BasicDBObject groupFilterClause = MongoFilteringExpressionParser.getFilterClause(
-        query.getAggregationFilter());
-    BasicDBObject groupClause = MongoGroupingExpressionParser.getGroupClause(query.getSelections(),
-        query.getAggregations());
-    BasicDBObject sortClause = MongoSortingExpressionParser.getSortClause(
-        query.getSortingDefinitions());
+    BasicDBObject groupFilterClause =
+        MongoFilteringExpressionParser.getFilterClause(query.getAggregationFilter());
+    BasicDBObject groupClause =
+        MongoGroupingExpressionParser.getGroupClause(
+            query.getSelections(), query.getAggregations());
+    BasicDBObject sortClause =
+        MongoSortingExpressionParser.getSortClause(query.getSortingDefinitions());
 
-    List<BasicDBObject> pipeline = Stream
-        .of(filterClause, groupClause, groupFilterClause, sortClause)
-        .filter(not(BasicDBObject::isEmpty))
-        .collect(Collectors.toList());
+    List<BasicDBObject> pipeline =
+        Stream.of(filterClause, groupClause, groupFilterClause, sortClause)
+            .filter(not(BasicDBObject::isEmpty))
+            .collect(Collectors.toList());
 
     AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
 
     return getIteratorFromCursor(iterable.cursor(), convertor);
   }
 
-  private static Iterator<Document> getIteratorFromCursor(final MongoCursor<BasicDBObject> cursor,
-      final Function<BasicDBObject, Document> convertor) {
+  private static Iterator<Document> getIteratorFromCursor(
+      final MongoCursor<BasicDBObject> cursor, final Function<BasicDBObject, Document> convertor) {
     return new Iterator<>() {
 
       @Override
@@ -73,5 +76,4 @@ public class MongoQueryExecutor {
       }
     };
   }
-
 }
