@@ -2,7 +2,9 @@ package org.hypertrace.core.documentstore.query;
 
 import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
 
+import java.util.Collections;
 import java.util.List;
+import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 import lombok.AccessLevel;
@@ -10,8 +12,12 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
+import org.apache.commons.collections4.CollectionUtils;
+import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
+import org.hypertrace.core.documentstore.expression.type.SortingExpression;
 
 /**
  * A generic query definition that supports expressions. Note that this class is a more general
@@ -49,14 +55,14 @@ import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
  *                 AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
  *                 GTE,
  *                 ConstantExpression.of(100)))
- *         .orderBy(
- *             OrderBy.of(
- *                 FunctionExpression.builder()
- *                     .operand(IdentifierExpression.of("col7"))
- *                     .operator(ADD)
- *                     .operand(IdentifierExpression.of("col8")).build(),
- *                 DESC))
- *         .paginationDefinition(PaginationDefinition.of(5, 10))
+ *         .sortingDefinition(
+ *             FunctionExpression.builder()
+ *                 .operand(IdentifierExpression.of("col7"))
+ *                 .operator(ADD)
+ *                 .operand(IdentifierExpression.of("col8"))
+ *                 .build(),
+ *             DESC)
+ *         .paginationDefinition(PaginationDefinition.of(10, 5))
  *         .build();
  *  </code>
  */
@@ -65,8 +71,7 @@ import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 @Builder
 public class Query {
 
-  @Size(min = 1)
-  List<@NotNull Selection> selections;
+  @NotEmpty List<@NotNull Selection> selections;
 
   FilteringExpression filter;
 
@@ -76,15 +81,17 @@ public class Query {
 
   FilteringExpression aggregationFilter;
 
-  @Singular
   @Size(min = 1)
   List<@NotNull SortingDefinition> sortingDefinitions;
 
+  // Missing pagination definition represents fetching all the records
   PaginationDefinition paginationDefinition;
 
   public static class QueryBuilder {
 
     public Query build() {
+      fillMissingSelections();
+
       return validateAndReturn(
           new Query(
               selections,
@@ -93,6 +100,39 @@ public class Query {
               aggregationFilter,
               sortingDefinitions,
               paginationDefinition));
+    }
+
+    public QueryBuilder selection(SelectingExpression expression) {
+      addSelection(Selection.of(expression));
+      return this;
+    }
+
+    public QueryBuilder selection(SelectingExpression expression, String alias) {
+      addSelection(Selection.of(expression, alias));
+      return this;
+    }
+
+    public QueryBuilder sortingDefinition(SortingExpression expression, SortingOrder order) {
+      if (CollectionUtils.isEmpty(sortingDefinitions)) {
+        sortingDefinitions = Collections.emptyList();
+      }
+
+      sortingDefinitions.add(SortingDefinition.of(expression, order));
+      return this;
+    }
+
+    private void fillMissingSelections() {
+      if (CollectionUtils.isEmpty(selections)) {
+        selections = List.of(Selection.ALL);
+      }
+    }
+
+    private void addSelection(Selection selection) {
+      if (CollectionUtils.isEmpty(selections)) {
+        selections = Collections.emptyList();
+      }
+
+      selections.add(selection);
     }
   }
 }

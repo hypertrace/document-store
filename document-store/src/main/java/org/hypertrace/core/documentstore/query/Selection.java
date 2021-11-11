@@ -17,7 +17,10 @@ import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Selection {
 
-  @NotNull SelectingExpression expression;
+  // Special selection representing the selection of all the columns
+  public static final Selection ALL = new Selection(null, null);
+
+  @NotNull SelectingExpression expression; // Can be null only in the case of select all columns
 
   // Alias is optional. Handling missing aliases can be implemented in the respective parsers
   String alias;

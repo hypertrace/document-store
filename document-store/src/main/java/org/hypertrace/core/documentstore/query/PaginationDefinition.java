@@ -8,8 +8,8 @@ import lombok.Value;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class PaginationDefinition {
 
-  Integer limit;
-  Integer offset;
+  int limit;
+  int offset;
 
   public static PaginationDefinition of(int limit) {
     return new PaginationDefinition(limit, 0);
