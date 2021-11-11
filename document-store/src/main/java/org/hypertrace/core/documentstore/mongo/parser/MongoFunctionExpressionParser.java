@@ -8,7 +8,7 @@ import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
 
 public class MongoFunctionExpressionParser {
 
-  static Map<String, Object> parse(FunctionExpression expression) {
+  static Map<String, Object> parse(final FunctionExpression expression) {
     int numArgs = expression.getOperands().size();
 
     if (numArgs == 0) {

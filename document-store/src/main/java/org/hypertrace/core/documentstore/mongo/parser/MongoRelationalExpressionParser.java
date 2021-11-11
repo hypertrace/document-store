@@ -11,7 +11,8 @@ import org.hypertrace.core.documentstore.expression.operators.RelationalOperator
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
 public class MongoRelationalExpressionParser {
-  static Map<String, Object> parse(RelationalExpression expression) {
+
+  static Map<String, Object> parse(final RelationalExpression expression) {
     SelectingExpression expression1 = expression.getOperand1();
     RelationalOperator operator = expression.getOperator();
     SelectingExpression expression2 = expression.getOperand2();
@@ -24,7 +25,7 @@ public class MongoRelationalExpressionParser {
   }
 
   private static Map<String, Object> generateMap(
-      String key, Object value, RelationalOperator operator) {
+      final String key, final Object value, final RelationalOperator operator) {
     Map<String, Object> map = new HashMap<>();
     switch (operator) {
       case EQ:

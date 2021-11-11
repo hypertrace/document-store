@@ -8,7 +8,7 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
 
 public class MongoLogicalExpressionParser {
 
-  static Map<String, Object> parse(LogicalExpression expression) {
+  static Map<String, Object> parse(final LogicalExpression expression) {
     FilteringExpressionParser parser = new MongoFilteringExpressionParser();
     List<Object> parsed =
         expression.getOperands().stream()

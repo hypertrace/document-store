@@ -6,7 +6,7 @@ import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
 
 public class MongoAggregateExpressionParser {
 
-  static Map<String, Object> parse(AggregateExpression expression) {
+  static Map<String, Object> parse(final AggregateExpression expression) {
     String key = "$" + expression.getAggregator().name().toLowerCase();
 
     SelectingExpressionParser parser = new MongoSelectingExpressionParser();

@@ -13,7 +13,7 @@ dependencies {
   compileOnly("javax.validation:validation-api:2.0.1.Final")
   compileOnly("org.hibernate:hibernate-validator-annotation-processor:6.0.11.Final")
   implementation("javax.el:javax.el-api:3.0.1-b06")
-  implementation("org.hibernate:hibernate-validator:7.0.1.Final")
+  implementation("org.hibernate:hibernate-validator:6.1.3.Final")
   implementation("org.apache.commons:commons-collections4:4.4")
   implementation("org.glassfish.web:javax.el:2.2.6")
   implementation("org.postgresql:postgresql:42.2.13")

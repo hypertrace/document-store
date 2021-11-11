@@ -20,8 +20,7 @@ public class MongoQueryParserTest {
             .build();
 
     FilteringExpression whereFilter = query.getFilter();
-    MongoFilteringExpressionParser parser = new MongoFilteringExpressionParser();
-    Object parsedResponse = whereFilter.parse(parser);
+    Object parsedResponse = MongoFilteringExpressionParser.getFilterClause(whereFilter);
 
     // Outputs: {"$match": {"col1": {"$gt": 7}}}
     System.out.println(parsedResponse);
