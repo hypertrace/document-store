@@ -40,7 +40,9 @@ public class MongoQueryExecutor {
     FindIterable<BasicDBObject> iterable = collection.find(filterClause).projection(projection);
 
     BasicDBObject sortOrders = getOrders(query.getSortingDefinitions());
-    iterable.sort(sortOrders);
+    if (!sortOrders.isEmpty()) {
+      iterable.sort(sortOrders);
+    }
 
     applyPagination(iterable, query.getPaginationDefinition());
 

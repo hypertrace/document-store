@@ -25,11 +25,10 @@ public class MongoFilteringExpressionParser implements FilteringExpressionParser
     Object filter;
 
     if (expression == null) {
-      filter = Map.of();
-    } else {
-      filter = expression.parse(new MongoFilteringExpressionParser());
+      return new BasicDBObject();
     }
 
+    filter = expression.parse(new MongoFilteringExpressionParser());
     return new BasicDBObject(FILTER_CLAUSE, filter);
   }
 }
