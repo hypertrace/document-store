@@ -20,10 +20,19 @@ public class MongoSelectingExpressionParser implements SelectingExpressionParser
 
   private static final String PROJECT_CLAUSE = "$project";
 
+  private final String identifierPrefix;
+
+  public MongoSelectingExpressionParser() {
+    this(false);
+  }
+
+  public MongoSelectingExpressionParser(final boolean prefixIdentifier) {
+    this.identifierPrefix = prefixIdentifier ? "$" : "";
+  }
+
   @Override
   public Map<String, Object> parse(final AggregateExpression expression) {
-    // AggregateExpression will be a part of the '$group' clause
-    return Map.of();
+    return MongoAggregateExpressionParser.parse(expression);
   }
 
   @Override
@@ -38,7 +47,7 @@ public class MongoSelectingExpressionParser implements SelectingExpressionParser
 
   @Override
   public String parse(final IdentifierExpression expression) {
-    return MongoIdentifierExpressionParser.parse(expression);
+    return identifierPrefix + MongoIdentifierExpressionParser.parse(expression);
   }
 
   public static Bson getSelections(final List<Selection> selections) {
@@ -58,7 +67,8 @@ public class MongoSelectingExpressionParser implements SelectingExpressionParser
   }
 
   public static BasicDBObject getProjectClause(final List<Selection> selections) {
-    if (selections.stream().anyMatch(Selection::allColumnsSelected)) {
+    if (selections.stream().anyMatch(Selection::allColumnsSelected)
+        || selections.stream().allMatch(Selection::isAggregation)) {
       return new BasicDBObject();
     }
 

@@ -4,6 +4,7 @@ import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 
 import com.mongodb.BasicDBObject;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,7 +37,12 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
     Map<String, Object> groupExp;
 
     if (expressions == null) {
-      groupExp = Map.of();
+      groupExp =
+          new HashMap<>() {
+            {
+              put(ID_KEY, null);
+            }
+          };
     } else {
       Map<String, Object> groups =
           expressions.stream()

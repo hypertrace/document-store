@@ -16,7 +16,7 @@ public class MongoFunctionExpressionParser {
           String.format("%s should have at least one operand", expression));
     }
 
-    SelectingExpressionParser parser = new MongoSelectingExpressionParser();
+    SelectingExpressionParser parser = new MongoSelectingExpressionParser(true);
     String key = "$" + expression.getOperator().name().toLowerCase();
 
     if (numArgs == 1) {

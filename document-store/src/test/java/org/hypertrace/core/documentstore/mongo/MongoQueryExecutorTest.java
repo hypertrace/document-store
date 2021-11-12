@@ -1,25 +1,42 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
+import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
+import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
 import static org.hypertrace.core.documentstore.query.AllSelection.ALL;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.mongodb.BasicDBObject;
+import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.io.IOException;
+import java.util.List;
 import org.bson.BsonDocument;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
+import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -44,6 +61,8 @@ class MongoQueryExecutorTest {
 
   @Mock private FindIterable<BasicDBObject> iterable;
 
+  @Mock private AggregateIterable<BasicDBObject> aggIterable;
+
   @Mock private MongoCursor<BasicDBObject> cursor;
 
   private static final VerificationMode NOT_INVOKED = times(0);
@@ -59,6 +78,7 @@ class MongoQueryExecutorTest {
   @BeforeEach
   void setUp() {
     when(collection.find(any(Bson.class))).thenReturn(iterable);
+    when(collection.aggregate(anyList())).thenReturn(aggIterable);
 
     when(iterable.projection(any(Bson.class))).thenReturn(iterable);
     when(iterable.skip(anyInt())).thenReturn(iterable);
@@ -66,11 +86,12 @@ class MongoQueryExecutorTest {
     when(iterable.sort(any(Bson.class))).thenReturn(iterable);
 
     when(iterable.cursor()).thenReturn(cursor);
+    when(aggIterable.cursor()).thenReturn(cursor);
   }
 
   @AfterEach
   void tearDown() {
-    verifyNoMoreInteractions(collection, iterable, cursor);
+    verifyNoMoreInteractions(collection, iterable, cursor, aggIterable);
   }
 
   @Test
@@ -157,7 +178,7 @@ class MongoQueryExecutorTest {
     Query query =
         Query.builder()
             .selection(ALL)
-            .sortingDefinition(IdentifierExpression.of("marks"), SortingOrder.DESC)
+            .sortingDefinition(IdentifierExpression.of("marks"), DESC)
             .sortingDefinition(IdentifierExpression.of("name"), SortingOrder.ASC)
             .build();
 
@@ -202,18 +223,18 @@ class MongoQueryExecutorTest {
         Query.builder()
             .selection(IdentifierExpression.of("id"))
             .selection(IdentifierExpression.of("fname"), "name")
-            .sortingDefinition(IdentifierExpression.of("marks"), SortingOrder.DESC)
+            .sortingDefinition(IdentifierExpression.of("marks"), DESC)
             .sortingDefinition(IdentifierExpression.of("name"), SortingOrder.ASC)
             .paginationDefinition(PaginationDefinition.of(10, 50))
             .filter(
                 LogicalExpression.builder()
                     .operand(
                         RelationalExpression.of(
-                            IdentifierExpression.of("percentage"), GT, ConstantExpression.of(90)))
+                            IdentifierExpression.of("percentage"), GTE, ConstantExpression.of(90)))
                     .operator(AND)
                     .operand(
                         RelationalExpression.of(
-                            IdentifierExpression.of("class"), EQ, ConstantExpression.of("XII")))
+                            IdentifierExpression.of("class"), NEQ, ConstantExpression.of("XII")))
                     .build())
             .build();
 
@@ -224,10 +245,10 @@ class MongoQueryExecutorTest {
             "{"
                 + "$and: ["
                 + " {"
-                + "   \"percentage\": { $gt: 90 }"
+                + "   \"percentage\": { $gte: 90 }"
                 + " },"
                 + " {"
-                + "   \"class\": \"XII\""
+                + "   \"class\": { $ne: \"XII\" }"
                 + " }"
                 + "]"
                 + "}");
@@ -240,5 +261,240 @@ class MongoQueryExecutorTest {
     verify(iterable).skip(50);
     verify(iterable).limit(10);
     verify(iterable).cursor();
+  }
+
+  @Test
+  public void testSimpleAggregate() {
+    Query query =
+        Query.builder()
+            .selection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: null, "
+                    + "     total: {"
+                    + "       \"$count\": 1"
+                    + "     }"
+                    + "   }"
+                    + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testAggregateWithProjections() {
+    Query query =
+        Query.builder()
+            .selection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+            .selection(IdentifierExpression.of("name"))
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: null, "
+                    + "     total: {"
+                    + "       \"$count\": 1"
+                    + "     }"
+                    + "   }"
+                    + "}"),
+            BasicDBObject.parse("{" + "\"$project\": " + "   {" + "     name: 1" + "   }" + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testAggregateWithMultiLevelGrouping() {
+    Query query =
+        Query.builder()
+            .selection(AggregateExpression.of(MIN, IdentifierExpression.of("rank")), "topper")
+            .aggregation(IdentifierExpression.of("name"))
+            .aggregation(IdentifierExpression.of("class"))
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: {"
+                    + "        name: \"$name\","
+                    + "        class: \"$class\""
+                    + "     }, "
+                    + "     topper: {"
+                    + "       \"$min\": \"$rank\""
+                    + "     }"
+                    + "   }"
+                    + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testAggregateWithFilter() {
+    Query query =
+        Query.builder()
+            .selection(AggregateExpression.of(SUM, IdentifierExpression.of("marks")), "total")
+            .filter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("section"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("A", "B", "C"))))
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$match\": "
+                    + "   {"
+                    + "      \"section\": {"
+                    + "         \"$in\": [\"A\", \"B\", \"C\"]"
+                    + "       }"
+                    + "   }"
+                    + "}"),
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: null, "
+                    + "     total: {"
+                    + "       \"$sum\": \"$marks\" "
+                    + "     }"
+                    + "   }"
+                    + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testAggregateWithGroupingFilter() {
+    Query query =
+        Query.builder()
+            .selection(
+                AggregateExpression.of(
+                    SUM,
+                    FunctionExpression.builder()
+                        .operand(IdentifierExpression.of("price"))
+                        .operator(MULTIPLY)
+                        .operand(IdentifierExpression.of("quantity"))
+                        .build()),
+                "total")
+            .aggregation(IdentifierExpression.of("order"))
+            .aggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("total"),
+                    NOT_IN,
+                    ConstantExpression.ofNumbers(List.of(100, 200, 500))))
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: {"
+                    + "        order: \"$order\""
+                    + "     }, "
+                    + "     total: {"
+                    + "       \"$sum\": {"
+                    + "         \"$multiply\": [ \"$price\", \"$quantity\" ]"
+                    + "       }"
+                    + "     }"
+                    + "   }"
+                    + "}"),
+            BasicDBObject.parse(
+                "{"
+                    + "\"$match\":"
+                    + "   {"
+                    + "     total: { "
+                    + "       $nin: [100, 200, 500] "
+                    + "     }"
+                    + "   }"
+                    + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testAggregateWithSorting() {
+    Query query =
+        Query.builder()
+            .selection(
+                AggregateExpression.of(
+                    AVG, AggregateExpression.of(MAX, IdentifierExpression.of("mark"))),
+                "averageHighScore")
+            .aggregation(IdentifierExpression.of("section"))
+            .sortingDefinition(IdentifierExpression.of("averageHighScore"), DESC)
+            .sortingDefinition(IdentifierExpression.of("section"), ASC)
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: {"
+                    + "       section: \"$section\""
+                    + "     }, "
+                    + "     averageHighScore: {"
+                    + "       \"$avg\": {"
+                    + "         \"$max\": \"$mark\""
+                    + "       }"
+                    + "     }"
+                    + "   }"
+                    + "}"),
+            BasicDBObject.parse(
+                "{"
+                    + "   \"$sort\": {"
+                    + "       averageHighScore: -1,"
+                    + "       section: 1"
+                    + "   }"
+                    + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testAggregateWithPagination() {
+    Query query =
+        Query.builder()
+            .selection(ALL)
+            .aggregation(IdentifierExpression.of("student"))
+            .paginationDefinition(PaginationDefinition.of(10))
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: {"
+                    + "       student: \"$student\""
+                    + "     } "
+                    + "   }"
+                    + "}"),
+            BasicDBObject.parse("{" + "\"$skip\": 0" + "}"),
+            BasicDBObject.parse("{" + "\"$limit\": 10" + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  private void testAggregation(Query query, List<BasicDBObject> pipeline) {
+    MongoQueryExecutor.aggregate(query, collection, MongoQueryExecutorTest::convertor);
+    verify(collection).aggregate(pipeline);
+    verify(aggIterable).cursor();
   }
 }
