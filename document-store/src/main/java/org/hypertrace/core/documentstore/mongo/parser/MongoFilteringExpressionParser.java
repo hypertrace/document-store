@@ -13,12 +13,12 @@ public class MongoFilteringExpressionParser implements FilteringExpressionParser
 
   @Override
   public Map<String, Object> parse(final LogicalExpression expression) {
-    return new MongoLogicalExpressionParser().parse(expression);
+    return MongoLogicalExpressionParser.parse(expression);
   }
 
   @Override
   public Map<String, Object> parse(final RelationalExpression expression) {
-    return new MongoRelationalExpressionParser().parse(expression);
+    return MongoRelationalExpressionParser.parse(expression);
   }
 
   public static BasicDBObject getFilterClause(FilteringExpression expression) {

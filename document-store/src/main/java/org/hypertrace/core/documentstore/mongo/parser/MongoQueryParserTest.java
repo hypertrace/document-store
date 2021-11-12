@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static org.hypertrace.core.documentstore.query.AllSelection.ALL;
+
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -12,6 +14,7 @@ public class MongoQueryParserTest {
   public static void main(String[] args) {
     Query query =
         Query.builder()
+            .selection(ALL)
             .filter(
                 RelationalExpression.of(
                     IdentifierExpression.of("col1"),

@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static java.util.function.Predicate.not;
+
 import com.mongodb.BasicDBObject;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,6 +13,7 @@ import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 import org.hypertrace.core.documentstore.mongo.MongoCollection;
 import org.hypertrace.core.documentstore.parser.GroupingExpressionParser;
 import org.hypertrace.core.documentstore.query.Selection;
+import org.hypertrace.core.documentstore.query.WhitelistedSelection;
 
 public class MongoGroupingExpressionParser implements GroupingExpressionParser {
 
@@ -24,7 +27,7 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
 
   @Override
   public Map<String, Object> parse(final IdentifierExpression expression) {
-    String identifier = "$" + new MongoIdentifierExpressionParser().parse(expression);
+    String identifier = "$" + MongoIdentifierExpressionParser.parse(expression);
     return Map.of(MongoCollection.ID_KEY, identifier);
   }
 
@@ -48,6 +51,8 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
 
     Map<String, Object> definition =
         selections.stream()
+            .filter(not(Selection::allColumnsSelected))
+            .map(sel -> (WhitelistedSelection) sel)
             .map(MongoGroupingExpressionParser::parse)
             .reduce(
                 new LinkedHashMap<>(),
@@ -60,13 +65,13 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
     return new BasicDBObject(GROUP_CLAUSE, definition);
   }
 
-  private static Map<String, Object> parse(final Selection selection) {
+  private static Map<String, Object> parse(final WhitelistedSelection selection) {
     if (!selection.isAggregation()) {
       return Map.of();
     }
 
     AggregateExpression expression = (AggregateExpression) selection.getExpression();
-    Object parsed = new MongoAggregateExpressionParser().parse(expression);
+    Object parsed = MongoAggregateExpressionParser.parse(expression);
     return Map.of(selection.getAlias(), parsed);
   }
 

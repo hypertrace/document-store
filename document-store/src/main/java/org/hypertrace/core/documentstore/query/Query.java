@@ -2,7 +2,7 @@ package org.hypertrace.core.documentstore.query;
 
 import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 import javax.validation.constraints.NotEmpty;
 import javax.validation.constraints.NotNull;
@@ -100,19 +100,24 @@ public class Query {
               paginationDefinition));
     }
 
+    public QueryBuilder selection(Selection selection) {
+      addSelection(selection);
+      return this;
+    }
+
     public QueryBuilder selection(SelectingExpression expression) {
-      addSelection(Selection.of(expression));
+      addSelection(WhitelistedSelection.of(expression));
       return this;
     }
 
     public QueryBuilder selection(SelectingExpression expression, String alias) {
-      addSelection(Selection.of(expression, alias));
+      addSelection(WhitelistedSelection.of(expression, alias));
       return this;
     }
 
     public QueryBuilder sortingDefinition(SortingExpression expression, SortingOrder order) {
       if (CollectionUtils.isEmpty(sortingDefinitions)) {
-        sortingDefinitions = Collections.emptyList();
+        sortingDefinitions = new ArrayList<>();
       }
 
       sortingDefinitions.add(SortingDefinition.of(expression, order));
@@ -121,7 +126,7 @@ public class Query {
 
     private void addSelection(Selection selection) {
       if (CollectionUtils.isEmpty(selections)) {
-        selections = Collections.emptyList();
+        selections = new ArrayList<>();
       }
 
       selections.add(selection);

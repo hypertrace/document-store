@@ -5,4 +5,6 @@ public enum AggregationOperator {
   COUNT,
   DISTINCT_COUNT,
   SUM,
+  MIN,
+  MAX,
 }

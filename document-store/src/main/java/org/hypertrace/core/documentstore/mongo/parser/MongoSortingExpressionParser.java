@@ -1,7 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.client.FindIterable;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,36 +41,31 @@ public class MongoSortingExpressionParser implements SortingExpressionParser {
 
   @Override
   public Map<String, Object> parse(final IdentifierExpression expression) {
-    String parsed = new MongoIdentifierExpressionParser().parse(expression);
+    String parsed = MongoIdentifierExpressionParser.parse(expression);
     return Map.of(parsed, getOrder());
   }
 
   public static BasicDBObject getSortClause(List<SortingDefinition> sortingDefinitions) {
+    BasicDBObject orders = getOrders(sortingDefinitions);
+    return orders.isEmpty() ? orders : new BasicDBObject(SORT_CLAUSE, orders);
+  }
+
+  public static BasicDBObject getOrders(List<SortingDefinition> sortingDefinitions) {
     if (CollectionUtils.isEmpty(sortingDefinitions)) {
       return new BasicDBObject();
     }
 
-    return new BasicDBObject(SORT_CLAUSE, getOrders(sortingDefinitions));
-  }
+    Map<String, Object> map =
+        sortingDefinitions.stream()
+            .map(MongoSortingExpressionParser::parse)
+            .reduce(
+                new LinkedHashMap<>(),
+                (first, second) -> {
+                  first.putAll(second);
+                  return first;
+                });
 
-  public static void applySorting(
-      FindIterable<BasicDBObject> iterable, List<SortingDefinition> sortingDefinitions) {
-    if (CollectionUtils.isEmpty(sortingDefinitions)) {
-      return;
-    }
-
-    iterable.sort(new BasicDBObject(getOrders(sortingDefinitions)));
-  }
-
-  private static Map<String, Object> getOrders(List<SortingDefinition> sortingDefinitions) {
-    return sortingDefinitions.stream()
-        .map(MongoSortingExpressionParser::parse)
-        .reduce(
-            new LinkedHashMap<>(),
-            (first, second) -> {
-              first.putAll(second);
-              return first;
-            });
+    return new BasicDBObject(map);
   }
 
   private int getOrder() {
