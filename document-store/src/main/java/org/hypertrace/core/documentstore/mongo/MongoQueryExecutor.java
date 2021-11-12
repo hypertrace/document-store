@@ -4,6 +4,7 @@ import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.applyPagination;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getLimitClause;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getSkipClause;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoFilteringExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilteringExpressionParser.getFilterClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoGroupingExpressionParser.getGroupClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectingExpressionParser.getProjectClause;
@@ -20,6 +21,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import javax.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.Document;
@@ -32,9 +34,9 @@ public class MongoQueryExecutor {
   public static Iterator<Document> find(
       final Query query,
       final com.mongodb.client.MongoCollection<BasicDBObject> collection,
-      final Function<BasicDBObject, Document> convertor) {
+      @NotNull final Function<BasicDBObject, Document> convertor) {
 
-    BasicDBObject filterClause = getFilterClause(query.getFilter());
+    BasicDBObject filterClause = getFilter(query.getFilter());
     Bson projection = getSelections(query.getSelections());
 
     FindIterable<BasicDBObject> iterable = collection.find(filterClause).projection(projection);

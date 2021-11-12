@@ -23,6 +23,8 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
+import org.hypertrace.core.documentstore.query.PaginationDefinition;
 import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -122,9 +124,32 @@ class MongoQueryExecutorTest {
                     .operator(AND)
                     .operand(
                         RelationalExpression.of(
-                            IdentifierExpression.of("class"), EQ, ConstantExpression.of(10)))
+                            IdentifierExpression.of("class"), EQ, ConstantExpression.of("XII")))
                     .build())
             .build();
+
+    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+
+    BasicDBObject mongoQuery =
+        BasicDBObject.parse(
+            "{"
+                + "$and: ["
+                + " {"
+                + "   \"percentage\": { $gt: 90 }"
+                + " },"
+                + " {"
+                + "   \"class\": \"XII\""
+                + " }"
+                + "]"
+                + "}");
+    Bson projection = new BsonDocument();
+
+    verify(collection).find(mongoQuery);
+    verify(iterable).projection(projection);
+    verify(iterable, NOT_INVOKED).sort(any());
+    verify(iterable, NOT_INVOKED).skip(anyInt());
+    verify(iterable, NOT_INVOKED).limit(anyInt());
+    verify(iterable).cursor();
   }
 
   @Test
@@ -132,6 +157,54 @@ class MongoQueryExecutorTest {
     Query query =
         Query.builder()
             .selection(ALL)
+            .sortingDefinition(IdentifierExpression.of("marks"), SortingOrder.DESC)
+            .sortingDefinition(IdentifierExpression.of("name"), SortingOrder.ASC)
+            .build();
+
+    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+
+    BasicDBObject mongoQuery = new BasicDBObject();
+    BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
+    Bson projection = new BsonDocument();
+
+    verify(collection).find(mongoQuery);
+    verify(iterable).projection(projection);
+    verify(iterable).sort(sortQuery);
+    verify(iterable, NOT_INVOKED).skip(anyInt());
+    verify(iterable, NOT_INVOKED).limit(anyInt());
+    verify(iterable).cursor();
+  }
+
+  @Test
+  public void testFindWithPagination() {
+    Query query =
+        Query.builder()
+            .selection(ALL)
+            .paginationDefinition(PaginationDefinition.of(10, 50))
+            .build();
+
+    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+
+    BasicDBObject mongoQuery = new BasicDBObject();
+    Bson projection = new BsonDocument();
+
+    verify(collection).find(mongoQuery);
+    verify(iterable).projection(projection);
+    verify(iterable, NOT_INVOKED).sort(any());
+    verify(iterable).skip(50);
+    verify(iterable).limit(10);
+    verify(iterable).cursor();
+  }
+
+  @Test
+  public void testFindWithAllClauses() {
+    Query query =
+        Query.builder()
+            .selection(IdentifierExpression.of("id"))
+            .selection(IdentifierExpression.of("fname"), "name")
+            .sortingDefinition(IdentifierExpression.of("marks"), SortingOrder.DESC)
+            .sortingDefinition(IdentifierExpression.of("name"), SortingOrder.ASC)
+            .paginationDefinition(PaginationDefinition.of(10, 50))
             .filter(
                 LogicalExpression.builder()
                     .operand(
@@ -140,14 +213,32 @@ class MongoQueryExecutorTest {
                     .operator(AND)
                     .operand(
                         RelationalExpression.of(
-                            IdentifierExpression.of("class"), EQ, ConstantExpression.of(10)))
+                            IdentifierExpression.of("class"), EQ, ConstantExpression.of("XII")))
                     .build())
             .build();
+
+    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+
+    BasicDBObject mongoQuery =
+        BasicDBObject.parse(
+            "{"
+                + "$and: ["
+                + " {"
+                + "   \"percentage\": { $gt: 90 }"
+                + " },"
+                + " {"
+                + "   \"class\": \"XII\""
+                + " }"
+                + "]"
+                + "}");
+    Bson projection = BsonDocument.parse("{id: 1, fname: 1}");
+    BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
+
+    verify(collection).find(mongoQuery);
+    verify(iterable).projection(projection);
+    verify(iterable).sort(sortQuery);
+    verify(iterable).skip(50);
+    verify(iterable).limit(10);
+    verify(iterable).cursor();
   }
-
-  @Test
-  public void testFindWithPagination() {}
-
-  @Test
-  public void testFindWithAllClauses() {}
 }

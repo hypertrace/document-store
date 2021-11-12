@@ -31,4 +31,14 @@ public class MongoFilteringExpressionParser implements FilteringExpressionParser
     filter = expression.parse(new MongoFilteringExpressionParser());
     return new BasicDBObject(FILTER_CLAUSE, filter);
   }
+
+  public static BasicDBObject getFilter(FilteringExpression expression) {
+    if (expression == null) {
+      return new BasicDBObject();
+    }
+
+    Map<String, Object> filter =
+        (Map<String, Object>) expression.parse(new MongoFilteringExpressionParser());
+    return new BasicDBObject(filter);
+  }
 }

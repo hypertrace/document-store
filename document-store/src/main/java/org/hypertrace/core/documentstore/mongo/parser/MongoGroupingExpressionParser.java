@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import static java.util.function.Predicate.not;
+import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 
 import com.mongodb.BasicDBObject;
 import java.util.LinkedHashMap;
@@ -10,7 +11,6 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
-import org.hypertrace.core.documentstore.mongo.MongoCollection;
 import org.hypertrace.core.documentstore.parser.GroupingExpressionParser;
 import org.hypertrace.core.documentstore.query.Selection;
 import org.hypertrace.core.documentstore.query.WhitelistedSelection;
@@ -21,14 +21,14 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
 
   @Override
   public Map<String, Object> parse(final FunctionExpression expression) {
-    Object value = MongoFunctionExpressionParser.parse(expression);
-    return Map.of(MongoCollection.ID_KEY, value);
+    throw new UnsupportedOperationException(
+        String.format("Cannot group a function ($%s) in MongoDB", expression));
   }
 
   @Override
   public Map<String, Object> parse(final IdentifierExpression expression) {
-    String identifier = "$" + MongoIdentifierExpressionParser.parse(expression);
-    return Map.of(MongoCollection.ID_KEY, identifier);
+    String identifier = MongoIdentifierExpressionParser.parse(expression);
+    return Map.of(identifier, "$" + identifier);
   }
 
   public static BasicDBObject getGroupClause(
@@ -38,7 +38,7 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
     if (expressions == null) {
       groupExp = Map.of();
     } else {
-      groupExp =
+      Map<String, Object> groups =
           expressions.stream()
               .map(MongoGroupingExpressionParser::parse)
               .reduce(
@@ -47,6 +47,8 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
                     first.putAll(second);
                     return first;
                   });
+
+      groupExp = Map.of(ID_KEY, groups);
     }
 
     Map<String, Object> definition =
