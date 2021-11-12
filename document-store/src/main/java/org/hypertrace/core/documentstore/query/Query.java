@@ -38,7 +38,7 @@ import org.hypertrace.core.documentstore.expression.type.SortingExpression;
  *         .selection(
  *             AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
  *             "total")
- *         .whereFilter(LogicalExpression.of(
+ *         .filter(LogicalExpression.of(
  *             RelationalExpression.of(
  *                 IdentifierExpression.of("col1"),
  *                 LT,
@@ -50,7 +50,7 @@ import org.hypertrace.core.documentstore.expression.type.SortingExpression;
  *             IdentifierExpression.of("col3"))))
  *         .aggregation(IdentifierExpression.of("col4"))
  *         .aggregation(IdentifierExpression.of("col6"))
- *         .havingFilter(
+ *         .aggregationFilter(
  *             RelationalExpression.of(
  *                 AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
  *                 GTE,

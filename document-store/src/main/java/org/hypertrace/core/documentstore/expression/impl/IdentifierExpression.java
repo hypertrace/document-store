@@ -14,9 +14,9 @@ import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
 import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
 
 /**
- * Expression representing either a literal (or a column name)
+ * Expression representing either an identifier/column name
  *
- * <p>Example: LiteralExpression.of("col1");
+ * <p>Example: IdentifierExpression.of("col1");
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)

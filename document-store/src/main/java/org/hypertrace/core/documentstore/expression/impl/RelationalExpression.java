@@ -15,12 +15,10 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
  * Expression representing a condition for filtering
  *
  * <p>Example: <code>
- *     company IN ('Traceable', 'Harness')
- *  </code> can be constructed as <code>
- *     RelationalExpression.of(
- *         LiteralExpression.of("company"),
- *         RelationalOperator.IN,
- *         ConstantExpression.ofStrings("Traceable", "Harness"))));
+ * company IN ('Traceable', 'Harness')
+ * </code> can be constructed as <code>
+ * RelationalExpression.of( IdentifierExpression.of("company"), RelationalOperator.IN,
+ * ConstantExpression.ofStrings("Traceable", "Harness"))));
  * </code>
  */
 @Value

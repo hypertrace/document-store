@@ -16,7 +16,7 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
  * Expression representing aggregation in a query.
  *
  * <p>Example: SUM(col1) can be constructed as <code>
- * AggregatorExpression.of(Aggregator.SUM, LiteralExpression.of("col1"));
+ * AggregatorExpression.of(AggregationOperator.SUM, IdentifierExpression.of("col1"));
  * </code>
  */
 @Value
