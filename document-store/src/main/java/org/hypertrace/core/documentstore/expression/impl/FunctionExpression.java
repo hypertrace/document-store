@@ -19,15 +19,23 @@ import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
 import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
 
 /**
- * Expression representing arithmetic operations in a query.
+ * Expression representing arithmetic/function operations in a query.
  *
  * <p>Example: A-5 can be constructed as <code>
- * FunctionExpression.builder() .operand(LiteralExpression.of("A")) .operator(ArithmeticOperator.SUBTRACT)
- * .operand(ConstantExpression.of(5)) .build();
+ *      FunctionExpression.builder()
+ *        .operand(LiteralExpression.of("A"))
+ *        .operator(ArithmeticOperator.SUBTRACT)
+ *        .operand(ConstantExpression.of(5))
+ *        .build();
  * </code> The same can be constructed with different order of operands, as long as the minuend is
- * specified before the subtrahend E.g.: Another valid ordering could be <code>
- * FunctionExpression.builder() .operator(ArithmeticOperator.SUBTRACT)
- * .operand(LiteralExpression.of("A")) .operand(ConstantExpression.of(5)) .build();
+ * specified before the subtrahend.
+ *
+ * <p>E.g.: Another valid ordering could be <code>
+ *      FunctionExpression.builder()
+ *        .operator(ArithmeticOperator.SUBTRACT)
+ *        .operand(LiteralExpression.of("A"))
+ *        .operand(ConstantExpression.of(5))
+ *        .build();
  * </code>
  */
 @Value

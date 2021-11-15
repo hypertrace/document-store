@@ -13,7 +13,6 @@ import static org.hypertrace.core.documentstore.mongo.parser.MongoSortingExpress
 import static org.hypertrace.core.documentstore.mongo.parser.MongoSortingExpressionParser.getSortClause;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.Function;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
@@ -21,20 +20,16 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
-import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.query.PaginationDefinition;
 import org.hypertrace.core.documentstore.query.Query;
 
 @Slf4j
 public class MongoQueryExecutor {
 
-  public static Iterator<Document> find(
-      final Query query,
-      final com.mongodb.client.MongoCollection<BasicDBObject> collection,
-      @NotNull final Function<BasicDBObject, Document> convertor) {
+  public static Iterator<BasicDBObject> find(
+      final Query query, final com.mongodb.client.MongoCollection<BasicDBObject> collection) {
 
     BasicDBObject filterClause = getFilter(query.getFilter());
     Bson projection = getSelections(query.getSelections());
@@ -50,13 +45,11 @@ public class MongoQueryExecutor {
 
     logClauses(projection, filterClause, sortOrders, query.getPaginationDefinition());
 
-    return getIteratorFromCursor(iterable.cursor(), convertor);
+    return iterable.cursor();
   }
 
-  public static Iterator<Document> aggregate(
-      final Query query,
-      final com.mongodb.client.MongoCollection<BasicDBObject> collection,
-      final Function<BasicDBObject, Document> convertor) {
+  public static MongoCursor<BasicDBObject> aggregate(
+      final Query query, final com.mongodb.client.MongoCollection<BasicDBObject> collection) {
 
     BasicDBObject filterClause = getFilterClause(query.getFilter());
     BasicDBObject groupFilterClause = getFilterClause(query.getAggregationFilter());
@@ -84,7 +77,7 @@ public class MongoQueryExecutor {
     logPipeline(pipeline);
     AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
 
-    return getIteratorFromCursor(iterable.cursor(), convertor);
+    return iterable.cursor();
   }
 
   private static void logClauses(
@@ -102,21 +95,5 @@ public class MongoQueryExecutor {
 
   private static void logPipeline(List<BasicDBObject> pipeline) {
     log.debug("Aggregation pipeline: {}", pipeline);
-  }
-
-  private static Iterator<Document> getIteratorFromCursor(
-      final MongoCursor<BasicDBObject> cursor, final Function<BasicDBObject, Document> convertor) {
-    return new Iterator<>() {
-
-      @Override
-      public boolean hasNext() {
-        return cursor.hasNext();
-      }
-
-      @Override
-      public Document next() {
-        return convertor.apply(cursor.next());
-      }
-    };
   }
 }

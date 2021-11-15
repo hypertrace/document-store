@@ -28,12 +28,9 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
-import java.io.IOException;
 import java.util.List;
 import org.bson.BsonDocument;
 import org.bson.conversions.Bson;
-import org.hypertrace.core.documentstore.Document;
-import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -43,6 +40,8 @@ import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
 import org.hypertrace.core.documentstore.query.PaginationDefinition;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.SortingDefinition;
+import org.hypertrace.core.documentstore.query.WhitelistedSelection;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,14 +66,6 @@ class MongoQueryExecutorTest {
 
   private static final VerificationMode NOT_INVOKED = times(0);
 
-  private static Document convertor(BasicDBObject object) {
-    try {
-      return new JSONDocument(object);
-    } catch (IOException e) {
-      return JSONDocument.errorDocument(e.getMessage());
-    }
-  }
-
   @BeforeEach
   void setUp() {
     when(collection.find(any(Bson.class))).thenReturn(iterable);
@@ -98,7 +89,7 @@ class MongoQueryExecutorTest {
   public void testFindSimple() {
     Query query = Query.builder().selection(ALL).build();
 
-    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+    MongoQueryExecutor.find(query, collection);
 
     BasicDBObject mongoQuery = new BasicDBObject();
     Bson projection = new BsonDocument();
@@ -119,7 +110,7 @@ class MongoQueryExecutorTest {
             .selection(IdentifierExpression.of("fname"), "name")
             .build();
 
-    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+    MongoQueryExecutor.find(query, collection);
 
     BasicDBObject mongoQuery = new BasicDBObject();
     Bson projection = BsonDocument.parse("{id: 1, fname: 1}");
@@ -149,7 +140,7 @@ class MongoQueryExecutorTest {
                     .build())
             .build();
 
-    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+    MongoQueryExecutor.find(query, collection);
 
     BasicDBObject mongoQuery =
         BasicDBObject.parse(
@@ -182,7 +173,7 @@ class MongoQueryExecutorTest {
             .sortingDefinition(IdentifierExpression.of("name"), SortingOrder.ASC)
             .build();
 
-    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+    MongoQueryExecutor.find(query, collection);
 
     BasicDBObject mongoQuery = new BasicDBObject();
     BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
@@ -204,7 +195,7 @@ class MongoQueryExecutorTest {
             .paginationDefinition(PaginationDefinition.of(10, 50))
             .build();
 
-    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+    MongoQueryExecutor.find(query, collection);
 
     BasicDBObject mongoQuery = new BasicDBObject();
     Bson projection = new BsonDocument();
@@ -238,7 +229,7 @@ class MongoQueryExecutorTest {
                     .build())
             .build();
 
-    MongoQueryExecutor.find(query, collection, MongoQueryExecutorTest::convertor);
+    MongoQueryExecutor.find(query, collection);
 
     BasicDBObject mongoQuery =
         BasicDBObject.parse(
@@ -290,8 +281,11 @@ class MongoQueryExecutorTest {
   public void testAggregateWithProjections() {
     Query query =
         Query.builder()
-            .selection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
-            .selection(IdentifierExpression.of("name"))
+            .selections(
+                List.of(
+                    WhitelistedSelection.of(
+                        AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total"),
+                    WhitelistedSelection.of(IdentifierExpression.of("name"))))
             .build();
 
     List<BasicDBObject> pipeline =
@@ -316,8 +310,8 @@ class MongoQueryExecutorTest {
     Query query =
         Query.builder()
             .selection(AggregateExpression.of(MIN, IdentifierExpression.of("rank")), "topper")
-            .aggregation(IdentifierExpression.of("name"))
-            .aggregation(IdentifierExpression.of("class"))
+            .aggregations(
+                List.of(IdentifierExpression.of("name"), IdentifierExpression.of("class")))
             .build();
 
     List<BasicDBObject> pipeline =
@@ -435,8 +429,10 @@ class MongoQueryExecutorTest {
                     AVG, AggregateExpression.of(MAX, IdentifierExpression.of("mark"))),
                 "averageHighScore")
             .aggregation(IdentifierExpression.of("section"))
-            .sortingDefinition(IdentifierExpression.of("averageHighScore"), DESC)
-            .sortingDefinition(IdentifierExpression.of("section"), ASC)
+            .sortingDefinitions(
+                List.of(
+                    SortingDefinition.of(IdentifierExpression.of("averageHighScore"), DESC),
+                    SortingDefinition.of(IdentifierExpression.of("section"), ASC)))
             .build();
 
     List<BasicDBObject> pipeline =
@@ -493,7 +489,7 @@ class MongoQueryExecutorTest {
   }
 
   private void testAggregation(Query query, List<BasicDBObject> pipeline) {
-    MongoQueryExecutor.aggregate(query, collection, MongoQueryExecutorTest::convertor);
+    MongoQueryExecutor.aggregate(query, collection);
     verify(collection).aggregate(pipeline);
     verify(aggIterable).cursor();
   }
