@@ -31,11 +31,19 @@ public class ConstantExpression implements SelectingExpression {
     return new ConstantExpression(value);
   }
 
+  public static ConstantExpression of(Boolean value) {
+    return new ConstantExpression(value);
+  }
+
   public static ConstantExpression ofStrings(List<String> values) {
     return validateAndReturn(values);
   }
 
   public static ConstantExpression ofNumbers(List<? extends Number> values) {
+    return validateAndReturn(values);
+  }
+
+  public static ConstantExpression ofBooleans(List<Boolean> values) {
     return validateAndReturn(values);
   }
 
