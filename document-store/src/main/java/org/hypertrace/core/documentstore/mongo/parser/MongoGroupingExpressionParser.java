@@ -30,7 +30,8 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
   @Override
   public Map<String, Object> parse(final IdentifierExpression expression) {
     String identifier = MongoIdentifierExpressionParser.parse(expression);
-    return Map.of(identifier, "$" + identifier);
+    String key = identifier.replaceAll("\\.", "-");
+    return Map.of(key, "$" + identifier);
   }
 
   public static BasicDBObject getGroupClause(
