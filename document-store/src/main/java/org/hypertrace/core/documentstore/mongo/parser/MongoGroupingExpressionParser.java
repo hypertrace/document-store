@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.collections4.MapUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -68,6 +69,10 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
                   first.putAll(second);
                   return first;
                 });
+
+    if (MapUtils.isEmpty(definition)) {
+      return new BasicDBObject();
+    }
 
     definition.putAll(groupExp);
     return new BasicDBObject(GROUP_CLAUSE, definition);

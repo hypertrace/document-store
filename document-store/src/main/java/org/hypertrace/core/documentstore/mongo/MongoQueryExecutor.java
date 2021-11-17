@@ -16,7 +16,6 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
-import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,7 +30,7 @@ import org.hypertrace.core.documentstore.query.Query;
 public class MongoQueryExecutor {
   final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
-  public Iterator<BasicDBObject> find(final Query query) {
+  public MongoCursor<BasicDBObject> find(final Query query) {
 
     BasicDBObject filterClause = getFilter(query.getFilter());
     Bson projection = getSelections(query.getSelections());
