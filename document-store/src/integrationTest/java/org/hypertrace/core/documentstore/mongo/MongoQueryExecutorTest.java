@@ -252,17 +252,21 @@ public class MongoQueryExecutorTest {
         .selection(
             AggregateExpression.of(SUM, ConstantExpression.of(1)),
             "num_items")
+        .selection(IdentifierExpression.of("first_item"))
+        .selection(IdentifierExpression.of("pincode"))
+        .selection(IdentifierExpression.of("num_items"))
         .aggregation(IdentifierExpression.of("props.seller.address.pincode"))
         .sortingDefinition(IdentifierExpression.of("pincode"), DESC)
+        .sortingDefinition(IdentifierExpression.of("first_item"), ASC)
         .aggregationFilter(
             RelationalExpression.of(
                 IdentifierExpression.of("num_items"),
                 GT,
-                ConstantExpression.of(2)))
+                ConstantExpression.of(1)))
         .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    assertDocsEqual(resultDocs, "mongo/sum_response.json");
+    assertDocsEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json");
   }
 
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)
