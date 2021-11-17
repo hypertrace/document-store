@@ -91,9 +91,7 @@ public class MongoQueryExecutorTest {
 
   @Test
   public void testFindAll() throws IOException {
-    Query query = Query.builder()
-        .selection(ALL)
-        .build();
+    Query query = Query.builder().selection(ALL).build();
 
     Iterator<Document> resultDocs = collection.find(query);
     assertSizeEqual(resultDocs, "mongo/collection_data.json");
@@ -101,20 +99,22 @@ public class MongoQueryExecutorTest {
 
   @Test
   public void testFindSimple() throws IOException {
-    List<Selection> selections = List.of(
-        WhitelistedSelection.of(IdentifierExpression.of("item")),
-        WhitelistedSelection.of(IdentifierExpression.of("price")),
-        WhitelistedSelection.of(IdentifierExpression.of("quantity")),
-        WhitelistedSelection.of(IdentifierExpression.of("date")));
+    List<Selection> selections =
+        List.of(
+            WhitelistedSelection.of(IdentifierExpression.of("item")),
+            WhitelistedSelection.of(IdentifierExpression.of("price")),
+            WhitelistedSelection.of(IdentifierExpression.of("quantity")),
+            WhitelistedSelection.of(IdentifierExpression.of("date")));
 
-    Query query = Query.builder()
-        .selections(selections)
-        .filter(
-            RelationalExpression.of(
-                IdentifierExpression.of("item"),
-                NOT_IN,
-                ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
-        .build();
+    Query query =
+        Query.builder()
+            .selections(selections)
+            .filter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    NOT_IN,
+                    ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
+            .build();
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/simple_filter_response.json");
@@ -122,23 +122,25 @@ public class MongoQueryExecutorTest {
 
   @Test
   public void testFindWithSortingAndPagination() throws IOException {
-    List<Selection> selections = List.of(
-        WhitelistedSelection.of(IdentifierExpression.of("item")),
-        WhitelistedSelection.of(IdentifierExpression.of("price")),
-        WhitelistedSelection.of(IdentifierExpression.of("quantity")),
-        WhitelistedSelection.of(IdentifierExpression.of("date")));
+    List<Selection> selections =
+        List.of(
+            WhitelistedSelection.of(IdentifierExpression.of("item")),
+            WhitelistedSelection.of(IdentifierExpression.of("price")),
+            WhitelistedSelection.of(IdentifierExpression.of("quantity")),
+            WhitelistedSelection.of(IdentifierExpression.of("date")));
 
-    Query query = Query.builder()
-        .selections(selections)
-        .filter(
-            RelationalExpression.of(
-                IdentifierExpression.of("item"),
-                IN,
-                ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
-        .sortingDefinition(IdentifierExpression.of("quantity"), DESC)
-        .sortingDefinition(IdentifierExpression.of("item"), ASC)
-        .paginationDefinition(PaginationDefinition.of(3, 1))
-        .build();
+    Query query =
+        Query.builder()
+            .selections(selections)
+            .filter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+            .sortingDefinition(IdentifierExpression.of("quantity"), DESC)
+            .sortingDefinition(IdentifierExpression.of("item"), ASC)
+            .paginationDefinition(PaginationDefinition.of(3, 1))
+            .build();
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/filter_with_sorting_and_pagination_response.json");
@@ -146,31 +148,33 @@ public class MongoQueryExecutorTest {
 
   @Test
   public void testFindWithNestedFields() throws IOException {
-    List<Selection> selections = List.of(
-        WhitelistedSelection.of(IdentifierExpression.of("item")),
-        WhitelistedSelection.of(IdentifierExpression.of("price")),
-        WhitelistedSelection.of(IdentifierExpression.of("props.seller.name"), "seller"));
+    List<Selection> selections =
+        List.of(
+            WhitelistedSelection.of(IdentifierExpression.of("item")),
+            WhitelistedSelection.of(IdentifierExpression.of("price")),
+            WhitelistedSelection.of(IdentifierExpression.of("props.seller.name"), "seller"));
 
-    Query query = Query.builder()
-        .selections(selections)
-        .filter(
-            LogicalExpression.builder()
-                .operand(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("item"),
-                        IN,
-                        ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo"))))
-                .operator(OR)
-                .operand(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("props.seller.address.pincode"),
-                        EQ,
-                        ConstantExpression.of(700007)))
-            .build())
-        .sortingDefinition(IdentifierExpression.of("props.brand"), ASC)
-        .sortingDefinition(IdentifierExpression.of("item"), ASC)
-        .sortingDefinition(IdentifierExpression.of("props.seller.address.city"), ASC)
-        .build();
+    Query query =
+        Query.builder()
+            .selections(selections)
+            .filter(
+                LogicalExpression.builder()
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo"))))
+                    .operator(OR)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("props.seller.address.pincode"),
+                            EQ,
+                            ConstantExpression.of(700007)))
+                    .build())
+            .sortingDefinition(IdentifierExpression.of("props.brand"), ASC)
+            .sortingDefinition(IdentifierExpression.of("item"), ASC)
+            .sortingDefinition(IdentifierExpression.of("props.seller.address.city"), ASC)
+            .build();
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/filter_on_nested_fields_response.json");
@@ -178,9 +182,7 @@ public class MongoQueryExecutorTest {
 
   @Test
   public void testAggregateEmpty() throws IOException {
-    Query query = Query.builder()
-        .selection(ALL)
-        .build();
+    Query query = Query.builder().selection(ALL).build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertSizeEqual(resultDocs, "mongo/collection_data.json");
@@ -188,12 +190,10 @@ public class MongoQueryExecutorTest {
 
   @Test
   public void testAggregateSimple() throws IOException {
-    Query query = Query.builder()
-        .selection(
-            AggregateExpression.of(SUM, ConstantExpression.of(1)),
-            "count")
-        .build();
-
+    Query query =
+        Query.builder()
+            .selection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "count")
+            .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/count_response.json");
@@ -201,40 +201,35 @@ public class MongoQueryExecutorTest {
 
   @Test
   public void testAggregateWithFiltersAndOrdering() throws IOException {
-    Query query = Query.builder()
-        .selection(
-            AggregateExpression.of(
-                SUM,
-                FunctionExpression.builder()
-                    .operand(IdentifierExpression.of("price"))
-                    .operator(MULTIPLY)
-                    .operand(IdentifierExpression.of("quantity"))
-                    .build()),
-            "total")
-        .selection(AggregateExpression.of(FIRST, IdentifierExpression.of("item")), "item")
-        .aggregation(IdentifierExpression.of("item"))
-        .sortingDefinition(IdentifierExpression.of("total"), DESC)
-        .aggregationFilter(
-            LogicalExpression.builder()
-                .operand(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("total"),
-                        GTE,
-                        ConstantExpression.of(25)))
-                .operator(AND)
-                .operand(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("total"),
-                        LTE,
-                        ConstantExpression.of(99)))
-                .build())
-        .filter(
-            RelationalExpression.of(
-                IdentifierExpression.of("quantity"),
-                NEQ,
-                ConstantExpression.of(10)))
-        .paginationDefinition(PaginationDefinition.of(10))
-        .build();
+    Query query =
+        Query.builder()
+            .selection(
+                AggregateExpression.of(
+                    SUM,
+                    FunctionExpression.builder()
+                        .operand(IdentifierExpression.of("price"))
+                        .operator(MULTIPLY)
+                        .operand(IdentifierExpression.of("quantity"))
+                        .build()),
+                "total")
+            .selection(AggregateExpression.of(FIRST, IdentifierExpression.of("item")), "item")
+            .aggregation(IdentifierExpression.of("item"))
+            .sortingDefinition(IdentifierExpression.of("total"), DESC)
+            .aggregationFilter(
+                LogicalExpression.builder()
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("total"), GTE, ConstantExpression.of(25)))
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("total"), LTE, ConstantExpression.of(99)))
+                    .build())
+            .filter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .paginationDefinition(PaginationDefinition.of(10))
+            .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/sum_response.json");
@@ -242,28 +237,24 @@ public class MongoQueryExecutorTest {
 
   @Test
   public void testAggregateWithNestedFields() throws IOException {
-    Query query = Query.builder()
-        .selection(
-            AggregateExpression.of(FIRST, IdentifierExpression.of("item")),
-            "first_item")
-        .selection(
-            AggregateExpression.of(FIRST, IdentifierExpression.of("props.seller.address.pincode")),
-            "pincode")
-        .selection(
-            AggregateExpression.of(SUM, ConstantExpression.of(1)),
-            "num_items")
-        .selection(IdentifierExpression.of("first_item"))
-        .selection(IdentifierExpression.of("pincode"))
-        .selection(IdentifierExpression.of("num_items"))
-        .aggregation(IdentifierExpression.of("props.seller.address.pincode"))
-        .sortingDefinition(IdentifierExpression.of("pincode"), DESC)
-        .sortingDefinition(IdentifierExpression.of("first_item"), ASC)
-        .aggregationFilter(
-            RelationalExpression.of(
-                IdentifierExpression.of("num_items"),
-                GT,
-                ConstantExpression.of(1)))
-        .build();
+    Query query =
+        Query.builder()
+            .selection(AggregateExpression.of(FIRST, IdentifierExpression.of("item")), "first_item")
+            .selection(
+                AggregateExpression.of(
+                    FIRST, IdentifierExpression.of("props.seller.address.pincode")),
+                "pincode")
+            .selection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
+            .selection(IdentifierExpression.of("first_item"))
+            .selection(IdentifierExpression.of("pincode"))
+            .selection(IdentifierExpression.of("num_items"))
+            .aggregation(IdentifierExpression.of("props.seller.address.pincode"))
+            .sortingDefinition(IdentifierExpression.of("pincode"), DESC)
+            .sortingDefinition(IdentifierExpression.of("first_item"), ASC)
+            .aggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("num_items"), GT, ConstantExpression.of(1)))
+            .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json");
