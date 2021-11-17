@@ -45,12 +45,12 @@ public class MongoSortingExpressionParser implements SortingExpressionParser {
     return Map.of(parsed, getOrder());
   }
 
-  public static BasicDBObject getSortClause(List<SortingDefinition> sortingDefinitions) {
+  public static BasicDBObject getSortClause(final List<SortingDefinition> sortingDefinitions) {
     BasicDBObject orders = getOrders(sortingDefinitions);
     return orders.isEmpty() ? orders : new BasicDBObject(SORT_CLAUSE, orders);
   }
 
-  public static BasicDBObject getOrders(List<SortingDefinition> sortingDefinitions) {
+  public static BasicDBObject getOrders(final List<SortingDefinition> sortingDefinitions) {
     if (CollectionUtils.isEmpty(sortingDefinitions)) {
       return new BasicDBObject();
     }
@@ -79,7 +79,7 @@ public class MongoSortingExpressionParser implements SortingExpressionParser {
     throw new IllegalArgumentException("Unknown sorting order: " + order.name());
   }
 
-  private static Map<String, Object> parse(SortingDefinition definition) {
+  private static Map<String, Object> parse(final SortingDefinition definition) {
     MongoSortingExpressionParser parser = new MongoSortingExpressionParser(definition.getOrder());
     return (Map<String, Object>) definition.getExpression().parse(parser);
   }

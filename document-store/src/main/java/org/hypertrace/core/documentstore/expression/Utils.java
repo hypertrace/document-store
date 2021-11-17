@@ -10,7 +10,7 @@ public class Utils {
   private static final Validator validator =
       Validation.buildDefaultValidatorFactory().getValidator();
 
-  public static <T> T validateAndReturn(T expression) {
+  public static <T> T validateAndReturn(final T expression) {
     Set<ConstraintViolation<T>> exceptions = validator.validate(expression);
     if (!exceptions.isEmpty()) {
       throw new IllegalArgumentException(exceptions.iterator().next().getMessage());

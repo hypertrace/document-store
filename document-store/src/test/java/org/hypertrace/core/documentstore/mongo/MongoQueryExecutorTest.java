@@ -64,10 +64,14 @@ class MongoQueryExecutorTest {
 
   @Mock private MongoCursor<BasicDBObject> cursor;
 
+  private MongoQueryExecutor executor;
+
   private static final VerificationMode NOT_INVOKED = times(0);
 
   @BeforeEach
   void setUp() {
+    executor = new MongoQueryExecutor(collection);
+
     when(collection.find(any(Bson.class))).thenReturn(iterable);
     when(collection.aggregate(anyList())).thenReturn(aggIterable);
 
@@ -82,6 +86,7 @@ class MongoQueryExecutorTest {
 
   @AfterEach
   void tearDown() {
+    verify(collection).getNamespace();
     verifyNoMoreInteractions(collection, iterable, cursor, aggIterable);
   }
 
@@ -89,7 +94,7 @@ class MongoQueryExecutorTest {
   public void testFindSimple() {
     Query query = Query.builder().selection(ALL).build();
 
-    MongoQueryExecutor.find(query, collection);
+    executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
     Bson projection = new BsonDocument();
@@ -110,7 +115,7 @@ class MongoQueryExecutorTest {
             .selection(IdentifierExpression.of("fname"), "name")
             .build();
 
-    MongoQueryExecutor.find(query, collection);
+    executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
     Bson projection = BsonDocument.parse("{id: 1, fname: 1}");
@@ -140,7 +145,7 @@ class MongoQueryExecutorTest {
                     .build())
             .build();
 
-    MongoQueryExecutor.find(query, collection);
+    executor.find(query);
 
     BasicDBObject mongoQuery =
         BasicDBObject.parse(
@@ -173,7 +178,7 @@ class MongoQueryExecutorTest {
             .sortingDefinition(IdentifierExpression.of("name"), SortingOrder.ASC)
             .build();
 
-    MongoQueryExecutor.find(query, collection);
+    executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
     BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
@@ -195,7 +200,7 @@ class MongoQueryExecutorTest {
             .paginationDefinition(PaginationDefinition.of(10, 50))
             .build();
 
-    MongoQueryExecutor.find(query, collection);
+    executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
     Bson projection = new BsonDocument();
@@ -229,7 +234,7 @@ class MongoQueryExecutorTest {
                     .build())
             .build();
 
-    MongoQueryExecutor.find(query, collection);
+    executor.find(query);
 
     BasicDBObject mongoQuery =
         BasicDBObject.parse(
@@ -489,7 +494,7 @@ class MongoQueryExecutorTest {
   }
 
   private void testAggregation(Query query, List<BasicDBObject> pipeline) {
-    MongoQueryExecutor.aggregate(query, collection);
+    executor.aggregate(query);
     verify(collection).aggregate(pipeline);
     verify(aggIterable).cursor();
   }

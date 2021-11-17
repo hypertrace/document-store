@@ -21,7 +21,7 @@ public class MongoFilteringExpressionParser implements FilteringExpressionParser
     return MongoRelationalExpressionParser.parse(expression);
   }
 
-  public static BasicDBObject getFilterClause(FilteringExpression expression) {
+  public static BasicDBObject getFilterClause(final FilteringExpression expression) {
     Object filter;
 
     if (expression == null) {
@@ -32,7 +32,7 @@ public class MongoFilteringExpressionParser implements FilteringExpressionParser
     return new BasicDBObject(FILTER_CLAUSE, filter);
   }
 
-  public static BasicDBObject getFilter(FilteringExpression expression) {
+  public static BasicDBObject getFilter(final FilteringExpression expression) {
     if (expression == null) {
       return new BasicDBObject();
     }

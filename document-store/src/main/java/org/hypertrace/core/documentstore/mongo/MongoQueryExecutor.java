@@ -20,16 +20,18 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.query.PaginationDefinition;
 import org.hypertrace.core.documentstore.query.Query;
 
 @Slf4j
+@AllArgsConstructor
 public class MongoQueryExecutor {
+  final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
-  public static Iterator<BasicDBObject> find(
-      final Query query, final com.mongodb.client.MongoCollection<BasicDBObject> collection) {
+  public Iterator<BasicDBObject> find(final Query query) {
 
     BasicDBObject filterClause = getFilter(query.getFilter());
     Bson projection = getSelections(query.getSelections());
@@ -48,8 +50,7 @@ public class MongoQueryExecutor {
     return iterable.cursor();
   }
 
-  public static MongoCursor<BasicDBObject> aggregate(
-      final Query query, final com.mongodb.client.MongoCollection<BasicDBObject> collection) {
+  public MongoCursor<BasicDBObject> aggregate(final Query query) {
 
     BasicDBObject filterClause = getFilterClause(query.getFilter());
     BasicDBObject groupFilterClause = getFilterClause(query.getAggregationFilter());
@@ -80,20 +81,24 @@ public class MongoQueryExecutor {
     return iterable.cursor();
   }
 
-  private static void logClauses(
+  private void logClauses(
       Bson projection,
       Bson filterClause,
       Bson sortOrders,
       PaginationDefinition paginationDefinition) {
     log.debug(
-        "Projections: {} \n" + "Filter: {} \n" + "Sorting: {} \n" + "Pagination: {}",
+        "MongoDB find():\nCollection: {}\n Projections: {}\n Filter: {}\n Sorting: {}\n Pagination: {}",
+        collection.getNamespace(),
         projection,
         filterClause,
         sortOrders,
         paginationDefinition);
   }
 
-  private static void logPipeline(List<BasicDBObject> pipeline) {
-    log.debug("Aggregation pipeline: {}", pipeline);
+  private void logPipeline(List<BasicDBObject> pipeline) {
+    log.debug(
+        "MongoDB aggregation():\n Collection: {}\n Pipeline: {}",
+        collection.getNamespace(),
+        pipeline);
   }
 }

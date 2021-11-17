@@ -81,7 +81,6 @@ public class Query {
 
   FilteringExpression aggregationFilter;
 
-  @Size(min = 1)
   List<@NotNull SortingDefinition> sortingDefinitions;
 
   // Missing pagination definition represents fetching all the records
@@ -100,22 +99,23 @@ public class Query {
               paginationDefinition));
     }
 
-    public QueryBuilder selection(Selection selection) {
+    public QueryBuilder selection(final Selection selection) {
       addSelection(selection);
       return this;
     }
 
-    public QueryBuilder selection(SelectingExpression expression) {
+    public QueryBuilder selection(final SelectingExpression expression) {
       addSelection(WhitelistedSelection.of(expression));
       return this;
     }
 
-    public QueryBuilder selection(SelectingExpression expression, String alias) {
+    public QueryBuilder selection(final SelectingExpression expression, final String alias) {
       addSelection(WhitelistedSelection.of(expression, alias));
       return this;
     }
 
-    public QueryBuilder sortingDefinition(SortingExpression expression, SortingOrder order) {
+    public QueryBuilder sortingDefinition(
+        final SortingExpression expression, final SortingOrder order) {
       if (CollectionUtils.isEmpty(sortingDefinitions)) {
         sortingDefinitions = new ArrayList<>();
       }
@@ -124,7 +124,7 @@ public class Query {
       return this;
     }
 
-    private void addSelection(Selection selection) {
+    private void addSelection(final Selection selection) {
       if (CollectionUtils.isEmpty(selections)) {
         selections = new ArrayList<>();
       }

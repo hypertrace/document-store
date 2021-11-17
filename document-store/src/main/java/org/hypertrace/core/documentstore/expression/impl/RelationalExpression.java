@@ -32,12 +32,14 @@ public class RelationalExpression implements FilteringExpression {
   @NotNull SelectingExpression operand2;
 
   public static RelationalExpression of(
-      SelectingExpression operand1, RelationalOperator operator, SelectingExpression operand2) {
+      final SelectingExpression operand1,
+      final RelationalOperator operator,
+      final SelectingExpression operand2) {
     return validateAndReturn(new RelationalExpression(operand1, operator, operand2));
   }
 
   @Override
-  public Object parse(FilteringExpressionParser parser) {
+  public Object parse(final FilteringExpressionParser parser) {
     return parser.parse(this);
   }
 }

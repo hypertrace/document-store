@@ -57,7 +57,7 @@ public class LogicalExpression implements FilteringExpression {
   }
 
   @Override
-  public Object parse(FilteringExpressionParser parser) {
+  public Object parse(final FilteringExpressionParser parser) {
     return parser.parse(this);
   }
 }

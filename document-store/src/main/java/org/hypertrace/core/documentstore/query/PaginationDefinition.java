@@ -11,11 +11,11 @@ public class PaginationDefinition {
   int limit;
   int offset;
 
-  public static PaginationDefinition of(int limit) {
+  public static PaginationDefinition of(final int limit) {
     return new PaginationDefinition(limit, 0);
   }
 
-  public static PaginationDefinition of(int limit, int offset) {
+  public static PaginationDefinition of(final int limit, final int offset) {
     return new PaginationDefinition(limit, offset);
   }
 }

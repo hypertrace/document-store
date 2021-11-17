@@ -28,17 +28,17 @@ public class AggregateExpression implements SelectingExpression, SortingExpressi
   @NotNull SelectingExpression expression;
 
   public static AggregateExpression of(
-      AggregationOperator aggregator, SelectingExpression expression) {
+      final AggregationOperator aggregator, final SelectingExpression expression) {
     return validateAndReturn(new AggregateExpression(aggregator, expression));
   }
 
   @Override
-  public Object parse(SelectingExpressionParser parser) {
+  public Object parse(final SelectingExpressionParser parser) {
     return parser.parse(this);
   }
 
   @Override
-  public Object parse(SortingExpressionParser parser) {
+  public Object parse(final SortingExpressionParser parser) {
     return parser.parse(this);
   }
 }

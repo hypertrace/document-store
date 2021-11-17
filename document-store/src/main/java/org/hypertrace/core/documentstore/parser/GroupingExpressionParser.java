@@ -4,7 +4,7 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
 public interface GroupingExpressionParser {
-  Object parse(FunctionExpression expression);
+  Object parse(final FunctionExpression expression);
 
-  Object parse(IdentifierExpression expression);
+  Object parse(final IdentifierExpression expression);
 }

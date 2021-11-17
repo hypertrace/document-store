@@ -25,22 +25,22 @@ public class IdentifierExpression
 
   @NotBlank String name;
 
-  public static IdentifierExpression of(String name) {
+  public static IdentifierExpression of(final String name) {
     return validateAndReturn(new IdentifierExpression(name));
   }
 
   @Override
-  public Object parse(GroupingExpressionParser parser) {
+  public Object parse(final GroupingExpressionParser parser) {
     return parser.parse(this);
   }
 
   @Override
-  public Object parse(SelectingExpressionParser parser) {
+  public Object parse(final SelectingExpressionParser parser) {
     return parser.parse(this);
   }
 
   @Override
-  public Object parse(SortingExpressionParser parser) {
+  public Object parse(final SortingExpressionParser parser) {
     return parser.parse(this);
   }
 }
