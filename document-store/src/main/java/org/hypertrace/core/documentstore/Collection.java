@@ -55,9 +55,9 @@ public interface Collection {
   BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) throws Exception;
 
   /**
-   * Search for documents matching the query. For advanced functionalities like selecting summing
-   * column values, sorting by expressions, etc., ref. {@link
-   * #find(org.hypertrace.core.documentstore.query.Query)}
+   * Search for documents matching the query.
+   * For advanced functionalities like selecting summing column values, sorting by expressions, etc.,
+   * ref. {@link #find(org.hypertrace.core.documentstore.query.Query)}
    *
    * @param query filter to query matching documents
    * @return {@link Iterator} of matching documents
@@ -65,8 +65,8 @@ public interface Collection {
   Iterator<Document> search(Query query);
 
   /**
-   * Find the documents matching the query. Note that this method is a generic version of {@link
-   * #search(Query)}
+   * Find the documents matching the query.
+   * Note that this method is a generic version of {@link #search(Query)}
    *
    * @param query The query definition to find
    * @return {@link Iterator} of matching documents

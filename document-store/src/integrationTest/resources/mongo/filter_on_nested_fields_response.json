@@ -8,10 +8,7 @@
     "price": 7.5,
     "props": {
       "seller": {
-        "name": "Go Go Plastics",
-        "address": {
-          "city": "Kolkata"
-        }
+        "name": "Go Go Plastics"
       }
     }
   },
@@ -27,12 +24,8 @@
     "item": "Soap",
     "price": 10,
     "props": {
-      "brand": "Lifebuoy",
       "seller": {
-        "name": "Hans and Co.",
-        "address": {
-          "city": "Kolkata"
-        }
+        "name": "Hans and Co."
       }
     }
   },
@@ -40,12 +33,8 @@
     "item": "Shampoo",
     "price": 5,
     "props": {
-      "brand": "Sunsilk",
       "seller": {
-        "name": "Metro Chemicals Pvt. Ltd.",
-        "address": {
-          "city": "Mumbai"
-        }
+        "name": "Metro Chemicals Pvt. Ltd."
       }
     }
   }

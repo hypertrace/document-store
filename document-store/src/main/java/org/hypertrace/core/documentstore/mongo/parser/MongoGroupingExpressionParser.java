@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 
 import com.mongodb.BasicDBObject;
@@ -7,24 +8,18 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 import org.hypertrace.core.documentstore.parser.GroupingExpressionParser;
-import org.hypertrace.core.documentstore.query.Query;
-import org.hypertrace.core.documentstore.query.SelectionSpec;
+import org.hypertrace.core.documentstore.query.Selection;
+import org.hypertrace.core.documentstore.query.WhitelistedSelection;
 
-public class MongoGroupingExpressionParser extends MongoExpressionParser
-    implements GroupingExpressionParser {
+public class MongoGroupingExpressionParser implements GroupingExpressionParser {
 
   private static final String GROUP_CLAUSE = "$group";
-
-  protected MongoGroupingExpressionParser(Query query) {
-    super(query);
-  }
 
   @Override
   public Map<String, Object> parse(final FunctionExpression expression) {
@@ -34,19 +29,15 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
 
   @Override
   public Map<String, Object> parse(final IdentifierExpression expression) {
-    String identifier = new MongoIdentifierExpressionParser(query).parse(expression);
-    String key = identifier.replaceAll("\\.", "-");
-    return Map.of(key, "$" + identifier);
+    String identifier = MongoIdentifierExpressionParser.parse(expression);
+    return Map.of(identifier, "$" + identifier);
   }
 
-  public static BasicDBObject getGroupClause(final Query query) {
-    final List<SelectionSpec> selectionSpecs = query.getSelections();
-    final List<GroupingExpression> expressions = query.getAggregations();
-
-    MongoGroupingExpressionParser parser = new MongoGroupingExpressionParser(query);
+  public static BasicDBObject getGroupClause(
+      final List<Selection> selections, final List<GroupingExpression> expressions) {
     Map<String, Object> groupExp;
 
-    if (CollectionUtils.isEmpty(expressions)) {
+    if (expressions == null) {
       groupExp =
           new HashMap<>() {
             {
@@ -56,7 +47,7 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
     } else {
       Map<String, Object> groups =
           expressions.stream()
-              .map(parser::parse)
+              .map(MongoGroupingExpressionParser::parse)
               .reduce(
                   new LinkedHashMap<>(),
                   (first, second) -> {
@@ -68,8 +59,10 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
     }
 
     Map<String, Object> definition =
-        selectionSpecs.stream()
-            .map(parser::parse)
+        selections.stream()
+            .filter(not(Selection::allColumnsSelected))
+            .map(sel -> (WhitelistedSelection) sel)
+            .map(MongoGroupingExpressionParser::parse)
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -77,7 +70,7 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
                   return first;
                 });
 
-    if (MapUtils.isEmpty(definition) && CollectionUtils.isEmpty(expressions)) {
+    if (MapUtils.isEmpty(definition)) {
       return new BasicDBObject();
     }
 
@@ -85,19 +78,18 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
     return new BasicDBObject(GROUP_CLAUSE, definition);
   }
 
-  private Map<String, Object> parse(final SelectionSpec selection) {
+  private static Map<String, Object> parse(final WhitelistedSelection selection) {
     if (!selection.isAggregation()) {
       return Map.of();
     }
 
     AggregateExpression expression = (AggregateExpression) selection.getExpression();
-    Object parsed = new MongoAggregateExpressionParser(query).parse(expression);
+    Object parsed = MongoAggregateExpressionParser.parse(expression);
     return Map.of(selection.getAlias(), parsed);
   }
 
-  @SuppressWarnings("unchecked")
-  private Map<String, Object> parse(final GroupingExpression expression) {
-    MongoGroupingExpressionParser parser = new MongoGroupingExpressionParser(query);
+  private static Map<String, Object> parse(final GroupingExpression expression) {
+    MongoGroupingExpressionParser parser = new MongoGroupingExpressionParser();
     return (Map<String, Object>) expression.parse(parser);
   }
 }
