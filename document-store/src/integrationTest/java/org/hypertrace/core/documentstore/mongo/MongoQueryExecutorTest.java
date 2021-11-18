@@ -105,8 +105,8 @@ public class MongoQueryExecutorTest {
 
     Query query =
         Query.builder()
-            .selections(selectionSpecs)
-            .filter(
+            .addSelections(selectionSpecs)
+            .setFilter(
                 RelationalExpression.of(
                     IdentifierExpression.of("item"),
                     NOT_IN,
@@ -128,16 +128,16 @@ public class MongoQueryExecutorTest {
 
     Query query =
         Query.builder()
-            .selections(selectionSpecs)
-            .filter(
+            .addSelections(selectionSpecs)
+            .setFilter(
                 RelationalExpression.of(
                     IdentifierExpression.of("item"),
                     IN,
                     ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
-            .sort(IdentifierExpression.of("quantity"), DESC)
-            .sort(IdentifierExpression.of("item"), ASC)
-            .offset(1)
-            .limit(3)
+            .addSort(IdentifierExpression.of("quantity"), DESC)
+            .addSort(IdentifierExpression.of("item"), ASC)
+            .setOffset(1)
+            .setLimit(3)
             .build();
 
     Iterator<Document> resultDocs = collection.find(query);
@@ -154,8 +154,8 @@ public class MongoQueryExecutorTest {
 
     Query query =
         Query.builder()
-            .selections(selectionSpecs)
-            .filter(
+            .addSelections(selectionSpecs)
+            .setFilter(
                 LogicalExpression.builder()
                     .operand(
                         RelationalExpression.of(
@@ -169,9 +169,9 @@ public class MongoQueryExecutorTest {
                             EQ,
                             ConstantExpression.of(700007)))
                     .build())
-            .sort(IdentifierExpression.of("props.brand"), ASC)
-            .sort(IdentifierExpression.of("item"), ASC)
-            .sort(IdentifierExpression.of("props.seller.address.city"), ASC)
+            .addSort(IdentifierExpression.of("props.brand"), ASC)
+            .addSort(IdentifierExpression.of("item"), ASC)
+            .addSort(IdentifierExpression.of("props.seller.address.city"), ASC)
             .build();
 
     Iterator<Document> resultDocs = collection.find(query);
@@ -190,7 +190,7 @@ public class MongoQueryExecutorTest {
   public void testAggregateSimple() throws IOException {
     Query query =
         Query.builder()
-            .selection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "count")
+            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "count")
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
@@ -201,7 +201,7 @@ public class MongoQueryExecutorTest {
   public void testAggregateWithFiltersAndOrdering() throws IOException {
     Query query =
         Query.builder()
-            .selection(
+            .addSelection(
                 AggregateExpression.of(
                     SUM,
                     FunctionExpression.builder()
@@ -210,10 +210,10 @@ public class MongoQueryExecutorTest {
                         .operand(IdentifierExpression.of("quantity"))
                         .build()),
                 "total")
-            .selection(AggregateExpression.of(FIRST, IdentifierExpression.of("item")), "item")
-            .aggregation(IdentifierExpression.of("item"))
-            .sort(IdentifierExpression.of("total"), DESC)
-            .aggregationFilter(
+            .addSelection(AggregateExpression.of(FIRST, IdentifierExpression.of("item")), "item")
+            .addAggregation(IdentifierExpression.of("item"))
+            .addSort(IdentifierExpression.of("total"), DESC)
+            .setAggregationFilter(
                 LogicalExpression.builder()
                     .operand(
                         RelationalExpression.of(
@@ -223,11 +223,11 @@ public class MongoQueryExecutorTest {
                         RelationalExpression.of(
                             IdentifierExpression.of("total"), LTE, ConstantExpression.of(99)))
                     .build())
-            .filter(
+            .setFilter(
                 RelationalExpression.of(
                     IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
-            .limit(10)
-            .offset(0)
+            .setLimit(10)
+            .setOffset(0)
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
@@ -238,19 +238,20 @@ public class MongoQueryExecutorTest {
   public void testAggregateWithNestedFields() throws IOException {
     Query query =
         Query.builder()
-            .selection(AggregateExpression.of(FIRST, IdentifierExpression.of("item")), "first_item")
-            .selection(
+            .addSelection(
+                AggregateExpression.of(FIRST, IdentifierExpression.of("item")), "first_item")
+            .addSelection(
                 AggregateExpression.of(
                     FIRST, IdentifierExpression.of("props.seller.address.pincode")),
                 "pincode")
-            .selection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
-            .selection(IdentifierExpression.of("first_item"))
-            .selection(IdentifierExpression.of("num_items"))
-            .selection(IdentifierExpression.of("pincode"))
-            .aggregation(IdentifierExpression.of("props.seller.address.pincode"))
-            .sort(IdentifierExpression.of("pincode"), DESC)
-            .sort(IdentifierExpression.of("first_item"), ASC)
-            .aggregationFilter(
+            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
+            .addSelection(IdentifierExpression.of("first_item"))
+            .addSelection(IdentifierExpression.of("num_items"))
+            .addSelection(IdentifierExpression.of("pincode"))
+            .addAggregation(IdentifierExpression.of("props.seller.address.pincode"))
+            .addSort(IdentifierExpression.of("pincode"), DESC)
+            .addSort(IdentifierExpression.of("first_item"), ASC)
+            .setAggregationFilter(
                 RelationalExpression.of(
                     IdentifierExpression.of("num_items"), GT, ConstantExpression.of(1)))
             .build();
