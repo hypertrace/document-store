@@ -245,9 +245,7 @@ public class MongoQueryExecutorTest {
                     FIRST, IdentifierExpression.of("props.seller.address.pincode")),
                 "pincode")
             .selection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
-            .selection(IdentifierExpression.of("first_item"))
-            .selection(IdentifierExpression.of("pincode"))
-            .selection(IdentifierExpression.of("num_items"))
+            .selection(ALL)
             .aggregation(IdentifierExpression.of("props.seller.address.pincode"))
             .sortingDefinition(IdentifierExpression.of("pincode"), DESC)
             .sortingDefinition(IdentifierExpression.of("first_item"), ASC)
