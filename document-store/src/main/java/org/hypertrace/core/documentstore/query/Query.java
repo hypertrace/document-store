@@ -5,7 +5,6 @@ import static org.hypertrace.core.documentstore.expression.Utils.validateAndRetu
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import javax.validation.Valid;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
@@ -29,50 +28,48 @@ import org.hypertrace.core.documentstore.expression.type.SortingExpression;
  *     LIMIT 10
  * </code> can be built as <code>
  *     Query query = Query.builder()
- *         .selection(IdentifierExpression.of("col4"))
- *         .selection(
+ *         .addSelection(IdentifierExpression.of("col4"))
+ *         .addSelection(
  *             AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
  *             "total")
- *         .filter(LogicalExpression.of(
+ *         .setFilter(LogicalExpression.of(
  *             RelationalExpression.of(
  *                 IdentifierExpression.of("col1"),
  *                 LT,
  *                 ConstantExpression.of(7)),
  *             AND,
  *             RelationalExpression.of(
- *             IdentifierExpression.of("col2"),
- *             NEQ,
- *             IdentifierExpression.of("col3"))))
- *         .aggregation(IdentifierExpression.of("col4"))
- *         .aggregation(IdentifierExpression.of("col6"))
- *         .aggregationFilter(
+ *                  IdentifierExpression.of("col2"),
+ *                  NEQ,
+ *                  IdentifierExpression.of("col3"))))
+ *         .addAggregation(IdentifierExpression.of("col4"))
+ *         .addAggregation(IdentifierExpression.of("col6"))
+ *         .setAggregationFilter(
  *             RelationalExpression.of(
  *                 AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
  *                 GTE,
  *                 ConstantExpression.of(100)))
- *         .sort(
+ *         .addSort(
  *             FunctionExpression.builder()
  *                 .operand(IdentifierExpression.of("col7"))
  *                 .operator(ADD)
  *                 .operand(IdentifierExpression.of("col8"))
  *                 .build(),
  *             DESC)
- *         .offset(5)
- *         .limit(10)
+ *         .setOffset(5)
+ *         .setLimit(10)
  *         .build();
  *  </code>
  */
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class Query {
-  @Valid private final Selection selection; // Missing selection represents fetching all the columns
-  @Valid private final Filter filter;
+  private final Selection selection; // Missing selection represents fetching all the columns
+  private final Filter filter;
 
-  @Valid private final Aggregation aggregation;
-  @Valid private final Filter aggregationFilter;
+  private final Aggregation aggregation;
+  private final Filter aggregationFilter;
 
-  @Valid private final Sort sort;
-
-  @Valid
+  private final Sort sort;
   private final Pagination pagination; // Missing pagination represents fetching all the records
 
   public static QueryBuilder builder() {

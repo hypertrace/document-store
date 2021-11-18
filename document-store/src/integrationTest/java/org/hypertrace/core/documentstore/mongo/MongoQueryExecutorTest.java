@@ -38,8 +38,13 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.query.Filter;
+import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.Selection;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
+import org.hypertrace.core.documentstore.query.Sort;
+import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -102,15 +107,19 @@ public class MongoQueryExecutorTest {
             SelectionSpec.of(IdentifierExpression.of("price")),
             SelectionSpec.of(IdentifierExpression.of("quantity")),
             SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter = Filter.builder()
+        .expression(
+            RelationalExpression.of(
+                IdentifierExpression.of("item"),
+                NOT_IN,
+                ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
+        .build();
 
     Query query =
         Query.builder()
-            .addSelections(selectionSpecs)
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("item"),
-                    NOT_IN,
-                    ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
+            .setSelection(selection)
+            .setFilter(filter)
             .build();
 
     Iterator<Document> resultDocs = collection.find(query);
@@ -125,19 +134,33 @@ public class MongoQueryExecutorTest {
             SelectionSpec.of(IdentifierExpression.of("price")),
             SelectionSpec.of(IdentifierExpression.of("quantity")),
             SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+
+    Filter filter = Filter.builder()
+        .expression(
+            RelationalExpression.of(
+                IdentifierExpression.of("item"),
+                IN,
+                ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle")))
+        )
+        .build();
+
+    Sort sort = Sort.builder()
+        .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
+        .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
+        .build();
+
+    Pagination pagination = Pagination.builder()
+        .offset(1)
+        .limit(3)
+        .build();
 
     Query query =
         Query.builder()
-            .addSelections(selectionSpecs)
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("item"),
-                    IN,
-                    ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
-            .addSort(IdentifierExpression.of("quantity"), DESC)
-            .addSort(IdentifierExpression.of("item"), ASC)
-            .setOffset(1)
-            .setLimit(3)
+            .setSelection(selection)
+            .setFilter(filter)
+            .setSort(sort)
+            .setPagination(pagination)
             .build();
 
     Iterator<Document> resultDocs = collection.find(query);
