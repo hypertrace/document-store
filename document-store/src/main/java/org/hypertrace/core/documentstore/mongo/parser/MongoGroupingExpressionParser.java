@@ -71,7 +71,7 @@ public class MongoGroupingExpressionParser implements GroupingExpressionParser {
                   return first;
                 });
 
-    if (MapUtils.isEmpty(definition)) {
+    if (MapUtils.isEmpty(definition) && expressions == null) {
       return new BasicDBObject();
     }
 
