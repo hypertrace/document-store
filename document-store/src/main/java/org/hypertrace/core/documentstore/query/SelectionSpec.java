@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.query;
 
+import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
+
 import javax.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -29,6 +31,6 @@ public class SelectionSpec {
   }
 
   public static SelectionSpec of(final SelectingExpression expression, final String alias) {
-    return new SelectionSpec(expression, alias);
+    return validateAndReturn(new SelectionSpec(expression, alias));
   }
 }
