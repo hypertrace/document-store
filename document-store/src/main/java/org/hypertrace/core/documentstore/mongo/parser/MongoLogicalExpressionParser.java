@@ -5,11 +5,16 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
+import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoLogicalExpressionParser {
+public class MongoLogicalExpressionParser extends MongoExpressionParser {
 
-  static Map<String, Object> parse(final LogicalExpression expression) {
-    FilteringExpressionParser parser = new MongoFilteringExpressionParser();
+  protected MongoLogicalExpressionParser(Query query) {
+    super(query);
+  }
+
+  Map<String, Object> parse(final LogicalExpression expression) {
+    FilteringExpressionParser parser = new MongoFilteringExpressionParser(query);
     List<Object> parsed =
         expression.getOperands().stream()
             .map(exp -> exp.parse(parser))

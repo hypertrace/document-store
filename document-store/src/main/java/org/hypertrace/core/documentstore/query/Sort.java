@@ -13,6 +13,6 @@ import lombok.Value;
 @Value
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-class Selection {
-  @Singular @NotEmpty List<@NotNull @Valid SelectionSpec> selectionSpecs;
+class Sort {
+  @NotEmpty @Singular List<@NotNull @Valid SortingSpec> sortingSpecs;
 }

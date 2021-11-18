@@ -5,10 +5,15 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
+import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoFunctionExpressionParser {
+public class MongoFunctionExpressionParser extends MongoExpressionParser {
 
-  static Map<String, Object> parse(final FunctionExpression expression) {
+  protected MongoFunctionExpressionParser(Query query) {
+    super(query);
+  }
+
+  Map<String, Object> parse(final FunctionExpression expression) {
     int numArgs = expression.getOperands().size();
 
     if (numArgs == 0) {
@@ -16,7 +21,7 @@ public class MongoFunctionExpressionParser {
           String.format("%s should have at least one operand", expression));
     }
 
-    SelectingExpressionParser parser = new MongoSelectingExpressionParser(true);
+    SelectingExpressionParser parser = new MongoSelectingExpressionParser(query, true);
     String key = "$" + expression.getOperator().name().toLowerCase();
 
     if (numArgs == 1) {

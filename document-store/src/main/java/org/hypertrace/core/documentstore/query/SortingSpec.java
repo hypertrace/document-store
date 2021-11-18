@@ -1,7 +1,5 @@
 package org.hypertrace.core.documentstore.query;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
 import javax.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -15,13 +13,13 @@ import org.hypertrace.core.documentstore.expression.type.SortingExpression;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class SortingDefinition {
+public class SortingSpec {
 
   @NotNull SortingExpression expression;
 
   @NotNull SortingOrder order;
 
-  public static SortingDefinition of(SortingExpression expression, SortingOrder order) {
-    return validateAndReturn(new SortingDefinition(expression, order));
+  public static SortingSpec of(SortingExpression expression, SortingOrder order) {
+    return new SortingSpec(expression, order);
   }
 }

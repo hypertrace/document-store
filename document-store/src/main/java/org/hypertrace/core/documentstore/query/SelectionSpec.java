@@ -1,7 +1,5 @@
 package org.hypertrace.core.documentstore.query;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
 import javax.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -15,28 +13,22 @@ import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class WhitelistedSelection implements Selection {
+public class SelectionSpec {
 
   @NotNull SelectingExpression expression;
 
   // Alias is optional. Handling missing aliases can be implemented in the respective parsers
   String alias;
 
-  @Override
   public boolean isAggregation() {
     return expression instanceof AggregateExpression;
   }
 
-  @Override
-  public boolean allColumnsSelected() {
-    return false;
+  public static SelectionSpec of(final SelectingExpression expression) {
+    return SelectionSpec.of(expression, null);
   }
 
-  public static Selection of(final SelectingExpression expression) {
-    return WhitelistedSelection.of(expression, null);
-  }
-
-  public static Selection of(final SelectingExpression expression, final String alias) {
-    return validateAndReturn(new WhitelistedSelection(expression, alias));
+  public static SelectionSpec of(final SelectingExpression expression, final String alias) {
+    return new SelectionSpec(expression, alias);
   }
 }

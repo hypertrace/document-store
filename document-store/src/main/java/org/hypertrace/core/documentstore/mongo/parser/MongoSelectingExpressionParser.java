@@ -7,71 +7,68 @@ import com.mongodb.client.model.Projections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.bson.conversions.Bson;
+import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
-import org.hypertrace.core.documentstore.query.Selection;
-import org.hypertrace.core.documentstore.query.WhitelistedSelection;
+import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public class MongoSelectingExpressionParser implements SelectingExpressionParser {
+public class MongoSelectingExpressionParser extends MongoExpressionParser
+    implements SelectingExpressionParser {
 
   private static final String PROJECT_CLAUSE = "$project";
 
   private final String identifierPrefix;
 
-  public MongoSelectingExpressionParser() {
-    this(false);
+  public MongoSelectingExpressionParser(final Query query) {
+    this(query, false);
   }
 
-  public MongoSelectingExpressionParser(final boolean prefixIdentifier) {
+  public MongoSelectingExpressionParser(final Query query, final boolean prefixIdentifier) {
+    super(query);
     this.identifierPrefix = prefixIdentifier ? "$" : "";
   }
 
   @Override
   public Map<String, Object> parse(final AggregateExpression expression) {
-    return MongoAggregateExpressionParser.parse(expression);
+    return new MongoAggregateExpressionParser(query).parse(expression);
   }
 
   @Override
   public Object parse(final ConstantExpression expression) {
-    return MongoConstantExpressionParser.parse(expression);
+    return new MongoConstantExpressionParser(query).parse(expression);
   }
 
   @Override
   public Map<String, Object> parse(final FunctionExpression expression) {
-    return MongoFunctionExpressionParser.parse(expression);
+    return new MongoFunctionExpressionParser(query).parse(expression);
   }
 
   @Override
   public String parse(final IdentifierExpression expression) {
-    return identifierPrefix + MongoIdentifierExpressionParser.parse(expression);
+    return identifierPrefix + new MongoIdentifierExpressionParser(query).parse(expression);
   }
 
-  public static Bson getSelections(final List<Selection> selections) {
-    if (selections.stream().anyMatch(Selection::allColumnsSelected)) {
-      return Projections.include();
-    }
+  public static List<String> getSelections(final Query query) {
+    List<SelectionSpec> selectionSpecs = query.getSelections();
+    MongoSelectingExpressionParser parser = new MongoSelectingExpressionParser(query);
 
-    MongoSelectingExpressionParser parser = new MongoSelectingExpressionParser();
-    List<String> selected =
-        selections.stream()
-            .filter(not(Selection::isAggregation))
-            .map(exp -> (WhitelistedSelection) exp)
-            .map(exp -> exp.getExpression().parse(parser).toString())
-            .collect(Collectors.toList());
-
-    return Projections.include(selected);
+    return selectionSpecs.stream()
+        .filter(not(SelectionSpec::isAggregation))
+        .map(exp -> exp.getExpression().parse(parser).toString())
+        .collect(Collectors.toList());
   }
 
-  public static BasicDBObject getProjectClause(final List<Selection> selections) {
-    if (selections.stream().anyMatch(Selection::allColumnsSelected)
-        || selections.stream().allMatch(Selection::isAggregation)) {
+  public static BasicDBObject getProjectClause(final Query query) {
+    List<String> selections = getSelections(query);
+
+    if (CollectionUtils.isEmpty(selections)) {
       return new BasicDBObject();
     }
 
-    return new BasicDBObject(PROJECT_CLAUSE, getSelections(selections));
+    return new BasicDBObject(PROJECT_CLAUSE, Projections.include(selections));
   }
 }

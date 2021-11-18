@@ -15,7 +15,6 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
-import static org.hypertrace.core.documentstore.query.AllSelection.ALL;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -38,10 +37,9 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
-import org.hypertrace.core.documentstore.query.PaginationDefinition;
 import org.hypertrace.core.documentstore.query.Query;
-import org.hypertrace.core.documentstore.query.SortingDefinition;
-import org.hypertrace.core.documentstore.query.WhitelistedSelection;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
+import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -92,7 +90,7 @@ class MongoQueryExecutorTest {
 
   @Test
   public void testFindSimple() {
-    Query query = Query.builder().selection(ALL).build();
+    Query query = Query.builder().build();
 
     executor.find(query);
 
@@ -132,7 +130,6 @@ class MongoQueryExecutorTest {
   public void testFindWithFilter() {
     Query query =
         Query.builder()
-            .selection(ALL)
             .filter(
                 LogicalExpression.builder()
                     .operand(
@@ -173,9 +170,8 @@ class MongoQueryExecutorTest {
   public void testFindWithSorting() {
     Query query =
         Query.builder()
-            .selection(ALL)
-            .sortingDefinition(IdentifierExpression.of("marks"), DESC)
-            .sortingDefinition(IdentifierExpression.of("name"), SortingOrder.ASC)
+            .sort(IdentifierExpression.of("marks"), DESC)
+            .sort(IdentifierExpression.of("name"), SortingOrder.ASC)
             .build();
 
     executor.find(query);
@@ -194,11 +190,7 @@ class MongoQueryExecutorTest {
 
   @Test
   public void testFindWithPagination() {
-    Query query =
-        Query.builder()
-            .selection(ALL)
-            .paginationDefinition(PaginationDefinition.of(10, 50))
-            .build();
+    Query query = Query.builder().limit(10).offset(50).build();
 
     executor.find(query);
 
@@ -219,9 +211,10 @@ class MongoQueryExecutorTest {
         Query.builder()
             .selection(IdentifierExpression.of("id"))
             .selection(IdentifierExpression.of("fname"), "name")
-            .sortingDefinition(IdentifierExpression.of("marks"), DESC)
-            .sortingDefinition(IdentifierExpression.of("name"), SortingOrder.ASC)
-            .paginationDefinition(PaginationDefinition.of(10, 50))
+            .sort(IdentifierExpression.of("marks"), DESC)
+            .sort(IdentifierExpression.of("name"), SortingOrder.ASC)
+            .limit(10)
+            .offset(50)
             .filter(
                 LogicalExpression.builder()
                     .operand(
@@ -288,9 +281,9 @@ class MongoQueryExecutorTest {
         Query.builder()
             .selections(
                 List.of(
-                    WhitelistedSelection.of(
+                    SelectionSpec.of(
                         AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total"),
-                    WhitelistedSelection.of(IdentifierExpression.of("name"))))
+                    SelectionSpec.of(IdentifierExpression.of("name"))))
             .build();
 
     List<BasicDBObject> pipeline =
@@ -434,10 +427,10 @@ class MongoQueryExecutorTest {
                     AVG, AggregateExpression.of(MAX, IdentifierExpression.of("mark"))),
                 "averageHighScore")
             .aggregation(IdentifierExpression.of("section"))
-            .sortingDefinitions(
+            .sorts(
                 List.of(
-                    SortingDefinition.of(IdentifierExpression.of("averageHighScore"), DESC),
-                    SortingDefinition.of(IdentifierExpression.of("section"), ASC)))
+                    SortingSpec.of(IdentifierExpression.of("averageHighScore"), DESC),
+                    SortingSpec.of(IdentifierExpression.of("section"), ASC)))
             .build();
 
     List<BasicDBObject> pipeline =
@@ -470,11 +463,7 @@ class MongoQueryExecutorTest {
   @Test
   public void testAggregateWithPagination() {
     Query query =
-        Query.builder()
-            .selection(ALL)
-            .aggregation(IdentifierExpression.of("student"))
-            .paginationDefinition(PaginationDefinition.of(10))
-            .build();
+        Query.builder().aggregation(IdentifierExpression.of("student")).limit(10).offset(0).build();
 
     List<BasicDBObject> pipeline =
         List.of(
