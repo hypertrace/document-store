@@ -127,67 +127,97 @@ public final class Query {
 
     private QueryBuilder() {}
 
-    public QueryBuilder selection(final SelectingExpression expression) {
-      getSelectionBuilder().selectionSpec(SelectionSpec.of(expression));
+    public QueryBuilder setSelection(final Selection selection) {
+      this.selectionBuilder = selection.toBuilder();
       return this;
     }
 
-    public QueryBuilder selection(final SelectingExpression expression, final String alias) {
-      getSelectionBuilder().selectionSpec(SelectionSpec.of(expression, alias));
+    public QueryBuilder addSelection(final SelectionSpec spec) {
+      getSelectionBuilder().selectionSpec(spec);
       return this;
     }
 
-    public QueryBuilder selections(final List<SelectionSpec> selectionSpecs) {
+    public QueryBuilder addSelection(final SelectingExpression expression) {
+      addSelection(SelectionSpec.of(expression));
+      return this;
+    }
+
+    public QueryBuilder addSelection(final SelectingExpression expression, final String alias) {
+      addSelection(SelectionSpec.of(expression, alias));
+      return this;
+    }
+
+    public QueryBuilder addSelections(final List<SelectionSpec> selectionSpecs) {
       getSelectionBuilder().selectionSpecs(selectionSpecs);
       return this;
     }
 
-    public QueryBuilder filter(final FilteringExpression expression) {
+    public QueryBuilder setFilter(final Filter filter) {
+      this.filterBuilder = filter.toBuilder();
+      return this;
+    }
+
+    public QueryBuilder setFilter(final FilteringExpression expression) {
       getFilterBuilder().expression(expression);
       return this;
     }
 
-    public QueryBuilder filters(final List<FilteringExpression> expressions) {
-      getFilterBuilder().filters(expressions);
+    public QueryBuilder setAggregation(final Aggregation aggregation) {
+      this.aggregationBuilder = aggregation.toBuilder();
       return this;
     }
 
-    public QueryBuilder aggregation(final GroupingExpression expression) {
+    public QueryBuilder addAggregation(final GroupingExpression expression) {
       getAggregationBuilder().expression(expression);
       return this;
     }
 
-    public QueryBuilder aggregations(final List<GroupingExpression> expressions) {
+    public QueryBuilder addAggregations(final List<GroupingExpression> expressions) {
       getAggregationBuilder().expressions(expressions);
       return this;
     }
 
-    public QueryBuilder aggregationFilter(final FilteringExpression expression) {
+    public QueryBuilder setAggregationFilter(final Filter filter) {
+      this.aggregationFilterBuilder = filter.toBuilder();
+      return this;
+    }
+
+    public QueryBuilder setAggregationFilter(final FilteringExpression expression) {
       getAggregationFilterBuilder().expression(expression);
       return this;
     }
 
-    public QueryBuilder aggregationFilters(final List<FilteringExpression> expressions) {
-      getAggregationFilterBuilder().filters(expressions);
+    public QueryBuilder setSort(final Sort sort) {
+      this.sortBuilder = sort.toBuilder();
       return this;
     }
 
-    public QueryBuilder sort(final SortingExpression expression, final SortingOrder order) {
-      getSortBuilder().sortingSpec(SortingSpec.of(expression, order));
+    public QueryBuilder addSort(final SortingSpec spec) {
+      getSortBuilder().sortingSpec(spec);
       return this;
     }
 
-    public QueryBuilder sorts(final List<SortingSpec> specs) {
+    public QueryBuilder addSort(final SortingExpression expression, final SortingOrder order) {
+      addSort(SortingSpec.of(expression, order));
+      return this;
+    }
+
+    public QueryBuilder addSorts(final List<SortingSpec> specs) {
       getSortBuilder().sortingSpecs(specs);
       return this;
     }
 
-    public QueryBuilder limit(final int limit) {
+    public QueryBuilder setPagination(final Pagination pagination) {
+      this.paginationBuilder = pagination.toBuilder();
+      return this;
+    }
+
+    public QueryBuilder setLimit(final int limit) {
       getPaginationBuilder().limit(limit);
       return this;
     }
 
-    public QueryBuilder offset(final int offset) {
+    public QueryBuilder setOffset(final int offset) {
       getPaginationBuilder().offset(offset);
       return this;
     }
