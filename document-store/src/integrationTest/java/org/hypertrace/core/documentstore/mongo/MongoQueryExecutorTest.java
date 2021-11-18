@@ -108,19 +108,16 @@ public class MongoQueryExecutorTest {
             SelectionSpec.of(IdentifierExpression.of("quantity")),
             SelectionSpec.of(IdentifierExpression.of("date")));
     Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
-    Filter filter = Filter.builder()
-        .expression(
-            RelationalExpression.of(
-                IdentifierExpression.of("item"),
-                NOT_IN,
-                ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
-        .build();
-
-    Query query =
-        Query.builder()
-            .setSelection(selection)
-            .setFilter(filter)
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    NOT_IN,
+                    ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
             .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/simple_filter_response.json");
@@ -136,24 +133,22 @@ public class MongoQueryExecutorTest {
             SelectionSpec.of(IdentifierExpression.of("date")));
     Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
 
-    Filter filter = Filter.builder()
-        .expression(
-            RelationalExpression.of(
-                IdentifierExpression.of("item"),
-                IN,
-                ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle")))
-        )
-        .build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+            .build();
 
-    Sort sort = Sort.builder()
-        .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
-        .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
-        .build();
+    Sort sort =
+        Sort.builder()
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
+            .build();
 
-    Pagination pagination = Pagination.builder()
-        .offset(1)
-        .limit(3)
-        .build();
+    Pagination pagination = Pagination.builder().offset(1).limit(3).build();
 
     Query query =
         Query.builder()
