@@ -55,7 +55,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
-public class MongoQueryExecutorTest {
+public class MongoQueryExecutorIntegrationTest {
   private static final String COLLECTION_NAME = "mongoQueryExecutorTest";
 
   private static GenericContainer<?> mongo;

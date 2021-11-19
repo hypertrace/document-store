@@ -16,7 +16,6 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
-import com.mongodb.client.model.Projections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -34,7 +33,7 @@ public class MongoQueryExecutor {
   public MongoCursor<BasicDBObject> find(final Query query) {
 
     BasicDBObject filterClause = getFilter(query, Query::getFilter);
-    Bson projection = Projections.include(getSelections(query));
+    BasicDBObject projection = getSelections(query);
 
     FindIterable<BasicDBObject> iterable = collection.find(filterClause).projection(projection);
 
