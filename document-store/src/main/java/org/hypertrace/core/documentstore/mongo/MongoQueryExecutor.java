@@ -50,6 +50,7 @@ public class MongoQueryExecutor {
   }
 
   public MongoCursor<BasicDBObject> aggregate(final Query query) {
+    MongoQueryTransformer.transform(query);
 
     BasicDBObject filterClause = getFilterClause(query, Query::getFilter);
     BasicDBObject groupFilterClause = getFilterClause(query, Query::getAggregationFilter);
@@ -66,11 +67,11 @@ public class MongoQueryExecutor {
         Stream.of(
                 filterClause,
                 groupClause,
+                projectClause,
                 groupFilterClause,
                 sortClause,
                 skipClause,
-                limitClause,
-                projectClause)
+                limitClause)
             .filter(not(BasicDBObject::isEmpty))
             .collect(Collectors.toList());
 
