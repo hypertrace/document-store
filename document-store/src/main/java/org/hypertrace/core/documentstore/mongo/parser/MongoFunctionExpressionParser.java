@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
+
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -24,7 +26,13 @@ public class MongoFunctionExpressionParser extends MongoExpressionParser {
     SelectingExpressionParser parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
             new MongoNonAggregationSelectingExpressionParser(query));
-    String key = "$" + expression.getOperator().name().toLowerCase();
+    String key;
+
+    if (expression.getOperator() == LENGTH) {
+      key = "$size";
+    } else {
+      key = "$" + expression.getOperator().name().toLowerCase();
+    }
 
     if (numArgs == 1) {
       Object value = expression.getOperands().get(0).parse(parser);
