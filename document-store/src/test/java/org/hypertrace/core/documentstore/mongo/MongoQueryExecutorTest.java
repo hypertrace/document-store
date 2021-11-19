@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo;
 
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
@@ -11,6 +12,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
@@ -480,6 +482,55 @@ class MongoQueryExecutorTest {
                     + "}"),
             BasicDBObject.parse("{" + "\"$skip\": 0" + "}"),
             BasicDBObject.parse("{" + "\"$limit\": 10" + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testGetDistinctCount() {
+    Query query = Query.builder()
+        .setFilter(RelationalExpression.of(
+            IdentifierExpression.of("class"),
+            LTE,
+            ConstantExpression.of(10)))
+        .addAggregation(IdentifierExpression.of("class"))
+        .addSelection(
+            AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("section")),
+            "section_count")
+        .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$match\": "
+                    + "{"
+                    + "   \"class\": {"
+                    + "       \"$lt\": 10"
+                    + "    }"
+                    + "}"
+                    + "}"
+            ),
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: {"
+                    + "       class: \"$class\""
+                    + "     },"
+                    + "     section_count: {"
+                    + "       \"$addToSet\": \"$section\""
+                    + "     } "
+                    + "   }"
+                    + "}"),
+            BasicDBObject.parse(
+                "{"
+                    + "\"$project\": {"
+                    + "    section_count: {"
+                    + "       \"$size\": \"$section_count\""
+                    + "    }"
+                    + "}"
+                    + "}"));
 
     testAggregation(query, pipeline);
   }

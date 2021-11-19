@@ -32,17 +32,17 @@ public class MongoRelationalExpressionParser extends MongoExpressionParser {
           ImmutableMap
               .<RelationalOperator, BiFunction<String, Object, Map<String, Object>>>builder()
               .put(EQ, Map::of)
-              .put(NEQ, handle("ne"))
-              .put(GT, handle("gt"))
-              .put(LT, handle("lt"))
-              .put(GTE, handle("gte"))
-              .put(LTE, handle("lte"))
-              .put(IN, handle("in"))
-              .put(CONTAINS, handle("elemMatch"))
-              .put(EXISTS, handle("exists"))
-              .put(NOT_EXISTS, handle("exists"))
-              .put(LIKE, handleLike())
-              .put(NOT_IN, handle("nin"))
+              .put(NEQ, handler("ne"))
+              .put(GT, handler("gt"))
+              .put(LT, handler("lt"))
+              .put(GTE, handler("gte"))
+              .put(LTE, handler("lte"))
+              .put(IN, handler("in"))
+              .put(CONTAINS, handler("elemMatch"))
+              .put(EXISTS, handler("exists"))
+              .put(NOT_EXISTS, handler("exists"))
+              .put(LIKE, likeHandler())
+              .put(NOT_IN, handler("nin"))
               .build();
 
   protected MongoRelationalExpressionParser(Query query) {
@@ -65,7 +65,7 @@ public class MongoRelationalExpressionParser extends MongoExpressionParser {
   private static Map<String, Object> generateMap(
       final String key, Object value, final RelationalOperator operator) {
     BiFunction<String, Object, Map<String, Object>> handler =
-        HANDLERS.getOrDefault(operator, handleUnknown());
+        HANDLERS.getOrDefault(operator, unknownHandler());
 
     switch (operator) {
       case EXISTS:
@@ -74,22 +74,23 @@ public class MongoRelationalExpressionParser extends MongoExpressionParser {
 
       case NOT_EXISTS:
         value = false;
+        break;
     }
 
     return handler.apply(key, value);
   }
 
-  private static BiFunction<String, Object, Map<String, Object>> handle(final String op) {
+  private static BiFunction<String, Object, Map<String, Object>> handler(final String op) {
     return (key, value) -> Map.of(key, new BasicDBObject("$" + op, value));
   }
 
-  private static BiFunction<String, Object, Map<String, Object>> handleLike() {
+  private static BiFunction<String, Object, Map<String, Object>> likeHandler() {
     return (key, value) ->
         // Case-insensitive regex search
         Map.of(key, new BasicDBObject("$regex", value).append("$options", "i"));
   }
 
-  private static BiFunction<String, Object, Map<String, Object>> handleUnknown() {
+  private static BiFunction<String, Object, Map<String, Object>> unknownHandler() {
     return (key, value) -> {
       throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     };
