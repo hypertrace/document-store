@@ -67,9 +67,12 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
       groupExp = Map.of(ID_KEY, groups);
     }
 
+    MongoSelectingExpressionParser baseParser =
+        new MongoAggregationSelectingExpressionParser(query);
+
     Map<String, Object> definition =
         selectionSpecs.stream()
-            .map(spec -> MongoGroupingExpressionParser.parse(query, spec))
+            .map(spec -> MongoGroupingExpressionParser.parse(baseParser, spec))
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -86,9 +89,8 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
   }
 
   @SuppressWarnings("unchecked")
-  private static Map<String, Object> parse(final Query query, final SelectionSpec spec) {
-    MongoSelectingExpressionParser baseParser =
-        new MongoAggregationSelectingExpressionParser(query, spec);
+  private static Map<String, Object> parse(
+      final MongoSelectingExpressionParser baseParser, final SelectionSpec spec) {
     SelectingExpressionParser parser =
         new MongoProjectionSelectingExpressionParser(spec.getAlias(), baseParser);
     return (Map<String, Object>) spec.getExpression().parse(parser);

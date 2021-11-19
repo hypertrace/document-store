@@ -24,7 +24,7 @@ public class MongoSelectingExpressionParser extends MongoExpressionParser
 
   @Override
   public Map<String, Object> parse(final AggregateExpression expression) {
-    return new MongoAggregateExpressionParser(query, null).parse(expression);
+    return new MongoAggregateExpressionParser(query).parse(expression);
   }
 
   @Override

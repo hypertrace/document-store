@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.FIRST;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
@@ -235,7 +236,7 @@ public class MongoQueryExecutorIntegrationTest {
                 LogicalExpression.builder()
                     .operand(
                         RelationalExpression.of(
-                            IdentifierExpression.of("total"), GTE, ConstantExpression.of(25)))
+                            IdentifierExpression.of("total"), GTE, ConstantExpression.of(11)))
                     .operator(AND)
                     .operand(
                         RelationalExpression.of(
@@ -263,9 +264,6 @@ public class MongoQueryExecutorIntegrationTest {
                     FIRST, IdentifierExpression.of("props.seller.address.pincode")),
                 "pincode")
             .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
-            .addSelection(IdentifierExpression.of("first_item"))
-            .addSelection(IdentifierExpression.of("num_items"))
-            .addSelection(IdentifierExpression.of("pincode"))
             .addAggregation(IdentifierExpression.of("props.seller.address.pincode"))
             .addSort(IdentifierExpression.of("pincode"), DESC)
             .addSort(IdentifierExpression.of("first_item"), ASC)
@@ -276,6 +274,28 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json");
+  }
+
+  @Test
+  public void testDistinctCount() throws IOException {
+    Query query =
+        Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("qty_count"),
+                    LTE,
+                    ConstantExpression.of(1000)))
+            .addSort(IdentifierExpression.of("qty_count"), DESC)
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo/distinct_count_response.json");
   }
 
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)

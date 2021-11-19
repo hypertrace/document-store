@@ -270,7 +270,8 @@ class MongoQueryExecutorTest {
                     + "       \"$count\": 1"
                     + "     }"
                     + "   }"
-                    + "}"));
+                    + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "    \"total\": 1" + "}" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -298,7 +299,14 @@ class MongoQueryExecutorTest {
                     + "     }"
                     + "   }"
                     + "}"),
-            BasicDBObject.parse("{" + "\"$project\": " + "   {" + "     name: 1" + "   }" + "}"));
+            BasicDBObject.parse(
+                "{"
+                    + "\"$project\": "
+                    + "   {"
+                    + "     name: 1,"
+                    + "     total: 1"
+                    + "   }"
+                    + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -326,7 +334,8 @@ class MongoQueryExecutorTest {
                     + "       \"$min\": \"$rank\""
                     + "     }"
                     + "   }"
-                    + "}"));
+                    + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "   \"topper\": 1" + " }" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -363,7 +372,8 @@ class MongoQueryExecutorTest {
                     + "       \"$sum\": \"$marks\" "
                     + "     }"
                     + "   }"
-                    + "}"));
+                    + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": 1" + " }" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -413,7 +423,8 @@ class MongoQueryExecutorTest {
                     + "       $nin: [100, 200, 500] "
                     + "     }"
                     + "   }"
-                    + "}"));
+                    + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": 1" + " }" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -455,7 +466,9 @@ class MongoQueryExecutorTest {
                     + "       averageHighScore: -1,"
                     + "       section: 1"
                     + "   }"
-                    + "}"));
+                    + "}"),
+            BasicDBObject.parse(
+                "{" + "\"$project\": {" + "     \"averageHighScore\": 1" + " }" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -488,16 +501,16 @@ class MongoQueryExecutorTest {
 
   @Test
   public void testGetDistinctCount() {
-    Query query = Query.builder()
-        .setFilter(RelationalExpression.of(
-            IdentifierExpression.of("class"),
-            LTE,
-            ConstantExpression.of(10)))
-        .addAggregation(IdentifierExpression.of("class"))
-        .addSelection(
-            AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("section")),
-            "section_count")
-        .build();
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("class"), LTE, ConstantExpression.of(10)))
+            .addAggregation(IdentifierExpression.of("class"))
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("section")),
+                "section_count")
+            .build();
 
     List<BasicDBObject> pipeline =
         List.of(
@@ -506,11 +519,10 @@ class MongoQueryExecutorTest {
                     + "\"$match\": "
                     + "{"
                     + "   \"class\": {"
-                    + "       \"$lt\": 10"
+                    + "       \"$lte\": 10"
                     + "    }"
                     + "}"
-                    + "}"
-            ),
+                    + "}"),
             BasicDBObject.parse(
                 "{"
                     + "\"$group\": "
