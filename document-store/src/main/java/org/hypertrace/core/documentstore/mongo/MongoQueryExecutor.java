@@ -44,13 +44,13 @@ public class MongoQueryExecutor {
 
     applyPagination(iterable, query);
 
-    logClauses(projection, filterClause, sortOrders, query.getPagination().orElse(null));
+    logClauses(query, projection, filterClause, sortOrders, query.getPagination().orElse(null));
 
     return iterable.cursor();
   }
 
   public MongoCursor<BasicDBObject> aggregate(final Query query) {
-    MongoQueryTransformer.transform(query);
+    transformAndLog(query);
 
     BasicDBObject filterClause = getFilterClause(query, Query::getFilter);
     BasicDBObject groupFilterClause = getFilterClause(query, Query::getAggregationFilter);
@@ -81,10 +81,11 @@ public class MongoQueryExecutor {
     return iterable.cursor();
   }
 
-  private void logClauses(
-      Bson projection, Bson filterClause, Bson sortOrders, Pagination pagination) {
+  private void logClauses(final Query query, final Bson projection, final Bson filterClause,
+      final Bson sortOrders, final Pagination pagination) {
     log.debug(
-        "MongoDB find():\nCollection: {}\n Projections: {}\n Filter: {}\n Sorting: {}\n Pagination: {}",
+        "MongoDB find():\nQuery: {}\nCollection: {}\n Projections: {}\n Filter: {}\n Sorting: {}\n Pagination: {}",
+        query,
         collection.getNamespace(),
         projection,
         filterClause,
@@ -92,10 +93,16 @@ public class MongoQueryExecutor {
         pagination);
   }
 
-  private void logPipeline(List<BasicDBObject> pipeline) {
+  private void logPipeline(final List<BasicDBObject> pipeline) {
     log.debug(
         "MongoDB aggregation():\n Collection: {}\n Pipeline: {}",
         collection.getNamespace(),
         pipeline);
+  }
+
+  private void transformAndLog(final Query query) {
+    log.debug("MongoDB query before transformation: {}", query);
+    MongoQueryTransformer.transform(query);
+    log.debug("MongoDB query after transformation: {}", query);
   }
 }

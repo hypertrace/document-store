@@ -415,6 +415,7 @@ class MongoQueryExecutorTest {
                     + "     }"
                     + "   }"
                     + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": 1" + " }" + "}"),
             BasicDBObject.parse(
                 "{"
                     + "\"$match\":"
@@ -423,8 +424,7 @@ class MongoQueryExecutorTest {
                     + "       $nin: [100, 200, 500] "
                     + "     }"
                     + "   }"
-                    + "}"),
-            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": 1" + " }" + "}"));
+                    + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -461,14 +461,14 @@ class MongoQueryExecutorTest {
                     + "   }"
                     + "}"),
             BasicDBObject.parse(
+                "{" + "\"$project\": {" + "     \"averageHighScore\": 1" + " }" + "}"),
+            BasicDBObject.parse(
                 "{"
                     + "   \"$sort\": {"
                     + "       averageHighScore: -1,"
                     + "       section: 1"
                     + "   }"
-                    + "}"),
-            BasicDBObject.parse(
-                "{" + "\"$project\": {" + "     \"averageHighScore\": 1" + " }" + "}"));
+                    + "}"));
 
     testAggregation(query, pipeline);
   }

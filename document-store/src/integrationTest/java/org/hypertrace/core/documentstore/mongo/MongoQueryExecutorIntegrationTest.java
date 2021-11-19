@@ -289,9 +289,7 @@ public class MongoQueryExecutorIntegrationTest {
             .addAggregation(IdentifierExpression.of("item"))
             .setAggregationFilter(
                 RelationalExpression.of(
-                    IdentifierExpression.of("qty_count"),
-                    LTE,
-                    ConstantExpression.of(1000)))
+                    IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(1000)))
             .addSort(IdentifierExpression.of("qty_count"), DESC)
             .addSort(IdentifierExpression.of("item"), DESC)
             .build();
