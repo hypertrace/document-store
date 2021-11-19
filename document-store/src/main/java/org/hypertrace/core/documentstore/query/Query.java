@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.ToString;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
@@ -62,6 +63,7 @@ import org.hypertrace.core.documentstore.expression.type.SortingExpression;
  *  </code>
  */
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@ToString
 public final class Query {
   private final Selection selection; // Missing selection represents fetching all the columns
   private final Filter filter;

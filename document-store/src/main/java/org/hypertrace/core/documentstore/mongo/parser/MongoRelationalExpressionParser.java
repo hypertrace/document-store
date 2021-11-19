@@ -1,17 +1,49 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import static org.hypertrace.core.documentstore.Collection.UNSUPPORTED_QUERY_OPERATION;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EXISTS;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LIKE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 
+import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 import org.hypertrace.core.documentstore.query.Query;
 
 public class MongoRelationalExpressionParser extends MongoExpressionParser {
+
+  private static final ImmutableMap<
+          RelationalOperator, BiFunction<String, Object, Map<String, Object>>>
+      HANDLERS =
+          ImmutableMap
+              .<RelationalOperator, BiFunction<String, Object, Map<String, Object>>>builder()
+              .put(EQ, Map::of)
+              .put(NEQ, handle("ne"))
+              .put(GT, handle("gt"))
+              .put(LT, handle("lt"))
+              .put(GTE, handle("gte"))
+              .put(LTE, handle("lte"))
+              .put(IN, handle("in"))
+              .put(CONTAINS, handle("elemMatch"))
+              .put(EXISTS, handle("exists"))
+              .put(NOT_EXISTS, handle("exists"))
+              .put(LIKE, handleLike())
+              .put(NOT_IN, handle("nin"))
+              .build();
 
   protected MongoRelationalExpressionParser(Query query) {
     super(query);
@@ -31,53 +63,35 @@ public class MongoRelationalExpressionParser extends MongoExpressionParser {
   }
 
   private static Map<String, Object> generateMap(
-      final String key, final Object value, final RelationalOperator operator) {
-    Map<String, Object> map = new HashMap<>();
+      final String key, Object value, final RelationalOperator operator) {
+    BiFunction<String, Object, Map<String, Object>> handler =
+        HANDLERS.getOrDefault(operator, handleUnknown());
+
     switch (operator) {
-      case EQ:
-        map.put(key, value);
-        break;
-      case LIKE:
-        // Case-insensitive RegEx search
-        map.put(key, new BasicDBObject("$regex", value).append("$options", "i"));
-        break;
-      case NOT_IN:
-        map.put(key, new BasicDBObject("$nin", value));
-        break;
-      case IN:
-        map.put(key, new BasicDBObject("$in", value));
-        break;
-      case CONTAINS:
-        map.put(key, new BasicDBObject("$elemMatch", value));
-        break;
-      case GT:
-        map.put(key, new BasicDBObject("$gt", value));
-        break;
-      case LT:
-        map.put(key, new BasicDBObject("$lt", value));
-        break;
-      case GTE:
-        map.put(key, new BasicDBObject("$gte", value));
-        break;
-      case LTE:
-        map.put(key, new BasicDBObject("$lte", value));
-        break;
       case EXISTS:
-        map.put(key, new BasicDBObject("$exists", true));
+        value = true;
         break;
+
       case NOT_EXISTS:
-        map.put(key, new BasicDBObject("$exists", false));
-        break;
-      case NEQ:
-        // $ne operator in Mongo also returns the results, where the key does not exist in the
-        // document. This is as per semantics of EQ vs NEQ. So, if you need documents where
-        // key exists, consumer needs to add additional filter.
-        // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
-        map.put(key, new BasicDBObject("$ne", value));
-        break;
-      default:
-        throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+        value = false;
     }
-    return map;
+
+    return handler.apply(key, value);
+  }
+
+  private static BiFunction<String, Object, Map<String, Object>> handle(final String op) {
+    return (key, value) -> Map.of(key, new BasicDBObject("$" + op, value));
+  }
+
+  private static BiFunction<String, Object, Map<String, Object>> handleLike() {
+    return (key, value) ->
+        // Case-insensitive regex search
+        Map.of(key, new BasicDBObject("$regex", value).append("$options", "i"));
+  }
+
+  private static BiFunction<String, Object, Map<String, Object>> handleUnknown() {
+    return (key, value) -> {
+      throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+    };
   }
 }
