@@ -38,7 +38,8 @@ public class MongoSortingExpressionParser extends MongoExpressionParser
   public Map<String, Object> parse(final FunctionExpression expression) {
     throw new UnsupportedOperationException(
         String.format(
-            "Cannot sort a function ($%s) in MongoDB.",
+            "Cannot sort a function ($%s) in MongoDB."
+                + "Set alias in selection and sort by the alias as identifier",
             expression.getOperator().name().toLowerCase()));
   }
 

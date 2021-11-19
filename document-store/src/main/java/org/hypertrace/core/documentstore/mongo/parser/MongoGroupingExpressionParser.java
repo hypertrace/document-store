@@ -28,8 +28,11 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
 
   @Override
   public Map<String, Object> parse(final FunctionExpression expression) {
+    // To support this, we need to take an alias for GroupingExpressions
     throw new UnsupportedOperationException(
-        String.format("Cannot group a function ($%s) in MongoDB", expression));
+        String.format(
+            "Grouping by a function ($%s) is not yet supported by this library for MongoDB",
+            expression));
   }
 
   @Override

@@ -24,7 +24,7 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
  * <p>Example: A-5 can be constructed as <code>
  *      FunctionExpression.builder()
  *        .operand(LiteralExpression.of("A"))
- *        .operator(ArithmeticOperator.SUBTRACT)
+ *        .operator(FunctionOperator.SUBTRACT)
  *        .operand(ConstantExpression.of(5))
  *        .build();
  * </code> The same can be constructed with different order of operands, as long as the minuend is
@@ -32,7 +32,7 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
  *
  * <p>E.g.: Another valid ordering could be <code>
  *      FunctionExpression.builder()
- *        .operator(ArithmeticOperator.SUBTRACT)
+ *        .operator(FunctionOperator.SUBTRACT)
  *        .operand(LiteralExpression.of("A"))
  *        .operand(ConstantExpression.of(5))
  *        .build();
