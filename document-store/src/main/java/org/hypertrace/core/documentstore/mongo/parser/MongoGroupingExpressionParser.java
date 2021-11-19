@@ -9,11 +9,11 @@ import java.util.List;
 import java.util.Map;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
-import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 import org.hypertrace.core.documentstore.parser.GroupingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
@@ -67,9 +67,12 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
       groupExp = Map.of(ID_KEY, groups);
     }
 
+    MongoSelectingExpressionParser baseParser =
+        new MongoAggregationSelectingExpressionParser(query);
+
     Map<String, Object> definition =
         selectionSpecs.stream()
-            .map(parser::parse)
+            .map(spec -> MongoGroupingExpressionParser.parse(baseParser, spec))
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -85,14 +88,12 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
     return new BasicDBObject(GROUP_CLAUSE, definition);
   }
 
-  private Map<String, Object> parse(final SelectionSpec selection) {
-    if (!selection.isAggregation()) {
-      return Map.of();
-    }
-
-    AggregateExpression expression = (AggregateExpression) selection.getExpression();
-    Object parsed = new MongoAggregateExpressionParser(query).parse(expression);
-    return Map.of(selection.getAlias(), parsed);
+  @SuppressWarnings("unchecked")
+  private static Map<String, Object> parse(
+      final MongoSelectingExpressionParser baseParser, final SelectionSpec selection) {
+    SelectingExpressionParser parser =
+        new MongoProjectionSelectingExpressionParser(selection.getAlias(), baseParser);
+    return (Map<String, Object>) selection.getExpression().parse(parser);
   }
 
   @SuppressWarnings("unchecked")

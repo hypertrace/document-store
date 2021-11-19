@@ -6,7 +6,6 @@ import javax.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
-import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
 /**
@@ -21,10 +20,6 @@ public class SelectionSpec {
 
   // Alias is optional. Handling missing aliases can be implemented in the respective parsers
   String alias;
-
-  public boolean isAggregation() {
-    return expression instanceof AggregateExpression;
-  }
 
   public static SelectionSpec of(final SelectingExpression expression) {
     return SelectionSpec.of(expression, null);

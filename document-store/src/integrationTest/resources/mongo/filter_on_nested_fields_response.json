@@ -6,11 +6,7 @@
   {
     "item": "Comb",
     "price": 7.5,
-    "props": {
-      "seller": {
-        "name": "Go Go Plastics"
-      }
-    }
+    "seller": "Go Go Plastics"
   },
   {
     "item": "Mirror",
@@ -23,19 +19,11 @@
   {
     "item": "Soap",
     "price": 10,
-    "props": {
-      "seller": {
-        "name": "Hans and Co."
-      }
-    }
+    "seller": "Hans and Co."
   },
   {
     "item": "Shampoo",
     "price": 5,
-    "props": {
-      "seller": {
-        "name": "Metro Chemicals Pvt. Ltd."
-      }
-    }
+    "seller": "Metro Chemicals Pvt. Ltd."
   }
 ]

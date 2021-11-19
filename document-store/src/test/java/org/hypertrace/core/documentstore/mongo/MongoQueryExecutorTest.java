@@ -28,8 +28,6 @@ import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.List;
-import org.bson.BsonDocument;
-import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -70,13 +68,13 @@ class MongoQueryExecutorTest {
   void setUp() {
     executor = new MongoQueryExecutor(collection);
 
-    when(collection.find(any(Bson.class))).thenReturn(iterable);
+    when(collection.find(any(BasicDBObject.class))).thenReturn(iterable);
     when(collection.aggregate(anyList())).thenReturn(aggIterable);
 
-    when(iterable.projection(any(Bson.class))).thenReturn(iterable);
+    when(iterable.projection(any(BasicDBObject.class))).thenReturn(iterable);
     when(iterable.skip(anyInt())).thenReturn(iterable);
     when(iterable.limit(anyInt())).thenReturn(iterable);
-    when(iterable.sort(any(Bson.class))).thenReturn(iterable);
+    when(iterable.sort(any(BasicDBObject.class))).thenReturn(iterable);
 
     when(iterable.cursor()).thenReturn(cursor);
     when(aggIterable.cursor()).thenReturn(cursor);
@@ -95,7 +93,7 @@ class MongoQueryExecutorTest {
     executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
-    Bson projection = new BsonDocument();
+    BasicDBObject projection = new BasicDBObject();
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -116,7 +114,7 @@ class MongoQueryExecutorTest {
     executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
-    Bson projection = BsonDocument.parse("{id: 1, fname: 1}");
+    BasicDBObject projection = BasicDBObject.parse("{id: 1, name: \"$fname\"}");
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -156,7 +154,7 @@ class MongoQueryExecutorTest {
                 + " }"
                 + "]"
                 + "}");
-    Bson projection = new BsonDocument();
+    BasicDBObject projection = new BasicDBObject();
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -178,7 +176,7 @@ class MongoQueryExecutorTest {
 
     BasicDBObject mongoQuery = new BasicDBObject();
     BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
-    Bson projection = new BsonDocument();
+    BasicDBObject projection = new BasicDBObject();
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -195,7 +193,7 @@ class MongoQueryExecutorTest {
     executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
-    Bson projection = new BsonDocument();
+    BasicDBObject projection = new BasicDBObject();
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -241,7 +239,7 @@ class MongoQueryExecutorTest {
                 + " }"
                 + "]"
                 + "}");
-    Bson projection = BsonDocument.parse("{id: 1, fname: 1}");
+    BasicDBObject projection = BasicDBObject.parse("{id: 1, name: \"$fname\"}");
     BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
 
     verify(collection).find(mongoQuery);

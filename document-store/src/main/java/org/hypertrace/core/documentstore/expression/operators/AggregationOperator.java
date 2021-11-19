@@ -7,4 +7,5 @@ public enum AggregationOperator {
   MIN,
   MAX,
   FIRST,
+  DISTINCT_COUNT,
 }

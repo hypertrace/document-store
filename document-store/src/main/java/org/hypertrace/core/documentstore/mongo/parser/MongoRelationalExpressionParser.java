@@ -22,7 +22,8 @@ public class MongoRelationalExpressionParser extends MongoExpressionParser {
     RelationalOperator operator = expression.getOperator();
     SelectingExpression rhs = expression.getRhs();
 
-    MongoSelectingExpressionParser selectionParser = new MongoSelectingExpressionParser(query);
+    MongoSelectingExpressionParser selectionParser =
+        new MongoNonAggregationSelectingExpressionParser(query);
     String key = Objects.toString(lhs.parse(selectionParser));
     Object value = rhs.parse(selectionParser);
 

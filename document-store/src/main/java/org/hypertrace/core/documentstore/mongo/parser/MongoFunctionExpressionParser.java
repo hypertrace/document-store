@@ -9,7 +9,7 @@ import org.hypertrace.core.documentstore.query.Query;
 
 public class MongoFunctionExpressionParser extends MongoExpressionParser {
 
-  protected MongoFunctionExpressionParser(Query query) {
+  protected MongoFunctionExpressionParser(final Query query) {
     super(query);
   }
 
@@ -21,7 +21,9 @@ public class MongoFunctionExpressionParser extends MongoExpressionParser {
           String.format("%s should have at least one operand", expression));
     }
 
-    SelectingExpressionParser parser = new MongoSelectingExpressionParser(query, true);
+    SelectingExpressionParser parser =
+        new MongoIdentifierPrefixingSelectingExpressionParser(
+            new MongoNonAggregationSelectingExpressionParser(query));
     String key = "$" + expression.getOperator().name().toLowerCase();
 
     if (numArgs == 1) {
