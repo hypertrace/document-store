@@ -9,7 +9,7 @@ import org.hypertrace.core.documentstore.query.Query.TransformedQueryBuilder;
 import org.hypertrace.core.documentstore.query.QueryTransformer;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public class MongoAggregateExpressionSelectionAdder implements QueryTransformer {
+public class MongoSelectionsAddingTransformer implements QueryTransformer {
   @Override
   public Query transform(final Query query) {
     List<SelectionSpec> newSpecs = new ArrayList<>();
@@ -18,8 +18,8 @@ public class MongoAggregateExpressionSelectionAdder implements QueryTransformer 
       String alias = spec.getAlias();
       SelectingExpression expression = spec.getExpression();
 
-      MongoAggregateExpressionSelectionAddingTransformer transformer =
-          new MongoAggregateExpressionSelectionAddingTransformer(alias);
+      MongoSelectionsAddingTransformation transformer =
+          new MongoSelectionsAddingTransformation(alias);
 
       Optional<SelectionSpec> newSpec = expression.visit(transformer);
       newSpec.ifPresent(newSpecs::add);
