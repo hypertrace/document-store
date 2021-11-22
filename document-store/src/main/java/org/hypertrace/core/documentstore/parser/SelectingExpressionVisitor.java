@@ -5,12 +5,12 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
-public interface SelectingExpressionParser {
-  Object parse(final AggregateExpression expression);
+public interface SelectingExpressionVisitor {
+  <T> T visit(final AggregateExpression expression);
 
-  Object parse(final ConstantExpression expression);
+  <T> T visit(final ConstantExpression expression);
 
-  Object parse(final FunctionExpression expression);
+  <T> T visit(final FunctionExpression expression);
 
-  Object parse(final IdentifierExpression expression);
+  <T> T visit(final IdentifierExpression expression);
 }

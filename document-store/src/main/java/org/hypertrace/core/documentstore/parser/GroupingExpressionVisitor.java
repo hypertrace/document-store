@@ -3,8 +3,8 @@ package org.hypertrace.core.documentstore.parser;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
-public interface GroupingExpressionParser {
-  Object parse(final FunctionExpression expression);
+public interface GroupingExpressionVisitor {
+  <T> T visit(final FunctionExpression expression);
 
-  Object parse(final IdentifierExpression expression);
+  <T> T visit(final IdentifierExpression expression);
 }

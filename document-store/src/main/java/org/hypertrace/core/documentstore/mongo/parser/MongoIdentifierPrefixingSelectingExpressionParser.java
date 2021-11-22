@@ -18,22 +18,22 @@ public class MongoIdentifierPrefixingSelectingExpressionParser
   }
 
   @Override
-  public Map<String, Object> parse(final AggregateExpression expression) {
-    return baseParser.parse(expression);
+  public Map<String, Object> visit(final AggregateExpression expression) {
+    return baseParser.visit(expression);
   }
 
   @Override
-  public Object parse(final ConstantExpression expression) {
-    return baseParser.parse(expression);
+  public Object visit(final ConstantExpression expression) {
+    return baseParser.visit(expression);
   }
 
   @Override
-  public Map<String, Object> parse(final FunctionExpression expression) {
-    return baseParser.parse(expression);
+  public Map<String, Object> visit(final FunctionExpression expression) {
+    return baseParser.visit(expression);
   }
 
   @Override
-  public String parse(final IdentifierExpression expression) {
-    return Optional.ofNullable(baseParser.parse(expression)).map(id -> "$" + id).orElse(null);
+  public String visit(final IdentifierExpression expression) {
+    return Optional.ofNullable(baseParser.visit(expression)).map(id -> "$" + id).orElse(null);
   }
 }

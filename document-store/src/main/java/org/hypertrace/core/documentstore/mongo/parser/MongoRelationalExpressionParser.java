@@ -56,8 +56,10 @@ public class MongoRelationalExpressionParser extends MongoExpressionParser {
 
     MongoSelectingExpressionParser selectionParser =
         new MongoNonAggregationSelectingExpressionParser(query);
-    String key = Objects.toString(lhs.parse(selectionParser));
-    Object value = rhs.parse(selectionParser);
+    String key = Objects.toString(lhs.visit(selectionParser));
+
+    // TODO: Might want to parse RHS with $ prefix to support comparison between fields
+    Object value = rhs.visit(selectionParser);
 
     return generateMap(key, value, operator);
   }

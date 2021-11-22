@@ -9,12 +9,12 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 public class MongoSelectingExpressionParser extends MongoExpressionParser
-    implements SelectingExpressionParser {
+    implements SelectingExpressionVisitor {
 
   private static final String PROJECT_CLAUSE = "$project";
 
@@ -22,23 +22,27 @@ public class MongoSelectingExpressionParser extends MongoExpressionParser
     super(query);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> parse(final AggregateExpression expression) {
+  public Map<String, Object> visit(final AggregateExpression expression) {
     return new MongoAggregateExpressionParser(query).parse(expression);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Object parse(final ConstantExpression expression) {
+  public Object visit(final ConstantExpression expression) {
     return new MongoConstantExpressionParser(query).parse(expression);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> parse(final FunctionExpression expression) {
+  public Map<String, Object> visit(final FunctionExpression expression) {
     return new MongoFunctionExpressionParser(query).parse(expression);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Object parse(final IdentifierExpression expression) {
+  public Object visit(final IdentifierExpression expression) {
     return new MongoIdentifierExpressionParser(query).parse(expression);
   }
 
@@ -67,12 +71,11 @@ public class MongoSelectingExpressionParser extends MongoExpressionParser
     return new BasicDBObject(PROJECT_CLAUSE, selections);
   }
 
-  @SuppressWarnings("unchecked")
   private static Map<String, Object> parse(
       final MongoSelectingExpressionParser baseParser, final SelectionSpec spec) {
     MongoProjectionSelectingExpressionParser parser =
         new MongoProjectionSelectingExpressionParser(spec.getAlias(), baseParser);
 
-    return (Map<String, Object>) spec.getExpression().parse(parser);
+    return spec.getExpression().visit(parser);
   }
 }

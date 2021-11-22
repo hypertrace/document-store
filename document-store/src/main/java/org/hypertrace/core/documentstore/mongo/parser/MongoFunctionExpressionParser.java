@@ -6,7 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
 public class MongoFunctionExpressionParser extends MongoExpressionParser {
@@ -23,7 +23,7 @@ public class MongoFunctionExpressionParser extends MongoExpressionParser {
           String.format("%s should have at least one operand", expression));
     }
 
-    SelectingExpressionParser parser =
+    SelectingExpressionVisitor parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
             new MongoNonAggregationSelectingExpressionParser(query));
     String key;
@@ -35,12 +35,12 @@ public class MongoFunctionExpressionParser extends MongoExpressionParser {
     }
 
     if (numArgs == 1) {
-      Object value = expression.getOperands().get(0).parse(parser);
+      Object value = expression.getOperands().get(0).visit(parser);
       return Map.of(key, value);
     }
 
     List<Object> values =
-        expression.getOperands().stream().map(op -> op.parse(parser)).collect(Collectors.toList());
+        expression.getOperands().stream().map(op -> op.visit(parser)).collect(Collectors.toList());
     return Map.of(key, values);
   }
 }

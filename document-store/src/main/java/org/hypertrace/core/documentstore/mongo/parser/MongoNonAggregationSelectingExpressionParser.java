@@ -11,7 +11,7 @@ public class MongoNonAggregationSelectingExpressionParser extends MongoSelecting
   }
 
   @Override
-  public Map<String, Object> parse(final AggregateExpression expression) {
+  public Map<String, Object> visit(final AggregateExpression expression) {
     return null;
   }
 }

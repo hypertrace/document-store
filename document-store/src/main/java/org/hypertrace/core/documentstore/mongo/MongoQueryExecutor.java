@@ -49,8 +49,8 @@ public class MongoQueryExecutor {
     return iterable.cursor();
   }
 
-  public MongoCursor<BasicDBObject> aggregate(final Query query) {
-    transformAndLog(query);
+  public MongoCursor<BasicDBObject> aggregate(final Query originalQuery) {
+    Query query = transformAndLog(originalQuery);
 
     BasicDBObject filterClause = getFilterClause(query, Query::getFilter);
     BasicDBObject groupFilterClause = getFilterClause(query, Query::getAggregationFilter);
@@ -81,8 +81,12 @@ public class MongoQueryExecutor {
     return iterable.cursor();
   }
 
-  private void logClauses(final Query query, final Bson projection, final Bson filterClause,
-      final Bson sortOrders, final Pagination pagination) {
+  private void logClauses(
+      final Query query,
+      final Bson projection,
+      final Bson filterClause,
+      final Bson sortOrders,
+      final Pagination pagination) {
     log.debug(
         "MongoDB find():\nQuery: {}\nCollection: {}\n Projections: {}\n Filter: {}\n Sorting: {}\n Pagination: {}",
         query,
@@ -100,9 +104,10 @@ public class MongoQueryExecutor {
         pipeline);
   }
 
-  private void transformAndLog(final Query query) {
+  private Query transformAndLog(Query query) {
     log.debug("MongoDB query before transformation: {}", query);
-    MongoQueryTransformer.transform(query);
+    query = MongoQueryTransformer.transform(query);
     log.debug("MongoDB query after transformation: {}", query);
+    return query;
   }
 }
