@@ -13,9 +13,61 @@ import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
+/**
+ * The objective of this class is to introduce additional selections on top of the ones.
+ *
+ * <p>Current implementation contains adding projections to all the grouping fields (except "_id")
+ *
+ * <p>For example, this transformation converts the aggregate pipeline <code>
+ *   [
+ *      {
+ *        "$group": {
+ *          "_id": {
+ *            "item": "$item",
+ *          },
+ *          "total": {
+ *            "$sum": "$price"
+ *          },
+ *          "num_brands": {
+ *            "$distinctCount": "$brand"
+ *          }
+ *        }
+ *      },
+ *      {
+ *        "$project": {
+ *          "item": 1
+ *        }
+ *      }
+ *   ]
+ * </code> into <code>
+ *   [
+ *      {
+ *        "$group": {
+ *          "_id": {
+ *            "item": "$item",
+ *          },
+ *          "total": {
+ *            "$sum": "$price"
+ *          },
+ *          "num_brands": {
+ *            "$distinctCount": "$brand"
+ *          }
+ *        }
+ *      },
+ *      {
+ *        "$project": {
+ *          "item": 1,
+ *          "total": 1,
+ *          "num_brands": {
+ *            "$size": "$num_brands"
+ *          }
+ *        }
+ *      }
+ *   ]
+ * </code>
+ */
 @AllArgsConstructor
-public class MongoAggregateExpressionSelectionAddingTransformer
-    implements SelectingExpressionVisitor {
+public class MongoSelectionsAddingTransformation implements SelectingExpressionVisitor {
   private final String alias;
 
   @SuppressWarnings("unchecked")
