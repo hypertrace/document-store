@@ -12,7 +12,7 @@ import lombok.Singular;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
-import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
+import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
 
 /**
  * Expression to connect 2 or more relational expressions.
@@ -57,7 +57,7 @@ public class LogicalExpression implements FilteringExpression {
   }
 
   @Override
-  public Object parse(final FilteringExpressionParser parser) {
-    return parser.parse(this);
+  public <T> T visit(final FilteringExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 }

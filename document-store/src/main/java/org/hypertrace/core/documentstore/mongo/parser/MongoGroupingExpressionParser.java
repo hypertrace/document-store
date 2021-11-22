@@ -12,13 +12,13 @@ import org.apache.commons.collections4.MapUtils;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
-import org.hypertrace.core.documentstore.parser.GroupingExpressionParser;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.GroupingExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 public class MongoGroupingExpressionParser extends MongoExpressionParser
-    implements GroupingExpressionParser {
+    implements GroupingExpressionVisitor {
 
   private static final String GROUP_CLAUSE = "$group";
 
@@ -26,8 +26,9 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
     super(query);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> parse(final FunctionExpression expression) {
+  public Map<String, Object> visit(final FunctionExpression expression) {
     // To support this, we need to take an alias for GroupingExpressions
     throw new UnsupportedOperationException(
         String.format(
@@ -35,8 +36,9 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
             expression));
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> parse(final IdentifierExpression expression) {
+  public Map<String, Object> visit(final IdentifierExpression expression) {
     String identifier = new MongoIdentifierExpressionParser(query).parse(expression);
     String key = identifier.replaceAll("\\.", "-");
     return Map.of(key, "$" + identifier);
@@ -91,17 +93,15 @@ public class MongoGroupingExpressionParser extends MongoExpressionParser
     return new BasicDBObject(GROUP_CLAUSE, definition);
   }
 
-  @SuppressWarnings("unchecked")
   private static Map<String, Object> parse(
       final MongoSelectingExpressionParser baseParser, final SelectionSpec spec) {
-    SelectingExpressionParser parser =
+    SelectingExpressionVisitor parser =
         new MongoProjectionSelectingExpressionParser(spec.getAlias(), baseParser);
-    return (Map<String, Object>) spec.getExpression().parse(parser);
+    return spec.getExpression().visit(parser);
   }
 
-  @SuppressWarnings("unchecked")
   private Map<String, Object> parse(final GroupingExpression expression) {
     MongoGroupingExpressionParser parser = new MongoGroupingExpressionParser(query);
-    return (Map<String, Object>) expression.parse(parser);
+    return expression.visit(parser);
   }
 }

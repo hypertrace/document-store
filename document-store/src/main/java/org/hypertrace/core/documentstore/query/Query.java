@@ -8,6 +8,7 @@ import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.ToString;
+import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
@@ -83,7 +84,7 @@ public final class Query {
       return Collections.emptyList();
     }
 
-    return selection.getSelectionSpecs();
+    return Collections.unmodifiableList(selection.getSelectionSpecs());
   }
 
   public Optional<FilteringExpression> getFilter() {
@@ -95,7 +96,7 @@ public final class Query {
       return Collections.emptyList();
     }
 
-    return aggregation.getExpressions();
+    return Collections.unmodifiableList(aggregation.getExpressions());
   }
 
   public Optional<FilteringExpression> getAggregationFilter() {
@@ -107,11 +108,48 @@ public final class Query {
       return Collections.emptyList();
     }
 
-    return sort.getSortingSpecs();
+    return Collections.unmodifiableList(sort.getSortingSpecs());
   }
 
   public Optional<Pagination> getPagination() {
     return Optional.ofNullable(pagination);
+  }
+
+  @AllArgsConstructor
+  public static final class TransformedQueryBuilder {
+    private final Query query;
+
+    public Query buildWithSelections(final List<SelectionSpec> selections) {
+      if (CollectionUtils.isEmpty(selections)) {
+        return query;
+      }
+
+      Selection selection = Selection.builder().selectionSpecs(selections).build();
+      return build(selection);
+    }
+
+    public Query buildWithMoreSelections(final List<SelectionSpec> selections) {
+      if (CollectionUtils.isEmpty(selections)) {
+        return query;
+      }
+
+      Selection selection =
+          Selection.builder()
+              .selectionSpecs(query.getSelections())
+              .selectionSpecs(selections)
+              .build();
+      return build(selection);
+    }
+
+    private Query build(final Selection selection) {
+      return new Query(
+          selection,
+          query.filter,
+          query.aggregation,
+          query.aggregationFilter,
+          query.sort,
+          query.pagination);
+    }
   }
 
   public static final class QueryBuilder {

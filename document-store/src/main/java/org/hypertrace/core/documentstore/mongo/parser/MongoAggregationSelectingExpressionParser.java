@@ -14,22 +14,22 @@ public class MongoAggregationSelectingExpressionParser extends MongoSelectingExp
   }
 
   @Override
-  public Map<String, Object> parse(AggregateExpression expression) {
+  public Map<String, Object> visit(AggregateExpression expression) {
     return new MongoAggregateExpressionParser(query).parse(expression);
   }
 
   @Override
-  public Object parse(final ConstantExpression expression) {
+  public Object visit(final ConstantExpression expression) {
     return null;
   }
 
   @Override
-  public Map<String, Object> parse(final FunctionExpression expression) {
+  public Map<String, Object> visit(final FunctionExpression expression) {
     return null;
   }
 
   @Override
-  public Object parse(final IdentifierExpression expression) {
+  public Object visit(final IdentifierExpression expression) {
     return null;
   }
 }

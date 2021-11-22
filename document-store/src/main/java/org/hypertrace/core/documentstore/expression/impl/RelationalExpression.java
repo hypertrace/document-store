@@ -9,7 +9,7 @@ import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
-import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
+import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
 
 /**
  * Expression representing a condition for filtering
@@ -39,7 +39,7 @@ public class RelationalExpression implements FilteringExpression {
   }
 
   @Override
-  public Object parse(final FilteringExpressionParser parser) {
-    return parser.parse(this);
+  public <T> T visit(final FilteringExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 }

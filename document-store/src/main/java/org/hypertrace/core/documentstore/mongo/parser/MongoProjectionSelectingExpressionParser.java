@@ -22,23 +22,23 @@ public class MongoProjectionSelectingExpressionParser extends MongoSelectingExpr
   }
 
   @Override
-  public Map<String, Object> parse(final AggregateExpression expression) {
-    return convertToMap(baseParser.parse(expression));
+  public Map<String, Object> visit(final AggregateExpression expression) {
+    return convertToMap(baseParser.visit(expression));
   }
 
   @Override
-  public Map<String, Object> parse(final ConstantExpression expression) {
-    return convertToMap(baseParser.parse(expression));
+  public Map<String, Object> visit(final ConstantExpression expression) {
+    return convertToMap(baseParser.visit(expression));
   }
 
   @Override
-  public Map<String, Object> parse(final FunctionExpression expression) {
-    return convertToMap(baseParser.parse(expression));
+  public Map<String, Object> visit(final FunctionExpression expression) {
+    return convertToMap(baseParser.visit(expression));
   }
 
   @Override
-  public Map<String, Object> parse(final IdentifierExpression expression) {
-    Object parsed = baseParser.parse(expression);
+  public Map<String, Object> visit(final IdentifierExpression expression) {
+    Object parsed = baseParser.visit(expression);
     if (parsed == null) {
       return Map.of();
     }
