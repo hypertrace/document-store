@@ -8,6 +8,8 @@ import javax.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
+import lombok.EqualsAndHashCode.CacheStrategy;
 import lombok.Singular;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
@@ -41,6 +43,7 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 @Value
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode(cacheStrategy = CacheStrategy.LAZY)
 public class FunctionExpression
     implements GroupingExpression, SelectingExpression, SortingExpression {
 

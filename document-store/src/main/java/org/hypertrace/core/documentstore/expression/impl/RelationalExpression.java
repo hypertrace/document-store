@@ -5,6 +5,8 @@ import static org.hypertrace.core.documentstore.expression.Utils.validateAndRetu
 import javax.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.EqualsAndHashCode.CacheStrategy;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
@@ -23,6 +25,7 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode(cacheStrategy = CacheStrategy.LAZY)
 public class RelationalExpression implements FilteringExpression {
 
   @NotNull SelectingExpression lhs;
