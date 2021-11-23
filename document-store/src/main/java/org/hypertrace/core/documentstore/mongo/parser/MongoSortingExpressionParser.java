@@ -1,6 +1,10 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
+import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
+
 import com.mongodb.BasicDBObject;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +21,13 @@ public final class MongoSortingExpressionParser extends MongoExpressionParser
     implements SortingExpressionVisitor {
 
   private static final String SORT_CLAUSE = "$sort";
+  private static final Map<SortingOrder, Integer> ORDER_MAP =
+      new EnumMap<>(SortingOrder.class) {
+        {
+          put(ASC, 1);
+          put(DESC, -1);
+        }
+      };
 
   private final SortingOrder order;
 
@@ -49,7 +60,13 @@ public final class MongoSortingExpressionParser extends MongoExpressionParser
   @Override
   public Map<String, Object> visit(final IdentifierExpression expression) {
     String parsed = new MongoIdentifierExpressionParser(query).parse(expression);
-    return Map.of(parsed, getOrder());
+    Integer value = ORDER_MAP.get(order);
+
+    if (value == null) {
+      throw getUnsupportedOperationException(order);
+    }
+
+    return Map.of(parsed, value);
   }
 
   public static BasicDBObject getSortClause(final Query query) {
@@ -75,17 +92,6 @@ public final class MongoSortingExpressionParser extends MongoExpressionParser
                 });
 
     return new BasicDBObject(map);
-  }
-
-  private int getOrder() {
-    switch (order) {
-      case ASC:
-        return 1;
-      case DESC:
-        return -1;
-    }
-
-    throw new IllegalArgumentException("Unknown sorting order: " + order.name());
   }
 
   private static Map<String, Object> parse(final Query query, final SortingSpec definition) {

@@ -7,7 +7,7 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 
-import com.google.common.collect.ImmutableMap;
+import java.util.EnumMap;
 import java.util.Map;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
@@ -16,14 +16,16 @@ import org.hypertrace.core.documentstore.query.Query;
 
 final class MongoAggregateExpressionParser extends MongoExpressionParser {
   private static final Map<AggregationOperator, String> KEY_MAP =
-      ImmutableMap.<AggregationOperator, String>builder()
-          .put(AVG, "$avg")
-          .put(DISTINCT, "$addToSet")
-          .put(SUM, "$sum")
-          .put(MIN, "$min")
-          .put(MAX, "$max")
-          .put(FIRST, "$first")
-          .build();
+      new EnumMap<>(AggregationOperator.class) {
+        {
+          put(AVG, "$avg");
+          put(DISTINCT, "$addToSet");
+          put(SUM, "$sum");
+          put(MIN, "$min");
+          put(MAX, "$max");
+          put(FIRST, "$first");
+        }
+      };
 
   MongoAggregateExpressionParser(final Query query) {
     super(query);
