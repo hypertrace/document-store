@@ -1,15 +1,33 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.ABS;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.ADD;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.DIVIDE;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.FLOOR;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.SUBTRACT;
 
+import com.google.common.collect.ImmutableMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
+import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
 public class MongoFunctionExpressionParser extends MongoExpressionParser {
+  private static final Map<FunctionOperator, String> KEY_MAP =
+      ImmutableMap.<FunctionOperator, String>builder()
+          .put(ABS, "$abs")
+          .put(FLOOR, "$floor")
+          .put(LENGTH, "$size")
+          .put(ADD, "$add")
+          .put(DIVIDE, "$divide")
+          .put(MULTIPLY, "$multiply")
+          .put(SUBTRACT, "$subtract")
+          .build();
 
   protected MongoFunctionExpressionParser(final Query query) {
     super(query);
@@ -26,12 +44,12 @@ public class MongoFunctionExpressionParser extends MongoExpressionParser {
     SelectingExpressionVisitor parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
             new MongoNonAggregationSelectingExpressionParser(query));
-    String key;
 
-    if (expression.getOperator() == LENGTH) {
-      key = "$size";
-    } else {
-      key = "$" + expression.getOperator().name().toLowerCase();
+    FunctionOperator operator = expression.getOperator();
+    String key = KEY_MAP.get(operator);
+
+    if (key == null) {
+      throw getUnsupportedOperationException(operator);
     }
 
     if (numArgs == 1) {

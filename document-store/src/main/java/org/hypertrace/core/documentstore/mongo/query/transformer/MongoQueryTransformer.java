@@ -1,9 +1,7 @@
-package org.hypertrace.core.documentstore.mongo;
+package org.hypertrace.core.documentstore.mongo.query.transformer;
 
 import com.google.common.collect.ImmutableList;
 import java.util.List;
-import org.hypertrace.core.documentstore.mongo.expression.transformer.MongoSelectionsAddingTransformer;
-import org.hypertrace.core.documentstore.mongo.expression.transformer.MongoSelectionsUpdatingTransformer;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.QueryTransformer;
 
@@ -15,7 +13,7 @@ public class MongoQueryTransformer {
           .add(new MongoSelectionsUpdatingTransformer())
           .build();
 
-  static Query transform(final Query query) {
+  public static Query transform(final Query query) {
     Query transformedQuery = query;
 
     for (QueryTransformer transformer : TRANSFORMERS) {

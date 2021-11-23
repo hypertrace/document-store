@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.mongo.expression.transformer;
+package org.hypertrace.core.documentstore.mongo.query.transformer;
 
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
