@@ -5,6 +5,8 @@ import static org.hypertrace.core.documentstore.expression.Utils.validateAndRetu
 import javax.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.EqualsAndHashCode.CacheStrategy;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
 import org.hypertrace.core.documentstore.expression.type.SortingExpression;
@@ -15,6 +17,7 @@ import org.hypertrace.core.documentstore.expression.type.SortingExpression;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode(cacheStrategy = CacheStrategy.LAZY)
 public class SortingSpec {
 
   @NotNull SortingExpression expression;

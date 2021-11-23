@@ -5,6 +5,8 @@ import static org.hypertrace.core.documentstore.expression.Utils.validateAndRetu
 import javax.validation.constraints.NotBlank;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.EqualsAndHashCode.CacheStrategy;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
@@ -20,6 +22,7 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode(cacheStrategy = CacheStrategy.LAZY)
 public class IdentifierExpression
     implements GroupingExpression, SelectingExpression, SortingExpression {
 

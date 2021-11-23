@@ -3,6 +3,8 @@ package org.hypertrace.core.documentstore.expression.impl;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.EqualsAndHashCode;
+import lombok.EqualsAndHashCode.CacheStrategy;
 import lombok.Value;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
@@ -19,6 +21,7 @@ import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
+@EqualsAndHashCode(cacheStrategy = CacheStrategy.LAZY)
 public class ConstantExpression implements SelectingExpression {
 
   Object value;
