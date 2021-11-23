@@ -168,7 +168,9 @@ public class MongoQueryExecutorTest {
         List.of(
             SelectionSpec.of(IdentifierExpression.of("item")),
             SelectionSpec.of(IdentifierExpression.of("price")),
-            SelectionSpec.of(IdentifierExpression.of("props.seller.name"), "seller"));
+            SelectionSpec.of(IdentifierExpression.of("props.seller.name"), "seller"),
+            SelectionSpec.of(IdentifierExpression.of("props.brand")),
+            SelectionSpec.of(IdentifierExpression.of("props.seller.address.city")));
 
     Query query =
         Query.builder()
