@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.FIRST;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
@@ -209,7 +210,7 @@ public class MongoQueryExecutorIntegrationTest {
   public void testAggregateSimple() throws IOException {
     Query query =
         Query.builder()
-            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "count")
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
