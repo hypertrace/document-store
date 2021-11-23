@@ -7,9 +7,9 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoLogicalExpressionParser extends MongoExpressionParser {
+final class MongoLogicalExpressionParser extends MongoExpressionParser {
 
-  protected MongoLogicalExpressionParser(Query query) {
+  MongoLogicalExpressionParser(Query query) {
     super(query);
   }
 

@@ -17,12 +17,12 @@ import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public class MongoGroupingExpressionParser extends MongoExpressionParser
+public final class MongoGroupingExpressionParser extends MongoExpressionParser
     implements GroupingExpressionVisitor {
 
   private static final String GROUP_CLAUSE = "$group";
 
-  protected MongoGroupingExpressionParser(Query query) {
+  MongoGroupingExpressionParser(Query query) {
     super(query);
   }
 

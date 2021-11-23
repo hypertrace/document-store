@@ -67,7 +67,7 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
  * </code>
  */
 @AllArgsConstructor
-public class MongoSelectionsAddingTransformation implements SelectingExpressionVisitor {
+final class MongoSelectionsAddingTransformation implements SelectingExpressionVisitor {
   private final String alias;
 
   @SuppressWarnings("unchecked")

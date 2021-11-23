@@ -5,7 +5,7 @@ import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.query.Query;
 
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
-public class MongoExpressionParser {
+class MongoExpressionParser {
   private static final String UNSUPPORTED_OPERATION = "%s (%s) is not supported in MongoDB";
   protected final Query query;
 

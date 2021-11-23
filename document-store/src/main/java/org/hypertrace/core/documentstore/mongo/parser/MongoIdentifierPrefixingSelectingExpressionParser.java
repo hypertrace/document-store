@@ -7,11 +7,11 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
-public class MongoIdentifierPrefixingSelectingExpressionParser
+final class MongoIdentifierPrefixingSelectingExpressionParser
     extends MongoSelectingExpressionParser {
   private final MongoSelectingExpressionParser baseParser;
 
-  public MongoIdentifierPrefixingSelectingExpressionParser(
+  MongoIdentifierPrefixingSelectingExpressionParser(
       final MongoSelectingExpressionParser baseParser) {
     super(baseParser.query);
     this.baseParser = baseParser;

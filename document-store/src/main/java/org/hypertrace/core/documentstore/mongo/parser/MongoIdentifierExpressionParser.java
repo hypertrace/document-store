@@ -3,9 +3,9 @@ package org.hypertrace.core.documentstore.mongo.parser;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoIdentifierExpressionParser extends MongoExpressionParser {
+final class MongoIdentifierExpressionParser extends MongoExpressionParser {
 
-  protected MongoIdentifierExpressionParser(Query query) {
+  MongoIdentifierExpressionParser(Query query) {
     super(query);
   }
 

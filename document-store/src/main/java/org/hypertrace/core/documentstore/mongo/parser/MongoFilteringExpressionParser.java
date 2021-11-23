@@ -10,12 +10,12 @@ import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoFilteringExpressionParser extends MongoExpressionParser
+public final class MongoFilteringExpressionParser extends MongoExpressionParser
     implements FilteringExpressionVisitor {
 
   private static final String FILTER_CLAUSE = "$match";
 
-  protected MongoFilteringExpressionParser(Query query) {
+  MongoFilteringExpressionParser(Query query) {
     super(query);
   }
 

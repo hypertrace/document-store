@@ -13,14 +13,14 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
-public class MongoSortingExpressionParser extends MongoExpressionParser
+public final class MongoSortingExpressionParser extends MongoExpressionParser
     implements SortingExpressionVisitor {
 
   private static final String SORT_CLAUSE = "$sort";
 
   private final SortingOrder order;
 
-  protected MongoSortingExpressionParser(final Query query, final SortingOrder order) {
+  MongoSortingExpressionParser(final Query query, final SortingOrder order) {
     super(query);
     this.order = order;
   }

@@ -14,7 +14,7 @@ import org.hypertrace.core.documentstore.expression.operators.AggregationOperato
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoAggregateExpressionParser extends MongoExpressionParser {
+final class MongoAggregateExpressionParser extends MongoExpressionParser {
   private static final Map<AggregationOperator, String> KEY_MAP =
       ImmutableMap.<AggregationOperator, String>builder()
           .put(AVG, "$avg")
@@ -25,7 +25,7 @@ public class MongoAggregateExpressionParser extends MongoExpressionParser {
           .put(FIRST, "$first")
           .build();
 
-  protected MongoAggregateExpressionParser(final Query query) {
+  MongoAggregateExpressionParser(final Query query) {
     super(query);
   }
 

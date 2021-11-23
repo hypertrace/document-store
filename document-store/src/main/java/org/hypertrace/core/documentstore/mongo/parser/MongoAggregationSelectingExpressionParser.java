@@ -7,9 +7,9 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoAggregationSelectingExpressionParser extends MongoSelectingExpressionParser {
+final class MongoAggregationSelectingExpressionParser extends MongoSelectingExpressionParser {
 
-  public MongoAggregationSelectingExpressionParser(final Query query) {
+  MongoAggregationSelectingExpressionParser(final Query query) {
     super(query);
   }
 

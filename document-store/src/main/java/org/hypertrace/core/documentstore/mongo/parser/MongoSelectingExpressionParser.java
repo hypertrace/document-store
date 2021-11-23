@@ -18,7 +18,7 @@ public class MongoSelectingExpressionParser extends MongoExpressionParser
 
   private static final String PROJECT_CLAUSE = "$project";
 
-  public MongoSelectingExpressionParser(final Query query) {
+  MongoSelectingExpressionParser(final Query query) {
     super(query);
   }
 
