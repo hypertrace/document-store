@@ -7,7 +7,7 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 
-import com.google.common.collect.ImmutableMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -79,11 +79,12 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
 
   private static final Map<AggregationOperator, Function<AggregateExpression, AggregateExpression>>
       AGGREGATION_SUBSTITUTE_MAP =
-          ImmutableMap
-              .<AggregationOperator, Function<AggregateExpression, AggregateExpression>>builder()
-              .put(DISTINCT_COUNT, DISTINCT_COUNT_HANDLER)
-              .put(COUNT, COUNT_HANDLER)
-              .build();
+          new EnumMap<>(AggregationOperator.class) {
+            {
+              put(DISTINCT_COUNT, DISTINCT_COUNT_HANDLER);
+              put(COUNT, COUNT_HANDLER);
+            }
+          };
 
   private final List<GroupingExpression> aggregations;
   private final SelectionSpec source;

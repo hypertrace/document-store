@@ -13,8 +13,8 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 
-import com.google.common.collect.ImmutableMap;
 import com.mongodb.BasicDBObject;
+import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -25,24 +25,24 @@ import org.hypertrace.core.documentstore.query.Query;
 
 final class MongoRelationalExpressionParser extends MongoExpressionParser {
 
-  private static final ImmutableMap<
-          RelationalOperator, BiFunction<String, Object, Map<String, Object>>>
+  private static final Map<RelationalOperator, BiFunction<String, Object, Map<String, Object>>>
       HANDLERS =
-          ImmutableMap
-              .<RelationalOperator, BiFunction<String, Object, Map<String, Object>>>builder()
-              .put(EQ, Map::of)
-              .put(NEQ, handler("ne"))
-              .put(GT, handler("gt"))
-              .put(LT, handler("lt"))
-              .put(GTE, handler("gte"))
-              .put(LTE, handler("lte"))
-              .put(IN, handler("in"))
-              .put(CONTAINS, handler("elemMatch"))
-              .put(EXISTS, handler("exists"))
-              .put(NOT_EXISTS, handler("exists"))
-              .put(LIKE, likeHandler())
-              .put(NOT_IN, handler("nin"))
-              .build();
+          new EnumMap<>(RelationalOperator.class) {
+            {
+              put(EQ, Map::of);
+              put(NEQ, handler("ne"));
+              put(GT, handler("gt"));
+              put(LT, handler("lt"));
+              put(GTE, handler("gte"));
+              put(LTE, handler("lte"));
+              put(IN, handler("in"));
+              put(CONTAINS, handler("elemMatch"));
+              put(EXISTS, handler("exists"));
+              put(NOT_EXISTS, handler("exists"));
+              put(LIKE, likeHandler());
+              put(NOT_IN, handler("nin"));
+            }
+          };
 
   MongoRelationalExpressionParser(Query query) {
     super(query);

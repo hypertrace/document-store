@@ -8,7 +8,7 @@ import static org.hypertrace.core.documentstore.expression.operators.FunctionOpe
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.SUBTRACT;
 
-import com.google.common.collect.ImmutableMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -19,15 +19,17 @@ import org.hypertrace.core.documentstore.query.Query;
 
 final class MongoFunctionExpressionParser extends MongoExpressionParser {
   private static final Map<FunctionOperator, String> KEY_MAP =
-      ImmutableMap.<FunctionOperator, String>builder()
-          .put(ABS, "$abs")
-          .put(FLOOR, "$floor")
-          .put(LENGTH, "$size")
-          .put(ADD, "$add")
-          .put(DIVIDE, "$divide")
-          .put(MULTIPLY, "$multiply")
-          .put(SUBTRACT, "$subtract")
-          .build();
+      new EnumMap<>(FunctionOperator.class) {
+        {
+          put(ABS, "$abs");
+          put(FLOOR, "$floor");
+          put(LENGTH, "$size");
+          put(ADD, "$add");
+          put(DIVIDE, "$divide");
+          put(MULTIPLY, "$multiply");
+          put(SUBTRACT, "$subtract");
+        }
+      };
 
   MongoFunctionExpressionParser(final Query query) {
     super(query);
