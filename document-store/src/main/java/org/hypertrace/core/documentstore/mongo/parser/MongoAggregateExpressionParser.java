@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.FIRST;
@@ -16,16 +17,17 @@ import org.hypertrace.core.documentstore.query.Query;
 
 final class MongoAggregateExpressionParser extends MongoExpressionParser {
   private static final Map<AggregationOperator, String> KEY_MAP =
-      new EnumMap<>(AggregationOperator.class) {
-        {
-          put(AVG, "$avg");
-          put(DISTINCT, "$addToSet");
-          put(SUM, "$sum");
-          put(MIN, "$min");
-          put(MAX, "$max");
-          put(FIRST, "$first");
-        }
-      };
+      unmodifiableMap(
+          new EnumMap<>(AggregationOperator.class) {
+            {
+              put(AVG, "$avg");
+              put(DISTINCT, "$addToSet");
+              put(SUM, "$sum");
+              put(MIN, "$min");
+              put(MAX, "$max");
+              put(FIRST, "$first");
+            }
+          });
 
   MongoAggregateExpressionParser(final Query query) {
     super(query);

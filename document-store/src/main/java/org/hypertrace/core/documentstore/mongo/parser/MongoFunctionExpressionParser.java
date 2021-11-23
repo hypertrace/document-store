@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.ABS;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.ADD;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.DIVIDE;
@@ -19,17 +20,18 @@ import org.hypertrace.core.documentstore.query.Query;
 
 final class MongoFunctionExpressionParser extends MongoExpressionParser {
   private static final Map<FunctionOperator, String> KEY_MAP =
-      new EnumMap<>(FunctionOperator.class) {
-        {
-          put(ABS, "$abs");
-          put(FLOOR, "$floor");
-          put(LENGTH, "$size");
-          put(ADD, "$add");
-          put(DIVIDE, "$divide");
-          put(MULTIPLY, "$multiply");
-          put(SUBTRACT, "$subtract");
-        }
-      };
+      unmodifiableMap(
+          new EnumMap<>(FunctionOperator.class) {
+            {
+              put(ABS, "$abs");
+              put(FLOOR, "$floor");
+              put(LENGTH, "$size");
+              put(ADD, "$add");
+              put(DIVIDE, "$divide");
+              put(MULTIPLY, "$multiply");
+              put(SUBTRACT, "$subtract");
+            }
+          });
 
   MongoFunctionExpressionParser(final Query query) {
     super(query);
