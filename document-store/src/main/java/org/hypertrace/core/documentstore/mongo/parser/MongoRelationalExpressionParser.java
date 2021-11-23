@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EXISTS;
@@ -27,22 +28,23 @@ final class MongoRelationalExpressionParser extends MongoExpressionParser {
 
   private static final Map<RelationalOperator, BiFunction<String, Object, Map<String, Object>>>
       HANDLERS =
-          new EnumMap<>(RelationalOperator.class) {
-            {
-              put(EQ, Map::of);
-              put(NEQ, handler("ne"));
-              put(GT, handler("gt"));
-              put(LT, handler("lt"));
-              put(GTE, handler("gte"));
-              put(LTE, handler("lte"));
-              put(IN, handler("in"));
-              put(CONTAINS, handler("elemMatch"));
-              put(EXISTS, handler("exists"));
-              put(NOT_EXISTS, handler("exists"));
-              put(LIKE, likeHandler());
-              put(NOT_IN, handler("nin"));
-            }
-          };
+          unmodifiableMap(
+              new EnumMap<>(RelationalOperator.class) {
+                {
+                  put(EQ, Map::of);
+                  put(NEQ, handler("ne"));
+                  put(GT, handler("gt"));
+                  put(LT, handler("lt"));
+                  put(GTE, handler("gte"));
+                  put(LTE, handler("lte"));
+                  put(IN, handler("in"));
+                  put(CONTAINS, handler("elemMatch"));
+                  put(EXISTS, handler("exists"));
+                  put(NOT_EXISTS, handler("exists"));
+                  put(LIKE, likeHandler());
+                  put(NOT_IN, handler("nin"));
+                }
+              });
 
   MongoRelationalExpressionParser(Query query) {
     super(query);

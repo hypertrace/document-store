@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.query.transformer;
 
+import static java.util.Collections.unmodifiableMap;
 import static java.util.function.Function.identity;
 import static java.util.stream.Collectors.toMap;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
@@ -79,12 +80,13 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
 
   private static final Map<AggregationOperator, Function<AggregateExpression, AggregateExpression>>
       AGGREGATION_SUBSTITUTE_MAP =
-          new EnumMap<>(AggregationOperator.class) {
-            {
-              put(DISTINCT_COUNT, DISTINCT_COUNT_HANDLER);
-              put(COUNT, COUNT_HANDLER);
-            }
-          };
+          unmodifiableMap(
+              new EnumMap<>(AggregationOperator.class) {
+                {
+                  put(DISTINCT_COUNT, DISTINCT_COUNT_HANDLER);
+                  put(COUNT, COUNT_HANDLER);
+                }
+              });
 
   private final List<GroupingExpression> aggregations;
   private final SelectionSpec source;

@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
 
@@ -22,12 +23,13 @@ public final class MongoSortingExpressionParser extends MongoExpressionParser
 
   private static final String SORT_CLAUSE = "$sort";
   private static final Map<SortingOrder, Integer> ORDER_MAP =
-      new EnumMap<>(SortingOrder.class) {
-        {
-          put(ASC, 1);
-          put(DESC, -1);
-        }
-      };
+      unmodifiableMap(
+          new EnumMap<>(SortingOrder.class) {
+            {
+              put(ASC, 1);
+              put(DESC, -1);
+            }
+          });
 
   private final SortingOrder order;
 
