@@ -23,7 +23,7 @@ import org.hypertrace.core.documentstore.expression.operators.RelationalOperator
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoRelationalExpressionParser extends MongoExpressionParser {
+final class MongoRelationalExpressionParser extends MongoExpressionParser {
 
   private static final ImmutableMap<
           RelationalOperator, BiFunction<String, Object, Map<String, Object>>>
@@ -44,7 +44,7 @@ public class MongoRelationalExpressionParser extends MongoExpressionParser {
               .put(NOT_IN, handler("nin"))
               .build();
 
-  protected MongoRelationalExpressionParser(Query query) {
+  MongoRelationalExpressionParser(Query query) {
     super(query);
   }
 

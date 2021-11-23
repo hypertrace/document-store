@@ -8,13 +8,13 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
-public class MongoProjectionSelectingExpressionParser extends MongoSelectingExpressionParser {
+public final class MongoProjectionSelectingExpressionParser extends MongoSelectingExpressionParser {
   private static final String UNKNOWN_FIELD_PREFIX = "unknown_field_";
 
   private final MongoSelectingExpressionParser baseParser;
   private final String alias;
 
-  public MongoProjectionSelectingExpressionParser(
+  MongoProjectionSelectingExpressionParser(
       final String alias, final MongoSelectingExpressionParser baseParser) {
     super(baseParser.query);
     this.alias = alias;

@@ -70,7 +70,7 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
  * </code> since "item" appears in projection as well as grouping and "$distinctCount" is not
  * supported
  */
-public class MongoSelectionsUpdatingTransformation implements SelectingExpressionVisitor {
+final class MongoSelectionsUpdatingTransformation implements SelectingExpressionVisitor {
   private static final Function<AggregateExpression, AggregateExpression> COUNT_HANDLER =
       expression -> AggregateExpression.of(SUM, ConstantExpression.of(1));
 
@@ -89,7 +89,7 @@ public class MongoSelectionsUpdatingTransformation implements SelectingExpressio
   private final SelectionSpec source;
   private final Map<Integer, GroupingExpression> aggregationMap;
 
-  public MongoSelectionsUpdatingTransformation(
+  MongoSelectionsUpdatingTransformation(
       List<GroupingExpression> aggregations, SelectionSpec source) {
     this.aggregations = aggregations;
     this.source = source;

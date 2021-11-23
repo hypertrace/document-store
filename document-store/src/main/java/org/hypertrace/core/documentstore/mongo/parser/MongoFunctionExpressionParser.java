@@ -17,7 +17,7 @@ import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoFunctionExpressionParser extends MongoExpressionParser {
+final class MongoFunctionExpressionParser extends MongoExpressionParser {
   private static final Map<FunctionOperator, String> KEY_MAP =
       ImmutableMap.<FunctionOperator, String>builder()
           .put(ABS, "$abs")
@@ -29,7 +29,7 @@ public class MongoFunctionExpressionParser extends MongoExpressionParser {
           .put(SUBTRACT, "$subtract")
           .build();
 
-  protected MongoFunctionExpressionParser(final Query query) {
+  MongoFunctionExpressionParser(final Query query) {
     super(query);
   }
 

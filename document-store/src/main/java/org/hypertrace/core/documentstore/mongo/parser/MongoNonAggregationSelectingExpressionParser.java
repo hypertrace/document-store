@@ -4,9 +4,9 @@ import java.util.Map;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoNonAggregationSelectingExpressionParser extends MongoSelectingExpressionParser {
+final class MongoNonAggregationSelectingExpressionParser extends MongoSelectingExpressionParser {
 
-  public MongoNonAggregationSelectingExpressionParser(final Query query) {
+  MongoNonAggregationSelectingExpressionParser(final Query query) {
     super(query);
   }
 

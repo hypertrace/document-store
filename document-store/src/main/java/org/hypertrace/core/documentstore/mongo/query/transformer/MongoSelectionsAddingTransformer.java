@@ -9,7 +9,7 @@ import org.hypertrace.core.documentstore.query.Query.TransformedQueryBuilder;
 import org.hypertrace.core.documentstore.query.QueryTransformer;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public class MongoSelectionsAddingTransformer implements QueryTransformer {
+final class MongoSelectionsAddingTransformer implements QueryTransformer {
   @Override
   public Query transform(final Query query) {
     List<SelectionSpec> newSpecs = new ArrayList<>();
