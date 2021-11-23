@@ -1,6 +1,5 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
-import static org.hypertrace.core.documentstore.Collection.UNSUPPORTED_QUERY_OPERATION;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EXISTS;
@@ -67,7 +66,7 @@ public class MongoRelationalExpressionParser extends MongoExpressionParser {
   private static Map<String, Object> generateMap(
       final String key, Object value, final RelationalOperator operator) {
     BiFunction<String, Object, Map<String, Object>> handler =
-        HANDLERS.getOrDefault(operator, unknownHandler());
+        HANDLERS.getOrDefault(operator, unknownHandler(operator));
 
     switch (operator) {
       case EXISTS:
@@ -92,9 +91,10 @@ public class MongoRelationalExpressionParser extends MongoExpressionParser {
         Map.of(key, new BasicDBObject("$regex", value).append("$options", "i"));
   }
 
-  private static BiFunction<String, Object, Map<String, Object>> unknownHandler() {
+  private static BiFunction<String, Object, Map<String, Object>> unknownHandler(
+      final RelationalOperator operator) {
     return (key, value) -> {
-      throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+      throw getUnsupportedOperationException(operator);
     };
   }
 }

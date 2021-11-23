@@ -267,7 +267,7 @@ class MongoQueryExecutorTest {
                     + "   { "
                     + "     _id: null, "
                     + "     total: {"
-                    + "       \"$count\": 1"
+                    + "       \"$sum\": 1"
                     + "     }"
                     + "   }"
                     + "}"),
@@ -295,7 +295,7 @@ class MongoQueryExecutorTest {
                     + "   { "
                     + "     _id: null, "
                     + "     total: {"
-                    + "       \"$count\": 1"
+                    + "       \"$sum\": 1"
                     + "     }"
                     + "   }"
                     + "}"),
