@@ -6,7 +6,14 @@
   {
     "item": "Comb",
     "price": 7.5,
-    "seller": "Go Go Plastics"
+    "seller": "Go Go Plastics",
+    "props": {
+      "seller": {
+        "address": {
+          "city": "Kolkata"
+        }
+      }
+    }
   },
   {
     "item": "Mirror",
@@ -19,11 +26,27 @@
   {
     "item": "Soap",
     "price": 20,
-    "seller": "Hans and Co."
+    "seller": "Hans and Co.",
+    "props": {
+      "brand": "Lifebuoy",
+      "seller": {
+        "address": {
+          "city": "Kolkata"
+        }
+      }
+    }
   },
   {
     "item": "Shampoo",
     "price": 5,
-    "seller": "Metro Chemicals Pvt. Ltd."
+    "seller": "Metro Chemicals Pvt. Ltd.",
+    "props": {
+      "brand": "Sunsilk",
+      "seller": {
+        "address": {
+          "city": "Mumbai"
+        }
+      }
+    }
   }
 ]

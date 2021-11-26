@@ -35,10 +35,10 @@ public class RelationalExpression implements FilteringExpression {
   @NotNull SelectingExpression rhs;
 
   public static RelationalExpression of(
-      final SelectingExpression operand1,
+      final SelectingExpression lhs,
       final RelationalOperator operator,
-      final SelectingExpression operand2) {
-    return validateAndReturn(new RelationalExpression(operand1, operator, operand2));
+      final SelectingExpression rhs) {
+    return validateAndReturn(new RelationalExpression(lhs, operator, rhs));
   }
 
   @Override

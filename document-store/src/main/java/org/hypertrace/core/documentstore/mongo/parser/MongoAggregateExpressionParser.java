@@ -3,19 +3,20 @@ package org.hypertrace.core.documentstore.mongo.parser;
 import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
-import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.FIRST;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
 
 import java.util.EnumMap;
 import java.util.Map;
+import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
-import org.hypertrace.core.documentstore.query.Query;
 
-final class MongoAggregateExpressionParser extends MongoExpressionParser {
+@NoArgsConstructor
+final class MongoAggregateExpressionParser extends MongoSelectingExpressionParser {
   private static final Map<AggregationOperator, String> KEY_MAP =
       unmodifiableMap(
           new EnumMap<>(AggregationOperator.class) {
@@ -25,12 +26,17 @@ final class MongoAggregateExpressionParser extends MongoExpressionParser {
               put(SUM, "$sum");
               put(MIN, "$min");
               put(MAX, "$max");
-              put(FIRST, "$first");
             }
           });
 
-  MongoAggregateExpressionParser(final Query query) {
-    super(query);
+  MongoAggregateExpressionParser(final MongoSelectingExpressionParser baseParser) {
+    super(baseParser);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(final AggregateExpression expression) {
+    return parse(expression);
   }
 
   Map<String, Object> parse(final AggregateExpression expression) {
@@ -43,7 +49,10 @@ final class MongoAggregateExpressionParser extends MongoExpressionParser {
 
     SelectingExpressionVisitor parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
-            new MongoSelectingExpressionParser(query));
+            new MongoIdentifierExpressionParser(
+                new MongoAggregateExpressionParser(
+                    new MongoFunctionExpressionParser(new MongoConstantExpressionParser()))));
+
     Object value = expression.getExpression().visit(parser);
     return Map.of(key, value);
   }

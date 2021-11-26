@@ -1,12 +1,18 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
-import org.hypertrace.core.documentstore.query.Query;
 
-final class MongoConstantExpressionParser extends MongoExpressionParser {
+@NoArgsConstructor
+final class MongoConstantExpressionParser extends MongoSelectingExpressionParser {
+  MongoConstantExpressionParser(final MongoSelectingExpressionParser baseParser) {
+    super(baseParser);
+  }
 
-  MongoConstantExpressionParser(Query query) {
-    super(query);
+  @SuppressWarnings("unchecked")
+  @Override
+  public Object visit(final ConstantExpression expression) {
+    return parse(expression);
   }
 
   Object parse(final ConstantExpression expression) {

@@ -1,45 +1,66 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import java.util.Map;
-import java.util.UUID;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
+@Slf4j
 public final class MongoProjectionSelectingExpressionParser extends MongoSelectingExpressionParser {
-  private static final String UNKNOWN_FIELD_PREFIX = "unknown_field_";
-
-  private final MongoSelectingExpressionParser baseParser;
   private final String alias;
 
   MongoProjectionSelectingExpressionParser(
       final String alias, final MongoSelectingExpressionParser baseParser) {
-    super(baseParser.query);
+    super(baseParser);
     this.alias = alias;
-    this.baseParser = baseParser;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final AggregateExpression expression) {
-    return convertToMap(baseParser.visit(expression));
+    assert baseParser != null;
+    try {
+      return convertToMap(baseParser.visit(expression), expression);
+    } catch (UnsupportedOperationException e) {
+      return Map.of();
+    }
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final ConstantExpression expression) {
-    return convertToMap(baseParser.visit(expression));
+    assert baseParser != null;
+    try {
+      return convertToMap(baseParser.visit(expression), expression);
+    } catch (UnsupportedOperationException e) {
+      return Map.of();
+    }
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final FunctionExpression expression) {
-    return convertToMap(baseParser.visit(expression));
+    assert baseParser != null;
+    try {
+      return convertToMap(baseParser.visit(expression), expression);
+    } catch (UnsupportedOperationException e) {
+      return Map.of();
+    }
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final IdentifierExpression expression) {
-    Object parsed = baseParser.visit(expression);
-    if (parsed == null) {
+    assert baseParser != null;
+    Object parsed;
+
+    try {
+      parsed = baseParser.visit(expression);
+    } catch (UnsupportedOperationException e) {
       return Map.of();
     }
 
@@ -51,19 +72,22 @@ public final class MongoProjectionSelectingExpressionParser extends MongoSelecti
     return Map.of(alias, parsed);
   }
 
-  private String getAlias() {
-    if (StringUtils.isNotBlank(alias)) {
-      return alias;
-    }
-
-    return UNKNOWN_FIELD_PREFIX + UUID.randomUUID().toString().replaceAll("-", "_");
-  }
-
-  private Map<String, Object> convertToMap(final Object parsed) {
+  private Map<String, Object> convertToMap(
+      final Object parsed, final SelectingExpression expression) {
     if (parsed == null) {
       return Map.of();
     }
 
-    return Map.of(getAlias(), parsed);
+    String key = getAlias(expression);
+    return Map.of(key, parsed);
+  }
+
+  private String getAlias(final SelectingExpression expression) {
+    if (StringUtils.isBlank(alias)) {
+      throw new IllegalArgumentException(
+          String.format("Alias is must for: %s", expression.toString()));
+    }
+
+    return alias;
   }
 }

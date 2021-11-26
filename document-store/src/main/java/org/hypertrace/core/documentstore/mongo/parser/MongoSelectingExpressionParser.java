@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import static java.util.stream.Collectors.toMap;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
 import java.util.List;
@@ -13,44 +14,62 @@ import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public class MongoSelectingExpressionParser extends MongoExpressionParser
-    implements SelectingExpressionVisitor {
+public abstract class MongoSelectingExpressionParser implements SelectingExpressionVisitor {
 
   private static final String PROJECT_CLAUSE = "$project";
 
-  MongoSelectingExpressionParser(final Query query) {
-    super(query);
+  protected final MongoSelectingExpressionParser baseParser;
+
+  public MongoSelectingExpressionParser() {
+    this(null);
   }
 
-  @SuppressWarnings("unchecked")
-  @Override
-  public Map<String, Object> visit(final AggregateExpression expression) {
-    return new MongoAggregateExpressionParser(query).parse(expression);
+  protected MongoSelectingExpressionParser(final MongoSelectingExpressionParser baseParser) {
+    this.baseParser = baseParser;
   }
 
-  @SuppressWarnings("unchecked")
   @Override
-  public Object visit(final ConstantExpression expression) {
-    return new MongoConstantExpressionParser(query).parse(expression);
+  public <T> T visit(final AggregateExpression expression) {
+    if (baseParser == null) {
+      throw getUnsupportedOperationException(expression);
+    }
+
+    return baseParser.visit(expression);
   }
 
-  @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> visit(final FunctionExpression expression) {
-    return new MongoFunctionExpressionParser(query).parse(expression);
+  public <T> T visit(final ConstantExpression expression) {
+    if (baseParser == null) {
+      throw getUnsupportedOperationException(expression);
+    }
+
+    return baseParser.visit(expression);
   }
 
-  @SuppressWarnings("unchecked")
   @Override
-  public Object visit(final IdentifierExpression expression) {
-    return new MongoIdentifierExpressionParser(query).parse(expression);
+  public <T> T visit(final FunctionExpression expression) {
+    if (baseParser == null) {
+      throw getUnsupportedOperationException(expression);
+    }
+
+    return baseParser.visit(expression);
+  }
+
+  @Override
+  public <T> T visit(final IdentifierExpression expression) {
+    if (baseParser == null) {
+      throw getUnsupportedOperationException(expression);
+    }
+
+    return baseParser.visit(expression);
   }
 
   public static BasicDBObject getSelections(final Query query) {
     List<SelectionSpec> selectionSpecs = query.getSelections();
     MongoSelectingExpressionParser parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
-            new MongoNonAggregationSelectingExpressionParser(query));
+            new MongoIdentifierExpressionParser(
+                new MongoFunctionExpressionParser(new MongoConstantExpressionParser())));
 
     Map<String, Object> projectionMap =
         selectionSpecs.stream()

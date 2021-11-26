@@ -37,6 +37,7 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
+import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.SortingSpec;
@@ -190,7 +191,8 @@ class MongoQueryExecutorTest {
 
   @Test
   public void testFindWithPagination() {
-    Query query = Query.builder().setLimit(10).setOffset(50).build();
+    Query query =
+        Query.builder().setPagination(Pagination.builder().limit(10).offset(50).build()).build();
 
     executor.find(query);
 
@@ -213,8 +215,7 @@ class MongoQueryExecutorTest {
             .addSelection(IdentifierExpression.of("fname"), "name")
             .addSort(IdentifierExpression.of("marks"), DESC)
             .addSort(IdentifierExpression.of("name"), SortingOrder.ASC)
-            .setLimit(10)
-            .setOffset(50)
+            .setPagination(Pagination.builder().offset(50).limit(10).build())
             .setFilter(
                 LogicalExpression.builder()
                     .operand(
@@ -478,8 +479,7 @@ class MongoQueryExecutorTest {
     Query query =
         Query.builder()
             .addAggregation(IdentifierExpression.of("student"))
-            .setLimit(10)
-            .setOffset(0)
+            .setPagination(Pagination.builder().offset(0).limit(10).build())
             .build();
 
     List<BasicDBObject> pipeline =

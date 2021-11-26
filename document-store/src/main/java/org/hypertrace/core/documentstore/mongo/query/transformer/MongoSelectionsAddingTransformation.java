@@ -72,7 +72,12 @@ final class MongoSelectionsAddingTransformation implements SelectingExpressionVi
 
   @SuppressWarnings("unchecked")
   @Override
-  public Optional<SelectionSpec> visit(AggregateExpression expression) {
+  public Optional<SelectionSpec> visit(final AggregateExpression expression) {
+    if (alias == null) {
+      throw new IllegalArgumentException(
+          String.format("Alias is must for projection: %s", expression));
+    }
+
     if (expression.getAggregator() == DISTINCT_COUNT) {
       // Since MongoDB doesn't support $distinctCount in aggregations, we convert this to
       // $addToSet function. So, we need to project $size(set) instead of just the alias
@@ -89,19 +94,19 @@ final class MongoSelectionsAddingTransformation implements SelectingExpressionVi
 
   @SuppressWarnings("unchecked")
   @Override
-  public Optional<SelectionSpec> visit(ConstantExpression expression) {
+  public Optional<SelectionSpec> visit(final ConstantExpression expression) {
     return Optional.empty();
   }
 
   @SuppressWarnings("unchecked")
   @Override
-  public Optional<SelectionSpec> visit(FunctionExpression expression) {
+  public Optional<SelectionSpec> visit(final FunctionExpression expression) {
     return Optional.empty();
   }
 
   @SuppressWarnings("unchecked")
   @Override
-  public Optional<SelectionSpec> visit(IdentifierExpression expression) {
+  public Optional<SelectionSpec> visit(final IdentifierExpression expression) {
     return Optional.empty();
   }
 }

@@ -124,7 +124,7 @@ public final class Query {
 
     public Query buildWithSelections(final List<SelectionSpec> selections) {
       if (CollectionUtils.isEmpty(selections)) {
-        return query;
+        return build(null);
       }
 
       Selection selection = Selection.builder().selectionSpecs(selections).build();
@@ -145,13 +145,14 @@ public final class Query {
     }
 
     private Query build(final Selection selection) {
-      return new Query(
-          selection,
-          query.filter,
-          query.aggregation,
-          query.aggregationFilter,
-          query.sort,
-          query.pagination);
+      return validateAndReturn(
+          new Query(
+              selection,
+              query.filter,
+              query.aggregation,
+              query.aggregationFilter,
+              query.sort,
+              query.pagination));
     }
   }
 
@@ -249,16 +250,6 @@ public final class Query {
 
     public QueryBuilder setPagination(final Pagination pagination) {
       this.paginationBuilder = pagination.toBuilder();
-      return this;
-    }
-
-    public QueryBuilder setLimit(final int limit) {
-      getPaginationBuilder().limit(limit);
-      return this;
-    }
-
-    public QueryBuilder setOffset(final int offset) {
-      getPaginationBuilder().offset(offset);
       return this;
     }
 

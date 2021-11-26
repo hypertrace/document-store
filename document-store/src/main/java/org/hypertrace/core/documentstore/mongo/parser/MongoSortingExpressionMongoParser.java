@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.mongo.parser;
 import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
 import java.util.EnumMap;
@@ -18,8 +19,7 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
-public final class MongoSortingExpressionParser extends MongoExpressionParser
-    implements SortingExpressionVisitor {
+public final class MongoSortingExpressionMongoParser implements SortingExpressionVisitor {
 
   private static final String SORT_CLAUSE = "$sort";
   private static final Map<SortingOrder, Integer> ORDER_MAP =
@@ -33,8 +33,7 @@ public final class MongoSortingExpressionParser extends MongoExpressionParser
 
   private final SortingOrder order;
 
-  MongoSortingExpressionParser(final Query query, final SortingOrder order) {
-    super(query);
+  MongoSortingExpressionMongoParser(final SortingOrder order) {
     this.order = order;
   }
 
@@ -61,7 +60,7 @@ public final class MongoSortingExpressionParser extends MongoExpressionParser
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final IdentifierExpression expression) {
-    String parsed = new MongoIdentifierExpressionParser(query).parse(expression);
+    String parsed = new MongoIdentifierExpressionParser().parse(expression);
     Integer value = ORDER_MAP.get(order);
 
     if (value == null) {
@@ -85,7 +84,7 @@ public final class MongoSortingExpressionParser extends MongoExpressionParser
 
     Map<String, Object> map =
         sortingSpecs.stream()
-            .map(spec -> MongoSortingExpressionParser.parse(query, spec))
+            .map(MongoSortingExpressionMongoParser::parse)
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -96,9 +95,9 @@ public final class MongoSortingExpressionParser extends MongoExpressionParser
     return new BasicDBObject(map);
   }
 
-  private static Map<String, Object> parse(final Query query, final SortingSpec definition) {
-    MongoSortingExpressionParser parser =
-        new MongoSortingExpressionParser(query, definition.getOrder());
+  private static Map<String, Object> parse(final SortingSpec definition) {
+    MongoSortingExpressionMongoParser parser =
+        new MongoSortingExpressionMongoParser(definition.getOrder());
     return definition.getExpression().visit(parser);
   }
 }
