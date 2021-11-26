@@ -72,8 +72,7 @@ public final class MongoGroupingExpressionParser extends MongoExpressionParser
       groupExp = Map.of(ID_KEY, groups);
     }
 
-    MongoSelectingExpressionParser baseParser =
-        new MongoAggregationSelectingExpressionParser(query);
+    MongoSelectingExpressionParser baseParser = new MongoAggregateExpressionParser(query);
 
     Map<String, Object> definition =
         selectionSpecs.stream()

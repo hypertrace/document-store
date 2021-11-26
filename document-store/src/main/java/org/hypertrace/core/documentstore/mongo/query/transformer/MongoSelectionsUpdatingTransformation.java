@@ -88,15 +88,15 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
                 }
               });
 
-  private final List<GroupingExpression> aggregations;
+  private final List<GroupingExpression> groupingExpressions;
   private final SelectionSpec source;
-  private final Map<Integer, GroupingExpression> aggregationMap;
+  private final Map<Integer, GroupingExpression> groupingExpressionMap;
 
   MongoSelectionsUpdatingTransformation(
-      List<GroupingExpression> aggregations, SelectionSpec source) {
-    this.aggregations = aggregations;
+      List<GroupingExpression> groupingExpressions, SelectionSpec source) {
+    this.groupingExpressions = groupingExpressions;
     this.source = source;
-    this.aggregationMap = getAggregationMap();
+    this.groupingExpressionMap = buildGroupingExpressionMap();
   }
 
   @SuppressWarnings("unchecked")
@@ -120,7 +120,7 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
   @SuppressWarnings("unchecked")
   @Override
   public SelectionSpec visit(final IdentifierExpression expression) {
-    GroupingExpression matchingGroup = aggregationMap.get(expression.hashCode());
+    GroupingExpression matchingGroup = groupingExpressionMap.get(expression.hashCode());
     if (!expression.equals(matchingGroup)) {
       return source;
     }
@@ -133,11 +133,11 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
 
   private SelectionSpec substitute(final AggregateExpression expression) {
     return Optional.ofNullable(AGGREGATION_SUBSTITUTE_MAP.get(expression.getAggregator()))
-        .map(newExp -> SelectionSpec.of(newExp.apply(expression), source.getAlias()))
+        .map(converter -> SelectionSpec.of(converter.apply(expression), source.getAlias()))
         .orElse(source);
   }
 
-  private Map<Integer, GroupingExpression> getAggregationMap() {
-    return aggregations.stream().collect(toMap(GroupingExpression::hashCode, identity()));
+  private Map<Integer, GroupingExpression> buildGroupingExpressionMap() {
+    return groupingExpressions.stream().collect(toMap(GroupingExpression::hashCode, identity()));
   }
 }

@@ -17,7 +17,6 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import com.mongodb.BasicDBObject;
 import java.util.EnumMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.BiFunction;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
@@ -55,12 +54,12 @@ final class MongoRelationalExpressionParser extends MongoExpressionParser {
     RelationalOperator operator = expression.getOperator();
     SelectingExpression rhs = expression.getRhs();
 
-    MongoSelectingExpressionParser selectionParser =
-        new MongoNonAggregationSelectingExpressionParser(query);
-    String key = Objects.toString(lhs.visit(selectionParser));
+    // Only an identifier LHS and a constant RHS is supported as of now.
+    MongoSelectingExpressionParser lhsParser = new MongoIdentifierExpressionParser(query);
+    MongoSelectingExpressionParser rhsParser = new MongoConstantExpressionParser(query);
 
-    // TODO: Might want to parse RHS with $ prefix to support comparison between fields
-    Object value = rhs.visit(selectionParser);
+    String key = lhs.visit(lhsParser);
+    Object value = rhs.visit(rhsParser);
 
     return generateMap(key, value, operator);
   }

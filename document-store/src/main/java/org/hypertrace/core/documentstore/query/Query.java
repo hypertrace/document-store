@@ -124,7 +124,7 @@ public final class Query {
 
     public Query buildWithSelections(final List<SelectionSpec> selections) {
       if (CollectionUtils.isEmpty(selections)) {
-        return query;
+        return build(null);
       }
 
       Selection selection = Selection.builder().selectionSpecs(selections).build();
@@ -145,13 +145,13 @@ public final class Query {
     }
 
     private Query build(final Selection selection) {
-      return new Query(
+      return validateAndReturn(new Query(
           selection,
           query.filter,
           query.aggregation,
           query.aggregationFilter,
           query.sort,
-          query.pagination);
+          query.pagination));
     }
   }
 

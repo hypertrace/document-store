@@ -18,7 +18,7 @@ import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
-final class MongoFunctionExpressionParser extends MongoExpressionParser {
+final class MongoFunctionExpressionParser extends MongoSelectingExpressionParser {
   private static final Map<FunctionOperator, String> KEY_MAP =
       unmodifiableMap(
           new EnumMap<>(FunctionOperator.class) {
@@ -37,6 +37,16 @@ final class MongoFunctionExpressionParser extends MongoExpressionParser {
     super(query);
   }
 
+  MongoFunctionExpressionParser(final MongoSelectingExpressionParser baseParser) {
+    super(baseParser);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(final FunctionExpression expression) {
+    return parse(expression);
+  }
+
   Map<String, Object> parse(final FunctionExpression expression) {
     int numArgs = expression.getOperands().size();
 
@@ -47,7 +57,8 @@ final class MongoFunctionExpressionParser extends MongoExpressionParser {
 
     SelectingExpressionVisitor parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
-            new MongoNonAggregationSelectingExpressionParser(query));
+            new MongoIdentifierExpressionParser(
+                new MongoConstantExpressionParser(query)));
 
     FunctionOperator operator = expression.getOperator();
     String key = KEY_MAP.get(operator);

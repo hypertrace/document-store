@@ -1,9 +1,12 @@
 package org.hypertrace.core.documentstore.mongo;
 
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
@@ -13,6 +16,7 @@ import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
+import static org.junit.Assert.assertThrows;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -29,6 +33,7 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -270,6 +275,44 @@ public class MongoQueryExecutorIntegrationTest {
 //    Iterator<Document> resultDocs = collection.aggregate(query);
 //    assertDocsEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json");
 //  }
+
+  @Test
+  public void testAggregateWithoutAggregationAlias() {
+    Query query = Query.builder()
+        .addAggregation(IdentifierExpression.of("item"))
+        .addAggregation(IdentifierExpression.of("price"))
+        .addSelection(IdentifierExpression.of("item"))
+        .addSelection(IdentifierExpression.of("price"))
+        .addSelection(AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")))
+        .build();
+
+    assertThrows(IllegalArgumentException.class, () -> collection.aggregate(query));
+  }
+
+  @Test
+  public void testAggregateWithMultipleGroupingLevels() throws IOException {
+    Query query = Query.builder()
+        .addAggregation(IdentifierExpression.of("item"))
+        .addAggregation(IdentifierExpression.of("price"))
+        .addSelection(IdentifierExpression.of("item"))
+        .addSelection(IdentifierExpression.of("price"))
+        .addSelection(
+            AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")),
+            "quantities")
+        .setAggregationFilter(
+            RelationalExpression.of(
+                ConstantExpression.of(1),
+                GT,
+                FunctionExpression.builder()
+                    .operator(LENGTH)
+                    .operand(IdentifierExpression.of("quantities"))
+                    .build()))
+        .addSort(IdentifierExpression.of("item"), DESC)
+        .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo/multi_level_grouping_response.json");
+  }
 
   @Test
   public void testDistinctCount() throws IOException {

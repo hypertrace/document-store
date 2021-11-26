@@ -14,7 +14,7 @@ import org.hypertrace.core.documentstore.expression.operators.AggregationOperato
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
-final class MongoAggregateExpressionParser extends MongoExpressionParser {
+final class MongoAggregateExpressionParser extends MongoSelectingExpressionParser {
   private static final Map<AggregationOperator, String> KEY_MAP =
       unmodifiableMap(
           new EnumMap<>(AggregationOperator.class) {
@@ -31,6 +31,16 @@ final class MongoAggregateExpressionParser extends MongoExpressionParser {
     super(query);
   }
 
+  MongoAggregateExpressionParser(final MongoSelectingExpressionParser baseParser) {
+    super(baseParser);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(final AggregateExpression expression) {
+    return parse(expression);
+  }
+
   Map<String, Object> parse(final AggregateExpression expression) {
     AggregationOperator operator = expression.getAggregator();
     String key = KEY_MAP.get(operator);
@@ -41,7 +51,11 @@ final class MongoAggregateExpressionParser extends MongoExpressionParser {
 
     SelectingExpressionVisitor parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
-            new MongoSelectingExpressionParser(query));
+            new MongoIdentifierExpressionParser(
+                new MongoAggregateExpressionParser(
+                    new MongoFunctionExpressionParser(
+                      new MongoConstantExpressionParser(query)))));
+
     Object value = expression.getExpression().visit(parser);
     return Map.of(key, value);
   }
