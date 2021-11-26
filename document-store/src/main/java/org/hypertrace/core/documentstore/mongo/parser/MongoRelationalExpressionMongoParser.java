@@ -13,6 +13,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
 import java.util.EnumMap;
@@ -21,9 +22,8 @@ import java.util.function.BiFunction;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
-import org.hypertrace.core.documentstore.query.Query;
 
-final class MongoRelationalExpressionParser extends MongoExpressionParser {
+final class MongoRelationalExpressionMongoParser {
 
   private static final Map<RelationalOperator, BiFunction<String, Object, Map<String, Object>>>
       HANDLERS =
@@ -45,18 +45,14 @@ final class MongoRelationalExpressionParser extends MongoExpressionParser {
                 }
               });
 
-  MongoRelationalExpressionParser(Query query) {
-    super(query);
-  }
-
   Map<String, Object> parse(final RelationalExpression expression) {
     SelectingExpression lhs = expression.getLhs();
     RelationalOperator operator = expression.getOperator();
     SelectingExpression rhs = expression.getRhs();
 
     // Only an identifier LHS and a constant RHS is supported as of now.
-    MongoSelectingExpressionParser lhsParser = new MongoIdentifierExpressionParser(query);
-    MongoSelectingExpressionParser rhsParser = new MongoConstantExpressionParser(query);
+    MongoSelectingExpressionParser lhsParser = new MongoIdentifierExpressionParser();
+    MongoSelectingExpressionParser rhsParser = new MongoConstantExpressionParser();
 
     String key = lhs.visit(lhsParser);
     Object value = rhs.visit(rhsParser);

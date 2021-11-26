@@ -17,14 +17,9 @@ import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public final class MongoGroupingExpressionParser extends MongoExpressionParser
-    implements GroupingExpressionVisitor {
+public final class MongoGroupingExpressionParser implements GroupingExpressionVisitor {
 
   private static final String GROUP_CLAUSE = "$group";
-
-  MongoGroupingExpressionParser(Query query) {
-    super(query);
-  }
 
   @SuppressWarnings("unchecked")
   @Override
@@ -39,7 +34,7 @@ public final class MongoGroupingExpressionParser extends MongoExpressionParser
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final IdentifierExpression expression) {
-    String identifier = new MongoIdentifierExpressionParser(query).parse(expression);
+    String identifier = new MongoIdentifierExpressionParser().parse(expression);
     String key = identifier.replaceAll("\\.", "_");
     return Map.of(key, "$" + identifier);
   }
@@ -48,7 +43,7 @@ public final class MongoGroupingExpressionParser extends MongoExpressionParser
     final List<SelectionSpec> selectionSpecs = query.getSelections();
     final List<GroupingExpression> expressions = query.getAggregations();
 
-    MongoGroupingExpressionParser parser = new MongoGroupingExpressionParser(query);
+    MongoGroupingExpressionParser parser = new MongoGroupingExpressionParser();
     Map<String, Object> groupExp;
 
     if (CollectionUtils.isEmpty(expressions)) {
@@ -72,7 +67,7 @@ public final class MongoGroupingExpressionParser extends MongoExpressionParser
       groupExp = Map.of(ID_KEY, groups);
     }
 
-    MongoSelectingExpressionParser baseParser = new MongoAggregateExpressionParser(query);
+    MongoSelectingExpressionParser baseParser = new MongoAggregateExpressionParser();
 
     Map<String, Object> definition =
         selectionSpecs.stream()
@@ -100,7 +95,7 @@ public final class MongoGroupingExpressionParser extends MongoExpressionParser
   }
 
   private Map<String, Object> parse(final GroupingExpression expression) {
-    MongoGroupingExpressionParser parser = new MongoGroupingExpressionParser(query);
+    MongoGroupingExpressionParser parser = new MongoGroupingExpressionParser();
     return expression.visit(parser);
   }
 }

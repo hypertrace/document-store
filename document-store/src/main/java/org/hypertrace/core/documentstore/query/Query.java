@@ -253,16 +253,6 @@ public final class Query {
       return this;
     }
 
-    public QueryBuilder setLimit(final int limit) {
-      getPaginationBuilder().limit(limit);
-      return this;
-    }
-
-    public QueryBuilder setOffset(final int offset) {
-      getPaginationBuilder().offset(offset);
-      return this;
-    }
-
     public Query build() {
       return validateAndReturn(
           new Query(

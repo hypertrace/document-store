@@ -6,14 +6,16 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
 
 import java.util.EnumMap;
 import java.util.Map;
+import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
-import org.hypertrace.core.documentstore.query.Query;
 
+@NoArgsConstructor
 final class MongoAggregateExpressionParser extends MongoSelectingExpressionParser {
   private static final Map<AggregationOperator, String> KEY_MAP =
       unmodifiableMap(
@@ -26,10 +28,6 @@ final class MongoAggregateExpressionParser extends MongoSelectingExpressionParse
               put(MAX, "$max");
             }
           });
-
-  MongoAggregateExpressionParser(final Query query) {
-    super(query);
-  }
 
   MongoAggregateExpressionParser(final MongoSelectingExpressionParser baseParser) {
     super(baseParser);
@@ -53,7 +51,7 @@ final class MongoAggregateExpressionParser extends MongoSelectingExpressionParse
         new MongoIdentifierPrefixingSelectingExpressionParser(
             new MongoIdentifierExpressionParser(
                 new MongoAggregateExpressionParser(
-                    new MongoFunctionExpressionParser(new MongoConstantExpressionParser(query)))));
+                    new MongoFunctionExpressionParser(new MongoConstantExpressionParser()))));
 
     Object value = expression.getExpression().visit(parser);
     return Map.of(key, value);

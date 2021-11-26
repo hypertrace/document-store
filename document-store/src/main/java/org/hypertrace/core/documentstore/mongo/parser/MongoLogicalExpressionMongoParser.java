@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.mongo.parser;
 import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -11,9 +12,8 @@ import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
-import org.hypertrace.core.documentstore.query.Query;
 
-final class MongoLogicalExpressionParser extends MongoExpressionParser {
+final class MongoLogicalExpressionMongoParser {
   private static final Map<LogicalOperator, String> KEY_MAP =
       unmodifiableMap(
           new EnumMap<>(LogicalOperator.class) {
@@ -23,12 +23,8 @@ final class MongoLogicalExpressionParser extends MongoExpressionParser {
             }
           });
 
-  MongoLogicalExpressionParser(Query query) {
-    super(query);
-  }
-
   Map<String, Object> parse(final LogicalExpression expression) {
-    FilteringExpressionVisitor parser = new MongoFilteringExpressionParser(query);
+    FilteringExpressionVisitor parser = new MongoFilteringExpressionMongoParser();
     List<Object> parsed =
         expression.getOperands().stream()
             .map(exp -> exp.visit(parser))

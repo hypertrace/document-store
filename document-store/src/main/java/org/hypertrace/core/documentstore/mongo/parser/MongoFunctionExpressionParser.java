@@ -8,16 +8,18 @@ import static org.hypertrace.core.documentstore.expression.operators.FunctionOpe
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.SUBTRACT;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
 
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
-import org.hypertrace.core.documentstore.query.Query;
 
+@NoArgsConstructor
 final class MongoFunctionExpressionParser extends MongoSelectingExpressionParser {
   private static final Map<FunctionOperator, String> KEY_MAP =
       unmodifiableMap(
@@ -32,10 +34,6 @@ final class MongoFunctionExpressionParser extends MongoSelectingExpressionParser
               put(SUBTRACT, "$subtract");
             }
           });
-
-  MongoFunctionExpressionParser(final Query query) {
-    super(query);
-  }
 
   MongoFunctionExpressionParser(final MongoSelectingExpressionParser baseParser) {
     super(baseParser);
@@ -57,7 +55,7 @@ final class MongoFunctionExpressionParser extends MongoSelectingExpressionParser
 
     SelectingExpressionVisitor parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
-            new MongoIdentifierExpressionParser(new MongoConstantExpressionParser(query)));
+            new MongoIdentifierExpressionParser(new MongoConstantExpressionParser()));
 
     FunctionOperator operator = expression.getOperator();
     String key = KEY_MAP.get(operator);

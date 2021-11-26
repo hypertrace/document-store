@@ -250,8 +250,7 @@ public class MongoQueryExecutorIntegrationTest {
             .setFilter(
                 RelationalExpression.of(
                     IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
-            .setLimit(10)
-            .setOffset(0)
+            .setPagination(Pagination.builder().limit(10).offset(0).build())
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);

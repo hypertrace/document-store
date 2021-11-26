@@ -10,25 +10,20 @@ import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
-public final class MongoFilteringExpressionParser extends MongoExpressionParser
-    implements FilteringExpressionVisitor {
+public final class MongoFilteringExpressionMongoParser implements FilteringExpressionVisitor {
 
   private static final String FILTER_CLAUSE = "$match";
-
-  MongoFilteringExpressionParser(Query query) {
-    super(query);
-  }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final LogicalExpression expression) {
-    return new MongoLogicalExpressionParser(query).parse(expression);
+    return new MongoLogicalExpressionMongoParser().parse(expression);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final RelationalExpression expression) {
-    return new MongoRelationalExpressionParser(query).parse(expression);
+    return new MongoRelationalExpressionMongoParser().parse(expression);
   }
 
   public static BasicDBObject getFilterClause(
@@ -45,7 +40,7 @@ public final class MongoFilteringExpressionParser extends MongoExpressionParser
       return new BasicDBObject();
     }
 
-    FilteringExpressionVisitor parser = new MongoFilteringExpressionParser(query);
+    FilteringExpressionVisitor parser = new MongoFilteringExpressionMongoParser();
     Map<String, Object> filter = filterOptional.get().visit(parser);
     return new BasicDBObject(filter);
   }

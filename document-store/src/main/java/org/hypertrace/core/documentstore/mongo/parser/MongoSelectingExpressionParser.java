@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import static java.util.stream.Collectors.toMap;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
 import java.util.List;
@@ -13,20 +14,17 @@ import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public abstract class MongoSelectingExpressionParser extends MongoExpressionParser
-    implements SelectingExpressionVisitor {
+public abstract class MongoSelectingExpressionParser implements SelectingExpressionVisitor {
 
   private static final String PROJECT_CLAUSE = "$project";
 
   protected final MongoSelectingExpressionParser baseParser;
 
-  protected MongoSelectingExpressionParser(final Query query) {
-    super(query);
-    this.baseParser = null;
+  public MongoSelectingExpressionParser() {
+    this(null);
   }
 
   protected MongoSelectingExpressionParser(final MongoSelectingExpressionParser baseParser) {
-    super(baseParser.query);
     this.baseParser = baseParser;
   }
 
@@ -71,7 +69,7 @@ public abstract class MongoSelectingExpressionParser extends MongoExpressionPars
     MongoSelectingExpressionParser parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
             new MongoIdentifierExpressionParser(
-                new MongoFunctionExpressionParser(new MongoConstantExpressionParser(query))));
+                new MongoFunctionExpressionParser(new MongoConstantExpressionParser())));
 
     Map<String, Object> projectionMap =
         selectionSpecs.stream()
