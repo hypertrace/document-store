@@ -4,13 +4,13 @@ import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.applyPagination;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getLimitClause;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getSkipClause;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoFilteringExpressionMongoParser.getFilter;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoFilteringExpressionMongoParser.getFilterClause;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoFilteringExpressionParser.getFilter;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoFilteringExpressionParser.getFilterClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoGroupingExpressionParser.getGroupClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectingExpressionParser.getProjectClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectingExpressionParser.getSelections;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoSortingExpressionMongoParser.getOrders;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoSortingExpressionMongoParser.getSortClause;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoSortingExpressionParser.getOrders;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoSortingExpressionParser.getSortClause;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.AggregateIterable;

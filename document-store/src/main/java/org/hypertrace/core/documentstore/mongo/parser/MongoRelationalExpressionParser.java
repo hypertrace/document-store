@@ -23,7 +23,7 @@ import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 
-final class MongoRelationalExpressionMongoParser {
+final class MongoRelationalExpressionParser {
 
   private static final Map<RelationalOperator, BiFunction<String, Object, Map<String, Object>>>
       HANDLERS =

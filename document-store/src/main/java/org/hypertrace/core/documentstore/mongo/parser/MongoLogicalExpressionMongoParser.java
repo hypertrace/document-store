@@ -24,7 +24,7 @@ final class MongoLogicalExpressionMongoParser {
           });
 
   Map<String, Object> parse(final LogicalExpression expression) {
-    FilteringExpressionVisitor parser = new MongoFilteringExpressionMongoParser();
+    FilteringExpressionVisitor parser = new MongoFilteringExpressionParser();
     List<Object> parsed =
         expression.getOperands().stream()
             .map(exp -> exp.visit(parser))

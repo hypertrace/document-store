@@ -19,7 +19,7 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
-public final class MongoSortingExpressionMongoParser implements SortingExpressionVisitor {
+public final class MongoSortingExpressionParser implements SortingExpressionVisitor {
 
   private static final String SORT_CLAUSE = "$sort";
   private static final Map<SortingOrder, Integer> ORDER_MAP =
@@ -33,7 +33,7 @@ public final class MongoSortingExpressionMongoParser implements SortingExpressio
 
   private final SortingOrder order;
 
-  MongoSortingExpressionMongoParser(final SortingOrder order) {
+  MongoSortingExpressionParser(final SortingOrder order) {
     this.order = order;
   }
 
@@ -84,7 +84,7 @@ public final class MongoSortingExpressionMongoParser implements SortingExpressio
 
     Map<String, Object> map =
         sortingSpecs.stream()
-            .map(MongoSortingExpressionMongoParser::parse)
+            .map(MongoSortingExpressionParser::parse)
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -96,8 +96,7 @@ public final class MongoSortingExpressionMongoParser implements SortingExpressio
   }
 
   private static Map<String, Object> parse(final SortingSpec definition) {
-    MongoSortingExpressionMongoParser parser =
-        new MongoSortingExpressionMongoParser(definition.getOrder());
+    MongoSortingExpressionParser parser = new MongoSortingExpressionParser(definition.getOrder());
     return definition.getExpression().visit(parser);
   }
 }
