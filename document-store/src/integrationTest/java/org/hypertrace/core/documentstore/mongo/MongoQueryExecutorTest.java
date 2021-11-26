@@ -210,62 +210,62 @@ public class MongoQueryExecutorTest {
   }
 
   // TODO: Enable in the next PR
-//  @Test
-//  public void testAggregateWithFiltersAndOrdering() throws IOException {
-//    Query query =
-//        Query.builder()
-//            .addSelection(
-//                AggregateExpression.of(
-//                    SUM,
-//                    FunctionExpression.builder()
-//                        .operand(IdentifierExpression.of("price"))
-//                        .operator(MULTIPLY)
-//                        .operand(IdentifierExpression.of("quantity"))
-//                        .build()),
-//                "total")
-//            .addAggregation(IdentifierExpression.of("item"))
-//            .addSort(IdentifierExpression.of("total"), DESC)
-//            .setAggregationFilter(
-//                LogicalExpression.builder()
-//                    .operand(
-//                        RelationalExpression.of(
-//                            IdentifierExpression.of("total"), GTE, ConstantExpression.of(25)))
-//                    .operator(AND)
-//                    .operand(
-//                        RelationalExpression.of(
-//                            IdentifierExpression.of("total"), LTE, ConstantExpression.of(99)))
-//                    .build())
-//            .setFilter(
-//                RelationalExpression.of(
-//                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
-//            .setLimit(10)
-//            .setOffset(0)
-//            .build();
-//
-//    Iterator<Document> resultDocs = collection.aggregate(query);
-//    assertDocsEqual(resultDocs, "mongo/sum_response.json");
-//  }
+  //  @Test
+  //  public void testAggregateWithFiltersAndOrdering() throws IOException {
+  //    Query query =
+  //        Query.builder()
+  //            .addSelection(
+  //                AggregateExpression.of(
+  //                    SUM,
+  //                    FunctionExpression.builder()
+  //                        .operand(IdentifierExpression.of("price"))
+  //                        .operator(MULTIPLY)
+  //                        .operand(IdentifierExpression.of("quantity"))
+  //                        .build()),
+  //                "total")
+  //            .addAggregation(IdentifierExpression.of("item"))
+  //            .addSort(IdentifierExpression.of("total"), DESC)
+  //            .setAggregationFilter(
+  //                LogicalExpression.builder()
+  //                    .operand(
+  //                        RelationalExpression.of(
+  //                            IdentifierExpression.of("total"), GTE, ConstantExpression.of(25)))
+  //                    .operator(AND)
+  //                    .operand(
+  //                        RelationalExpression.of(
+  //                            IdentifierExpression.of("total"), LTE, ConstantExpression.of(99)))
+  //                    .build())
+  //            .setFilter(
+  //                RelationalExpression.of(
+  //                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+  //            .setLimit(10)
+  //            .setOffset(0)
+  //            .build();
+  //
+  //    Iterator<Document> resultDocs = collection.aggregate(query);
+  //    assertDocsEqual(resultDocs, "mongo/sum_response.json");
+  //  }
 
   // TODO: Enable in the next PR
-//  @Test
-//  public void testAggregateWithNestedFields() throws IOException {
-//    Query query =
-//        Query.builder()
-//            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
-//            .addSelection(IdentifierExpression.of("first_item"))
-//            .addSelection(IdentifierExpression.of("num_items"))
-//            .addSelection(IdentifierExpression.of("pincode"))
-//            .addAggregation(IdentifierExpression.of("props.seller.address.pincode"))
-//            .addSort(IdentifierExpression.of("pincode"), DESC)
-//            .addSort(IdentifierExpression.of("first_item"), ASC)
-//            .setAggregationFilter(
-//                RelationalExpression.of(
-//                    IdentifierExpression.of("num_items"), GT, ConstantExpression.of(1)))
-//            .build();
-//
-//    Iterator<Document> resultDocs = collection.aggregate(query);
-//    assertDocsEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json");
-//  }
+  //  @Test
+  //  public void testAggregateWithNestedFields() throws IOException {
+  //    Query query =
+  //        Query.builder()
+  //            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
+  //            .addSelection(IdentifierExpression.of("first_item"))
+  //            .addSelection(IdentifierExpression.of("num_items"))
+  //            .addSelection(IdentifierExpression.of("pincode"))
+  //            .addAggregation(IdentifierExpression.of("props.seller.address.pincode"))
+  //            .addSort(IdentifierExpression.of("pincode"), DESC)
+  //            .addSort(IdentifierExpression.of("first_item"), ASC)
+  //            .setAggregationFilter(
+  //                RelationalExpression.of(
+  //                    IdentifierExpression.of("num_items"), GT, ConstantExpression.of(1)))
+  //            .build();
+  //
+  //    Iterator<Document> resultDocs = collection.aggregate(query);
+  //    assertDocsEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json");
+  //  }
 
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)
       throws IOException {
