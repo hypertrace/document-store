@@ -13,8 +13,8 @@ import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 public final class MongoProjectionSelectingExpressionParser extends MongoSelectingExpressionParser {
   private final String alias;
 
-  MongoProjectionSelectingExpressionParser(final String alias,
-      final MongoSelectingExpressionParser baseParser) {
+  MongoProjectionSelectingExpressionParser(
+      final String alias, final MongoSelectingExpressionParser baseParser) {
     super(baseParser);
     this.alias = alias;
   }
@@ -72,8 +72,8 @@ public final class MongoProjectionSelectingExpressionParser extends MongoSelecti
     return Map.of(alias, parsed);
   }
 
-  private Map<String, Object> convertToMap(final Object parsed,
-      final SelectingExpression expression) {
+  private Map<String, Object> convertToMap(
+      final Object parsed, final SelectingExpression expression) {
     if (parsed == null) {
       return Map.of();
     }

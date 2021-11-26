@@ -6,7 +6,8 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 final class MongoIdentifierPrefixingSelectingExpressionParser
     extends MongoSelectingExpressionParser {
 
-  MongoIdentifierPrefixingSelectingExpressionParser(final MongoSelectingExpressionParser baseParser) {
+  MongoIdentifierPrefixingSelectingExpressionParser(
+      final MongoSelectingExpressionParser baseParser) {
     super(baseParser);
   }
 

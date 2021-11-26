@@ -145,13 +145,14 @@ public final class Query {
     }
 
     private Query build(final Selection selection) {
-      return validateAndReturn(new Query(
-          selection,
-          query.filter,
-          query.aggregation,
-          query.aggregationFilter,
-          query.sort,
-          query.pagination));
+      return validateAndReturn(
+          new Query(
+              selection,
+              query.filter,
+              query.aggregation,
+              query.aggregationFilter,
+              query.sort,
+              query.pagination));
     }
   }
 

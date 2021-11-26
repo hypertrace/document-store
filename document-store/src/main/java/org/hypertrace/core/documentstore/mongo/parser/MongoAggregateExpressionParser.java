@@ -53,8 +53,7 @@ final class MongoAggregateExpressionParser extends MongoSelectingExpressionParse
         new MongoIdentifierPrefixingSelectingExpressionParser(
             new MongoIdentifierExpressionParser(
                 new MongoAggregateExpressionParser(
-                    new MongoFunctionExpressionParser(
-                      new MongoConstantExpressionParser(query)))));
+                    new MongoFunctionExpressionParser(new MongoConstantExpressionParser(query)))));
 
     Object value = expression.getExpression().visit(parser);
     return Map.of(key, value);

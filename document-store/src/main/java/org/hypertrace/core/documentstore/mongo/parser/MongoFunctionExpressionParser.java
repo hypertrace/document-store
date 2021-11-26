@@ -57,8 +57,7 @@ final class MongoFunctionExpressionParser extends MongoSelectingExpressionParser
 
     SelectingExpressionVisitor parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
-            new MongoIdentifierExpressionParser(
-                new MongoConstantExpressionParser(query)));
+            new MongoIdentifierExpressionParser(new MongoConstantExpressionParser(query)));
 
     FunctionOperator operator = expression.getOperator();
     String key = KEY_MAP.get(operator);

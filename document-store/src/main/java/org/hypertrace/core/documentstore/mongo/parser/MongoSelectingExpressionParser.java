@@ -71,8 +71,7 @@ public abstract class MongoSelectingExpressionParser extends MongoExpressionPars
     MongoSelectingExpressionParser parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
             new MongoIdentifierExpressionParser(
-                new MongoFunctionExpressionParser(
-                    new MongoConstantExpressionParser(query))));
+                new MongoFunctionExpressionParser(new MongoConstantExpressionParser(query))));
 
     Map<String, Object> projectionMap =
         selectionSpecs.stream()
