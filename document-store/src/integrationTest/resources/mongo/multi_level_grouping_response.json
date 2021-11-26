@@ -1,17 +1,14 @@
 [
   {
     "item": "Soap",
-    "price": 10,
-    "quantities": [2, 5]
+    "price": 20,
+    "quantities": [5],
+    "num_quantities": 1
   },
   {
-    "item": "Shampoo",
-    "price": 5,
-    "quantities": [10, 20]
-  },
-  {
-    "item": "Comb",
-    "price": 7.5,
-    "quantities": [5, 10]
+    "item": "Mirror",
+    "price": 20,
+    "quantities": [1],
+    "num_quantities": 1
   }
 ]

@@ -40,7 +40,7 @@ public final class MongoGroupingExpressionParser extends MongoExpressionParser
   @Override
   public Map<String, Object> visit(final IdentifierExpression expression) {
     String identifier = new MongoIdentifierExpressionParser(query).parse(expression);
-    String key = identifier.replaceAll("\\.", "-");
+    String key = identifier.replaceAll("\\.", "_");
     return Map.of(key, "$" + identifier);
   }
 

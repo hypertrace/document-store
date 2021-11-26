@@ -126,9 +126,10 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
     }
 
     String key = expression.getName();
-    String identifier = MongoCollection.ID_KEY + "." + key;
+    String identifier = MongoCollection.ID_KEY + "." + key.replaceAll("\\.", "_");
+    String alias = Optional.ofNullable(source.getAlias()).orElse(key);
 
-    return SelectionSpec.of(IdentifierExpression.of(identifier), key);
+    return SelectionSpec.of(IdentifierExpression.of(identifier), alias);
   }
 
   private SelectionSpec substitute(final AggregateExpression expression) {
