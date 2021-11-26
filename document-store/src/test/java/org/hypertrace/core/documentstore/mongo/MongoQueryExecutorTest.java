@@ -109,8 +109,8 @@ class MongoQueryExecutorTest {
   public void testFindWithSelection() {
     Query query =
         Query.builder()
-            .addSelection(IdentifierExpression.of("id"))
-            .addSelection(IdentifierExpression.of("fname"), "name")
+            .selection(IdentifierExpression.of("id"))
+            .selection(IdentifierExpression.of("fname"), "name")
             .build();
 
     executor.find(query);
@@ -130,7 +130,7 @@ class MongoQueryExecutorTest {
   public void testFindWithFilter() {
     Query query =
         Query.builder()
-            .setFilter(
+            .filter(
                 LogicalExpression.builder()
                     .operand(
                         RelationalExpression.of(
@@ -170,8 +170,8 @@ class MongoQueryExecutorTest {
   public void testFindWithSorting() {
     Query query =
         Query.builder()
-            .addSort(IdentifierExpression.of("marks"), DESC)
-            .addSort(IdentifierExpression.of("name"), SortingOrder.ASC)
+            .sort(IdentifierExpression.of("marks"), DESC)
+            .sort(IdentifierExpression.of("name"), SortingOrder.ASC)
             .build();
 
     executor.find(query);
@@ -190,7 +190,7 @@ class MongoQueryExecutorTest {
 
   @Test
   public void testFindWithPagination() {
-    Query query = Query.builder().setLimit(10).setOffset(50).build();
+    Query query = Query.builder().limit(10).offset(50).build();
 
     executor.find(query);
 
@@ -209,13 +209,13 @@ class MongoQueryExecutorTest {
   public void testFindWithAllClauses() {
     Query query =
         Query.builder()
-            .addSelection(IdentifierExpression.of("id"))
-            .addSelection(IdentifierExpression.of("fname"), "name")
-            .addSort(IdentifierExpression.of("marks"), DESC)
-            .addSort(IdentifierExpression.of("name"), SortingOrder.ASC)
-            .setLimit(10)
-            .setOffset(50)
-            .setFilter(
+            .selection(IdentifierExpression.of("id"))
+            .selection(IdentifierExpression.of("fname"), "name")
+            .sort(IdentifierExpression.of("marks"), DESC)
+            .sort(IdentifierExpression.of("name"), SortingOrder.ASC)
+            .limit(10)
+            .offset(50)
+            .filter(
                 LogicalExpression.builder()
                     .operand(
                         RelationalExpression.of(
@@ -256,7 +256,7 @@ class MongoQueryExecutorTest {
   public void testSimpleAggregate() {
     Query query =
         Query.builder()
-            .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+            .selection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
             .build();
 
     List<BasicDBObject> pipeline =
@@ -279,7 +279,7 @@ class MongoQueryExecutorTest {
   public void testAggregateWithProjections() {
     Query query =
         Query.builder()
-            .addSelections(
+            .selections(
                 List.of(
                     SelectionSpec.of(
                         AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total"),
@@ -307,8 +307,8 @@ class MongoQueryExecutorTest {
   public void testAggregateWithMultiLevelGrouping() {
     Query query =
         Query.builder()
-            .addSelection(AggregateExpression.of(MIN, IdentifierExpression.of("rank")), "topper")
-            .addAggregations(
+            .selection(AggregateExpression.of(MIN, IdentifierExpression.of("rank")), "topper")
+            .aggregations(
                 List.of(IdentifierExpression.of("name"), IdentifierExpression.of("class")))
             .build();
 
@@ -335,8 +335,8 @@ class MongoQueryExecutorTest {
   public void testAggregateWithFilter() {
     Query query =
         Query.builder()
-            .addSelection(AggregateExpression.of(SUM, IdentifierExpression.of("marks")), "total")
-            .setFilter(
+            .selection(AggregateExpression.of(SUM, IdentifierExpression.of("marks")), "total")
+            .filter(
                 RelationalExpression.of(
                     IdentifierExpression.of("section"),
                     IN,
@@ -372,7 +372,7 @@ class MongoQueryExecutorTest {
   public void testAggregateWithGroupingFilter() {
     Query query =
         Query.builder()
-            .addSelection(
+            .selection(
                 AggregateExpression.of(
                     SUM,
                     FunctionExpression.builder()
@@ -381,8 +381,8 @@ class MongoQueryExecutorTest {
                         .operand(IdentifierExpression.of("quantity"))
                         .build()),
                 "total")
-            .addAggregation(IdentifierExpression.of("order"))
-            .setAggregationFilter(
+            .aggregation(IdentifierExpression.of("order"))
+            .aggregationFilter(
                 RelationalExpression.of(
                     IdentifierExpression.of("total"),
                     NOT_IN,
@@ -422,12 +422,12 @@ class MongoQueryExecutorTest {
   public void testAggregateWithSorting() {
     Query query =
         Query.builder()
-            .addSelection(
+            .selection(
                 AggregateExpression.of(
                     AVG, AggregateExpression.of(MAX, IdentifierExpression.of("mark"))),
                 "averageHighScore")
-            .addAggregation(IdentifierExpression.of("section"))
-            .addSorts(
+            .aggregation(IdentifierExpression.of("section"))
+            .sorts(
                 List.of(
                     SortingSpec.of(IdentifierExpression.of("averageHighScore"), DESC),
                     SortingSpec.of(IdentifierExpression.of("section"), ASC)))
@@ -463,11 +463,7 @@ class MongoQueryExecutorTest {
   @Test
   public void testAggregateWithPagination() {
     Query query =
-        Query.builder()
-            .addAggregation(IdentifierExpression.of("student"))
-            .setLimit(10)
-            .setOffset(0)
-            .build();
+        Query.builder().aggregation(IdentifierExpression.of("student")).limit(10).offset(0).build();
 
     List<BasicDBObject> pipeline =
         List.of(

@@ -5,6 +5,7 @@ import static org.hypertrace.core.documentstore.expression.Utils.validateAndRetu
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import javax.validation.Valid;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
@@ -28,48 +29,50 @@ import org.hypertrace.core.documentstore.expression.type.SortingExpression;
  *     LIMIT 10
  * </code> can be built as <code>
  *     Query query = Query.builder()
- *         .addSelection(IdentifierExpression.of("col4"))
- *         .addSelection(
+ *         .selection(IdentifierExpression.of("col4"))
+ *         .selection(
  *             AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
  *             "total")
- *         .setFilter(LogicalExpression.of(
+ *         .filter(LogicalExpression.of(
  *             RelationalExpression.of(
  *                 IdentifierExpression.of("col1"),
  *                 LT,
  *                 ConstantExpression.of(7)),
  *             AND,
  *             RelationalExpression.of(
- *                  IdentifierExpression.of("col2"),
- *                  NEQ,
- *                  IdentifierExpression.of("col3"))))
- *         .addAggregation(IdentifierExpression.of("col4"))
- *         .addAggregation(IdentifierExpression.of("col6"))
- *         .setAggregationFilter(
+ *             IdentifierExpression.of("col2"),
+ *             NEQ,
+ *             IdentifierExpression.of("col3"))))
+ *         .aggregation(IdentifierExpression.of("col4"))
+ *         .aggregation(IdentifierExpression.of("col6"))
+ *         .aggregationFilter(
  *             RelationalExpression.of(
  *                 AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
  *                 GTE,
  *                 ConstantExpression.of(100)))
- *         .addSort(
+ *         .sort(
  *             FunctionExpression.builder()
  *                 .operand(IdentifierExpression.of("col7"))
  *                 .operator(ADD)
  *                 .operand(IdentifierExpression.of("col8"))
  *                 .build(),
  *             DESC)
- *         .setOffset(5)
- *         .setLimit(10)
+ *         .offset(5)
+ *         .limit(10)
  *         .build();
  *  </code>
  */
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public final class Query {
-  private final Selection selection; // Missing selection represents fetching all the columns
-  private final Filter filter;
+  @Valid private final Selection selection; // Missing selection represents fetching all the columns
+  @Valid private final Filter filter;
 
-  private final Aggregation aggregation;
-  private final Filter aggregationFilter;
+  @Valid private final Aggregation aggregation;
+  @Valid private final Filter aggregationFilter;
 
-  private final Sort sort;
+  @Valid private final Sort sort;
+
+  @Valid
   private final Pagination pagination; // Missing pagination represents fetching all the records
 
   public static QueryBuilder builder() {
@@ -124,97 +127,67 @@ public final class Query {
 
     private QueryBuilder() {}
 
-    public QueryBuilder setSelection(final Selection selection) {
-      this.selectionBuilder = selection.toBuilder();
+    public QueryBuilder selection(final SelectingExpression expression) {
+      getSelectionBuilder().selectionSpec(SelectionSpec.of(expression));
       return this;
     }
 
-    public QueryBuilder addSelection(final SelectionSpec spec) {
-      getSelectionBuilder().selectionSpec(spec);
+    public QueryBuilder selection(final SelectingExpression expression, final String alias) {
+      getSelectionBuilder().selectionSpec(SelectionSpec.of(expression, alias));
       return this;
     }
 
-    public QueryBuilder addSelection(final SelectingExpression expression) {
-      addSelection(SelectionSpec.of(expression));
-      return this;
-    }
-
-    public QueryBuilder addSelection(final SelectingExpression expression, final String alias) {
-      addSelection(SelectionSpec.of(expression, alias));
-      return this;
-    }
-
-    public QueryBuilder addSelections(final List<SelectionSpec> selectionSpecs) {
+    public QueryBuilder selections(final List<SelectionSpec> selectionSpecs) {
       getSelectionBuilder().selectionSpecs(selectionSpecs);
       return this;
     }
 
-    public QueryBuilder setFilter(final Filter filter) {
-      this.filterBuilder = filter.toBuilder();
-      return this;
-    }
-
-    public QueryBuilder setFilter(final FilteringExpression expression) {
+    public QueryBuilder filter(final FilteringExpression expression) {
       getFilterBuilder().expression(expression);
       return this;
     }
 
-    public QueryBuilder setAggregation(final Aggregation aggregation) {
-      this.aggregationBuilder = aggregation.toBuilder();
+    public QueryBuilder filters(final List<FilteringExpression> expressions) {
+      getFilterBuilder().filters(expressions);
       return this;
     }
 
-    public QueryBuilder addAggregation(final GroupingExpression expression) {
+    public QueryBuilder aggregation(final GroupingExpression expression) {
       getAggregationBuilder().expression(expression);
       return this;
     }
 
-    public QueryBuilder addAggregations(final List<GroupingExpression> expressions) {
+    public QueryBuilder aggregations(final List<GroupingExpression> expressions) {
       getAggregationBuilder().expressions(expressions);
       return this;
     }
 
-    public QueryBuilder setAggregationFilter(final Filter filter) {
-      this.aggregationFilterBuilder = filter.toBuilder();
-      return this;
-    }
-
-    public QueryBuilder setAggregationFilter(final FilteringExpression expression) {
+    public QueryBuilder aggregationFilter(final FilteringExpression expression) {
       getAggregationFilterBuilder().expression(expression);
       return this;
     }
 
-    public QueryBuilder setSort(final Sort sort) {
-      this.sortBuilder = sort.toBuilder();
+    public QueryBuilder aggregationFilters(final List<FilteringExpression> expressions) {
+      getAggregationFilterBuilder().filters(expressions);
       return this;
     }
 
-    public QueryBuilder addSort(final SortingSpec spec) {
-      getSortBuilder().sortingSpec(spec);
+    public QueryBuilder sort(final SortingExpression expression, final SortingOrder order) {
+      getSortBuilder().sortingSpec(SortingSpec.of(expression, order));
       return this;
     }
 
-    public QueryBuilder addSort(final SortingExpression expression, final SortingOrder order) {
-      addSort(SortingSpec.of(expression, order));
-      return this;
-    }
-
-    public QueryBuilder addSorts(final List<SortingSpec> specs) {
+    public QueryBuilder sorts(final List<SortingSpec> specs) {
       getSortBuilder().sortingSpecs(specs);
       return this;
     }
 
-    public QueryBuilder setPagination(final Pagination pagination) {
-      this.paginationBuilder = pagination.toBuilder();
-      return this;
-    }
-
-    public QueryBuilder setLimit(final int limit) {
+    public QueryBuilder limit(final int limit) {
       getPaginationBuilder().limit(limit);
       return this;
     }
 
-    public QueryBuilder setOffset(final int offset) {
+    public QueryBuilder offset(final int offset) {
       getPaginationBuilder().offset(offset);
       return this;
     }
