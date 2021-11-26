@@ -9,17 +9,22 @@ import java.util.Objects;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
+import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoRelationalExpressionParser {
+public class MongoRelationalExpressionParser extends MongoExpressionParser {
 
-  static Map<String, Object> parse(final RelationalExpression expression) {
-    SelectingExpression expression1 = expression.getOperand1();
+  protected MongoRelationalExpressionParser(Query query) {
+    super(query);
+  }
+
+  Map<String, Object> parse(final RelationalExpression expression) {
+    SelectingExpression lhs = expression.getLhs();
     RelationalOperator operator = expression.getOperator();
-    SelectingExpression expression2 = expression.getOperand2();
+    SelectingExpression rhs = expression.getRhs();
 
-    MongoSelectingExpressionParser selectionParser = new MongoSelectingExpressionParser();
-    String key = Objects.toString(expression1.parse(selectionParser));
-    Object value = expression2.parse(selectionParser);
+    MongoSelectingExpressionParser selectionParser = new MongoSelectingExpressionParser(query);
+    String key = Objects.toString(lhs.parse(selectionParser));
+    Object value = rhs.parse(selectionParser);
 
     return generateMap(key, value, operator);
   }

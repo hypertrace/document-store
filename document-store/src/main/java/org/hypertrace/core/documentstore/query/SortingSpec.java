@@ -15,13 +15,13 @@ import org.hypertrace.core.documentstore.expression.type.SortingExpression;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class SortingDefinition {
+public class SortingSpec {
 
   @NotNull SortingExpression expression;
 
   @NotNull SortingOrder order;
 
-  public static SortingDefinition of(SortingExpression expression, SortingOrder order) {
-    return validateAndReturn(new SortingDefinition(expression, order));
+  public static SortingSpec of(SortingExpression expression, SortingOrder order) {
+    return validateAndReturn(new SortingSpec(expression, order));
   }
 }

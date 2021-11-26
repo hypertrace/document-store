@@ -25,11 +25,11 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class RelationalExpression implements FilteringExpression {
 
-  @NotNull SelectingExpression operand1;
+  @NotNull SelectingExpression lhs;
 
   @NotNull RelationalOperator operator;
 
-  @NotNull SelectingExpression operand2;
+  @NotNull SelectingExpression rhs;
 
   public static RelationalExpression of(
       final SelectingExpression operand1,

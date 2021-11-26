@@ -10,15 +10,18 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
 import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
-import org.hypertrace.core.documentstore.query.SortingDefinition;
+import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.SortingSpec;
 
-public class MongoSortingExpressionParser implements SortingExpressionParser {
+public class MongoSortingExpressionParser extends MongoExpressionParser
+    implements SortingExpressionParser {
 
   private static final String SORT_CLAUSE = "$sort";
 
   private final SortingOrder order;
 
-  protected MongoSortingExpressionParser(final SortingOrder order) {
+  protected MongoSortingExpressionParser(final Query query, final SortingOrder order) {
+    super(query);
     this.order = order;
   }
 
@@ -41,23 +44,25 @@ public class MongoSortingExpressionParser implements SortingExpressionParser {
 
   @Override
   public Map<String, Object> parse(final IdentifierExpression expression) {
-    String parsed = MongoIdentifierExpressionParser.parse(expression);
+    String parsed = new MongoIdentifierExpressionParser(query).parse(expression);
     return Map.of(parsed, getOrder());
   }
 
-  public static BasicDBObject getSortClause(final List<SortingDefinition> sortingDefinitions) {
-    BasicDBObject orders = getOrders(sortingDefinitions);
+  public static BasicDBObject getSortClause(final Query query) {
+    BasicDBObject orders = getOrders(query);
     return orders.isEmpty() ? orders : new BasicDBObject(SORT_CLAUSE, orders);
   }
 
-  public static BasicDBObject getOrders(final List<SortingDefinition> sortingDefinitions) {
-    if (CollectionUtils.isEmpty(sortingDefinitions)) {
+  public static BasicDBObject getOrders(final Query query) {
+    List<SortingSpec> sortingSpecs = query.getSorts();
+
+    if (CollectionUtils.isEmpty(sortingSpecs)) {
       return new BasicDBObject();
     }
 
     Map<String, Object> map =
-        sortingDefinitions.stream()
-            .map(MongoSortingExpressionParser::parse)
+        sortingSpecs.stream()
+            .map(spec -> MongoSortingExpressionParser.parse(query, spec))
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -79,8 +84,10 @@ public class MongoSortingExpressionParser implements SortingExpressionParser {
     throw new IllegalArgumentException("Unknown sorting order: " + order.name());
   }
 
-  private static Map<String, Object> parse(final SortingDefinition definition) {
-    MongoSortingExpressionParser parser = new MongoSortingExpressionParser(definition.getOrder());
+  @SuppressWarnings("unchecked")
+  private static Map<String, Object> parse(final Query query, final SortingSpec definition) {
+    MongoSortingExpressionParser parser =
+        new MongoSortingExpressionParser(query, definition.getOrder());
     return (Map<String, Object>) definition.getExpression().parse(parser);
   }
 }

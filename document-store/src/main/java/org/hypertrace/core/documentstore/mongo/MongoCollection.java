@@ -70,6 +70,7 @@ public class MongoCollection implements Collection {
   private static final int MONGODB_DUPLICATE_KEY_ERROR_CODE = 11000;
 
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
+  private final MongoQueryExecutor queryExecutor;
 
   /**
    * The current MongoDB servers we use have a known issue -
@@ -100,6 +101,7 @@ public class MongoCollection implements Collection {
 
   MongoCollection(com.mongodb.client.MongoCollection<BasicDBObject> collection) {
     this.collection = collection;
+    this.queryExecutor = new MongoQueryExecutor(collection);
   }
 
   /**
@@ -458,18 +460,17 @@ public class MongoCollection implements Collection {
     }
 
     final MongoCursor<BasicDBObject> mongoCursor = cursor.cursor();
-    return new Iterator<>() {
+    return convertToDocumentIterator(mongoCursor);
+  }
 
-      @Override
-      public boolean hasNext() {
-        return mongoCursor.hasNext();
-      }
+  @Override
+  public Iterator<Document> find(org.hypertrace.core.documentstore.query.Query query) {
+    return convertToDocumentIterator(queryExecutor.find(query));
+  }
 
-      @Override
-      public Document next() {
-        return MongoCollection.this.dbObjectToDocument(mongoCursor.next());
-      }
-    };
+  @Override
+  public Iterator<Document> aggregate(org.hypertrace.core.documentstore.query.Query query) {
+    return convertToDocumentIterator(queryExecutor.aggregate(query));
   }
 
   @Override
@@ -561,17 +562,7 @@ public class MongoCollection implements Collection {
       BulkWriteResult result = bulkUpsertImpl(documents);
       LOGGER.debug(result.toString());
 
-      return new Iterator<>() {
-        @Override
-        public boolean hasNext() {
-          return mongoCursor.hasNext();
-        }
-
-        @Override
-        public Document next() {
-          return MongoCollection.this.dbObjectToDocument(mongoCursor.next());
-        }
-      };
+      return convertToDocumentIterator(mongoCursor);
     } catch (JsonProcessingException e) {
       LOGGER.error("Error during bulk upsert for documents:{}", documents, e);
       throw new IOException("Error during bulk upsert.");
@@ -593,6 +584,20 @@ public class MongoCollection implements Collection {
             ID_KEY,
             new BasicDBObject(
                 "$in", keys.stream().map(Key::toString).collect(Collectors.toList()))));
+  }
+
+  private Iterator<Document> convertToDocumentIterator(MongoCursor<BasicDBObject> cursor) {
+    return new Iterator<>() {
+      @Override
+      public boolean hasNext() {
+        return cursor.hasNext();
+      }
+
+      @Override
+      public Document next() {
+        return dbObjectToDocument(cursor.next());
+      }
+    };
   }
 
   private Document dbObjectToDocument(BasicDBObject dbObject) {

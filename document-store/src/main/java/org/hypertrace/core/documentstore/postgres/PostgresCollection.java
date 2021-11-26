@@ -275,6 +275,16 @@ public class PostgresCollection implements Collection {
     return Collections.emptyIterator();
   }
 
+  @Override
+  public Iterator<Document> find(org.hypertrace.core.documentstore.query.Query query) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
+  public Iterator<Document> aggregate(org.hypertrace.core.documentstore.query.Query query) {
+    throw new UnsupportedOperationException();
+  }
+
   @VisibleForTesting
   protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
       throws SQLException, RuntimeException {

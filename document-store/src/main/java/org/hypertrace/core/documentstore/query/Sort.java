@@ -14,12 +14,12 @@ import lombok.Value;
 @Value
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class Selection {
-  @Singular @NotEmpty List<@NotNull SelectionSpec> selectionSpecs;
+public class Sort {
+  @NotEmpty @Singular List<@NotNull SortingSpec> sortingSpecs;
 
-  public static class SelectionBuilder {
-    public Selection build() {
-      return validateAndReturn(new Selection(selectionSpecs));
+  public static class SortBuilder {
+    public Sort build() {
+      return validateAndReturn(new Sort(sortingSpecs));
     }
   }
 }

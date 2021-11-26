@@ -10,16 +10,17 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
+import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 
 @Value
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class Selection {
-  @Singular @NotEmpty List<@NotNull SelectionSpec> selectionSpecs;
+public class Aggregation {
+  @Singular @NotEmpty List<@NotNull GroupingExpression> expressions;
 
-  public static class SelectionBuilder {
-    public Selection build() {
-      return validateAndReturn(new Selection(selectionSpecs));
+  public static class AggregationBuilder {
+    public Aggregation build() {
+      return validateAndReturn(new Aggregation(expressions));
     }
   }
 }

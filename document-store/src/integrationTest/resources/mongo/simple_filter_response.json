@@ -1,0 +1,32 @@
+[
+  {
+    "date": "2014-03-01T09:00:00Z",
+    "item": "Mirror",
+    "price": 20,
+    "quantity": 1
+  },
+  {
+    "date": "2015-09-10T08:43:00Z",
+    "item": "Comb",
+    "price": 7.5,
+    "quantity": 10
+  },
+  {
+    "date": "2014-03-15T09:00:00Z",
+    "item": "Shampoo",
+    "price": 5,
+    "quantity": 10
+  },
+  {
+    "date": "2014-04-04T11:21:39.736Z",
+    "item": "Shampoo",
+    "price": 5,
+    "quantity": 20
+  },
+  {
+    "date": "2015-06-04T05:08:13Z",
+    "item": "Comb",
+    "price": 7.5,
+    "quantity": 5
+  }
+]
