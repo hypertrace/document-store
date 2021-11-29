@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.mongodb.BasicDBObject;
+import com.mongodb.MongoNamespace;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.List;
@@ -29,6 +30,9 @@ public class MongoCollectionTest {
   public void setup() {
     collection = mock(com.mongodb.client.MongoCollection.class);
     mongoCollection = new MongoCollection(collection);
+
+    MongoNamespace namespace = new MongoNamespace("Mongo.test_collection");
+    when(collection.getNamespace()).thenReturn(namespace);
   }
 
   @Test
