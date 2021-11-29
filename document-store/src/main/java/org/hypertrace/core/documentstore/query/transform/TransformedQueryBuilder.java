@@ -45,7 +45,7 @@ public final class TransformedQueryBuilder extends QueryBuilder {
   }
 
   private void copySorts(final QueryInternal query) {
-    // Not invoking "addSort()" since we will get an immutable list
+    // Not invoking "addSorts()" since we will get an immutable list
     query.getSorts().forEach(this::addSort);
   }
 
