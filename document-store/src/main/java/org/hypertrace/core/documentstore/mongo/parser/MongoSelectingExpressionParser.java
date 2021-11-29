@@ -68,8 +68,7 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
     List<SelectionSpec> selectionSpecs = query.getSelections();
     MongoSelectingExpressionParser parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
-            new MongoIdentifierExpressionParser(
-                new MongoFunctionExpressionParser(new MongoConstantExpressionParser())));
+            new MongoIdentifierExpressionParser(new MongoFunctionExpressionParser()));
 
     Map<String, Object> projectionMap =
         selectionSpecs.stream()
