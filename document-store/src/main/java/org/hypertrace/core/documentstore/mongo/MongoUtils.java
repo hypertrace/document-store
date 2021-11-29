@@ -10,14 +10,10 @@ public final class MongoUtils {
   }
 
   public static String encodeKey(String key) {
-    return key.replace("\\", "\\\\")
-        .replace(PREFIX, "\\u0024")
-        .replace(FIELD_SEPARATOR, "\\u002e");
+    return key.replace("\\", "\\\\").replace(PREFIX, "\\u0024").replace(FIELD_SEPARATOR, "\\u002e");
   }
 
   public static String decodeKey(String key) {
-    return key.replace("\\u002e", FIELD_SEPARATOR)
-        .replace("\\u0024", PREFIX)
-        .replace("\\\\", "\\");
+    return key.replace("\\u002e", FIELD_SEPARATOR).replace("\\u0024", PREFIX).replace("\\\\", "\\");
   }
 }

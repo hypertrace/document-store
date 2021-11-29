@@ -7,6 +7,7 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
+import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
 
@@ -21,7 +22,6 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
-import org.hypertrace.core.documentstore.mongo.MongoCollection;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
@@ -136,7 +136,7 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
     }
 
     String key = expression.getName();
-    String identifier = MongoCollection.ID_KEY + FIELD_SEPARATOR + encodeKey(key);
+    String identifier = ID_KEY + FIELD_SEPARATOR + encodeKey(key);
     String alias = Optional.ofNullable(source.getAlias()).orElse(key);
 
     return SelectionSpec.of(IdentifierExpression.of(identifier), alias);
