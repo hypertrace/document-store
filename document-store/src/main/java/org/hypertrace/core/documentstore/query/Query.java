@@ -1,8 +1,5 @@
 package org.hypertrace.core.documentstore.query;
 
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-
 /**
  * A generic query definition that supports expressions. Note that this class is a more general
  * version of {@link org.hypertrace.core.documentstore.Query}
@@ -51,7 +48,6 @@ import lombok.NoArgsConstructor;
  *         .build();
  *  </code>
  */
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public abstract class Query {
   public static QueryBuilder builder() {
     return new QueryBuilder();
