@@ -8,8 +8,6 @@ import javax.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.EqualsAndHashCode.CacheStrategy;
 import lombok.Singular;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
@@ -43,7 +41,6 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
 @Value
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-@EqualsAndHashCode(cacheStrategy = CacheStrategy.LAZY)
 public class LogicalExpression implements FilteringExpression {
 
   @Singular

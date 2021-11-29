@@ -1,6 +1,8 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
 
 import com.mongodb.BasicDBObject;
 import java.util.HashMap;
@@ -35,8 +37,8 @@ public final class MongoGroupingExpressionParser implements GroupingExpressionVi
   @Override
   public Map<String, Object> visit(final IdentifierExpression expression) {
     String identifier = new MongoIdentifierExpressionParser().parse(expression);
-    String key = identifier.replaceAll("\\.", "_");
-    return Map.of(key, "$" + identifier);
+    String key = encodeKey(identifier);
+    return Map.of(key, PREFIX + identifier);
   }
 
   public static BasicDBObject getGroupClause(final Query query) {

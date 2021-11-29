@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
@@ -48,7 +50,7 @@ public class MongoDatastore implements Datastore {
   public Set<String> listCollections() {
     Set<String> collections = new HashSet<>();
     for (String collectionName : database.listCollectionNames()) {
-      collections.add(database.getName() + "." + collectionName);
+      collections.add(database.getName() + FIELD_SEPARATOR + collectionName);
     }
     return collections;
   }

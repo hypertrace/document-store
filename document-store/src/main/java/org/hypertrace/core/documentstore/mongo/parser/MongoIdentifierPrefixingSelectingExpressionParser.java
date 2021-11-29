@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
+
 import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
@@ -15,6 +17,6 @@ final class MongoIdentifierPrefixingSelectingExpressionParser
   @Override
   public String visit(final IdentifierExpression expression) {
     assert baseParser != null;
-    return Optional.ofNullable(baseParser.visit(expression)).map(id -> "$" + id).orElse(null);
+    return Optional.ofNullable(baseParser.visit(expression)).map(id -> PREFIX + id).orElse(null);
   }
 }

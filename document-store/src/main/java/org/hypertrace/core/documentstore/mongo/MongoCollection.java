@@ -385,7 +385,7 @@ public class MongoCollection implements Collection {
     String jsonString = document.toJson();
     JsonNode jsonNode = MAPPER.readTree(jsonString);
     // escape "." and "$" in field names since Mongo DB does not like them
-    JsonNode sanitizedJsonNode = recursiveClone(jsonNode, this::encodeKey);
+    JsonNode sanitizedJsonNode = recursiveClone(jsonNode, MongoUtils::encodeKey);
     String sanitizedJsonString = MAPPER.writeValueAsString(sanitizedJsonNode);
     return BasicDBObject.parse(sanitizedJsonString);
   }
@@ -408,14 +408,6 @@ public class MongoCollection implements Collection {
       tgt.set(newFieldName, newValue);
     }
     return tgt;
-  }
-
-  private String encodeKey(String key) {
-    return key.replace("\\", "\\\\").replace("$", "\\u0024").replace(".", "\\u002e");
-  }
-
-  private String decodeKey(String key) {
-    return key.replace("\\u002e", ".").replace("\\u0024", "$").replace("\\\\", "\\");
   }
 
   @Override
@@ -611,7 +603,7 @@ public class MongoCollection implements Collection {
           JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
       jsonString = dbObject.toJson(relaxed);
       JsonNode jsonNode = MAPPER.readTree(jsonString);
-      JsonNode decodedJsonNode = recursiveClone(jsonNode, this::decodeKey);
+      JsonNode decodedJsonNode = recursiveClone(jsonNode, MongoUtils::decodeKey);
       return new JSONDocument(decodedJsonNode);
     } catch (IOException e) {
       // throwing exception is not very useful here.

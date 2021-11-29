@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import static java.util.stream.Collectors.toMap;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
 import java.util.List;
@@ -20,7 +20,7 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
 
   protected final MongoSelectingExpressionParser baseParser;
 
-  public MongoSelectingExpressionParser() {
+  protected MongoSelectingExpressionParser() {
     this(null);
   }
 

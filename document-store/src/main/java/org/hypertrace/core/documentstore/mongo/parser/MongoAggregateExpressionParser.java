@@ -6,7 +6,7 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import java.util.EnumMap;
 import java.util.Map;

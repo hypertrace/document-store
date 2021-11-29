@@ -8,15 +8,12 @@ import javax.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.EqualsAndHashCode;
-import lombok.EqualsAndHashCode.CacheStrategy;
 import lombok.Singular;
 import lombok.Value;
 
 @Value
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-@EqualsAndHashCode(cacheStrategy = CacheStrategy.LAZY)
 public class Selection {
   @Singular @NotEmpty List<@NotNull SelectionSpec> selectionSpecs;
 

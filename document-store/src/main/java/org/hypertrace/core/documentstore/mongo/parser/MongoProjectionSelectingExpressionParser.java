@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
+
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -65,7 +67,7 @@ public final class MongoProjectionSelectingExpressionParser extends MongoSelecti
     }
 
     if (StringUtils.isBlank(alias)) {
-      String key = StringUtils.stripStart(parsed.toString(), "$");
+      String key = StringUtils.stripStart(parsed.toString(), PREFIX);
       return Map.of(key, 1);
     }
 

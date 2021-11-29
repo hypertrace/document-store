@@ -7,6 +7,8 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -120,13 +122,21 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
   @SuppressWarnings("unchecked")
   @Override
   public SelectionSpec visit(final IdentifierExpression expression) {
-    GroupingExpression matchingGroup = groupingExpressionMap.get(expression.hashCode());
-    if (!expression.equals(matchingGroup)) {
+    GroupingExpression matchingGroup = null;
+
+    for (final GroupingExpression group : groupingExpressions) {
+      if (expression.equals(group)) {
+        matchingGroup = group;
+        break;
+      }
+    }
+
+    if (matchingGroup == null) {
       return source;
     }
 
     String key = expression.getName();
-    String identifier = MongoCollection.ID_KEY + "." + key.replaceAll("\\.", "_");
+    String identifier = MongoCollection.ID_KEY + FIELD_SEPARATOR + encodeKey(key);
     String alias = Optional.ofNullable(source.getAlias()).orElse(key);
 
     return SelectionSpec.of(IdentifierExpression.of(identifier), alias);

@@ -13,7 +13,8 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
 import java.util.EnumMap;
@@ -79,7 +80,7 @@ final class MongoRelationalExpressionParser {
   }
 
   private static BiFunction<String, Object, Map<String, Object>> handler(final String op) {
-    return (key, value) -> Map.of(key, new BasicDBObject("$" + op, value));
+    return (key, value) -> Map.of(key, new BasicDBObject(PREFIX + op, value));
   }
 
   private static BiFunction<String, Object, Map<String, Object>> likeHandler() {

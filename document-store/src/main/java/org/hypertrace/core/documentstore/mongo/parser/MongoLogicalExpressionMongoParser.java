@@ -3,7 +3,7 @@ package org.hypertrace.core.documentstore.mongo.parser;
 import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import java.util.EnumMap;
 import java.util.List;

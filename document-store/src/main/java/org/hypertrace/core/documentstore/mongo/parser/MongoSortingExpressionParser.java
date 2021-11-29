@@ -3,7 +3,7 @@ package org.hypertrace.core.documentstore.mongo.parser;
 import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoParserUtils.getUnsupportedOperationException;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
 import java.util.EnumMap;

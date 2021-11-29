@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.mongo;
 
 import static org.hypertrace.core.documentstore.Collection.UNSUPPORTED_QUERY_OPERATION;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 
 import com.mongodb.BasicDBObject;
 import java.util.Arrays;
@@ -28,7 +29,7 @@ class MongoQueryParser {
                     .filter(map -> !map.isEmpty())
                     .collect(Collectors.toList());
             if (!childMapList.isEmpty()) {
-              return Map.of("$" + op.name().toLowerCase(), childMapList);
+              return Map.of(PREFIX + op.name().toLowerCase(), childMapList);
             } else {
               return Collections.emptyMap();
             }
