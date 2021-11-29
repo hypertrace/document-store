@@ -11,7 +11,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
-import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.QueryInternal;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 public abstract class MongoSelectingExpressionParser implements SelectingExpressionVisitor {
@@ -64,7 +64,7 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
     return baseParser.visit(expression);
   }
 
-  public static BasicDBObject getSelections(final Query query) {
+  public static BasicDBObject getSelections(final QueryInternal query) {
     List<SelectionSpec> selectionSpecs = query.getSelections();
     MongoSelectingExpressionParser parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
@@ -79,7 +79,7 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
     return new BasicDBObject(projectionMap);
   }
 
-  public static BasicDBObject getProjectClause(final Query query) {
+  public static BasicDBObject getProjectClause(final QueryInternal query) {
     BasicDBObject selections = getSelections(query);
 
     if (selections.isEmpty()) {

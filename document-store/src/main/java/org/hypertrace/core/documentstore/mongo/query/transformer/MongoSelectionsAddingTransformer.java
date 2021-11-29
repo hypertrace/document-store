@@ -4,14 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
-import org.hypertrace.core.documentstore.query.Query;
-import org.hypertrace.core.documentstore.query.Query.TransformedQueryBuilder;
-import org.hypertrace.core.documentstore.query.QueryTransformer;
+import org.hypertrace.core.documentstore.query.QueryInternal;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
+import org.hypertrace.core.documentstore.query.transform.QueryTransformer;
+import org.hypertrace.core.documentstore.query.transform.TransformedQueryBuilder;
 
 final class MongoSelectionsAddingTransformer implements QueryTransformer {
   @Override
-  public Query transform(final Query query) {
+  public QueryInternal transform(final QueryInternal query) {
     List<SelectionSpec> newSpecs = new ArrayList<>();
 
     for (SelectionSpec spec : query.getSelections()) {
@@ -25,6 +25,6 @@ final class MongoSelectionsAddingTransformer implements QueryTransformer {
       newSpec.ifPresent(newSpecs::add);
     }
 
-    return new TransformedQueryBuilder(query).buildWithMoreSelections(newSpecs);
+    return (QueryInternal) new TransformedQueryBuilder(query).addSelections(newSpecs).build();
   }
 }

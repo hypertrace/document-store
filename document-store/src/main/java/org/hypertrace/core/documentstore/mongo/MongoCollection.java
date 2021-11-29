@@ -456,12 +456,12 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> find(org.hypertrace.core.documentstore.query.Query query) {
+  public Iterator<Document> find(final org.hypertrace.core.documentstore.query.Query query) {
     return convertToDocumentIterator(queryExecutor.find(query));
   }
 
   @Override
-  public Iterator<Document> aggregate(org.hypertrace.core.documentstore.query.Query query) {
+  public Iterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query) {
     return convertToDocumentIterator(queryExecutor.aggregate(query));
   }
 

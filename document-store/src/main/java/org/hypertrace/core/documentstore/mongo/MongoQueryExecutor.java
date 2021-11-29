@@ -25,15 +25,17 @@ import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.QueryInternal;
 
 @Slf4j
 @AllArgsConstructor
 public class MongoQueryExecutor {
   final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
-  public MongoCursor<BasicDBObject> find(final Query query) {
+  public MongoCursor<BasicDBObject> find(final Query originalQuery) {
+    QueryInternal query = (QueryInternal) originalQuery;
 
-    BasicDBObject filterClause = getFilter(query, Query::getFilter);
+    BasicDBObject filterClause = getFilter(query, QueryInternal::getFilter);
     BasicDBObject projection = getSelections(query);
 
     FindIterable<BasicDBObject> iterable = collection.find(filterClause).projection(projection);
@@ -51,10 +53,10 @@ public class MongoQueryExecutor {
   }
 
   public MongoCursor<BasicDBObject> aggregate(final Query originalQuery) {
-    Query query = transformAndLog(originalQuery);
+    QueryInternal query = transformAndLog(originalQuery);
 
-    BasicDBObject filterClause = getFilterClause(query, Query::getFilter);
-    BasicDBObject groupFilterClause = getFilterClause(query, Query::getAggregationFilter);
+    BasicDBObject filterClause = getFilterClause(query, QueryInternal::getFilter);
+    BasicDBObject groupFilterClause = getFilterClause(query, QueryInternal::getAggregationFilter);
 
     BasicDBObject groupClause = getGroupClause(query);
     BasicDBObject sortClause = getSortClause(query);
@@ -83,7 +85,7 @@ public class MongoQueryExecutor {
   }
 
   private void logClauses(
-      final Query query,
+      final QueryInternal query,
       final Bson projection,
       final Bson filterClause,
       final Bson sortOrders,
@@ -105,7 +107,9 @@ public class MongoQueryExecutor {
         pipeline);
   }
 
-  private Query transformAndLog(Query query) {
+  private QueryInternal transformAndLog(final Query originalQuery) {
+    QueryInternal query = (QueryInternal) originalQuery;
+
     log.debug("MongoDB query before transformation: {}", query);
     query = MongoQueryTransformer.transform(query);
     log.debug("MongoDB query after transformation: {}", query);

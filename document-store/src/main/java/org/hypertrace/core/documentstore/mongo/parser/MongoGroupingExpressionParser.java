@@ -16,7 +16,7 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 import org.hypertrace.core.documentstore.parser.GroupingExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
-import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.QueryInternal;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 public final class MongoGroupingExpressionParser implements GroupingExpressionVisitor {
@@ -41,7 +41,7 @@ public final class MongoGroupingExpressionParser implements GroupingExpressionVi
     return Map.of(key, PREFIX + identifier);
   }
 
-  public static BasicDBObject getGroupClause(final Query query) {
+  public static BasicDBObject getGroupClause(final QueryInternal query) {
     final List<SelectionSpec> selectionSpecs = query.getSelections();
     final List<GroupingExpression> expressions = query.getAggregations();
 

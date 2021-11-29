@@ -8,7 +8,7 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
-import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.QueryInternal;
 
 public final class MongoFilteringExpressionParser implements FilteringExpressionVisitor {
 
@@ -27,13 +27,15 @@ public final class MongoFilteringExpressionParser implements FilteringExpression
   }
 
   public static BasicDBObject getFilterClause(
-      final Query query, final Function<Query, Optional<FilteringExpression>> filterProvider) {
+      final QueryInternal query,
+      final Function<QueryInternal, Optional<FilteringExpression>> filterProvider) {
     BasicDBObject filters = getFilter(query, filterProvider);
     return filters.isEmpty() ? new BasicDBObject() : new BasicDBObject(FILTER_CLAUSE, filters);
   }
 
   public static BasicDBObject getFilter(
-      final Query query, final Function<Query, Optional<FilteringExpression>> filterProvider) {
+      final QueryInternal query,
+      final Function<QueryInternal, Optional<FilteringExpression>> filterProvider) {
     Optional<FilteringExpression> filterOptional = filterProvider.apply(query);
 
     if (filterOptional.isEmpty()) {
