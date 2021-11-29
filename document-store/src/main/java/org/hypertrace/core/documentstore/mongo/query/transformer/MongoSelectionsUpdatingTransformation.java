@@ -1,8 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.query.transformer;
 
 import static java.util.Collections.unmodifiableMap;
-import static java.util.function.Function.identity;
-import static java.util.stream.Collectors.toMap;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
@@ -92,13 +90,11 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
 
   private final List<GroupingExpression> groupingExpressions;
   private final SelectionSpec source;
-  private final Map<Integer, GroupingExpression> groupingExpressionMap;
 
   MongoSelectionsUpdatingTransformation(
       List<GroupingExpression> groupingExpressions, SelectionSpec source) {
     this.groupingExpressions = groupingExpressions;
     this.source = source;
-    this.groupingExpressionMap = buildGroupingExpressionMap();
   }
 
   @SuppressWarnings("unchecked")
@@ -146,9 +142,5 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
     return Optional.ofNullable(AGGREGATION_SUBSTITUTE_MAP.get(expression.getAggregator()))
         .map(converter -> SelectionSpec.of(converter.apply(expression), source.getAlias()))
         .orElse(source);
-  }
-
-  private Map<Integer, GroupingExpression> buildGroupingExpressionMap() {
-    return groupingExpressions.stream().collect(toMap(GroupingExpression::hashCode, identity()));
   }
 }
