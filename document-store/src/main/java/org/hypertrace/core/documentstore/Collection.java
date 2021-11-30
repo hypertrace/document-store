@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import org.hypertrace.core.documentstore.query.QueryInternal;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
@@ -57,7 +56,7 @@ public interface Collection {
 
   /**
    * Search for documents matching the query. For advanced functionalities like selecting summing
-   * column values, sorting by expressions, etc., ref. {@link #find(QueryInternal)}
+   * column values, sorting by expressions, etc., ref. {@link #find}
    *
    * @param query filter to query matching documents
    * @return {@link Iterator} of matching documents

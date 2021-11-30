@@ -24,18 +24,18 @@ final class MongoLogicalExpressionMongoParser {
           });
 
   Map<String, Object> parse(final LogicalExpression expression) {
-    FilteringExpressionVisitor parser = new MongoFilteringExpressionParser();
-    List<Object> parsed =
-        expression.getOperands().stream()
-            .map(exp -> exp.visit(parser))
-            .collect(Collectors.toList());
-
     LogicalOperator operator = expression.getOperator();
     String key = KEY_MAP.get(operator);
 
     if (key == null) {
       throw getUnsupportedOperationException(operator);
     }
+
+    FilteringExpressionVisitor parser = new MongoFilteringExpressionParser();
+    List<Object> parsed =
+        expression.getOperands().stream()
+            .map(exp -> exp.visit(parser))
+            .collect(Collectors.toList());
 
     return Map.of(key, parsed);
   }

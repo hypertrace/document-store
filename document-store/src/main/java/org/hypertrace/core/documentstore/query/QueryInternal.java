@@ -24,11 +24,7 @@ public final class QueryInternal extends Query {
   private final Pagination pagination; // Missing pagination represents fetching all the records
 
   public List<SelectionSpec> getSelections() {
-    if (selection == null) {
-      return emptyList();
-    }
-
-    return unmodifiableList(selection.getSelectionSpecs());
+    return selection == null ? emptyList() : unmodifiableList(selection.getSelectionSpecs());
   }
 
   public Optional<FilteringExpression> getFilter() {
@@ -36,11 +32,7 @@ public final class QueryInternal extends Query {
   }
 
   public List<GroupingExpression> getAggregations() {
-    if (aggregation == null) {
-      return emptyList();
-    }
-
-    return unmodifiableList(aggregation.getExpressions());
+    return aggregation == null ? emptyList() : unmodifiableList(aggregation.getExpressions());
   }
 
   public Optional<FilteringExpression> getAggregationFilter() {
@@ -48,11 +40,7 @@ public final class QueryInternal extends Query {
   }
 
   public List<SortingSpec> getSorts() {
-    if (sort == null) {
-      return emptyList();
-    }
-
-    return unmodifiableList(sort.getSortingSpecs());
+    return sort == null ? emptyList() : unmodifiableList(sort.getSortingSpecs());
   }
 
   public Optional<Pagination> getPagination() {
