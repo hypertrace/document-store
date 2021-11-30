@@ -19,6 +19,6 @@ final class MongoSelectionsUpdatingTransformer implements QueryTransformer {
       newSpecs.add(newSpec);
     }
 
-    return (QueryInternal) new TransformedQueryBuilder(query).replaceSelections(newSpecs).build();
+    return (QueryInternal) new TransformedQueryBuilder(query).setSelections(newSpecs).build();
   }
 }

@@ -27,6 +27,14 @@ public class QueryBuilder {
     return this;
   }
 
+  public QueryBuilder setSelections(final List<SelectionSpec> selectionSpecs) {
+    if (CollectionUtils.isNotEmpty(selectionSpecs)) {
+      getSelectionBuilder().clearSelectionSpecs();
+    }
+
+    return addSelections(selectionSpecs);
+  }
+
   public QueryBuilder addSelection(final SelectionSpec spec) {
     getSelectionBuilder().selectionSpec(spec);
     return this;
@@ -64,6 +72,13 @@ public class QueryBuilder {
     return this;
   }
 
+  public QueryBuilder setAggregations(final List<GroupingExpression> expressions) {
+    if (CollectionUtils.isNotEmpty(expressions)) {
+      getAggregationBuilder().clearExpressions();
+    }
+    return addAggregations(expressions);
+  }
+
   public QueryBuilder addAggregation(final GroupingExpression expression) {
     getAggregationBuilder().expression(expression);
     return this;
@@ -89,6 +104,13 @@ public class QueryBuilder {
   public QueryBuilder setSort(final Sort sort) {
     this.sortBuilder = sort.toBuilder();
     return this;
+  }
+
+  public QueryBuilder setSorts(final List<SortingSpec> specs) {
+    if (CollectionUtils.isNotEmpty(specs)) {
+      getSortBuilder().clearSortingSpecs();
+    }
+    return addSorts(specs);
   }
 
   public QueryBuilder addSort(final SortingSpec spec) {
