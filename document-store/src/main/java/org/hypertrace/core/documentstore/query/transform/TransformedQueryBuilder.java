@@ -9,7 +9,7 @@ public final class TransformedQueryBuilder extends QueryBuilder {
     copySelections(query);
     copyFilter(query);
 
-    copyAggregation(query);
+    copyAggregations(query);
     copyAggregationFilter(query);
 
     copySorts(query);
@@ -25,7 +25,7 @@ public final class TransformedQueryBuilder extends QueryBuilder {
     query.getFilter().ifPresent(this::setFilter);
   }
 
-  private void copyAggregation(final QueryInternal query) {
+  private void copyAggregations(final QueryInternal query) {
     // Iterate through elements to ensure deep-copy
     query.getAggregations().forEach(this::addAggregation);
   }
