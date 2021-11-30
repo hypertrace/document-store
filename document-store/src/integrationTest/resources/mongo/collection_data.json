@@ -52,8 +52,8 @@
   {
     "_id": 5,
     "item": "Soap",
-    "price": 10,
-    "quantity": 10,
+    "price": 20,
+    "quantity": 5,
     "date": "2014-04-04T21:23:13.331Z",
     "props": {
       "brand": "Lifebuoy",

@@ -1,10 +1,10 @@
 [
   {
-    "item": "Soap",
-    "total": 70
-  },
-  {
     "item": "Comb",
     "total": 37.5
+  },
+  {
+    "item": "Mirror",
+    "total": 20
   }
 ]

@@ -6,7 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 
 /**
  * Expression representing either a string constant, a numeric constant or a list of string/numeric
@@ -57,7 +57,7 @@ public class ConstantExpression implements SelectingExpression {
   }
 
   @Override
-  public Object parse(final SelectingExpressionParser parser) {
-    return parser.parse(this);
+  public <T> T visit(final SelectingExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 }

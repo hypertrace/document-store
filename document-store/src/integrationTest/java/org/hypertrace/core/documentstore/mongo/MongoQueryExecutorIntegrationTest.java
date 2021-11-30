@@ -1,9 +1,19 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
@@ -11,6 +21,7 @@ import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
+import static org.junit.Assert.assertThrows;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -27,6 +38,7 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -47,7 +59,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
-public class MongoQueryExecutorTest {
+public class MongoQueryExecutorIntegrationTest {
   private static final String COLLECTION_NAME = "mongoQueryExecutorTest";
 
   private static GenericContainer<?> mongo;
@@ -202,70 +214,149 @@ public class MongoQueryExecutorTest {
   public void testAggregateSimple() throws IOException {
     Query query =
         Query.builder()
-            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "count")
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/count_response.json");
   }
 
-  // TODO: Enable in the next PR
-  //  @Test
-  //  public void testAggregateWithFiltersAndOrdering() throws IOException {
-  //    Query query =
-  //        Query.builder()
-  //            .addSelection(
-  //                AggregateExpression.of(
-  //                    SUM,
-  //                    FunctionExpression.builder()
-  //                        .operand(IdentifierExpression.of("price"))
-  //                        .operator(MULTIPLY)
-  //                        .operand(IdentifierExpression.of("quantity"))
-  //                        .build()),
-  //                "total")
-  //            .addAggregation(IdentifierExpression.of("item"))
-  //            .addSort(IdentifierExpression.of("total"), DESC)
-  //            .setAggregationFilter(
-  //                LogicalExpression.builder()
-  //                    .operand(
-  //                        RelationalExpression.of(
-  //                            IdentifierExpression.of("total"), GTE, ConstantExpression.of(25)))
-  //                    .operator(AND)
-  //                    .operand(
-  //                        RelationalExpression.of(
-  //                            IdentifierExpression.of("total"), LTE, ConstantExpression.of(99)))
-  //                    .build())
-  //            .setFilter(
-  //                RelationalExpression.of(
-  //                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
-  //            .setLimit(10)
-  //            .setOffset(0)
-  //            .build();
-  //
-  //    Iterator<Document> resultDocs = collection.aggregate(query);
-  //    assertDocsEqual(resultDocs, "mongo/sum_response.json");
-  //  }
+  @Test
+  public void testAggregateWithFiltersAndOrdering() throws IOException {
+    Query query =
+        Query.builder()
+            .addSelection(
+                AggregateExpression.of(
+                    SUM,
+                    FunctionExpression.builder()
+                        .operand(IdentifierExpression.of("price"))
+                        .operator(MULTIPLY)
+                        .operand(IdentifierExpression.of("quantity"))
+                        .build()),
+                "total")
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addSort(IdentifierExpression.of("total"), DESC)
+            .setAggregationFilter(
+                LogicalExpression.builder()
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("total"), GTE, ConstantExpression.of(11)))
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("total"), LTE, ConstantExpression.of(99)))
+                    .build())
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .setPagination(Pagination.builder().limit(10).offset(0).build())
+            .build();
 
-  // TODO: Enable in the next PR
-  //  @Test
-  //  public void testAggregateWithNestedFields() throws IOException {
-  //    Query query =
-  //        Query.builder()
-  //            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
-  //            .addSelection(IdentifierExpression.of("first_item"))
-  //            .addSelection(IdentifierExpression.of("num_items"))
-  //            .addSelection(IdentifierExpression.of("pincode"))
-  //            .addAggregation(IdentifierExpression.of("props.seller.address.pincode"))
-  //            .addSort(IdentifierExpression.of("pincode"), DESC)
-  //            .addSort(IdentifierExpression.of("first_item"), ASC)
-  //            .setAggregationFilter(
-  //                RelationalExpression.of(
-  //                    IdentifierExpression.of("num_items"), GT, ConstantExpression.of(1)))
-  //            .build();
-  //
-  //    Iterator<Document> resultDocs = collection.aggregate(query);
-  //    assertDocsEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json");
-  //  }
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo/sum_response.json");
+  }
+
+  @Test
+  public void testAggregateWithNestedFields() throws IOException {
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("props.seller.address.pincode"), "pincode")
+            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
+            .addAggregation(IdentifierExpression.of("props.seller.address.pincode"))
+            .addSort(IdentifierExpression.of("pincode"), DESC)
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("num_items"), GT, ConstantExpression.of(1)))
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json");
+  }
+
+  @Test
+  public void testAggregateWithoutAggregationAlias() {
+    Query query =
+        Query.builder()
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")))
+            .build();
+
+    assertThrows(IllegalArgumentException.class, () -> collection.aggregate(query));
+  }
+
+  @Test
+  public void testAggregateWithUnsupportedExpressionNesting() {
+    Query query =
+        Query.builder()
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(
+                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    ConstantExpression.of(1),
+                    GT,
+                    FunctionExpression.builder()
+                        .operator(LENGTH)
+                        .operand(IdentifierExpression.of("quantities"))
+                        .build()))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    assertThrows(UnsupportedOperationException.class, () -> collection.aggregate(query));
+  }
+
+  @Test
+  public void testAggregateWithMultipleGroupingLevels() throws IOException {
+    Query query =
+        Query.builder()
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(
+                FunctionExpression.builder()
+                    .operator(LENGTH)
+                    .operand(IdentifierExpression.of("quantities"))
+                    .build(),
+                "num_quantities")
+            .addSelection(
+                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("num_quantities"), EQ, ConstantExpression.of(1)))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo/multi_level_grouping_response.json");
+  }
+
+  @Test
+  public void testDistinctCount() throws IOException {
+    Query query =
+        Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(1000)))
+            .addSort(IdentifierExpression.of("qty_count"), DESC)
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo/distinct_count_response.json");
+  }
 
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)
       throws IOException {

@@ -276,12 +276,12 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> find(org.hypertrace.core.documentstore.query.Query query) {
+  public Iterator<Document> find(final org.hypertrace.core.documentstore.query.Query query) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public Iterator<Document> aggregate(org.hypertrace.core.documentstore.query.Query query) {
+  public Iterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query) {
     throw new UnsupportedOperationException();
   }
 

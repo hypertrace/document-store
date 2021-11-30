@@ -16,13 +16,13 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
-import com.mongodb.client.model.Projections;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
+import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 
@@ -32,9 +32,8 @@ public class MongoQueryExecutor {
   final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
   public MongoCursor<BasicDBObject> find(final Query query) {
-
     BasicDBObject filterClause = getFilter(query, Query::getFilter);
-    Bson projection = Projections.include(getSelections(query));
+    BasicDBObject projection = getSelections(query);
 
     FindIterable<BasicDBObject> iterable = collection.find(filterClause).projection(projection);
 
@@ -45,12 +44,13 @@ public class MongoQueryExecutor {
 
     applyPagination(iterable, query);
 
-    logClauses(projection, filterClause, sortOrders, query.getPagination().orElse(null));
+    logClauses(query, projection, filterClause, sortOrders, query.getPagination().orElse(null));
 
     return iterable.cursor();
   }
 
-  public MongoCursor<BasicDBObject> aggregate(final Query query) {
+  public MongoCursor<BasicDBObject> aggregate(final Query originalQuery) {
+    Query query = transformAndLog(originalQuery);
 
     BasicDBObject filterClause = getFilterClause(query, Query::getFilter);
     BasicDBObject groupFilterClause = getFilterClause(query, Query::getAggregationFilter);
@@ -67,11 +67,11 @@ public class MongoQueryExecutor {
         Stream.of(
                 filterClause,
                 groupClause,
+                projectClause,
                 groupFilterClause,
                 sortClause,
                 skipClause,
-                limitClause,
-                projectClause)
+                limitClause)
             .filter(not(BasicDBObject::isEmpty))
             .collect(Collectors.toList());
 
@@ -82,9 +82,14 @@ public class MongoQueryExecutor {
   }
 
   private void logClauses(
-      Bson projection, Bson filterClause, Bson sortOrders, Pagination pagination) {
+      final Query query,
+      final Bson projection,
+      final Bson filterClause,
+      final Bson sortOrders,
+      final Pagination pagination) {
     log.debug(
-        "MongoDB find():\nCollection: {}\n Projections: {}\n Filter: {}\n Sorting: {}\n Pagination: {}",
+        "MongoDB find():\nQuery: {}\nCollection: {}\n Projections: {}\n Filter: {}\n Sorting: {}\n Pagination: {}",
+        query,
         collection.getNamespace(),
         projection,
         filterClause,
@@ -92,10 +97,17 @@ public class MongoQueryExecutor {
         pagination);
   }
 
-  private void logPipeline(List<BasicDBObject> pipeline) {
+  private void logPipeline(final List<BasicDBObject> pipeline) {
     log.debug(
         "MongoDB aggregation():\n Collection: {}\n Pipeline: {}",
         collection.getNamespace(),
         pipeline);
+  }
+
+  private Query transformAndLog(Query query) {
+    log.debug("MongoDB query before transformation: {}", query);
+    query = MongoQueryTransformer.transform(query);
+    log.debug("MongoDB query after transformation: {}", query);
+    return query;
   }
 }

@@ -9,8 +9,8 @@ import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 import org.hypertrace.core.documentstore.expression.type.SortingExpression;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
-import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 
 /**
  * Expression representing aggregation in a query.
@@ -33,12 +33,12 @@ public class AggregateExpression implements SelectingExpression, SortingExpressi
   }
 
   @Override
-  public Object parse(final SelectingExpressionParser parser) {
-    return parser.parse(this);
+  public <T> T visit(final SelectingExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 
   @Override
-  public Object parse(final SortingExpressionParser parser) {
-    return parser.parse(this);
+  public <T> T visit(final SortingExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 }

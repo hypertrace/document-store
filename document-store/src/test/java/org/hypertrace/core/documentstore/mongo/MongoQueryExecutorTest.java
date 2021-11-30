@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo;
 
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
@@ -11,6 +12,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
@@ -28,8 +30,6 @@ import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.List;
-import org.bson.BsonDocument;
-import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -37,6 +37,7 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
+import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.SortingSpec;
@@ -70,13 +71,13 @@ class MongoQueryExecutorTest {
   void setUp() {
     executor = new MongoQueryExecutor(collection);
 
-    when(collection.find(any(Bson.class))).thenReturn(iterable);
+    when(collection.find(any(BasicDBObject.class))).thenReturn(iterable);
     when(collection.aggregate(anyList())).thenReturn(aggIterable);
 
-    when(iterable.projection(any(Bson.class))).thenReturn(iterable);
+    when(iterable.projection(any(BasicDBObject.class))).thenReturn(iterable);
     when(iterable.skip(anyInt())).thenReturn(iterable);
     when(iterable.limit(anyInt())).thenReturn(iterable);
-    when(iterable.sort(any(Bson.class))).thenReturn(iterable);
+    when(iterable.sort(any(BasicDBObject.class))).thenReturn(iterable);
 
     when(iterable.cursor()).thenReturn(cursor);
     when(aggIterable.cursor()).thenReturn(cursor);
@@ -95,7 +96,7 @@ class MongoQueryExecutorTest {
     executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
-    Bson projection = new BsonDocument();
+    BasicDBObject projection = new BasicDBObject();
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -116,7 +117,7 @@ class MongoQueryExecutorTest {
     executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
-    Bson projection = BsonDocument.parse("{id: 1, fname: 1}");
+    BasicDBObject projection = BasicDBObject.parse("{id: 1, name: \"$fname\"}");
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -156,7 +157,7 @@ class MongoQueryExecutorTest {
                 + " }"
                 + "]"
                 + "}");
-    Bson projection = new BsonDocument();
+    BasicDBObject projection = new BasicDBObject();
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -178,7 +179,7 @@ class MongoQueryExecutorTest {
 
     BasicDBObject mongoQuery = new BasicDBObject();
     BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
-    Bson projection = new BsonDocument();
+    BasicDBObject projection = new BasicDBObject();
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -190,12 +191,13 @@ class MongoQueryExecutorTest {
 
   @Test
   public void testFindWithPagination() {
-    Query query = Query.builder().setLimit(10).setOffset(50).build();
+    Query query =
+        Query.builder().setPagination(Pagination.builder().limit(10).offset(50).build()).build();
 
     executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
-    Bson projection = new BsonDocument();
+    BasicDBObject projection = new BasicDBObject();
 
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
@@ -213,8 +215,7 @@ class MongoQueryExecutorTest {
             .addSelection(IdentifierExpression.of("fname"), "name")
             .addSort(IdentifierExpression.of("marks"), DESC)
             .addSort(IdentifierExpression.of("name"), SortingOrder.ASC)
-            .setLimit(10)
-            .setOffset(50)
+            .setPagination(Pagination.builder().offset(50).limit(10).build())
             .setFilter(
                 LogicalExpression.builder()
                     .operand(
@@ -241,7 +242,7 @@ class MongoQueryExecutorTest {
                 + " }"
                 + "]"
                 + "}");
-    Bson projection = BsonDocument.parse("{id: 1, fname: 1}");
+    BasicDBObject projection = BasicDBObject.parse("{id: 1, name: \"$fname\"}");
     BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
 
     verify(collection).find(mongoQuery);
@@ -267,10 +268,11 @@ class MongoQueryExecutorTest {
                     + "   { "
                     + "     _id: null, "
                     + "     total: {"
-                    + "       \"$count\": 1"
+                    + "       \"$sum\": 1"
                     + "     }"
                     + "   }"
-                    + "}"));
+                    + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "    \"total\": 1" + "}" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -294,11 +296,18 @@ class MongoQueryExecutorTest {
                     + "   { "
                     + "     _id: null, "
                     + "     total: {"
-                    + "       \"$count\": 1"
+                    + "       \"$sum\": 1"
                     + "     }"
                     + "   }"
                     + "}"),
-            BasicDBObject.parse("{" + "\"$project\": " + "   {" + "     name: 1" + "   }" + "}"));
+            BasicDBObject.parse(
+                "{"
+                    + "\"$project\": "
+                    + "   {"
+                    + "     name: 1,"
+                    + "     total: 1"
+                    + "   }"
+                    + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -326,7 +335,8 @@ class MongoQueryExecutorTest {
                     + "       \"$min\": \"$rank\""
                     + "     }"
                     + "   }"
-                    + "}"));
+                    + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "   \"topper\": 1" + " }" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -363,7 +373,8 @@ class MongoQueryExecutorTest {
                     + "       \"$sum\": \"$marks\" "
                     + "     }"
                     + "   }"
-                    + "}"));
+                    + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": 1" + " }" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -405,6 +416,7 @@ class MongoQueryExecutorTest {
                     + "     }"
                     + "   }"
                     + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": 1" + " }" + "}"),
             BasicDBObject.parse(
                 "{"
                     + "\"$match\":"
@@ -450,6 +462,8 @@ class MongoQueryExecutorTest {
                     + "   }"
                     + "}"),
             BasicDBObject.parse(
+                "{" + "\"$project\": {" + "     \"averageHighScore\": 1" + " }" + "}"),
+            BasicDBObject.parse(
                 "{"
                     + "   \"$sort\": {"
                     + "       averageHighScore: -1,"
@@ -465,8 +479,7 @@ class MongoQueryExecutorTest {
     Query query =
         Query.builder()
             .addAggregation(IdentifierExpression.of("student"))
-            .setLimit(10)
-            .setOffset(0)
+            .setPagination(Pagination.builder().offset(0).limit(10).build())
             .build();
 
     List<BasicDBObject> pipeline =
@@ -482,6 +495,54 @@ class MongoQueryExecutorTest {
                     + "}"),
             BasicDBObject.parse("{" + "\"$skip\": 0" + "}"),
             BasicDBObject.parse("{" + "\"$limit\": 10" + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testGetDistinctCount() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("class"), LTE, ConstantExpression.of(10)))
+            .addAggregation(IdentifierExpression.of("class"))
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("section")),
+                "section_count")
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$match\": "
+                    + "{"
+                    + "   \"class\": {"
+                    + "       \"$lte\": 10"
+                    + "    }"
+                    + "}"
+                    + "}"),
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: {"
+                    + "       class: \"$class\""
+                    + "     },"
+                    + "     section_count: {"
+                    + "       \"$addToSet\": \"$section\""
+                    + "     } "
+                    + "   }"
+                    + "}"),
+            BasicDBObject.parse(
+                "{"
+                    + "\"$project\": {"
+                    + "    section_count: {"
+                    + "       \"$size\": \"$section_count\""
+                    + "    }"
+                    + "}"
+                    + "}"));
 
     testAggregation(query, pipeline);
   }

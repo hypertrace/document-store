@@ -1,74 +1,82 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
-import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.toMap;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.client.model.Projections;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public class MongoSelectingExpressionParser extends MongoExpressionParser
-    implements SelectingExpressionParser {
+public abstract class MongoSelectingExpressionParser implements SelectingExpressionVisitor {
 
   private static final String PROJECT_CLAUSE = "$project";
 
-  private final String identifierPrefix;
+  protected final MongoSelectingExpressionParser baseParser;
 
-  public MongoSelectingExpressionParser(final Query query) {
-    this(query, false);
+  protected MongoSelectingExpressionParser() {
+    this(MongoUnsupportedSelectingExpressionParser.INSTANCE);
   }
 
-  public MongoSelectingExpressionParser(final Query query, final boolean prefixIdentifier) {
-    super(query);
-    this.identifierPrefix = prefixIdentifier ? "$" : "";
-  }
-
-  @Override
-  public Map<String, Object> parse(final AggregateExpression expression) {
-    return new MongoAggregateExpressionParser(query).parse(expression);
+  protected MongoSelectingExpressionParser(final MongoSelectingExpressionParser baseParser) {
+    this.baseParser = baseParser;
   }
 
   @Override
-  public Object parse(final ConstantExpression expression) {
-    return new MongoConstantExpressionParser(query).parse(expression);
+  public <T> T visit(final AggregateExpression expression) {
+    return baseParser.visit(expression);
   }
 
   @Override
-  public Map<String, Object> parse(final FunctionExpression expression) {
-    return new MongoFunctionExpressionParser(query).parse(expression);
+  public <T> T visit(final ConstantExpression expression) {
+    return baseParser.visit(expression);
   }
 
   @Override
-  public String parse(final IdentifierExpression expression) {
-    return identifierPrefix + new MongoIdentifierExpressionParser(query).parse(expression);
+  public <T> T visit(final FunctionExpression expression) {
+    return baseParser.visit(expression);
   }
 
-  public static List<String> getSelections(final Query query) {
+  @Override
+  public <T> T visit(final IdentifierExpression expression) {
+    return baseParser.visit(expression);
+  }
+
+  public static BasicDBObject getSelections(final Query query) {
     List<SelectionSpec> selectionSpecs = query.getSelections();
-    MongoSelectingExpressionParser parser = new MongoSelectingExpressionParser(query);
+    MongoSelectingExpressionParser parser =
+        new MongoIdentifierPrefixingSelectingExpressionParser(
+            new MongoIdentifierExpressionParser(new MongoFunctionExpressionParser()));
 
-    return selectionSpecs.stream()
-        .filter(not(SelectionSpec::isAggregation))
-        .map(exp -> exp.getExpression().parse(parser).toString())
-        .collect(Collectors.toList());
+    Map<String, Object> projectionMap =
+        selectionSpecs.stream()
+            .map(spec -> MongoSelectingExpressionParser.parse(parser, spec))
+            .flatMap(map -> map.entrySet().stream())
+            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+    return new BasicDBObject(projectionMap);
   }
 
   public static BasicDBObject getProjectClause(final Query query) {
-    List<String> selections = getSelections(query);
+    BasicDBObject selections = getSelections(query);
 
-    if (CollectionUtils.isEmpty(selections)) {
-      return new BasicDBObject();
+    if (selections.isEmpty()) {
+      return selections;
     }
 
-    return new BasicDBObject(PROJECT_CLAUSE, Projections.include(selections));
+    return new BasicDBObject(PROJECT_CLAUSE, selections);
+  }
+
+  private static Map<String, Object> parse(
+      final MongoSelectingExpressionParser baseParser, final SelectionSpec spec) {
+    MongoProjectionSelectingExpressionParser parser =
+        new MongoProjectionSelectingExpressionParser(spec.getAlias(), baseParser);
+
+    return spec.getExpression().visit(parser);
   }
 }

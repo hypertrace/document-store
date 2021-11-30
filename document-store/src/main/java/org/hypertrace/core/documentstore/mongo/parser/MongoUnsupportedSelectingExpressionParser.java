@@ -1,0 +1,36 @@
+package org.hypertrace.core.documentstore.mongo.parser;
+
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
+
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
+import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class MongoUnsupportedSelectingExpressionParser extends MongoSelectingExpressionParser {
+  static final MongoUnsupportedSelectingExpressionParser INSTANCE =
+      new MongoUnsupportedSelectingExpressionParser();
+
+  @Override
+  public <T> T visit(final AggregateExpression expression) {
+    throw getUnsupportedOperationException(expression);
+  }
+
+  @Override
+  public <T> T visit(final ConstantExpression expression) {
+    throw getUnsupportedOperationException(expression);
+  }
+
+  @Override
+  public <T> T visit(final FunctionExpression expression) {
+    throw getUnsupportedOperationException(expression);
+  }
+
+  @Override
+  public <T> T visit(final IdentifierExpression expression) {
+    throw getUnsupportedOperationException(expression);
+  }
+}

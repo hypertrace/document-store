@@ -1,6 +1,12 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static java.util.Collections.unmodifiableMap;
+import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
+import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
+
 import com.mongodb.BasicDBObject;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -9,24 +15,31 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
-import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
+import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
-public class MongoSortingExpressionParser extends MongoExpressionParser
-    implements SortingExpressionParser {
+public final class MongoSortingExpressionParser implements SortingExpressionVisitor {
 
   private static final String SORT_CLAUSE = "$sort";
+  private static final Map<SortingOrder, Integer> ORDER_MAP =
+      unmodifiableMap(
+          new EnumMap<>(SortingOrder.class) {
+            {
+              put(ASC, 1);
+              put(DESC, -1);
+            }
+          });
 
   private final SortingOrder order;
 
-  protected MongoSortingExpressionParser(final Query query, final SortingOrder order) {
-    super(query);
+  MongoSortingExpressionParser(final SortingOrder order) {
     this.order = order;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> parse(final AggregateExpression expression) {
+  public Map<String, Object> visit(final AggregateExpression expression) {
     throw new UnsupportedOperationException(
         String.format(
             "Cannot sort an aggregation ($%s) in MongoDB. "
@@ -34,18 +47,27 @@ public class MongoSortingExpressionParser extends MongoExpressionParser
             expression.getAggregator().name().toLowerCase()));
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> parse(final FunctionExpression expression) {
+  public Map<String, Object> visit(final FunctionExpression expression) {
     throw new UnsupportedOperationException(
         String.format(
-            "Cannot sort a function ($%s) in MongoDB.",
+            "Cannot sort a function ($%s) in MongoDB."
+                + "Set alias in selection and sort by the alias as identifier",
             expression.getOperator().name().toLowerCase()));
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> parse(final IdentifierExpression expression) {
-    String parsed = new MongoIdentifierExpressionParser(query).parse(expression);
-    return Map.of(parsed, getOrder());
+  public Map<String, Object> visit(final IdentifierExpression expression) {
+    Integer value = ORDER_MAP.get(order);
+
+    if (value == null) {
+      throw getUnsupportedOperationException(order);
+    }
+
+    String parsed = new MongoIdentifierExpressionParser().parse(expression);
+    return Map.of(parsed, value);
   }
 
   public static BasicDBObject getSortClause(final Query query) {
@@ -62,7 +84,7 @@ public class MongoSortingExpressionParser extends MongoExpressionParser
 
     Map<String, Object> map =
         sortingSpecs.stream()
-            .map(spec -> MongoSortingExpressionParser.parse(query, spec))
+            .map(MongoSortingExpressionParser::parse)
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -73,21 +95,8 @@ public class MongoSortingExpressionParser extends MongoExpressionParser
     return new BasicDBObject(map);
   }
 
-  private int getOrder() {
-    switch (order) {
-      case ASC:
-        return 1;
-      case DESC:
-        return -1;
-    }
-
-    throw new IllegalArgumentException("Unknown sorting order: " + order.name());
-  }
-
-  @SuppressWarnings("unchecked")
-  private static Map<String, Object> parse(final Query query, final SortingSpec definition) {
-    MongoSortingExpressionParser parser =
-        new MongoSortingExpressionParser(query, definition.getOrder());
-    return (Map<String, Object>) definition.getExpression().parse(parser);
+  private static Map<String, Object> parse(final SortingSpec definition) {
+    MongoSortingExpressionParser parser = new MongoSortingExpressionParser(definition.getOrder());
+    return definition.getExpression().visit(parser);
   }
 }

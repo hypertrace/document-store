@@ -1,12 +1,19 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoIdentifierExpressionParser extends MongoExpressionParser {
+@NoArgsConstructor
+final class MongoIdentifierExpressionParser extends MongoSelectingExpressionParser {
 
-  protected MongoIdentifierExpressionParser(Query query) {
-    super(query);
+  MongoIdentifierExpressionParser(final MongoSelectingExpressionParser baseParser) {
+    super(baseParser);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public String visit(final IdentifierExpression expression) {
+    return parse(expression);
   }
 
   String parse(final IdentifierExpression expression) {

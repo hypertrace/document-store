@@ -56,8 +56,7 @@ public interface Collection {
 
   /**
    * Search for documents matching the query. For advanced functionalities like selecting summing
-   * column values, sorting by expressions, etc., ref. {@link
-   * #find(org.hypertrace.core.documentstore.query.Query)}
+   * column values, sorting by expressions, etc., ref. {@link #find}
    *
    * @param query filter to query matching documents
    * @return {@link Iterator} of matching documents
@@ -71,7 +70,7 @@ public interface Collection {
    * @param query The query definition to find
    * @return {@link Iterator} of matching documents
    */
-  Iterator<Document> find(org.hypertrace.core.documentstore.query.Query query);
+  Iterator<Document> find(final org.hypertrace.core.documentstore.query.Query query);
 
   /**
    * Aggregate the documents conforming to the query specification.
@@ -79,7 +78,7 @@ public interface Collection {
    * @param query The aggregate query specification
    * @return {@link Iterator} of matching documents
    */
-  Iterator<Document> aggregate(org.hypertrace.core.documentstore.query.Query query);
+  Iterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query);
 
   /**
    * Delete the document with the given key.

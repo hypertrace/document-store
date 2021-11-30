@@ -7,26 +7,23 @@ import java.util.function.Function;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
-import org.hypertrace.core.documentstore.parser.FilteringExpressionParser;
+import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
-public class MongoFilteringExpressionParser extends MongoExpressionParser
-    implements FilteringExpressionParser {
+public final class MongoFilteringExpressionParser implements FilteringExpressionVisitor {
 
   private static final String FILTER_CLAUSE = "$match";
 
-  protected MongoFilteringExpressionParser(Query query) {
-    super(query);
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(final LogicalExpression expression) {
+    return new MongoLogicalExpressionMongoParser().parse(expression);
   }
 
+  @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> parse(final LogicalExpression expression) {
-    return new MongoLogicalExpressionParser(query).parse(expression);
-  }
-
-  @Override
-  public Map<String, Object> parse(final RelationalExpression expression) {
-    return new MongoRelationalExpressionParser(query).parse(expression);
+  public Map<String, Object> visit(final RelationalExpression expression) {
+    return new MongoRelationalExpressionParser().parse(expression);
   }
 
   public static BasicDBObject getFilterClause(
@@ -35,7 +32,6 @@ public class MongoFilteringExpressionParser extends MongoExpressionParser
     return filters.isEmpty() ? new BasicDBObject() : new BasicDBObject(FILTER_CLAUSE, filters);
   }
 
-  @SuppressWarnings("unchecked")
   public static BasicDBObject getFilter(
       final Query query, final Function<Query, Optional<FilteringExpression>> filterProvider) {
     Optional<FilteringExpression> filterOptional = filterProvider.apply(query);
@@ -44,8 +40,8 @@ public class MongoFilteringExpressionParser extends MongoExpressionParser
       return new BasicDBObject();
     }
 
-    FilteringExpressionParser parser = new MongoFilteringExpressionParser(query);
-    Map<String, Object> filter = (Map<String, Object>) filterOptional.get().parse(parser);
+    FilteringExpressionVisitor parser = new MongoFilteringExpressionParser();
+    Map<String, Object> filter = filterOptional.get().visit(parser);
     return new BasicDBObject(filter);
   }
 }

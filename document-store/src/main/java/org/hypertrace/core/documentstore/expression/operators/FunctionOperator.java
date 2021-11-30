@@ -4,6 +4,7 @@ public enum FunctionOperator {
   // Unary operations
   ABS,
   FLOOR,
+  LENGTH,
 
   // n-ary operations
   ADD,

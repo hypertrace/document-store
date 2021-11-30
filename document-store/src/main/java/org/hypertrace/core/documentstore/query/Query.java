@@ -1,12 +1,16 @@
 package org.hypertrace.core.documentstore.query;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.unmodifiableList;
 import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
+import lombok.ToString;
+import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
 import org.hypertrace.core.documentstore.expression.type.FilteringExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
@@ -61,7 +65,8 @@ import org.hypertrace.core.documentstore.expression.type.SortingExpression;
  *         .build();
  *  </code>
  */
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PACKAGE)
+@ToString
 public final class Query {
   private final Selection selection; // Missing selection represents fetching all the columns
   private final Filter filter;
@@ -72,16 +77,8 @@ public final class Query {
   private final Sort sort;
   private final Pagination pagination; // Missing pagination represents fetching all the records
 
-  public static QueryBuilder builder() {
-    return new QueryBuilder();
-  }
-
   public List<SelectionSpec> getSelections() {
-    if (selection == null) {
-      return Collections.emptyList();
-    }
-
-    return selection.getSelectionSpecs();
+    return selection == null ? emptyList() : unmodifiableList(selection.getSelectionSpecs());
   }
 
   public Optional<FilteringExpression> getFilter() {
@@ -89,11 +86,7 @@ public final class Query {
   }
 
   public List<GroupingExpression> getAggregations() {
-    if (aggregation == null) {
-      return Collections.emptyList();
-    }
-
-    return aggregation.getExpressions();
+    return aggregation == null ? emptyList() : unmodifiableList(aggregation.getExpressions());
   }
 
   public Optional<FilteringExpression> getAggregationFilter() {
@@ -101,18 +94,19 @@ public final class Query {
   }
 
   public List<SortingSpec> getSorts() {
-    if (sort == null) {
-      return Collections.emptyList();
-    }
-
-    return sort.getSortingSpecs();
+    return sort == null ? emptyList() : unmodifiableList(sort.getSortingSpecs());
   }
 
   public Optional<Pagination> getPagination() {
     return Optional.ofNullable(pagination);
   }
 
-  public static final class QueryBuilder {
+  public static QueryBuilder builder() {
+    return new QueryBuilder();
+  }
+
+  @NoArgsConstructor
+  public static class QueryBuilder {
     private Selection.SelectionBuilder selectionBuilder;
     private Filter.FilterBuilder filterBuilder;
 
@@ -120,13 +114,19 @@ public final class Query {
     private Filter.FilterBuilder aggregationFilterBuilder;
 
     private Sort.SortBuilder sortBuilder;
-    private Pagination.PaginationBuilder paginationBuilder;
-
-    private QueryBuilder() {}
+    private Pagination pagination;
 
     public QueryBuilder setSelection(final Selection selection) {
       this.selectionBuilder = selection.toBuilder();
       return this;
+    }
+
+    public QueryBuilder setSelections(final List<SelectionSpec> selectionSpecs) {
+      if (CollectionUtils.isNotEmpty(selectionSpecs)) {
+        getSelectionBuilder().clearSelectionSpecs();
+      }
+
+      return addSelections(selectionSpecs);
     }
 
     public QueryBuilder addSelection(final SelectionSpec spec) {
@@ -145,7 +145,9 @@ public final class Query {
     }
 
     public QueryBuilder addSelections(final List<SelectionSpec> selectionSpecs) {
-      getSelectionBuilder().selectionSpecs(selectionSpecs);
+      if (CollectionUtils.isNotEmpty(selectionSpecs)) {
+        getSelectionBuilder().selectionSpecs(selectionSpecs);
+      }
       return this;
     }
 
@@ -164,13 +166,22 @@ public final class Query {
       return this;
     }
 
+    public QueryBuilder setAggregations(final List<GroupingExpression> expressions) {
+      if (CollectionUtils.isNotEmpty(expressions)) {
+        getAggregationBuilder().clearExpressions();
+      }
+      return addAggregations(expressions);
+    }
+
     public QueryBuilder addAggregation(final GroupingExpression expression) {
       getAggregationBuilder().expression(expression);
       return this;
     }
 
     public QueryBuilder addAggregations(final List<GroupingExpression> expressions) {
-      getAggregationBuilder().expressions(expressions);
+      if (CollectionUtils.isNotEmpty(expressions)) {
+        getAggregationBuilder().expressions(expressions);
+      }
       return this;
     }
 
@@ -189,6 +200,13 @@ public final class Query {
       return this;
     }
 
+    public QueryBuilder setSorts(final List<SortingSpec> specs) {
+      if (CollectionUtils.isNotEmpty(specs)) {
+        getSortBuilder().clearSortingSpecs();
+      }
+      return addSorts(specs);
+    }
+
     public QueryBuilder addSort(final SortingSpec spec) {
       getSortBuilder().sortingSpec(spec);
       return this;
@@ -200,22 +218,14 @@ public final class Query {
     }
 
     public QueryBuilder addSorts(final List<SortingSpec> specs) {
-      getSortBuilder().sortingSpecs(specs);
+      if (CollectionUtils.isNotEmpty(specs)) {
+        getSortBuilder().sortingSpecs(specs);
+      }
       return this;
     }
 
     public QueryBuilder setPagination(final Pagination pagination) {
-      this.paginationBuilder = pagination.toBuilder();
-      return this;
-    }
-
-    public QueryBuilder setLimit(final int limit) {
-      getPaginationBuilder().limit(limit);
-      return this;
-    }
-
-    public QueryBuilder setOffset(final int offset) {
-      getPaginationBuilder().offset(offset);
+      this.pagination = pagination;
       return this;
     }
 
@@ -227,61 +237,51 @@ public final class Query {
               getAggregation(),
               getAggregationFilter(),
               getSort(),
-              getPagination()));
+              pagination));
     }
 
-    private Selection.SelectionBuilder getSelectionBuilder() {
+    protected Selection.SelectionBuilder getSelectionBuilder() {
       return selectionBuilder == null ? selectionBuilder = Selection.builder() : selectionBuilder;
+    }
+
+    protected Filter.FilterBuilder getFilterBuilder() {
+      return filterBuilder == null ? filterBuilder = Filter.builder() : filterBuilder;
+    }
+
+    protected Aggregation.AggregationBuilder getAggregationBuilder() {
+      return aggregationBuilder == null
+          ? aggregationBuilder = Aggregation.builder()
+          : aggregationBuilder;
+    }
+
+    protected Filter.FilterBuilder getAggregationFilterBuilder() {
+      return aggregationFilterBuilder == null
+          ? aggregationFilterBuilder = Filter.builder()
+          : aggregationFilterBuilder;
+    }
+
+    protected Sort.SortBuilder getSortBuilder() {
+      return sortBuilder == null ? sortBuilder = Sort.builder() : sortBuilder;
     }
 
     private Selection getSelection() {
       return selectionBuilder == null ? null : selectionBuilder.build();
     }
 
-    private Filter.FilterBuilder getFilterBuilder() {
-      return filterBuilder == null ? filterBuilder = Filter.builder() : filterBuilder;
-    }
-
     private Filter getFilter() {
       return filterBuilder == null ? null : filterBuilder.build();
-    }
-
-    private Aggregation.AggregationBuilder getAggregationBuilder() {
-      return aggregationBuilder == null
-          ? aggregationBuilder = Aggregation.builder()
-          : aggregationBuilder;
     }
 
     private Aggregation getAggregation() {
       return aggregationBuilder == null ? null : aggregationBuilder.build();
     }
 
-    private Filter.FilterBuilder getAggregationFilterBuilder() {
-      return aggregationFilterBuilder == null
-          ? aggregationFilterBuilder = Filter.builder()
-          : aggregationFilterBuilder;
-    }
-
     private Filter getAggregationFilter() {
       return aggregationFilterBuilder == null ? null : aggregationFilterBuilder.build();
     }
 
-    private Sort.SortBuilder getSortBuilder() {
-      return sortBuilder == null ? sortBuilder = Sort.builder() : sortBuilder;
-    }
-
     private Sort getSort() {
       return sortBuilder == null ? null : sortBuilder.build();
-    }
-
-    private Pagination.PaginationBuilder getPaginationBuilder() {
-      return paginationBuilder == null
-          ? paginationBuilder = Pagination.builder()
-          : paginationBuilder;
-    }
-
-    private Pagination getPagination() {
-      return paginationBuilder == null ? null : paginationBuilder.build();
     }
   }
 }

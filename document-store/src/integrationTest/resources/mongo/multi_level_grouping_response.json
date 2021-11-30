@@ -1,0 +1,14 @@
+[
+  {
+    "item": "Soap",
+    "price": 20,
+    "quantities": [5],
+    "num_quantities": 1
+  },
+  {
+    "item": "Mirror",
+    "price": 20,
+    "quantities": [1],
+    "num_quantities": 1
+  }
+]

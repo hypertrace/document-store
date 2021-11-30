@@ -9,9 +9,9 @@ import lombok.Value;
 import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
 import org.hypertrace.core.documentstore.expression.type.SortingExpression;
-import org.hypertrace.core.documentstore.parser.GroupingExpressionParser;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionParser;
-import org.hypertrace.core.documentstore.parser.SortingExpressionParser;
+import org.hypertrace.core.documentstore.parser.GroupingExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 
 /**
  * Expression representing either an identifier/column name
@@ -30,17 +30,17 @@ public class IdentifierExpression
   }
 
   @Override
-  public Object parse(final GroupingExpressionParser parser) {
-    return parser.parse(this);
+  public <T> T visit(final GroupingExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 
   @Override
-  public Object parse(final SelectingExpressionParser parser) {
-    return parser.parse(this);
+  public <T> T visit(final SelectingExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 
   @Override
-  public Object parse(final SortingExpressionParser parser) {
-    return parser.parse(this);
+  public <T> T visit(final SortingExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 }
