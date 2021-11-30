@@ -8,5 +8,4 @@ public enum AggregationOperator {
   SUM,
   MIN,
   MAX,
-  FIRST,
 }
