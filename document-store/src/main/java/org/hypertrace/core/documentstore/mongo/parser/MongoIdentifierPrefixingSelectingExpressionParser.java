@@ -16,7 +16,6 @@ final class MongoIdentifierPrefixingSelectingExpressionParser
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final IdentifierExpression expression) {
-    assert baseParser != null;
     return Optional.ofNullable(baseParser.visit(expression)).map(id -> PREFIX + id).orElse(null);
   }
 }

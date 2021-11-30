@@ -53,16 +53,16 @@ final class MongoFunctionExpressionParser extends MongoSelectingExpressionParser
           String.format("%s should have at least one operand", expression));
     }
 
-    SelectingExpressionVisitor parser =
-        new MongoIdentifierPrefixingSelectingExpressionParser(
-            new MongoIdentifierExpressionParser(new MongoConstantExpressionParser()));
-
     FunctionOperator operator = expression.getOperator();
     String key = KEY_MAP.get(operator);
 
     if (key == null) {
       throw getUnsupportedOperationException(operator);
     }
+
+    SelectingExpressionVisitor parser =
+        new MongoIdentifierPrefixingSelectingExpressionParser(
+            new MongoIdentifierExpressionParser(new MongoConstantExpressionParser()));
 
     if (numArgs == 1) {
       Object value = expression.getOperands().get(0).visit(parser);

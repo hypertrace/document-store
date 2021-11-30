@@ -24,7 +24,6 @@ public final class MongoProjectionSelectingExpressionParser extends MongoSelecti
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final AggregateExpression expression) {
-    assert baseParser != null;
     try {
       return convertToMap(baseParser.visit(expression), expression);
     } catch (UnsupportedOperationException e) {
@@ -35,7 +34,6 @@ public final class MongoProjectionSelectingExpressionParser extends MongoSelecti
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final ConstantExpression expression) {
-    assert baseParser != null;
     try {
       return convertToMap(baseParser.visit(expression), expression);
     } catch (UnsupportedOperationException e) {
@@ -46,7 +44,6 @@ public final class MongoProjectionSelectingExpressionParser extends MongoSelecti
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final FunctionExpression expression) {
-    assert baseParser != null;
     try {
       return convertToMap(baseParser.visit(expression), expression);
     } catch (UnsupportedOperationException e) {
@@ -57,7 +54,6 @@ public final class MongoProjectionSelectingExpressionParser extends MongoSelecti
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final IdentifierExpression expression) {
-    assert baseParser != null;
     Object parsed;
 
     try {

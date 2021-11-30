@@ -1,7 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import static java.util.stream.Collectors.toMap;
-import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
 import java.util.List;
@@ -11,7 +10,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
-import org.hypertrace.core.documentstore.query.QueryInternal;
+import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 public abstract class MongoSelectingExpressionParser implements SelectingExpressionVisitor {
@@ -21,7 +20,7 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
   protected final MongoSelectingExpressionParser baseParser;
 
   protected MongoSelectingExpressionParser() {
-    this(null);
+    this(MongoUnsupportedSelectingExpressionParser.INSTANCE);
   }
 
   protected MongoSelectingExpressionParser(final MongoSelectingExpressionParser baseParser) {
@@ -30,41 +29,25 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
 
   @Override
   public <T> T visit(final AggregateExpression expression) {
-    if (baseParser == null) {
-      throw getUnsupportedOperationException(expression);
-    }
-
     return baseParser.visit(expression);
   }
 
   @Override
   public <T> T visit(final ConstantExpression expression) {
-    if (baseParser == null) {
-      throw getUnsupportedOperationException(expression);
-    }
-
     return baseParser.visit(expression);
   }
 
   @Override
   public <T> T visit(final FunctionExpression expression) {
-    if (baseParser == null) {
-      throw getUnsupportedOperationException(expression);
-    }
-
     return baseParser.visit(expression);
   }
 
   @Override
   public <T> T visit(final IdentifierExpression expression) {
-    if (baseParser == null) {
-      throw getUnsupportedOperationException(expression);
-    }
-
     return baseParser.visit(expression);
   }
 
-  public static BasicDBObject getSelections(final QueryInternal query) {
+  public static BasicDBObject getSelections(final Query query) {
     List<SelectionSpec> selectionSpecs = query.getSelections();
     MongoSelectingExpressionParser parser =
         new MongoIdentifierPrefixingSelectingExpressionParser(
@@ -79,7 +62,7 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
     return new BasicDBObject(projectionMap);
   }
 
-  public static BasicDBObject getProjectClause(final QueryInternal query) {
+  public static BasicDBObject getProjectClause(final Query query) {
     BasicDBObject selections = getSelections(query);
 
     if (selections.isEmpty()) {

@@ -16,7 +16,7 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
 import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
-import org.hypertrace.core.documentstore.query.QueryInternal;
+import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
 public final class MongoSortingExpressionParser implements SortingExpressionVisitor {
@@ -60,22 +60,22 @@ public final class MongoSortingExpressionParser implements SortingExpressionVisi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final IdentifierExpression expression) {
-    String parsed = new MongoIdentifierExpressionParser().parse(expression);
     Integer value = ORDER_MAP.get(order);
 
     if (value == null) {
       throw getUnsupportedOperationException(order);
     }
 
+    String parsed = new MongoIdentifierExpressionParser().parse(expression);
     return Map.of(parsed, value);
   }
 
-  public static BasicDBObject getSortClause(final QueryInternal query) {
+  public static BasicDBObject getSortClause(final Query query) {
     BasicDBObject orders = getOrders(query);
     return orders.isEmpty() ? orders : new BasicDBObject(SORT_CLAUSE, orders);
   }
 
-  public static BasicDBObject getOrders(final QueryInternal query) {
+  public static BasicDBObject getOrders(final Query query) {
     List<SortingSpec> sortingSpecs = query.getSorts();
 
     if (CollectionUtils.isEmpty(sortingSpecs)) {
