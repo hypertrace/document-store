@@ -29,6 +29,7 @@ dependencies {
   testImplementation("org.mockito:mockito-junit-jupiter:4.0.0")
   testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.7.0")
 
+  integrationTestImplementation("junit:junit:4.13.1")
   integrationTestImplementation("org.junit.jupiter:junit-jupiter:5.7.0")
   integrationTestImplementation("com.github.java-json-tools:json-patch:1.13")
   integrationTestImplementation("org.junit.jupiter:junit-jupiter-api:5.8.1")
