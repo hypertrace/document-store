@@ -56,7 +56,7 @@ public class LogicalExpression implements FilteringExpression {
       Preconditions.checkArgument(operands.size() >= 2, "At least 2 operands required");
       Preconditions.checkArgument(
           operands.stream().noneMatch(Objects::isNull), "One or more operands is null");
-      Preconditions.checkArgument(operator != null, "operands is null");
+      Preconditions.checkArgument(operator != null, "operator is null");
       return new LogicalExpression(operands, operator);
     }
   }
