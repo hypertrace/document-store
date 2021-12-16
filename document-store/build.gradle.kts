@@ -8,11 +8,12 @@ plugins {
 
 dependencies {
   api("com.typesafe:config:1.3.2")
+  api("org.hibernate:hibernate-validator:6.1.3.Final")
+  api("org.glassfish:javax.el:3.0.1-b06")
+  api("javax.el:javax.el-api:3.0.1-b06")
   annotationProcessor("org.projectlombok:lombok:1.18.22")
   compileOnly("org.projectlombok:lombok:1.18.22")
-  implementation("org.hibernate:hibernate-validator:6.1.3.Final")
   implementation("org.apache.commons:commons-collections4:4.4")
-  implementation("org.glassfish:javax.el:3.0.1-b06")
   implementation("org.postgresql:postgresql:42.2.13")
   implementation("org.mongodb:mongodb-driver-sync:4.1.2")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")
