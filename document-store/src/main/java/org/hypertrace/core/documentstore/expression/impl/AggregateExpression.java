@@ -1,8 +1,6 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
-import javax.validation.constraints.NotNull;
+import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
@@ -23,13 +21,15 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class AggregateExpression implements SelectingExpression, SortingExpression {
 
-  @NotNull AggregationOperator aggregator;
+  AggregationOperator aggregator;
 
-  @NotNull SelectingExpression expression;
+  SelectingExpression expression;
 
   public static AggregateExpression of(
       final AggregationOperator aggregator, final SelectingExpression expression) {
-    return validateAndReturn(new AggregateExpression(aggregator, expression));
+    Preconditions.checkArgument(aggregator != null, "expression is null");
+    Preconditions.checkArgument(expression != null, "expression is null");
+    return new AggregateExpression(aggregator, expression);
   }
 
   @Override

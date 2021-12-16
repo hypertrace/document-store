@@ -1,10 +1,8 @@
 package org.hypertrace.core.documentstore.query;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
+import com.google.common.base.Preconditions;
 import java.util.List;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,11 +13,15 @@ import lombok.Value;
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Selection {
-  @Singular @NotEmpty List<@NotNull SelectionSpec> selectionSpecs;
+  @Singular List<SelectionSpec> selectionSpecs;
 
   public static class SelectionBuilder {
     public Selection build() {
-      return validateAndReturn(new Selection(selectionSpecs));
+      Preconditions.checkArgument(!selectionSpecs.isEmpty(), "selectionSpecs is empty");
+      Preconditions.checkArgument(
+          selectionSpecs.stream().noneMatch(Objects::isNull),
+          "One ore more selectionSpecs is null");
+      return new Selection(selectionSpecs);
     }
   }
 }

@@ -2,7 +2,6 @@ package org.hypertrace.core.documentstore.query;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
 
 import java.util.List;
 import java.util.Optional;
@@ -230,14 +229,13 @@ public final class Query {
     }
 
     public Query build() {
-      return validateAndReturn(
-          new Query(
-              getSelection(),
-              getFilter(),
-              getAggregation(),
-              getAggregationFilter(),
-              getSort(),
-              pagination));
+      return new Query(
+          getSelection(),
+          getFilter(),
+          getAggregation(),
+          getAggregationFilter(),
+          getSort(),
+          pagination);
     }
 
     protected Selection.SelectionBuilder getSelectionBuilder() {

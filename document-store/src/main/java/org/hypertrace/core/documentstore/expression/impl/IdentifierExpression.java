@@ -1,8 +1,7 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
-import javax.validation.constraints.NotBlank;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Strings;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
@@ -23,10 +22,11 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 public class IdentifierExpression
     implements GroupingExpression, SelectingExpression, SortingExpression {
 
-  @NotBlank String name;
+  String name;
 
   public static IdentifierExpression of(final String name) {
-    return validateAndReturn(new IdentifierExpression(name));
+    Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "name is null or emtpy");
+    return new IdentifierExpression(name);
   }
 
   @Override

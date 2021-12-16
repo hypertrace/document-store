@@ -1,8 +1,6 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
-import javax.validation.constraints.NotNull;
+import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
@@ -25,17 +23,20 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class RelationalExpression implements FilteringExpression {
 
-  @NotNull SelectingExpression lhs;
+  SelectingExpression lhs;
 
-  @NotNull RelationalOperator operator;
+  RelationalOperator operator;
 
-  @NotNull SelectingExpression rhs;
+  SelectingExpression rhs;
 
   public static RelationalExpression of(
       final SelectingExpression lhs,
       final RelationalOperator operator,
       final SelectingExpression rhs) {
-    return validateAndReturn(new RelationalExpression(lhs, operator, rhs));
+    Preconditions.checkArgument(lhs != null, "lhs is null");
+    Preconditions.checkArgument(operator != null, "operator is null");
+    Preconditions.checkArgument(rhs != null, "rhs is null");
+    return new RelationalExpression(lhs, operator, rhs);
   }
 
   @Override

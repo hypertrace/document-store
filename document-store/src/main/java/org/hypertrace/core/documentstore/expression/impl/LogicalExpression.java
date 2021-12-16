@@ -1,10 +1,8 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
+import com.google.common.base.Preconditions;
 import java.util.List;
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Size;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -43,21 +41,23 @@ import org.hypertrace.core.documentstore.parser.FilteringExpressionVisitor;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class LogicalExpression implements FilteringExpression {
 
-  @Singular
-  @Size(min = 2)
-  @NotNull
-  List<@NotNull FilteringExpression> operands;
+  @Singular List<FilteringExpression> operands;
 
-  @NotNull LogicalOperator operator;
-
-  public static class LogicalExpressionBuilder {
-    public LogicalExpression build() {
-      return validateAndReturn(new LogicalExpression(operands, operator));
-    }
-  }
+  LogicalOperator operator;
 
   @Override
   public <T> T visit(final FilteringExpressionVisitor visitor) {
     return visitor.visit(this);
+  }
+
+  public static class LogicalExpressionBuilder {
+    public LogicalExpression build() {
+      Preconditions.checkArgument(operands != null, "operands is null");
+      Preconditions.checkArgument(operands.size() >= 2, "At least 2 operands required");
+      Preconditions.checkArgument(
+          operands.stream().noneMatch(Objects::isNull), "One or more operands is null");
+      Preconditions.checkArgument(operator != null, "operands is null");
+      return new LogicalExpression(operands, operator);
+    }
   }
 }
