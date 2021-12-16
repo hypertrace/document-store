@@ -1,7 +1,6 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
 import com.google.common.base.Preconditions;
-import com.google.common.base.Strings;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
@@ -25,7 +24,7 @@ public class IdentifierExpression
   String name;
 
   public static IdentifierExpression of(final String name) {
-    Preconditions.checkArgument(!Strings.isNullOrEmpty(name), "name is null or emtpy");
+    Preconditions.checkArgument(name != null && !name.isBlank(), "name is null or blank");
     return new IdentifierExpression(name);
   }
 

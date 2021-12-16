@@ -19,7 +19,7 @@ public class Sort {
     public Sort build() {
       Preconditions.checkArgument(!sortingSpecs.isEmpty(), "sortingSpecs is empty");
       Preconditions.checkArgument(
-          sortingSpecs.stream().noneMatch(Objects::isNull), "One ore more sortingSpecs is null");
+          sortingSpecs.stream().noneMatch(Objects::isNull), "One or more sortingSpecs is null");
       return new Sort(sortingSpecs);
     }
   }

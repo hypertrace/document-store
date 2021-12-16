@@ -20,7 +20,7 @@ public class Aggregation {
     public Aggregation build() {
       Preconditions.checkArgument(!expressions.isEmpty(), "expressions is empty");
       Preconditions.checkArgument(
-          expressions.stream().noneMatch(Objects::isNull), "One ore more expressions is null");
+          expressions.stream().noneMatch(Objects::isNull), "One or more expressions is null");
       return new Aggregation(expressions);
     }
   }

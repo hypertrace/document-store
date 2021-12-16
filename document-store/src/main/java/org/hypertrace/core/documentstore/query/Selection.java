@@ -19,8 +19,7 @@ public class Selection {
     public Selection build() {
       Preconditions.checkArgument(!selectionSpecs.isEmpty(), "selectionSpecs is empty");
       Preconditions.checkArgument(
-          selectionSpecs.stream().noneMatch(Objects::isNull),
-          "One ore more selectionSpecs is null");
+          selectionSpecs.stream().noneMatch(Objects::isNull), "One or more selectionSpecs is null");
       return new Selection(selectionSpecs);
     }
   }

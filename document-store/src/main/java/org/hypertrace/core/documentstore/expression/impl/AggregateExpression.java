@@ -27,7 +27,7 @@ public class AggregateExpression implements SelectingExpression, SortingExpressi
 
   public static AggregateExpression of(
       final AggregationOperator aggregator, final SelectingExpression expression) {
-    Preconditions.checkArgument(aggregator != null, "expression is null");
+    Preconditions.checkArgument(aggregator != null, "aggregator is null");
     Preconditions.checkArgument(expression != null, "expression is null");
     return new AggregateExpression(aggregator, expression);
   }

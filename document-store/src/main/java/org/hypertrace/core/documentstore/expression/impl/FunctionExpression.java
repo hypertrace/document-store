@@ -50,7 +50,7 @@ public class FunctionExpression
     public FunctionExpression build() {
       Preconditions.checkArgument(!operands.isEmpty(), "operands is empty");
       Preconditions.checkArgument(
-          operands.stream().noneMatch(Objects::isNull), "One ore more operands is null");
+          operands.stream().noneMatch(Objects::isNull), "One or more operands is null");
       Preconditions.checkArgument(operator != null, "operator is null");
       return new FunctionExpression(operands, operator);
     }
