@@ -1,10 +1,8 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
+import com.google.common.base.Preconditions;
 import java.util.List;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -44,13 +42,17 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 public class FunctionExpression
     implements GroupingExpression, SelectingExpression, SortingExpression {
 
-  @Singular @NotEmpty List<@NotNull SelectingExpression> operands;
+  @Singular List<SelectingExpression> operands;
 
-  @NotNull FunctionOperator operator;
+  FunctionOperator operator;
 
   public static class FunctionExpressionBuilder {
     public FunctionExpression build() {
-      return validateAndReturn(new FunctionExpression(operands, operator));
+      Preconditions.checkArgument(!operands.isEmpty(), "operands is empty");
+      Preconditions.checkArgument(
+          operands.stream().noneMatch(Objects::isNull), "One or more operands is null");
+      Preconditions.checkArgument(operator != null, "operator is null");
+      return new FunctionExpression(operands, operator);
     }
   }
 

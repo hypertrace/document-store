@@ -1,10 +1,8 @@
 package org.hypertrace.core.documentstore.query;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
+import com.google.common.base.Preconditions;
 import java.util.List;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,11 +14,14 @@ import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Aggregation {
-  @Singular @NotEmpty List<@NotNull GroupingExpression> expressions;
+  @Singular List<GroupingExpression> expressions;
 
   public static class AggregationBuilder {
     public Aggregation build() {
-      return validateAndReturn(new Aggregation(expressions));
+      Preconditions.checkArgument(!expressions.isEmpty(), "expressions is empty");
+      Preconditions.checkArgument(
+          expressions.stream().noneMatch(Objects::isNull), "One or more expressions is null");
+      return new Aggregation(expressions);
     }
   }
 }

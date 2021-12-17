@@ -1,8 +1,6 @@
 package org.hypertrace.core.documentstore.query;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
-import javax.validation.constraints.NotNull;
+import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -12,12 +10,14 @@ import lombok.Value;
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Pagination {
-  @NotNull Integer limit;
-  @NotNull Integer offset;
+  Integer limit;
+  Integer offset;
 
   public static class PaginationBuilder {
     public Pagination build() {
-      return validateAndReturn(new Pagination(limit, offset));
+      Preconditions.checkArgument(limit != null, "limit is null");
+      Preconditions.checkArgument(offset != null, "offset is null");
+      return new Pagination(limit, offset);
     }
   }
 }

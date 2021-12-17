@@ -1,10 +1,8 @@
 package org.hypertrace.core.documentstore.query;
 
-import static org.hypertrace.core.documentstore.expression.Utils.validateAndReturn;
-
+import com.google.common.base.Preconditions;
 import java.util.List;
-import javax.validation.constraints.NotEmpty;
-import javax.validation.constraints.NotNull;
+import java.util.Objects;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,11 +13,14 @@ import lombok.Value;
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Sort {
-  @NotEmpty @Singular List<@NotNull SortingSpec> sortingSpecs;
+  @Singular List<SortingSpec> sortingSpecs;
 
   public static class SortBuilder {
     public Sort build() {
-      return validateAndReturn(new Sort(sortingSpecs));
+      Preconditions.checkArgument(!sortingSpecs.isEmpty(), "sortingSpecs is empty");
+      Preconditions.checkArgument(
+          sortingSpecs.stream().noneMatch(Objects::isNull), "One or more sortingSpecs is null");
+      return new Sort(sortingSpecs);
     }
   }
 }
