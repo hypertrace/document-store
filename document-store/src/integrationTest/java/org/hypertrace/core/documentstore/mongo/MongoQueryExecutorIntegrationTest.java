@@ -337,7 +337,8 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
-  public void testAggregateWithFiltersAndDuplicateOrderingAndDuplicateAggregations() throws IOException {
+  public void testAggregateWithFiltersAndDuplicateOrderingAndDuplicateAggregations()
+      throws IOException {
     Query query =
         Query.builder()
             .addSelection(

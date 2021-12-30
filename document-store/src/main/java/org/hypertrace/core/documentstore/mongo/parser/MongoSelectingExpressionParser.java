@@ -57,7 +57,11 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
         selectionSpecs.stream()
             .map(spec -> MongoSelectingExpressionParser.parse(parser, spec))
             .flatMap(map -> map.entrySet().stream())
-            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue, MongoSelectingExpressionParser::mergeValues));
+            .collect(
+                toMap(
+                    Map.Entry::getKey,
+                    Map.Entry::getValue,
+                    MongoSelectingExpressionParser::mergeValues));
 
     return new BasicDBObject(projectionMap);
   }
