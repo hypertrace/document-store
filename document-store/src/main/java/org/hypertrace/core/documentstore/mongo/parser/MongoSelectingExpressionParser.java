@@ -57,7 +57,11 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
         selectionSpecs.stream()
             .map(spec -> MongoSelectingExpressionParser.parse(parser, spec))
             .flatMap(map -> map.entrySet().stream())
-            .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+            .collect(
+                toMap(
+                    Map.Entry::getKey,
+                    Map.Entry::getValue,
+                    MongoSelectingExpressionParser::mergeValues));
 
     return new BasicDBObject(projectionMap);
   }
@@ -78,5 +82,15 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
         new MongoProjectionSelectingExpressionParser(spec.getAlias(), baseParser);
 
     return spec.getExpression().visit(parser);
+  }
+
+  private static <T> T mergeValues(final T first, final T second) {
+    if (first.equals(second)) {
+      return second;
+    }
+
+    throw new IllegalArgumentException(
+        String.format(
+            "Query contains duplicate aliases with different selections: (%s, %s)", first, second));
   }
 }

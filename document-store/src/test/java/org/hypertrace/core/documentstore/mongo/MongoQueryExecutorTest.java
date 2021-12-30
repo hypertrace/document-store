@@ -17,6 +17,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -37,8 +38,10 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
+import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.Selection;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.AfterEach;
@@ -85,7 +88,6 @@ class MongoQueryExecutorTest {
 
   @AfterEach
   void tearDown() {
-    verify(collection).getNamespace();
     verifyNoMoreInteractions(collection, iterable, cursor, aggIterable);
   }
 
@@ -98,6 +100,7 @@ class MongoQueryExecutorTest {
     BasicDBObject mongoQuery = new BasicDBObject();
     BasicDBObject projection = new BasicDBObject();
 
+    verify(collection).getNamespace();
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
     verify(iterable, NOT_INVOKED).sort(any());
@@ -119,6 +122,7 @@ class MongoQueryExecutorTest {
     BasicDBObject mongoQuery = new BasicDBObject();
     BasicDBObject projection = BasicDBObject.parse("{id: 1, name: \"$fname\"}");
 
+    verify(collection).getNamespace();
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
     verify(iterable, NOT_INVOKED).sort(any());
@@ -159,6 +163,7 @@ class MongoQueryExecutorTest {
                 + "}");
     BasicDBObject projection = new BasicDBObject();
 
+    verify(collection).getNamespace();
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
     verify(iterable, NOT_INVOKED).sort(any());
@@ -181,6 +186,7 @@ class MongoQueryExecutorTest {
     BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
     BasicDBObject projection = new BasicDBObject();
 
+    verify(collection).getNamespace();
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
     verify(iterable).sort(sortQuery);
@@ -199,6 +205,7 @@ class MongoQueryExecutorTest {
     BasicDBObject mongoQuery = new BasicDBObject();
     BasicDBObject projection = new BasicDBObject();
 
+    verify(collection).getNamespace();
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
     verify(iterable, NOT_INVOKED).sort(any());
@@ -245,12 +252,47 @@ class MongoQueryExecutorTest {
     BasicDBObject projection = BasicDBObject.parse("{id: 1, name: \"$fname\"}");
     BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
 
+    verify(collection).getNamespace();
     verify(collection).find(mongoQuery);
     verify(iterable).projection(projection);
     verify(iterable).sort(sortQuery);
     verify(iterable).skip(50);
     verify(iterable).limit(10);
     verify(iterable).cursor();
+  }
+
+  @Test
+  public void testFindAndAggregateWithDuplicateAlias() {
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("price"), "value"),
+            SelectionSpec.of(IdentifierExpression.of("quantity"), "value"),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    NOT_IN,
+                    ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    assertThrows(IllegalArgumentException.class, () -> executor.find(query));
+    verify(collection, NOT_INVOKED).getNamespace();
+    verify(collection, NOT_INVOKED).find(any(BasicDBObject.class));
+    verify(iterable, NOT_INVOKED).projection(any(BasicDBObject.class));
+    verify(iterable, NOT_INVOKED).sort(any(BasicDBObject.class));
+    verify(iterable, NOT_INVOKED).skip(anyInt());
+    verify(iterable, NOT_INVOKED).limit(anyInt());
+    verify(iterable, NOT_INVOKED).cursor();
+
+    assertThrows(IllegalArgumentException.class, () -> executor.aggregate(query));
+    verify(collection, NOT_INVOKED).aggregate(anyList());
+    verify(aggIterable, NOT_INVOKED).cursor();
   }
 
   @Test
@@ -549,6 +591,7 @@ class MongoQueryExecutorTest {
 
   private void testAggregation(Query query, List<BasicDBObject> pipeline) {
     executor.aggregate(query);
+    verify(collection).getNamespace();
     verify(collection).aggregate(pipeline);
     verify(aggIterable).cursor();
   }

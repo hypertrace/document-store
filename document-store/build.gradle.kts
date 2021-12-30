@@ -13,7 +13,7 @@ dependencies {
   implementation("org.apache.commons:commons-collections4:4.4")
   implementation("org.postgresql:postgresql:42.2.13")
   implementation("org.mongodb:mongodb-driver-sync:4.1.2")
-  implementation("com.fasterxml.jackson.core:jackson-databind:2.11.0")
+  implementation("com.fasterxml.jackson.core:jackson-databind:2.12.6")
   implementation("org.slf4j:slf4j-api:1.7.32")
   implementation("com.google.guava:guava-annotations:r03")
   implementation("org.apache.commons:commons-lang3:3.10")

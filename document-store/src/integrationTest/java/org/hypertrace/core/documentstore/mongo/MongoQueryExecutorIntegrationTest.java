@@ -128,6 +128,32 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
+  public void testFindWithDuplicateSelections() throws IOException {
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("price")),
+            SelectionSpec.of(IdentifierExpression.of("quantity")),
+            SelectionSpec.of(IdentifierExpression.of("quantity")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    NOT_IN,
+                    ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsEqual(resultDocs, "mongo/simple_filter_response.json");
+  }
+
+  @Test
   public void testFindWithSortingAndPagination() throws IOException {
     List<SelectionSpec> selectionSpecs =
         List.of(
@@ -148,6 +174,47 @@ public class MongoQueryExecutorIntegrationTest {
 
     Sort sort =
         Sort.builder()
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
+            .build();
+
+    Pagination pagination = Pagination.builder().offset(1).limit(3).build();
+
+    Query query =
+        Query.builder()
+            .setSelection(selection)
+            .setFilter(filter)
+            .setSort(sort)
+            .setPagination(pagination)
+            .build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsEqual(resultDocs, "mongo/filter_with_sorting_and_pagination_response.json");
+  }
+
+  @Test
+  public void testFindWithDuplicateSortingAndPagination() throws IOException {
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("price")),
+            SelectionSpec.of(IdentifierExpression.of("quantity")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+            .build();
+
+    Sort sort =
+        Sort.builder()
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
             .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
             .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
             .build();
@@ -222,6 +289,18 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
+  public void testAggregateWithDuplicateSelections() throws IOException {
+    Query query =
+        Query.builder()
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo/count_response.json");
+  }
+
+  @Test
   public void testAggregateWithFiltersAndOrdering() throws IOException {
     Query query =
         Query.builder()
@@ -236,6 +315,45 @@ public class MongoQueryExecutorIntegrationTest {
                 "total")
             .addSelection(IdentifierExpression.of("item"))
             .addAggregation(IdentifierExpression.of("item"))
+            .addSort(IdentifierExpression.of("total"), DESC)
+            .setAggregationFilter(
+                LogicalExpression.builder()
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("total"), GTE, ConstantExpression.of(11)))
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("total"), LTE, ConstantExpression.of(99)))
+                    .build())
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .setPagination(Pagination.builder().limit(10).offset(0).build())
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo/sum_response.json");
+  }
+
+  @Test
+  public void testAggregateWithFiltersAndDuplicateOrderingAndDuplicateAggregations()
+      throws IOException {
+    Query query =
+        Query.builder()
+            .addSelection(
+                AggregateExpression.of(
+                    SUM,
+                    FunctionExpression.builder()
+                        .operand(IdentifierExpression.of("price"))
+                        .operator(MULTIPLY)
+                        .operand(IdentifierExpression.of("quantity"))
+                        .build()),
+                "total")
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addSort(IdentifierExpression.of("total"), DESC)
             .addSort(IdentifierExpression.of("total"), DESC)
             .setAggregationFilter(
                 LogicalExpression.builder()
