@@ -89,6 +89,8 @@ public abstract class MongoSelectingExpressionParser implements SelectingExpress
       return second;
     }
 
-    throw new IllegalArgumentException("Query contains duplicate aliases");
+    throw new IllegalArgumentException(
+        String.format(
+            "Query contains duplicate aliases with different selections: (%s, %s)", first, second));
   }
 }
