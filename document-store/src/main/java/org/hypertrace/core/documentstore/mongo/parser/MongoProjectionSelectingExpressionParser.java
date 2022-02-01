@@ -10,6 +10,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
+import org.hypertrace.core.documentstore.mongo.MongoUtils;
 
 @Slf4j
 public final class MongoProjectionSelectingExpressionParser extends MongoSelectingExpressionParser {
@@ -64,6 +65,7 @@ public final class MongoProjectionSelectingExpressionParser extends MongoSelecti
 
     if (StringUtils.isBlank(alias)) {
       String key = StringUtils.stripStart(parsed.toString(), PREFIX);
+      key = MongoUtils.encodeKey(key);
       return Map.of(key, 1);
     }
 
@@ -86,6 +88,6 @@ public final class MongoProjectionSelectingExpressionParser extends MongoSelecti
           String.format("Alias is must for: %s", expression.toString()));
     }
 
-    return alias;
+    return MongoUtils.encodeKey(alias);
   }
 }
