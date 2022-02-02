@@ -314,7 +314,7 @@ class MongoQueryExecutorTest {
                     + "     }"
                     + "   }"
                     + "}"),
-            BasicDBObject.parse("{" + "\"$project\": {" + "    \"total\": 1" + "}" + "}"));
+            BasicDBObject.parse("{" + "\"$project\": {" + "    \"total\": \"$total\"" + "}" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -347,7 +347,7 @@ class MongoQueryExecutorTest {
                     + "\"$project\": "
                     + "   {"
                     + "     name: 1,"
-                    + "     total: 1"
+                    + "     total: \"$total\""
                     + "   }"
                     + "}"));
 
@@ -378,7 +378,8 @@ class MongoQueryExecutorTest {
                     + "     }"
                     + "   }"
                     + "}"),
-            BasicDBObject.parse("{" + "\"$project\": {" + "   \"topper\": 1" + " }" + "}"));
+            BasicDBObject.parse(
+                "{" + "\"$project\": {" + "   \"topper\": \"$topper\"" + " }" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -416,7 +417,7 @@ class MongoQueryExecutorTest {
                     + "     }"
                     + "   }"
                     + "}"),
-            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": 1" + " }" + "}"));
+            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": \"$total\"" + " }" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -458,7 +459,7 @@ class MongoQueryExecutorTest {
                     + "     }"
                     + "   }"
                     + "}"),
-            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": 1" + " }" + "}"),
+            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": \"$total\"" + " }" + "}"),
             BasicDBObject.parse(
                 "{"
                     + "\"$match\":"
@@ -504,7 +505,11 @@ class MongoQueryExecutorTest {
                     + "   }"
                     + "}"),
             BasicDBObject.parse(
-                "{" + "\"$project\": {" + "     \"averageHighScore\": 1" + " }" + "}"),
+                "{"
+                    + "\"$project\": {"
+                    + "     \"averageHighScore\": \"$averageHighScore\""
+                    + " }"
+                    + "}"),
             BasicDBObject.parse(
                 "{"
                     + "   \"$sort\": {"
