@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo.query.transformer;
 
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
 
 import java.util.Optional;
 import lombok.AllArgsConstructor;
@@ -78,18 +79,22 @@ final class MongoSelectionsAddingTransformation implements SelectingExpressionVi
           String.format("Alias is must for projection: %s", expression));
     }
 
+    final String encodedAlias = encodeKey(alias);
+    final SelectingExpression pairingExpression;
+
     if (expression.getAggregator() == DISTINCT_COUNT) {
       // Since MongoDB doesn't support $distinctCount in aggregations, we convert this to
       // $addToSet function. So, we need to project $size(set) instead of just the alias
-      SelectingExpression pairingExpression =
+      pairingExpression =
           FunctionExpression.builder()
               .operator(LENGTH)
-              .operand(IdentifierExpression.of(alias))
+              .operand(IdentifierExpression.of(encodedAlias))
               .build();
-      return Optional.of(SelectionSpec.of(pairingExpression, alias));
+    } else {
+      pairingExpression = IdentifierExpression.of(encodedAlias);
     }
 
-    return Optional.of(SelectionSpec.of(IdentifierExpression.of(alias)));
+    return Optional.of(SelectionSpec.of(pairingExpression, alias));
   }
 
   @SuppressWarnings("unchecked")

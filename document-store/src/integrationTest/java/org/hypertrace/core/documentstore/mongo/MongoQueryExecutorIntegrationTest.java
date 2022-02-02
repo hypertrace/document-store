@@ -379,13 +379,14 @@ public class MongoQueryExecutorIntegrationTest {
   public void testAggregateWithNestedFields() throws IOException {
     Query query =
         Query.builder()
-            .addSelection(IdentifierExpression.of("props.seller.address.pincode"), "pincode")
-            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items")
+            .addSelection(IdentifierExpression.of("props.seller.address.pincode"), "pincode.value")
+            .addSelection(AggregateExpression.of(SUM, ConstantExpression.of(1)), "num_items.value")
             .addAggregation(IdentifierExpression.of("props.seller.address.pincode"))
-            .addSort(IdentifierExpression.of("pincode"), DESC)
+            .addSort(IdentifierExpression.of("num_items.value"), DESC)
+            .addSort(IdentifierExpression.of("pincode.value"), DESC)
             .setAggregationFilter(
                 RelationalExpression.of(
-                    IdentifierExpression.of("num_items"), GT, ConstantExpression.of(1)))
+                    IdentifierExpression.of("num_items.value"), GT, ConstantExpression.of(1)))
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);

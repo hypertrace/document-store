@@ -9,11 +9,19 @@ public final class MongoUtils {
     return new UnsupportedOperationException(String.format(UNSUPPORTED_OPERATION, t));
   }
 
-  public static String encodeKey(String key) {
+  public static String encodeKey(final String key) {
+    if (key == null) {
+      return null;
+    }
+
     return key.replace("\\", "\\\\").replace(PREFIX, "\\u0024").replace(FIELD_SEPARATOR, "\\u002e");
   }
 
-  public static String decodeKey(String key) {
+  public static String decodeKey(final String key) {
+    if (key == null) {
+      return null;
+    }
+
     return key.replace("\\u002e", FIELD_SEPARATOR).replace("\\u0024", PREFIX).replace("\\\\", "\\");
   }
 }

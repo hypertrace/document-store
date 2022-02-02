@@ -1,14 +1,26 @@
 [
   {
-    "pincode": 700007,
-    "num_items": 2
+    "pincode": {
+      "value": null
+    },
+    "num_items": {
+      "value": 4
+    }
   },
   {
-    "pincode": 400004,
-    "num_items": 2
+    "pincode": {
+      "value": 700007
+    },
+    "num_items": {
+      "value": 2
+    }
   },
   {
-    "pincode": null,
-    "num_items": 4
+    "pincode": {
+      "value": 400004
+    },
+    "num_items": {
+      "value": 2
+    }
   }
 ]
