@@ -78,8 +78,7 @@ public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpre
 
   private static Map<String, Object> parse(
       final MongoSelectTypeExpressionParser baseParser, final SelectionSpec spec) {
-    MongoProjectingParser parser =
-        new MongoProjectingParser(spec.getAlias(), baseParser);
+    MongoProjectingParser parser = new MongoProjectingParser(spec.getAlias(), baseParser);
 
     return spec.getExpression().accept(parser);
   }

@@ -16,8 +16,7 @@ import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 public final class MongoProjectingParser extends MongoSelectTypeExpressionParser {
   private final String alias;
 
-  MongoProjectingParser(
-      final String alias, final MongoSelectTypeExpressionParser baseParser) {
+  MongoProjectingParser(final String alias, final MongoSelectTypeExpressionParser baseParser) {
     super(baseParser);
     this.alias = alias;
   }
