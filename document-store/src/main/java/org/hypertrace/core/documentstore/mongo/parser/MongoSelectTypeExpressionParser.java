@@ -50,7 +50,7 @@ public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpre
   public static BasicDBObject getSelections(final Query query) {
     List<SelectionSpec> selectionSpecs = query.getSelections();
     MongoSelectTypeExpressionParser parser =
-        new MongoIdentifierPrefixExpressionParser(
+        new MongoIdentifierPrefixingParser(
             new MongoIdentifierExpressionParser(new MongoFunctionExpressionParser()));
 
     Map<String, Object> projectionMap =
@@ -78,8 +78,8 @@ public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpre
 
   private static Map<String, Object> parse(
       final MongoSelectTypeExpressionParser baseParser, final SelectionSpec spec) {
-    MongoProjectionExpressionParser parser =
-        new MongoProjectionExpressionParser(spec.getAlias(), baseParser);
+    MongoProjectingParser parser =
+        new MongoProjectingParser(spec.getAlias(), baseParser);
 
     return spec.getExpression().accept(parser);
   }

@@ -13,10 +13,10 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 
 @Slf4j
-public final class MongoProjectionExpressionParser extends MongoSelectTypeExpressionParser {
+public final class MongoProjectingParser extends MongoSelectTypeExpressionParser {
   private final String alias;
 
-  MongoProjectionExpressionParser(
+  MongoProjectingParser(
       final String alias, final MongoSelectTypeExpressionParser baseParser) {
     super(baseParser);
     this.alias = alias;

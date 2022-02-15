@@ -61,7 +61,7 @@ final class MongoFunctionExpressionParser extends MongoSelectTypeExpressionParse
     }
 
     SelectTypeExpressionVisitor parser =
-        new MongoIdentifierPrefixExpressionParser(
+        new MongoIdentifierPrefixingParser(
             new MongoIdentifierExpressionParser(new MongoConstantExpressionParser()));
 
     if (numArgs == 1) {

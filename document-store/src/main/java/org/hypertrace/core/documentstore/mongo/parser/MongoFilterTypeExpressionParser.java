@@ -17,7 +17,7 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final LogicalExpression expression) {
-    return new MongoLogicalExpressionMongoParser().parse(expression);
+    return new MongoLogicalExpressionParser().parse(expression);
   }
 
   @SuppressWarnings("unchecked")

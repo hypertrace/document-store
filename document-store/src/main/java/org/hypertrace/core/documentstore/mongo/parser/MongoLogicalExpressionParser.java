@@ -13,7 +13,7 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
-final class MongoLogicalExpressionMongoParser {
+final class MongoLogicalExpressionParser {
   private static final Map<LogicalOperator, String> KEY_MAP =
       unmodifiableMap(
           new EnumMap<>(LogicalOperator.class) {

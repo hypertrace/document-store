@@ -48,7 +48,7 @@ final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionPars
     }
 
     SelectTypeExpressionVisitor parser =
-        new MongoIdentifierPrefixExpressionParser(
+        new MongoIdentifierPrefixingParser(
             new MongoIdentifierExpressionParser(
                 new MongoAggregateExpressionParser(
                     new MongoFunctionExpressionParser(new MongoConstantExpressionParser()))));
