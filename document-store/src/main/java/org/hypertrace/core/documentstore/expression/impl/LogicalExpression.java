@@ -9,8 +9,8 @@ import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
-import org.hypertrace.core.documentstore.expression.type.FilterableExpression;
-import org.hypertrace.core.documentstore.parser.FilterableExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
+import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
 /**
  * Expression to connect 2 or more relational expressions.
@@ -39,14 +39,14 @@ import org.hypertrace.core.documentstore.parser.FilterableExpressionVisitor;
 @Value
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class LogicalExpression implements FilterableExpression {
+public class LogicalExpression implements FilterTypeExpression {
 
-  @Singular List<FilterableExpression> operands;
+  @Singular List<FilterTypeExpression> operands;
 
   LogicalOperator operator;
 
   @Override
-  public <T> T accept(final FilterableExpressionVisitor visitor) {
+  public <T> T accept(final FilterTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 

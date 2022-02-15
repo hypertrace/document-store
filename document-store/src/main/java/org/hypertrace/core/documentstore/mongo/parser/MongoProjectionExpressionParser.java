@@ -10,14 +10,14 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectableExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 
 @Slf4j
-public final class MongoProjectionExpressionParser extends MongoSelectableExpressionParser {
+public final class MongoProjectionExpressionParser extends MongoSelectTypeExpressionParser {
   private final String alias;
 
   MongoProjectionExpressionParser(
-      final String alias, final MongoSelectableExpressionParser baseParser) {
+      final String alias, final MongoSelectTypeExpressionParser baseParser) {
     super(baseParser);
     this.alias = alias;
   }
@@ -93,11 +93,11 @@ public final class MongoProjectionExpressionParser extends MongoSelectableExpres
     return parsed == null ? Map.of() : Map.of(key, parsed);
   }
 
-  private String getEncodedAlias(final SelectableExpression expression) {
+  private String getEncodedAlias(final SelectTypeExpression expression) {
     return encodeKey(getAlias(expression));
   }
 
-  private String getAlias(final SelectableExpression expression) {
+  private String getAlias(final SelectTypeExpression expression) {
     if (StringUtils.isBlank(alias)) {
       throw new IllegalArgumentException(
           String.format("Alias is must for: %s", expression.toString()));

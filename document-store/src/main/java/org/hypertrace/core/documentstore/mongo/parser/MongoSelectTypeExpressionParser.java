@@ -9,21 +9,21 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.parser.SelectableExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public abstract class MongoSelectableExpressionParser implements SelectableExpressionVisitor {
+public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpressionVisitor {
 
   private static final String PROJECT_CLAUSE = "$project";
 
-  protected final MongoSelectableExpressionParser baseParser;
+  protected final MongoSelectTypeExpressionParser baseParser;
 
-  protected MongoSelectableExpressionParser() {
-    this(MongoUnsupportedSelectableExpressionParser.INSTANCE);
+  protected MongoSelectTypeExpressionParser() {
+    this(MongoUnsupportedSelectTypeExpressionParser.INSTANCE);
   }
 
-  protected MongoSelectableExpressionParser(final MongoSelectableExpressionParser baseParser) {
+  protected MongoSelectTypeExpressionParser(final MongoSelectTypeExpressionParser baseParser) {
     this.baseParser = baseParser;
   }
 
@@ -49,19 +49,19 @@ public abstract class MongoSelectableExpressionParser implements SelectableExpre
 
   public static BasicDBObject getSelections(final Query query) {
     List<SelectionSpec> selectionSpecs = query.getSelections();
-    MongoSelectableExpressionParser parser =
-        new MongoIdentifierPrefixingExpressionParser(
+    MongoSelectTypeExpressionParser parser =
+        new MongoIdentifierPrefixExpressionParser(
             new MongoIdentifierExpressionParser(new MongoFunctionExpressionParser()));
 
     Map<String, Object> projectionMap =
         selectionSpecs.stream()
-            .map(spec -> MongoSelectableExpressionParser.parse(parser, spec))
+            .map(spec -> MongoSelectTypeExpressionParser.parse(parser, spec))
             .flatMap(map -> map.entrySet().stream())
             .collect(
                 toMap(
                     Map.Entry::getKey,
                     Map.Entry::getValue,
-                    MongoSelectableExpressionParser::mergeValues));
+                    MongoSelectTypeExpressionParser::mergeValues));
 
     return new BasicDBObject(projectionMap);
   }
@@ -77,7 +77,7 @@ public abstract class MongoSelectableExpressionParser implements SelectableExpre
   }
 
   private static Map<String, Object> parse(
-      final MongoSelectableExpressionParser baseParser, final SelectionSpec spec) {
+      final MongoSelectTypeExpressionParser baseParser, final SelectionSpec spec) {
     MongoProjectionExpressionParser parser =
         new MongoProjectionExpressionParser(spec.getAlias(), baseParser);
 

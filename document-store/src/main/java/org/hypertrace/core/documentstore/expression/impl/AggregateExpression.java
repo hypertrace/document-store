@@ -5,10 +5,10 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
-import org.hypertrace.core.documentstore.expression.type.SelectableExpression;
-import org.hypertrace.core.documentstore.expression.type.SortableExpression;
-import org.hypertrace.core.documentstore.parser.SelectableExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SortableExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 
 /**
  * Expression representing aggregation in a query.
@@ -19,26 +19,26 @@ import org.hypertrace.core.documentstore.parser.SortableExpressionVisitor;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class AggregateExpression implements SelectableExpression, SortableExpression {
+public class AggregateExpression implements SelectTypeExpression, SortTypeExpression {
 
   AggregationOperator aggregator;
 
-  SelectableExpression expression;
+  SelectTypeExpression expression;
 
   public static AggregateExpression of(
-      final AggregationOperator aggregator, final SelectableExpression expression) {
+      final AggregationOperator aggregator, final SelectTypeExpression expression) {
     Preconditions.checkArgument(aggregator != null, "aggregator is null");
     Preconditions.checkArgument(expression != null, "expression is null");
     return new AggregateExpression(aggregator, expression);
   }
 
   @Override
-  public <T> T accept(final SelectableExpressionVisitor visitor) {
+  public <T> T accept(final SelectTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
   @Override
-  public <T> T accept(final SortableExpressionVisitor visitor) {
+  public <T> T accept(final SortTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 }

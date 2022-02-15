@@ -5,9 +5,9 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
-import org.hypertrace.core.documentstore.expression.type.FilterableExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectableExpression;
-import org.hypertrace.core.documentstore.parser.FilterableExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
+import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
 /**
  * Expression representing a condition for filtering
@@ -21,18 +21,18 @@ import org.hypertrace.core.documentstore.parser.FilterableExpressionVisitor;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class RelationalExpression implements FilterableExpression {
+public class RelationalExpression implements FilterTypeExpression {
 
-  SelectableExpression lhs;
+  SelectTypeExpression lhs;
 
   RelationalOperator operator;
 
-  SelectableExpression rhs;
+  SelectTypeExpression rhs;
 
   public static RelationalExpression of(
-      final SelectableExpression lhs,
+      final SelectTypeExpression lhs,
       final RelationalOperator operator,
-      final SelectableExpression rhs) {
+      final SelectTypeExpression rhs) {
     Preconditions.checkArgument(lhs != null, "lhs is null");
     Preconditions.checkArgument(operator != null, "operator is null");
     Preconditions.checkArgument(rhs != null, "rhs is null");
@@ -40,7 +40,7 @@ public class RelationalExpression implements FilterableExpression {
   }
 
   @Override
-  public <T> T accept(final FilterableExpressionVisitor visitor) {
+  public <T> T accept(final FilterTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 }

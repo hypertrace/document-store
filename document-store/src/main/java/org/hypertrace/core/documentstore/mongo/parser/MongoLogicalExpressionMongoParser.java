@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
-import org.hypertrace.core.documentstore.parser.FilterableExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
 final class MongoLogicalExpressionMongoParser {
   private static final Map<LogicalOperator, String> KEY_MAP =
@@ -31,7 +31,7 @@ final class MongoLogicalExpressionMongoParser {
       throw getUnsupportedOperationException(operator);
     }
 
-    FilterableExpressionVisitor parser = new MongoFilterableExpressionParser();
+    FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser();
     List<Object> parsed =
         expression.getOperands().stream()
             .map(exp -> exp.accept(parser))

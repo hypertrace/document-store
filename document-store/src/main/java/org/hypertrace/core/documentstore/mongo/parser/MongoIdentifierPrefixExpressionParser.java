@@ -5,9 +5,9 @@ import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
-final class MongoIdentifierPrefixingExpressionParser extends MongoSelectableExpressionParser {
+final class MongoIdentifierPrefixExpressionParser extends MongoSelectTypeExpressionParser {
 
-  MongoIdentifierPrefixingExpressionParser(final MongoSelectableExpressionParser baseParser) {
+  MongoIdentifierPrefixExpressionParser(final MongoSelectTypeExpressionParser baseParser) {
     super(baseParser);
   }
 
