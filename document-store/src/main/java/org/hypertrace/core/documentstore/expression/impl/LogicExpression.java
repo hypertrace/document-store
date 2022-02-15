@@ -50,7 +50,7 @@ public class LogicExpression implements FilterTypeExpression {
     return visitor.visit(this);
   }
 
-  public static class LogicalExpressionBuilder {
+  public static class LogicExpressionBuilder {
     public LogicExpression build() {
       Preconditions.checkArgument(operands != null, "operands is null");
       Preconditions.checkArgument(operands.size() >= 2, "At least 2 operands required");
