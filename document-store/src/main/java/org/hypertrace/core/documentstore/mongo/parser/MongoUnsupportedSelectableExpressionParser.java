@@ -10,9 +10,9 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
-public class MongoUnsupportedSelectTypeExpressionParser extends MongoSelectTypeExpressionParser {
-  static final MongoUnsupportedSelectTypeExpressionParser INSTANCE =
-      new MongoUnsupportedSelectTypeExpressionParser();
+public class MongoUnsupportedSelectableExpressionParser extends MongoSelectableExpressionParser {
+  static final MongoUnsupportedSelectableExpressionParser INSTANCE =
+      new MongoUnsupportedSelectableExpressionParser();
 
   @Override
   public <T> T visit(final AggregateExpression expression) {

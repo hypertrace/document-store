@@ -5,7 +5,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
-import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SortableExpression;
 
 /**
  * A generic ORDER BY definition that supports expressions. Note that this class is a more general
@@ -15,11 +15,11 @@ import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class SortingSpec {
 
-  SortTypeExpression expression;
+  SortableExpression expression;
 
   SortOrder order;
 
-  public static SortingSpec of(SortTypeExpression expression, SortOrder order) {
+  public static SortingSpec of(SortableExpression expression, SortOrder order) {
     Preconditions.checkArgument(expression != null, "expression is null");
     Preconditions.checkArgument(order != null, "order is null");
     return new SortingSpec(expression, order);

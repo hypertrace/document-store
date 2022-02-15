@@ -5,13 +5,13 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Value;
-import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.FilterableExpression;
 
 @Value
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Filter {
-  FilterTypeExpression expression;
+  FilterableExpression expression;
 
   public static class FilterBuilder {
     public Filter build() {

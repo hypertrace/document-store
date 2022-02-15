@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.expression.operators;
 
-public enum LogicOperator {
+public enum LogicalOperator {
   AND,
   OR,
 }

@@ -11,10 +11,10 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
-import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.FilterableExpression;
+import org.hypertrace.core.documentstore.expression.type.GroupableExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectableExpression;
+import org.hypertrace.core.documentstore.expression.type.SortableExpression;
 
 /**
  * A generic query definition that supports expressions. Note that this class is a more general
@@ -80,15 +80,15 @@ public final class Query {
     return selection == null ? emptyList() : unmodifiableList(selection.getSelectionSpecs());
   }
 
-  public Optional<FilterTypeExpression> getFilter() {
+  public Optional<FilterableExpression> getFilter() {
     return Optional.ofNullable(filter).map(Filter::getExpression);
   }
 
-  public List<GroupTypeExpression> getAggregations() {
+  public List<GroupableExpression> getAggregations() {
     return aggregation == null ? emptyList() : unmodifiableList(aggregation.getExpressions());
   }
 
-  public Optional<FilterTypeExpression> getAggregationFilter() {
+  public Optional<FilterableExpression> getAggregationFilter() {
     return Optional.ofNullable(aggregationFilter).map(Filter::getExpression);
   }
 
@@ -133,12 +133,12 @@ public final class Query {
       return this;
     }
 
-    public QueryBuilder addSelection(final SelectTypeExpression expression) {
+    public QueryBuilder addSelection(final SelectableExpression expression) {
       addSelection(SelectionSpec.of(expression));
       return this;
     }
 
-    public QueryBuilder addSelection(final SelectTypeExpression expression, final String alias) {
+    public QueryBuilder addSelection(final SelectableExpression expression, final String alias) {
       addSelection(SelectionSpec.of(expression, alias));
       return this;
     }
@@ -155,7 +155,7 @@ public final class Query {
       return this;
     }
 
-    public QueryBuilder setFilter(final FilterTypeExpression expression) {
+    public QueryBuilder setFilter(final FilterableExpression expression) {
       getFilterBuilder().expression(expression);
       return this;
     }
@@ -165,19 +165,19 @@ public final class Query {
       return this;
     }
 
-    public QueryBuilder setAggregations(final List<GroupTypeExpression> expressions) {
+    public QueryBuilder setAggregations(final List<GroupableExpression> expressions) {
       if (CollectionUtils.isNotEmpty(expressions)) {
         getAggregationBuilder().clearExpressions();
       }
       return addAggregations(expressions);
     }
 
-    public QueryBuilder addAggregation(final GroupTypeExpression expression) {
+    public QueryBuilder addAggregation(final GroupableExpression expression) {
       getAggregationBuilder().expression(expression);
       return this;
     }
 
-    public QueryBuilder addAggregations(final List<GroupTypeExpression> expressions) {
+    public QueryBuilder addAggregations(final List<GroupableExpression> expressions) {
       if (CollectionUtils.isNotEmpty(expressions)) {
         getAggregationBuilder().expressions(expressions);
       }
@@ -189,7 +189,7 @@ public final class Query {
       return this;
     }
 
-    public QueryBuilder setAggregationFilter(final FilterTypeExpression expression) {
+    public QueryBuilder setAggregationFilter(final FilterableExpression expression) {
       getAggregationFilterBuilder().expression(expression);
       return this;
     }
@@ -211,7 +211,7 @@ public final class Query {
       return this;
     }
 
-    public QueryBuilder addSort(final SortTypeExpression expression, final SortOrder order) {
+    public QueryBuilder addSort(final SortableExpression expression, final SortOrder order) {
       addSort(SortingSpec.of(expression, order));
       return this;
     }

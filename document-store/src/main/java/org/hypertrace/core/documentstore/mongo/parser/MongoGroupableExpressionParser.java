@@ -13,13 +13,13 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
-import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.GroupableExpression;
+import org.hypertrace.core.documentstore.parser.GroupableExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectableExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
-public final class MongoGroupTypeExpressionParser implements GroupTypeExpressionVisitor {
+public final class MongoGroupableExpressionParser implements GroupableExpressionVisitor {
 
   private static final String GROUP_CLAUSE = "$group";
 
@@ -43,9 +43,9 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
 
   public static BasicDBObject getGroupClause(final Query query) {
     final List<SelectionSpec> selectionSpecs = query.getSelections();
-    final List<GroupTypeExpression> expressions = query.getAggregations();
+    final List<GroupableExpression> expressions = query.getAggregations();
 
-    MongoGroupTypeExpressionParser parser = new MongoGroupTypeExpressionParser();
+    MongoGroupableExpressionParser parser = new MongoGroupableExpressionParser();
     Map<String, Object> groupExp;
 
     if (CollectionUtils.isEmpty(expressions)) {
@@ -69,11 +69,11 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
       groupExp = Map.of(ID_KEY, groups);
     }
 
-    MongoSelectTypeExpressionParser baseParser = new MongoAggregateExpressionParser();
+    MongoSelectableExpressionParser baseParser = new MongoAggregateExpressionParser();
 
     Map<String, Object> definition =
         selectionSpecs.stream()
-            .map(spec -> MongoGroupTypeExpressionParser.parse(baseParser, spec))
+            .map(spec -> MongoGroupableExpressionParser.parse(baseParser, spec))
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -90,14 +90,14 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
   }
 
   private static Map<String, Object> parse(
-      final MongoSelectTypeExpressionParser baseParser, final SelectionSpec spec) {
-    SelectTypeExpressionVisitor parser =
-        new MongoProjectionSelectTypeExpressionParser(spec.getAlias(), baseParser);
+      final MongoSelectableExpressionParser baseParser, final SelectionSpec spec) {
+    SelectableExpressionVisitor parser =
+        new MongoProjectionExpressionParser(spec.getAlias(), baseParser);
     return spec.getExpression().accept(parser);
   }
 
-  private Map<String, Object> parse(final GroupTypeExpression expression) {
-    MongoGroupTypeExpressionParser parser = new MongoGroupTypeExpressionParser();
+  private Map<String, Object> parse(final GroupableExpression expression) {
+    MongoGroupableExpressionParser parser = new MongoGroupableExpressionParser();
     return expression.accept(parser);
   }
 }

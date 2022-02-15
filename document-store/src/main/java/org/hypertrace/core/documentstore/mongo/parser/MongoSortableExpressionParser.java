@@ -15,11 +15,11 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
-import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortableExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
-public final class MongoSortTypeExpressionParser implements SortTypeExpressionVisitor {
+public final class MongoSortableExpressionParser implements SortableExpressionVisitor {
 
   private static final String SORT_CLAUSE = "$sort";
   private static final Map<SortOrder, Integer> ORDER_MAP =
@@ -33,7 +33,7 @@ public final class MongoSortTypeExpressionParser implements SortTypeExpressionVi
 
   private final SortOrder order;
 
-  MongoSortTypeExpressionParser(final SortOrder order) {
+  MongoSortableExpressionParser(final SortOrder order) {
     this.order = order;
   }
 
@@ -84,7 +84,7 @@ public final class MongoSortTypeExpressionParser implements SortTypeExpressionVi
 
     Map<String, Object> map =
         sortingSpecs.stream()
-            .map(MongoSortTypeExpressionParser::parse)
+            .map(MongoSortableExpressionParser::parse)
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -96,7 +96,7 @@ public final class MongoSortTypeExpressionParser implements SortTypeExpressionVi
   }
 
   private static Map<String, Object> parse(final SortingSpec definition) {
-    MongoSortTypeExpressionParser parser = new MongoSortTypeExpressionParser(definition.getOrder());
+    MongoSortableExpressionParser parser = new MongoSortableExpressionParser(definition.getOrder());
     return definition.getExpression().accept(parser);
   }
 }

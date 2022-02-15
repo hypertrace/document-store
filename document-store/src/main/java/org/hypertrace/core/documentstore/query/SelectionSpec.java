@@ -4,7 +4,7 @@ import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
-import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectableExpression;
 
 /**
  * A generic selection definition that supports expressions with optional aliases (used in the
@@ -14,16 +14,16 @@ import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class SelectionSpec {
 
-  SelectTypeExpression expression;
+  SelectableExpression expression;
 
   // Alias is optional. Handling missing aliases can be implemented in the respective parsers
   String alias;
 
-  public static SelectionSpec of(final SelectTypeExpression expression) {
+  public static SelectionSpec of(final SelectableExpression expression) {
     return SelectionSpec.of(expression, null);
   }
 
-  public static SelectionSpec of(final SelectTypeExpression expression, final String alias) {
+  public static SelectionSpec of(final SelectableExpression expression, final String alias) {
     Preconditions.checkArgument(expression != null, "expression is null");
     return new SelectionSpec(expression, alias);
   }

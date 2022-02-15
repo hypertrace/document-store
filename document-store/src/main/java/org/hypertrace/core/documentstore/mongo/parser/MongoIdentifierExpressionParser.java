@@ -4,9 +4,9 @@ import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
 @NoArgsConstructor
-final class MongoIdentifierExpressionParser extends MongoSelectTypeExpressionParser {
+final class MongoIdentifierExpressionParser extends MongoSelectableExpressionParser {
 
-  MongoIdentifierExpressionParser(final MongoSelectTypeExpressionParser baseParser) {
+  MongoIdentifierExpressionParser(final MongoSelectableExpressionParser baseParser) {
     super(baseParser);
   }
 

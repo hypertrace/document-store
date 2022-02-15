@@ -7,14 +7,14 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
-import static org.hypertrace.core.documentstore.expression.operators.LogicOperator.AND;
-import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.EQ;
-import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.GT;
-import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.GTE;
-import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.IN;
-import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.LTE;
-import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.NEQ;
-import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.NOT_IN;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -35,8 +35,8 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.LogicExpression;
-import org.hypertrace.core.documentstore.expression.impl.RelationExpression;
+import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -136,13 +136,13 @@ class MongoQueryExecutorTest {
     Query query =
         Query.builder()
             .setFilter(
-                LogicExpression.builder()
+                LogicalExpression.builder()
                     .operand(
-                        RelationExpression.of(
+                        RelationalExpression.of(
                             IdentifierExpression.of("percentage"), GT, ConstantExpression.of(90)))
                     .operator(AND)
                     .operand(
-                        RelationExpression.of(
+                        RelationalExpression.of(
                             IdentifierExpression.of("class"), EQ, ConstantExpression.of("XII")))
                     .build())
             .build();
@@ -224,13 +224,13 @@ class MongoQueryExecutorTest {
             .addSort(IdentifierExpression.of("name"), SortOrder.ASC)
             .setPagination(Pagination.builder().offset(50).limit(10).build())
             .setFilter(
-                LogicExpression.builder()
+                LogicalExpression.builder()
                     .operand(
-                        RelationExpression.of(
+                        RelationalExpression.of(
                             IdentifierExpression.of("percentage"), GTE, ConstantExpression.of(90)))
                     .operator(AND)
                     .operand(
-                        RelationExpression.of(
+                        RelationalExpression.of(
                             IdentifierExpression.of("class"), NEQ, ConstantExpression.of("XII")))
                     .build())
             .build();
@@ -273,7 +273,7 @@ class MongoQueryExecutorTest {
     Filter filter =
         Filter.builder()
             .expression(
-                RelationExpression.of(
+                RelationalExpression.of(
                     IdentifierExpression.of("item"),
                     NOT_IN,
                     ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
@@ -390,7 +390,7 @@ class MongoQueryExecutorTest {
         Query.builder()
             .addSelection(AggregateExpression.of(SUM, IdentifierExpression.of("marks")), "total")
             .setFilter(
-                RelationExpression.of(
+                RelationalExpression.of(
                     IdentifierExpression.of("section"),
                     IN,
                     ConstantExpression.ofStrings(List.of("A", "B", "C"))))
@@ -437,7 +437,7 @@ class MongoQueryExecutorTest {
                 "total")
             .addAggregation(IdentifierExpression.of("order"))
             .setAggregationFilter(
-                RelationExpression.of(
+                RelationalExpression.of(
                     IdentifierExpression.of("total"),
                     NOT_IN,
                     ConstantExpression.ofNumbers(List.of(100, 200, 500))))
@@ -551,7 +551,7 @@ class MongoQueryExecutorTest {
     Query query =
         Query.builder()
             .setFilter(
-                RelationExpression.of(
+                RelationalExpression.of(
                     IdentifierExpression.of("class"), LTE, ConstantExpression.of(10)))
             .addAggregation(IdentifierExpression.of("class"))
             .addSelection(

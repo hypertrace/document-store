@@ -4,8 +4,8 @@ import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 
 @NoArgsConstructor
-final class MongoConstantExpressionParser extends MongoSelectTypeExpressionParser {
-  MongoConstantExpressionParser(final MongoSelectTypeExpressionParser baseParser) {
+final class MongoConstantExpressionParser extends MongoSelectableExpressionParser {
+  MongoConstantExpressionParser(final MongoSelectableExpressionParser baseParser) {
     super(baseParser);
   }
 

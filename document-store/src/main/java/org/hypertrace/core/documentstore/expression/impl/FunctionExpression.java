@@ -9,12 +9,12 @@ import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
-import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
-import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.GroupableExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectableExpression;
+import org.hypertrace.core.documentstore.expression.type.SortableExpression;
+import org.hypertrace.core.documentstore.parser.GroupableExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectableExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortableExpressionVisitor;
 
 /**
  * Expression representing arithmetic/function operations in a query.
@@ -40,9 +40,9 @@ import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class FunctionExpression
-    implements GroupTypeExpression, SelectTypeExpression, SortTypeExpression {
+    implements GroupableExpression, SelectableExpression, SortableExpression {
 
-  @Singular List<SelectTypeExpression> operands;
+  @Singular List<SelectableExpression> operands;
 
   FunctionOperator operator;
 
@@ -57,17 +57,17 @@ public class FunctionExpression
   }
 
   @Override
-  public <T> T accept(final GroupTypeExpressionVisitor visitor) {
+  public <T> T accept(final GroupableExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
   @Override
-  public <T> T accept(final SelectTypeExpressionVisitor visitor) {
+  public <T> T accept(final SelectableExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
   @Override
-  public <T> T accept(final SortTypeExpressionVisitor visitor) {
+  public <T> T accept(final SortableExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 }

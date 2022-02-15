@@ -8,9 +8,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
-import org.hypertrace.core.documentstore.expression.operators.LogicOperator;
-import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
-import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
+import org.hypertrace.core.documentstore.expression.type.FilterableExpression;
+import org.hypertrace.core.documentstore.parser.FilterableExpressionVisitor;
 
 /**
  * Expression to connect 2 or more relational expressions.
@@ -39,25 +39,25 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 @Value
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class LogicExpression implements FilterTypeExpression {
+public class LogicalExpression implements FilterableExpression {
 
-  @Singular List<FilterTypeExpression> operands;
+  @Singular List<FilterableExpression> operands;
 
-  LogicOperator operator;
+  LogicalOperator operator;
 
   @Override
-  public <T> T accept(final FilterTypeExpressionVisitor visitor) {
+  public <T> T accept(final FilterableExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
-  public static class LogicExpressionBuilder {
-    public LogicExpression build() {
+  public static class LogicalExpressionBuilder {
+    public LogicalExpression build() {
       Preconditions.checkArgument(operands != null, "operands is null");
       Preconditions.checkArgument(operands.size() >= 2, "At least 2 operands required");
       Preconditions.checkArgument(
           operands.stream().noneMatch(Objects::isNull), "One or more operands is null");
       Preconditions.checkArgument(operator != null, "operator is null");
-      return new LogicExpression(operands, operator);
+      return new LogicalExpression(operands, operator);
     }
   }
 }

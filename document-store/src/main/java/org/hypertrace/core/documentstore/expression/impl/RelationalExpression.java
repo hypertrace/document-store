@@ -4,10 +4,10 @@ import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
-import org.hypertrace.core.documentstore.expression.operators.RelationOperator;
-import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
-import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
+import org.hypertrace.core.documentstore.expression.type.FilterableExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectableExpression;
+import org.hypertrace.core.documentstore.parser.FilterableExpressionVisitor;
 
 /**
  * Expression representing a condition for filtering
@@ -21,26 +21,26 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class RelationExpression implements FilterTypeExpression {
+public class RelationalExpression implements FilterableExpression {
 
-  SelectTypeExpression lhs;
+  SelectableExpression lhs;
 
-  RelationOperator operator;
+  RelationalOperator operator;
 
-  SelectTypeExpression rhs;
+  SelectableExpression rhs;
 
-  public static RelationExpression of(
-      final SelectTypeExpression lhs,
-      final RelationOperator operator,
-      final SelectTypeExpression rhs) {
+  public static RelationalExpression of(
+      final SelectableExpression lhs,
+      final RelationalOperator operator,
+      final SelectableExpression rhs) {
     Preconditions.checkArgument(lhs != null, "lhs is null");
     Preconditions.checkArgument(operator != null, "operator is null");
     Preconditions.checkArgument(rhs != null, "rhs is null");
-    return new RelationExpression(lhs, operator, rhs);
+    return new RelationalExpression(lhs, operator, rhs);
   }
 
   @Override
-  public <T> T accept(final FilterTypeExpressionVisitor visitor) {
+  public <T> T accept(final FilterableExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 }

@@ -5,8 +5,8 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.apache.commons.collections4.CollectionUtils;
-import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
-import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.SelectableExpression;
+import org.hypertrace.core.documentstore.parser.SelectableExpressionVisitor;
 
 /**
  * Expression representing either a string constant, a numeric constant or a list of string/numeric
@@ -19,7 +19,7 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ConstantExpression implements SelectTypeExpression {
+public class ConstantExpression implements SelectableExpression {
 
   Object value;
 
@@ -57,7 +57,7 @@ public class ConstantExpression implements SelectTypeExpression {
   }
 
   @Override
-  public <T> T accept(final SelectTypeExpressionVisitor visitor) {
+  public <T> T accept(final SelectableExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 }

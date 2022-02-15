@@ -4,12 +4,12 @@ import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
-import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
-import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.GroupableExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectableExpression;
+import org.hypertrace.core.documentstore.expression.type.SortableExpression;
+import org.hypertrace.core.documentstore.parser.GroupableExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectableExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortableExpressionVisitor;
 
 /**
  * Expression representing either an identifier/column name
@@ -19,7 +19,7 @@ import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class IdentifierExpression
-    implements GroupTypeExpression, SelectTypeExpression, SortTypeExpression {
+    implements GroupableExpression, SelectableExpression, SortableExpression {
 
   String name;
 
@@ -29,17 +29,17 @@ public class IdentifierExpression
   }
 
   @Override
-  public <T> T accept(final GroupTypeExpressionVisitor visitor) {
+  public <T> T accept(final GroupableExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
   @Override
-  public <T> T accept(final SelectTypeExpressionVisitor visitor) {
+  public <T> T accept(final SelectableExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
   @Override
-  public <T> T accept(final SortTypeExpressionVisitor visitor) {
+  public <T> T accept(final SortableExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 }

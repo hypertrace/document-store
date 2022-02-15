@@ -13,10 +13,10 @@ import java.util.Map;
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
-import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectableExpressionVisitor;
 
 @NoArgsConstructor
-final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionParser {
+final class MongoAggregateExpressionParser extends MongoSelectableExpressionParser {
   private static final Map<AggregationOperator, String> KEY_MAP =
       unmodifiableMap(
           new EnumMap<>(AggregationOperator.class) {
@@ -29,7 +29,7 @@ final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionPars
             }
           });
 
-  MongoAggregateExpressionParser(final MongoSelectTypeExpressionParser baseParser) {
+  MongoAggregateExpressionParser(final MongoSelectableExpressionParser baseParser) {
     super(baseParser);
   }
 
@@ -47,8 +47,8 @@ final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionPars
       throw getUnsupportedOperationException(operator);
     }
 
-    SelectTypeExpressionVisitor parser =
-        new MongoIdentifierPrefixingSelectTypeExpressionParser(
+    SelectableExpressionVisitor parser =
+        new MongoIdentifierPrefixingExpressionParser(
             new MongoIdentifierExpressionParser(
                 new MongoAggregateExpressionParser(
                     new MongoFunctionExpressionParser(new MongoConstantExpressionParser()))));
