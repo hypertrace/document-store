@@ -15,8 +15,8 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
-import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
-import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;

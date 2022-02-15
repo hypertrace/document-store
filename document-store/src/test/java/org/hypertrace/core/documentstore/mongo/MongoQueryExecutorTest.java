@@ -15,8 +15,8 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
-import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
-import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -37,7 +37,7 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
-import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
+import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -177,7 +177,7 @@ class MongoQueryExecutorTest {
     Query query =
         Query.builder()
             .addSort(IdentifierExpression.of("marks"), DESC)
-            .addSort(IdentifierExpression.of("name"), SortingOrder.ASC)
+            .addSort(IdentifierExpression.of("name"), SortOrder.ASC)
             .build();
 
     executor.find(query);
@@ -221,7 +221,7 @@ class MongoQueryExecutorTest {
             .addSelection(IdentifierExpression.of("id"))
             .addSelection(IdentifierExpression.of("fname"), "name")
             .addSort(IdentifierExpression.of("marks"), DESC)
-            .addSort(IdentifierExpression.of("name"), SortingOrder.ASC)
+            .addSort(IdentifierExpression.of("name"), SortOrder.ASC)
             .setPagination(Pagination.builder().offset(50).limit(10).build())
             .setFilter(
                 LogicalExpression.builder()

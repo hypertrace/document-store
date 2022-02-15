@@ -9,12 +9,12 @@ import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
-import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
-import org.hypertrace.core.documentstore.expression.type.SortingExpression;
-import org.hypertrace.core.documentstore.parser.GroupingExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
+import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 
 /**
  * Expression representing arithmetic/function operations in a query.
@@ -40,9 +40,9 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class FunctionExpression
-    implements GroupingExpression, SelectingExpression, SortingExpression {
+    implements GroupTypeExpression, SelectTypeExpression, SortTypeExpression {
 
-  @Singular List<SelectingExpression> operands;
+  @Singular List<SelectTypeExpression> operands;
 
   FunctionOperator operator;
 
@@ -57,17 +57,17 @@ public class FunctionExpression
   }
 
   @Override
-  public <T> T visit(final GroupingExpressionVisitor visitor) {
+  public <T> T accept(final GroupTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
   @Override
-  public <T> T visit(final SelectingExpressionVisitor visitor) {
+  public <T> T accept(final SelectTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
   @Override
-  public <T> T visit(final SortingExpressionVisitor visitor) {
+  public <T> T accept(final SortTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 }

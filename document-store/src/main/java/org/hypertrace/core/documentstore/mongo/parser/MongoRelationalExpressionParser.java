@@ -22,7 +22,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
-import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 
 final class MongoRelationalExpressionParser {
 
@@ -47,16 +47,16 @@ final class MongoRelationalExpressionParser {
               });
 
   Map<String, Object> parse(final RelationalExpression expression) {
-    SelectingExpression lhs = expression.getLhs();
+    SelectTypeExpression lhs = expression.getLhs();
     RelationalOperator operator = expression.getOperator();
-    SelectingExpression rhs = expression.getRhs();
+    SelectTypeExpression rhs = expression.getRhs();
 
     // Only an identifier LHS and a constant RHS is supported as of now.
-    MongoSelectingExpressionParser lhsParser = new MongoIdentifierExpressionParser();
-    MongoSelectingExpressionParser rhsParser = new MongoConstantExpressionParser();
+    MongoSelectTypeExpressionParser lhsParser = new MongoIdentifierExpressionParser();
+    MongoSelectTypeExpressionParser rhsParser = new MongoConstantExpressionParser();
 
-    String key = lhs.visit(lhsParser);
-    Object value = rhs.visit(rhsParser);
+    String key = lhs.accept(lhsParser);
+    Object value = rhs.accept(rhsParser);
 
     return generateMap(key, value, operator);
   }

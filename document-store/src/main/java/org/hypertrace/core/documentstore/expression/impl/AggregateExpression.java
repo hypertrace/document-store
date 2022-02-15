@@ -5,10 +5,10 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
-import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
-import org.hypertrace.core.documentstore.expression.type.SortingExpression;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 
 /**
  * Expression representing aggregation in a query.
@@ -19,26 +19,26 @@ import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
  */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class AggregateExpression implements SelectingExpression, SortingExpression {
+public class AggregateExpression implements SelectTypeExpression, SortTypeExpression {
 
   AggregationOperator aggregator;
 
-  SelectingExpression expression;
+  SelectTypeExpression expression;
 
   public static AggregateExpression of(
-      final AggregationOperator aggregator, final SelectingExpression expression) {
+      final AggregationOperator aggregator, final SelectTypeExpression expression) {
     Preconditions.checkArgument(aggregator != null, "aggregator is null");
     Preconditions.checkArgument(expression != null, "expression is null");
     return new AggregateExpression(aggregator, expression);
   }
 
   @Override
-  public <T> T visit(final SelectingExpressionVisitor visitor) {
+  public <T> T accept(final SelectTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
   @Override
-  public <T> T visit(final SortingExpressionVisitor visitor) {
+  public <T> T accept(final SortTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 }

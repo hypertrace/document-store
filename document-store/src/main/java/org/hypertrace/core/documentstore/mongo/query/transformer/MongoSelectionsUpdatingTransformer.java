@@ -15,7 +15,7 @@ final class MongoSelectionsUpdatingTransformer implements QueryTransformer {
     for (SelectionSpec spec : query.getSelections()) {
       MongoSelectionsUpdatingTransformation transformer =
           new MongoSelectionsUpdatingTransformation(query.getAggregations(), spec);
-      SelectionSpec newSpec = spec.getExpression().visit(transformer);
+      SelectionSpec newSpec = spec.getExpression().accept(transformer);
       newSpecs.add(newSpec);
     }
 

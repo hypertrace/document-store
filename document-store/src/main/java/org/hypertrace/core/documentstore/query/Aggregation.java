@@ -8,13 +8,13 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Singular;
 import lombok.Value;
-import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
+import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 
 @Value
 @Builder(toBuilder = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Aggregation {
-  @Singular List<GroupingExpression> expressions;
+  @Singular List<GroupTypeExpression> expressions;
 
   public static class AggregationBuilder {
     public Aggregation build() {
