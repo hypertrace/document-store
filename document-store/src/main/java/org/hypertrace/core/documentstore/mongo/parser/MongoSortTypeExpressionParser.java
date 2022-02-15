@@ -1,8 +1,8 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
-import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
@@ -14,26 +14,26 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.operators.SortingOrder;
-import org.hypertrace.core.documentstore.parser.SortingExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.operators.SortOrder;
+import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
-public final class MongoSortingExpressionParser implements SortingExpressionVisitor {
+public final class MongoSortTypeExpressionParser implements SortTypeExpressionVisitor {
 
   private static final String SORT_CLAUSE = "$sort";
-  private static final Map<SortingOrder, Integer> ORDER_MAP =
+  private static final Map<SortOrder, Integer> ORDER_MAP =
       unmodifiableMap(
-          new EnumMap<>(SortingOrder.class) {
+          new EnumMap<>(SortOrder.class) {
             {
               put(ASC, 1);
               put(DESC, -1);
             }
           });
 
-  private final SortingOrder order;
+  private final SortOrder order;
 
-  MongoSortingExpressionParser(final SortingOrder order) {
+  MongoSortTypeExpressionParser(final SortOrder order) {
     this.order = order;
   }
 
@@ -84,7 +84,7 @@ public final class MongoSortingExpressionParser implements SortingExpressionVisi
 
     Map<String, Object> map =
         sortingSpecs.stream()
-            .map(MongoSortingExpressionParser::parse)
+            .map(MongoSortTypeExpressionParser::parse)
             .reduce(
                 new LinkedHashMap<>(),
                 (first, second) -> {
@@ -96,7 +96,7 @@ public final class MongoSortingExpressionParser implements SortingExpressionVisi
   }
 
   private static Map<String, Object> parse(final SortingSpec definition) {
-    MongoSortingExpressionParser parser = new MongoSortingExpressionParser(definition.getOrder());
-    return definition.getExpression().visit(parser);
+    MongoSortTypeExpressionParser parser = new MongoSortTypeExpressionParser(definition.getOrder());
+    return definition.getExpression().accept(parser);
   }
 }

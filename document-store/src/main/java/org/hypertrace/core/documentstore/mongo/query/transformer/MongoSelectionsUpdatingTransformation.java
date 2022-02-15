@@ -19,8 +19,8 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
-import org.hypertrace.core.documentstore.expression.type.GroupingExpression;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 /**
@@ -71,7 +71,7 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
  * </code> since "item" appears in projection as well as grouping and "$distinctCount" is not
  * supported
  */
-final class MongoSelectionsUpdatingTransformation implements SelectingExpressionVisitor {
+final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressionVisitor {
   private static final Function<AggregateExpression, AggregateExpression> COUNT_HANDLER =
       expression -> AggregateExpression.of(SUM, ConstantExpression.of(1));
 
@@ -88,12 +88,12 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
                 }
               });
 
-  private final List<GroupingExpression> groupingExpressions;
+  private final List<GroupTypeExpression> groupTypeExpressions;
   private final SelectionSpec source;
 
   MongoSelectionsUpdatingTransformation(
-      List<GroupingExpression> groupingExpressions, SelectionSpec source) {
-    this.groupingExpressions = groupingExpressions;
+          List<GroupTypeExpression> groupTypeExpressions, SelectionSpec source) {
+    this.groupTypeExpressions = groupTypeExpressions;
     this.source = source;
   }
 
@@ -118,9 +118,9 @@ final class MongoSelectionsUpdatingTransformation implements SelectingExpression
   @SuppressWarnings("unchecked")
   @Override
   public SelectionSpec visit(final IdentifierExpression expression) {
-    GroupingExpression matchingGroup = null;
+    GroupTypeExpression matchingGroup = null;
 
-    for (final GroupingExpression group : groupingExpressions) {
+    for (final GroupTypeExpression group : groupTypeExpressions) {
       if (expression.equals(group)) {
         matchingGroup = group;
         break;

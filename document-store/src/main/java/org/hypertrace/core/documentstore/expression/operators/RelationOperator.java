@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.expression.operators;
 
-public enum RelationalOperator {
+public enum RelationOperator {
   EQ,
   NEQ,
   GT,

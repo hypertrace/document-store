@@ -10,8 +10,8 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 /**
@@ -68,7 +68,7 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
  * </code>
  */
 @AllArgsConstructor
-final class MongoSelectionsAddingTransformation implements SelectingExpressionVisitor {
+final class MongoSelectionsAddingTransformation implements SelectTypeExpressionVisitor {
   private final String alias;
 
   @SuppressWarnings("unchecked")
@@ -80,7 +80,7 @@ final class MongoSelectionsAddingTransformation implements SelectingExpressionVi
     }
 
     final String encodedAlias = encodeKey(alias);
-    final SelectingExpression pairingExpression;
+    final SelectTypeExpression pairingExpression;
 
     if (expression.getAggregator() == DISTINCT_COUNT) {
       // Since MongoDB doesn't support $distinctCount in aggregations, we convert this to

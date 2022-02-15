@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.expression.operators;
 
-public enum SortingOrder {
-  ASC,
-  DESC,
+public enum LogicOperator {
+  AND,
+  OR,
 }

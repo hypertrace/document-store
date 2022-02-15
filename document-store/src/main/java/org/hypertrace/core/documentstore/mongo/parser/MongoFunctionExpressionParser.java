@@ -17,10 +17,10 @@ import java.util.stream.Collectors;
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
-import org.hypertrace.core.documentstore.parser.SelectingExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
 @NoArgsConstructor
-final class MongoFunctionExpressionParser extends MongoSelectingExpressionParser {
+final class MongoFunctionExpressionParser extends MongoSelectTypeExpressionParser {
   private static final Map<FunctionOperator, String> KEY_MAP =
       unmodifiableMap(
           new EnumMap<>(FunctionOperator.class) {
@@ -35,7 +35,7 @@ final class MongoFunctionExpressionParser extends MongoSelectingExpressionParser
             }
           });
 
-  MongoFunctionExpressionParser(final MongoSelectingExpressionParser baseParser) {
+  MongoFunctionExpressionParser(final MongoSelectTypeExpressionParser baseParser) {
     super(baseParser);
   }
 
@@ -60,17 +60,17 @@ final class MongoFunctionExpressionParser extends MongoSelectingExpressionParser
       throw getUnsupportedOperationException(operator);
     }
 
-    SelectingExpressionVisitor parser =
-        new MongoIdentifierPrefixingSelectingExpressionParser(
+    SelectTypeExpressionVisitor parser =
+        new MongoIdentifierPrefixingSelectTypeExpressionParser(
             new MongoIdentifierExpressionParser(new MongoConstantExpressionParser()));
 
     if (numArgs == 1) {
-      Object value = expression.getOperands().get(0).visit(parser);
+      Object value = expression.getOperands().get(0).accept(parser);
       return Map.of(key, value);
     }
 
     List<Object> values =
-        expression.getOperands().stream().map(op -> op.visit(parser)).collect(Collectors.toList());
+        expression.getOperands().stream().map(op -> op.accept(parser)).collect(Collectors.toList());
     return Map.of(key, values);
   }
 }

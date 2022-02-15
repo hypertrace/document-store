@@ -1,18 +1,18 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EXISTS;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LIKE;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.CONTAINS;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.EXISTS;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.GT;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.GTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.LIKE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.LT;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.LTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.NOT_EXISTS;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
@@ -20,16 +20,16 @@ import com.mongodb.BasicDBObject;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.function.BiFunction;
-import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
-import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
-import org.hypertrace.core.documentstore.expression.type.SelectingExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationExpression;
+import org.hypertrace.core.documentstore.expression.operators.RelationOperator;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 
 final class MongoRelationalExpressionParser {
 
-  private static final Map<RelationalOperator, BiFunction<String, Object, Map<String, Object>>>
+  private static final Map<RelationOperator, BiFunction<String, Object, Map<String, Object>>>
       HANDLERS =
           unmodifiableMap(
-              new EnumMap<>(RelationalOperator.class) {
+              new EnumMap<>(RelationOperator.class) {
                 {
                   put(EQ, Map::of);
                   put(NEQ, handler("ne"));
@@ -46,23 +46,23 @@ final class MongoRelationalExpressionParser {
                 }
               });
 
-  Map<String, Object> parse(final RelationalExpression expression) {
-    SelectingExpression lhs = expression.getLhs();
-    RelationalOperator operator = expression.getOperator();
-    SelectingExpression rhs = expression.getRhs();
+  Map<String, Object> parse(final RelationExpression expression) {
+    SelectTypeExpression lhs = expression.getLhs();
+    RelationOperator operator = expression.getOperator();
+    SelectTypeExpression rhs = expression.getRhs();
 
     // Only an identifier LHS and a constant RHS is supported as of now.
-    MongoSelectingExpressionParser lhsParser = new MongoIdentifierExpressionParser();
-    MongoSelectingExpressionParser rhsParser = new MongoConstantExpressionParser();
+    MongoSelectTypeExpressionParser lhsParser = new MongoIdentifierExpressionParser();
+    MongoSelectTypeExpressionParser rhsParser = new MongoConstantExpressionParser();
 
-    String key = lhs.visit(lhsParser);
-    Object value = rhs.visit(rhsParser);
+    String key = lhs.accept(lhsParser);
+    Object value = rhs.accept(rhsParser);
 
     return generateMap(key, value, operator);
   }
 
   private static Map<String, Object> generateMap(
-      final String key, Object value, final RelationalOperator operator) {
+      final String key, Object value, final RelationOperator operator) {
     BiFunction<String, Object, Map<String, Object>> handler =
         HANDLERS.getOrDefault(operator, unknownHandler(operator));
 
@@ -90,7 +90,7 @@ final class MongoRelationalExpressionParser {
   }
 
   private static BiFunction<String, Object, Map<String, Object>> unknownHandler(
-      final RelationalOperator operator) {
+      final RelationOperator operator) {
     return (key, value) -> {
       throw getUnsupportedOperationException(operator);
     };

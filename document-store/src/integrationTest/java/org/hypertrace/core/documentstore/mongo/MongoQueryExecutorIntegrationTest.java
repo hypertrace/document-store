@@ -6,17 +6,17 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
-import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
-import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
-import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.ASC;
-import static org.hypertrace.core.documentstore.expression.operators.SortingOrder.DESC;
+import static org.hypertrace.core.documentstore.expression.operators.LogicOperator.AND;
+import static org.hypertrace.core.documentstore.expression.operators.LogicOperator.OR;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.GT;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.GTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.LTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationOperator.NOT_IN;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
@@ -40,8 +40,8 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
-import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.LogicExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationExpression;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -115,7 +115,7 @@ public class MongoQueryExecutorIntegrationTest {
     Filter filter =
         Filter.builder()
             .expression(
-                RelationalExpression.of(
+                RelationExpression.of(
                     IdentifierExpression.of("item"),
                     NOT_IN,
                     ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
@@ -141,7 +141,7 @@ public class MongoQueryExecutorIntegrationTest {
     Filter filter =
         Filter.builder()
             .expression(
-                RelationalExpression.of(
+                RelationExpression.of(
                     IdentifierExpression.of("item"),
                     NOT_IN,
                     ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
@@ -166,7 +166,7 @@ public class MongoQueryExecutorIntegrationTest {
     Filter filter =
         Filter.builder()
             .expression(
-                RelationalExpression.of(
+                RelationExpression.of(
                     IdentifierExpression.of("item"),
                     IN,
                     ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
@@ -205,7 +205,7 @@ public class MongoQueryExecutorIntegrationTest {
     Filter filter =
         Filter.builder()
             .expression(
-                RelationalExpression.of(
+                RelationExpression.of(
                     IdentifierExpression.of("item"),
                     IN,
                     ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
@@ -247,15 +247,15 @@ public class MongoQueryExecutorIntegrationTest {
         Query.builder()
             .addSelections(selectionSpecs)
             .setFilter(
-                LogicalExpression.builder()
+                LogicExpression.builder()
                     .operand(
-                        RelationalExpression.of(
+                        RelationExpression.of(
                             IdentifierExpression.of("item"),
                             IN,
                             ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo"))))
                     .operator(OR)
                     .operand(
-                        RelationalExpression.of(
+                        RelationExpression.of(
                             IdentifierExpression.of("props.seller.address.pincode"),
                             EQ,
                             ConstantExpression.of(700007)))
@@ -317,17 +317,17 @@ public class MongoQueryExecutorIntegrationTest {
             .addAggregation(IdentifierExpression.of("item"))
             .addSort(IdentifierExpression.of("total"), DESC)
             .setAggregationFilter(
-                LogicalExpression.builder()
+                LogicExpression.builder()
                     .operand(
-                        RelationalExpression.of(
+                        RelationExpression.of(
                             IdentifierExpression.of("total"), GTE, ConstantExpression.of(11)))
                     .operator(AND)
                     .operand(
-                        RelationalExpression.of(
+                        RelationExpression.of(
                             IdentifierExpression.of("total"), LTE, ConstantExpression.of(99)))
                     .build())
             .setFilter(
-                RelationalExpression.of(
+                RelationExpression.of(
                     IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
             .setPagination(Pagination.builder().limit(10).offset(0).build())
             .build();
@@ -356,17 +356,17 @@ public class MongoQueryExecutorIntegrationTest {
             .addSort(IdentifierExpression.of("total"), DESC)
             .addSort(IdentifierExpression.of("total"), DESC)
             .setAggregationFilter(
-                LogicalExpression.builder()
+                LogicExpression.builder()
                     .operand(
-                        RelationalExpression.of(
+                        RelationExpression.of(
                             IdentifierExpression.of("total"), GTE, ConstantExpression.of(11)))
                     .operator(AND)
                     .operand(
-                        RelationalExpression.of(
+                        RelationExpression.of(
                             IdentifierExpression.of("total"), LTE, ConstantExpression.of(99)))
                     .build())
             .setFilter(
-                RelationalExpression.of(
+                RelationExpression.of(
                     IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
             .setPagination(Pagination.builder().limit(10).offset(0).build())
             .build();
@@ -385,7 +385,7 @@ public class MongoQueryExecutorIntegrationTest {
             .addSort(IdentifierExpression.of("num_items.value"), DESC)
             .addSort(IdentifierExpression.of("pincode.value"), DESC)
             .setAggregationFilter(
-                RelationalExpression.of(
+                RelationExpression.of(
                     IdentifierExpression.of("num_items.value"), GT, ConstantExpression.of(1)))
             .build();
 
@@ -418,7 +418,7 @@ public class MongoQueryExecutorIntegrationTest {
             .addSelection(
                 AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
             .setAggregationFilter(
-                RelationalExpression.of(
+                RelationExpression.of(
                     ConstantExpression.of(1),
                     GT,
                     FunctionExpression.builder()
@@ -448,7 +448,7 @@ public class MongoQueryExecutorIntegrationTest {
             .addSelection(
                 AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
             .setAggregationFilter(
-                RelationalExpression.of(
+                RelationExpression.of(
                     IdentifierExpression.of("num_quantities"), EQ, ConstantExpression.of(1)))
             .addSort(IdentifierExpression.of("item"), DESC)
             .build();
@@ -467,7 +467,7 @@ public class MongoQueryExecutorIntegrationTest {
             .addSelection(IdentifierExpression.of("item"))
             .addAggregation(IdentifierExpression.of("item"))
             .setAggregationFilter(
-                RelationalExpression.of(
+                RelationExpression.of(
                     IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(1000)))
             .addSort(IdentifierExpression.of("qty_count"), DESC)
             .addSort(IdentifierExpression.of("item"), DESC)
