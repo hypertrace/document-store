@@ -92,7 +92,7 @@ final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressio
   private final SelectionSpec source;
 
   MongoSelectionsUpdatingTransformation(
-          List<GroupTypeExpression> groupTypeExpressions, SelectionSpec source) {
+      List<GroupTypeExpression> groupTypeExpressions, SelectionSpec source) {
     this.groupTypeExpressions = groupTypeExpressions;
     this.source = source;
   }

@@ -90,7 +90,7 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
   }
 
   private static Map<String, Object> parse(
-          final MongoSelectTypeExpressionParser baseParser, final SelectionSpec spec) {
+      final MongoSelectTypeExpressionParser baseParser, final SelectionSpec spec) {
     SelectTypeExpressionVisitor parser =
         new MongoProjectionSelectTypeExpressionParser(spec.getAlias(), baseParser);
     return spec.getExpression().accept(parser);
