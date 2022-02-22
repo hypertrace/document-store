@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static java.util.Collections.singleton;
 import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.applyPagination;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getLimitClause;
@@ -17,7 +18,6 @@ import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,16 +32,17 @@ import org.hypertrace.core.documentstore.query.Query;
 @Slf4j
 @AllArgsConstructor
 public class MongoQueryExecutor {
-  private static final List<Function<Query, Collection<BasicDBObject>>> aggregatePipelineFunctions =
-      List.of(
-          query -> Collections.singleton(getFilterClause(query, Query::getFilter)),
-          MongoFromTypeExpressionParser::getFromClauses,
-          query -> Collections.singleton(getGroupClause(query)),
-          query -> Collections.singleton(getProjectClause(query)),
-          query -> Collections.singleton(getFilterClause(query, Query::getAggregationFilter)),
-          query -> Collections.singleton(getSortClause(query)),
-          query -> Collections.singleton(getSkipClause(query)),
-          query -> Collections.singleton(getLimitClause(query)));
+  private static final List<Function<Query, Collection<BasicDBObject>>>
+      AGGREGATE_PIPELINE_FUNCTIONS =
+          List.of(
+              query -> singleton(getFilterClause(query, Query::getFilter)),
+              MongoFromTypeExpressionParser::getFromClauses,
+              query -> singleton(getGroupClause(query)),
+              query -> singleton(getProjectClause(query)),
+              query -> singleton(getFilterClause(query, Query::getAggregationFilter)),
+              query -> singleton(getSortClause(query)),
+              query -> singleton(getSkipClause(query)),
+              query -> singleton(getLimitClause(query)));
 
   final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
@@ -67,9 +68,9 @@ public class MongoQueryExecutor {
     Query query = transformAndLog(originalQuery);
 
     List<BasicDBObject> pipeline =
-        aggregatePipelineFunctions.stream()
+        AGGREGATE_PIPELINE_FUNCTIONS.stream()
             .flatMap(function -> function.apply(query).stream())
-            .filter(not((BasicDBObject::isEmpty)))
+            .filter(not(BasicDBObject::isEmpty))
             .collect(Collectors.toList());
 
     logPipeline(pipeline);

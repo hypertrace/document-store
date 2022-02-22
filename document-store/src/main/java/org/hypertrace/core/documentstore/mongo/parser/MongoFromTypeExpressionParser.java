@@ -18,17 +18,19 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
 
   @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> visit(UnnestExpression unnestExpression) {
-    return Map.of(
-        PATH_KEY, mongoIdentifierPrefixingParser.visit(unnestExpression.getIdentifierExpression()));
+  public BasicDBObject visit(UnnestExpression unnestExpression) {
+    String parsedIdentifierExpression =
+        mongoIdentifierPrefixingParser.visit(unnestExpression.getIdentifierExpression());
+    return new BasicDBObject(UNWIND_OPERATOR, Map.of(PATH_KEY, parsedIdentifierExpression));
   }
 
   public static List<BasicDBObject> getFromClauses(final Query query) {
     MongoFromTypeExpressionParser mongoFromTypeExpressionParser =
         new MongoFromTypeExpressionParser();
     return query.getFromTypeExpressions().stream()
-        .map(fromTypeExpression -> fromTypeExpression.accept(mongoFromTypeExpressionParser))
-        .map(parsedExpression -> new BasicDBObject(UNWIND_OPERATOR, parsedExpression))
+        .map(
+            fromTypeExpression ->
+                (BasicDBObject) fromTypeExpression.accept(mongoFromTypeExpressionParser))
         .collect(Collectors.toList());
   }
 }
