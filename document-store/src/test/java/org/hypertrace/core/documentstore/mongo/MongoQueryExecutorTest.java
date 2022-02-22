@@ -31,12 +31,7 @@ import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.List;
-import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
-import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
-import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
-import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
-import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.*;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -590,6 +585,37 @@ class MongoQueryExecutorTest {
                     + "    }"
                     + "}"
                     + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testUnwindAndGroup() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("class"), LTE, ConstantExpression.of(10)))
+            .addAggregation(IdentifierExpression.of("class.students.courses"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("class.students")))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("class.students.courses")))
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$match\": "
+                    + "{"
+                    + "   \"class\": {"
+                    + "       \"$lte\": 10"
+                    + "    }"
+                    + "}"
+                    + "}"),
+            BasicDBObject.parse("{\"$unwind\": {\"path\": \"$class.students\"}}"),
+            BasicDBObject.parse("{\"$unwind\": {\"path\": \"$class.students,courses\"}}"),
+            BasicDBObject.parse(
+                "{\"$group\": {\"_id\": {\"class\\\\u002estudents\\\\u002ecourses\": \"$class.students.courses\"}}}"));
 
     testAggregation(query, pipeline);
   }
