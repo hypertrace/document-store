@@ -1129,9 +1129,7 @@ public class MongoDocStoreTest {
             ImmutablePair.of("score", 30),
             ImmutablePair.of("field", "x1"),
             ImmutablePair.of(
-                "arrayField",
-                List.of(
-                    Map.of("nestedArrayField", List.of("c4", "c2"))))));
+                "arrayField", List.of(Map.of("nestedArrayField", List.of("c4", "c2"))))));
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
