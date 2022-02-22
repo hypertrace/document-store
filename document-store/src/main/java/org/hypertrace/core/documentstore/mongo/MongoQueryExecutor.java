@@ -1,7 +1,9 @@
 package org.hypertrace.core.documentstore.mongo;
 
 import static java.util.function.Predicate.not;
-import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.*;
+import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.applyPagination;
+import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getLimitClause;
+import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getSkipClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilterClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoGroupTypeExpressionParser.getGroupClause;
@@ -34,8 +36,8 @@ public class MongoQueryExecutor {
       List.of(
           query -> Collections.singleton(getFilterClause(query, Query::getFilter)),
           MongoFromTypeExpressionParser::getFromClauses,
-          query -> Collections.singleton(getProjectClause(query)),
           query -> Collections.singleton(getGroupClause(query)),
+          query -> Collections.singleton(getProjectClause(query)),
           query -> Collections.singleton(getFilterClause(query, Query::getAggregationFilter)),
           query -> Collections.singleton(getSortClause(query)),
           query -> Collections.singleton(getSkipClause(query)),
