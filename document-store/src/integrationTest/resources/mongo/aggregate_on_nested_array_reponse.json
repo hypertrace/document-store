@@ -1,0 +1,26 @@
+[
+  {
+    "sales": {
+      "medium": {
+        "type": "online"
+      }
+    },
+    "totalSales": 9000
+  },
+  {
+    "sales": {
+      "medium": {
+        "type": "distributionChannel"
+      }
+    },
+    "totalSales": 5000
+  },
+  {
+    "sales": {
+      "medium": {
+        "type": "retail"
+      }
+    },
+    "totalSales": 1500
+  }
+]

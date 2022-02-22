@@ -3,7 +3,6 @@ package org.hypertrace.core.documentstore.mongo;
 import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.ADD;
 import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.REMOVE;
 import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.SET;
-import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -49,9 +48,6 @@ import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
-import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
-import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -1104,70 +1100,6 @@ public class MongoDocStoreTest {
       JsonNode attributesJsonNode = entry.getValue().get("attributes");
       JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
       assertEquals(expectedAttributesJsonNode, attributesJsonNode);
-    }
-  }
-
-  @Test
-  public void test_unnest() throws IOException {
-    datastore.createCollection(COLLECTION_NAME, null);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-
-    collection.upsert(
-        new SingleValueKey("default", "testKey1"),
-        Utils.createDocument(
-            ImmutablePair.of("score", 20),
-            ImmutablePair.of("field", "x1"),
-            ImmutablePair.of(
-                "arrayField",
-                List.of(
-                    Map.of("nestedArrayField", List.of("c1", "c2")),
-                    Map.of("nestedArrayField", List.of("c1", "c7"))))));
-
-    collection.upsert(
-        new SingleValueKey("default", "testKey2"),
-        Utils.createDocument(
-            ImmutablePair.of("score", 30),
-            ImmutablePair.of("field", "x1"),
-            ImmutablePair.of(
-                "arrayField", List.of(Map.of("nestedArrayField", List.of("c4", "c2"))))));
-
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
-            .addSelection(IdentifierExpression.of("score"))
-            .addSelection(IdentifierExpression.of("arrayField.nestedArrayField"))
-            .addAggregation(IdentifierExpression.of("arrayField.nestedArrayField"))
-            .addSelection(AggregateExpression.of(SUM, IdentifierExpression.of("score")), "total")
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("arrayField")))
-            .addFromClause(
-                UnnestExpression.of(IdentifierExpression.of("arrayField.nestedArrayField")))
-            .build();
-
-    Iterator<Document> iterator = collection.aggregate(query);
-
-    List<JsonNode> jsonNodes = new ArrayList<>();
-    iterator.forEachRemaining(
-        item -> {
-          {
-            try {
-              JsonNode node = OBJECT_MAPPER.reader().readTree(item.toJson());
-              jsonNodes.add(node);
-            } catch (JsonProcessingException e) {
-              e.printStackTrace();
-            }
-          }
-        });
-
-    Map<String, Integer> expectedAggregateValues =
-        Map.of(
-            "c1", 40,
-            "c2", 50,
-            "c4", 30,
-            "c7", 20);
-
-    for (JsonNode jsonNode : jsonNodes) {
-      String key = jsonNode.get("arrayField").get("nestedArrayField").asText();
-      int aggregateValue = jsonNode.get("total").asInt();
-      Assertions.assertEquals(expectedAggregateValues.get(key), aggregateValue);
     }
   }
 }

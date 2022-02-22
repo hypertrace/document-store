@@ -15,7 +15,39 @@
           "pincode": 400004
         }
       }
-    }
+    },
+    "sales": [
+      {
+        "city": "delhi",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 1000
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 1000
+          }
+        ]
+      },
+      {
+        "city": "pune",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 300
+          },
+          {
+            "type": "online",
+            "volume": 2000
+          }
+        ]
+      }
+    ]
   },
   {
     "_id": 2,
@@ -40,7 +72,43 @@
           "pincode": 400004
         }
       }
-    }
+    },
+    "sales": [
+      {
+        "city": "delhi",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 3000
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 1000
+          }
+        ]
+      },
+      {
+        "city": "mumbai",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 700
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 5000
+          }
+        ]
+      }
+    ]
   },
   {
     "_id": 4,
