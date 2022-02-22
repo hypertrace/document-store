@@ -12,6 +12,7 @@ import lombok.ToString;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.FromTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
@@ -22,7 +23,7 @@ import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
  *
  * <p>Example: <code>
  *     SELECT col4, SUM(col5) AS total
- *     FROM <collection>
+ *     FROM collection, unnest(array_col)
  *     WHERE col1 < 7 AND col2 != col3
  *     GROUP BY col4, col6
  *     HAVING SUM(col5) >= 100
@@ -35,6 +36,7 @@ import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
  *         .addSelection(
  *             AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
  *             "total")
+ *         .addFromClause(UnnestExpression.of(IdentifierExpression.of("array_col")))
  *         .setFilter(LogicalExpression.of(
  *             RelationalExpression.of(
  *                 IdentifierExpression.of("col1"),
@@ -69,12 +71,11 @@ import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
 public final class Query {
   private final Selection selection; // Missing selection represents fetching all the columns
   private final Filter filter;
-
   private final Aggregation aggregation;
   private final Filter aggregationFilter;
-
   private final Sort sort;
   private final Pagination pagination; // Missing pagination represents fetching all the records
+  private final FromClause fromClause;
 
   public List<SelectionSpec> getSelections() {
     return selection == null ? emptyList() : unmodifiableList(selection.getSelectionSpecs());
@@ -100,6 +101,10 @@ public final class Query {
     return Optional.ofNullable(pagination);
   }
 
+  public List<FromTypeExpression> getFromTypeExpressions() {
+    return fromClause == null ? emptyList() : unmodifiableList(fromClause.getFromTypeExpressions());
+  }
+
   public static QueryBuilder builder() {
     return new QueryBuilder();
   }
@@ -108,12 +113,11 @@ public final class Query {
   public static class QueryBuilder {
     private Selection.SelectionBuilder selectionBuilder;
     private Filter.FilterBuilder filterBuilder;
-
     private Aggregation.AggregationBuilder aggregationBuilder;
     private Filter.FilterBuilder aggregationFilterBuilder;
-
     private Sort.SortBuilder sortBuilder;
     private Pagination pagination;
+    private FromClause.FromClauseBuilder fromClauseBuilder;
 
     public QueryBuilder setSelection(final Selection selection) {
       this.selectionBuilder = selection.toBuilder();
@@ -228,6 +232,25 @@ public final class Query {
       return this;
     }
 
+    public QueryBuilder setFromClauses(final List<FromTypeExpression> expressions) {
+      if (CollectionUtils.isNotEmpty(expressions)) {
+        getFromClauseBuilder().clearFromTypeExpressions();
+      }
+      return addFromClauses(expressions);
+    }
+
+    public QueryBuilder addFromClause(final FromTypeExpression expression) {
+      getFromClauseBuilder().fromTypeExpression(expression);
+      return this;
+    }
+
+    public QueryBuilder addFromClauses(final List<FromTypeExpression> expressions) {
+      if (CollectionUtils.isNotEmpty(expressions)) {
+        getFromClauseBuilder().fromTypeExpressions(expressions);
+      }
+      return this;
+    }
+
     public Query build() {
       return new Query(
           getSelection(),
@@ -235,7 +258,8 @@ public final class Query {
           getAggregation(),
           getAggregationFilter(),
           getSort(),
-          pagination);
+          pagination,
+          getFrom());
     }
 
     protected Selection.SelectionBuilder getSelectionBuilder() {
@@ -262,6 +286,12 @@ public final class Query {
       return sortBuilder == null ? sortBuilder = Sort.builder() : sortBuilder;
     }
 
+    protected FromClause.FromClauseBuilder getFromClauseBuilder() {
+      return fromClauseBuilder == null
+          ? fromClauseBuilder = FromClause.builder()
+          : fromClauseBuilder;
+    }
+
     private Selection getSelection() {
       return selectionBuilder == null ? null : selectionBuilder.build();
     }
@@ -280,6 +310,10 @@ public final class Query {
 
     private Sort getSort() {
       return sortBuilder == null ? null : sortBuilder.build();
+    }
+
+    private FromClause getFrom() {
+      return fromClauseBuilder == null ? null : fromClauseBuilder.build();
     }
   }
 }

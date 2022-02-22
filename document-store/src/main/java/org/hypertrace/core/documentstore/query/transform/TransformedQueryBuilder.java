@@ -13,6 +13,8 @@ public final class TransformedQueryBuilder extends Query.QueryBuilder {
 
     copySorts(query);
     copyPagination(query);
+
+    copyFromClauses(query);
   }
 
   private void copySelections(final Query query) {
@@ -40,5 +42,9 @@ public final class TransformedQueryBuilder extends Query.QueryBuilder {
 
   private void copyPagination(final Query query) {
     query.getPagination().ifPresent(this::setPagination);
+  }
+
+  private void copyFromClauses(final Query query) {
+    query.getFromTypeExpressions().forEach(this::addFromClause);
   }
 }

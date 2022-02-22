@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static java.util.Collections.singleton;
 import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.applyPagination;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getLimitClause;
@@ -16,12 +17,14 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
+import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
+import org.hypertrace.core.documentstore.mongo.parser.MongoFromTypeExpressionParser;
 import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -29,6 +32,18 @@ import org.hypertrace.core.documentstore.query.Query;
 @Slf4j
 @AllArgsConstructor
 public class MongoQueryExecutor {
+  private static final List<Function<Query, Collection<BasicDBObject>>>
+      AGGREGATE_PIPELINE_FUNCTIONS =
+          List.of(
+              query -> singleton(getFilterClause(query, Query::getFilter)),
+              MongoFromTypeExpressionParser::getFromClauses,
+              query -> singleton(getGroupClause(query)),
+              query -> singleton(getProjectClause(query)),
+              query -> singleton(getFilterClause(query, Query::getAggregationFilter)),
+              query -> singleton(getSortClause(query)),
+              query -> singleton(getSkipClause(query)),
+              query -> singleton(getLimitClause(query)));
+
   final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
   public MongoCursor<BasicDBObject> find(final Query query) {
@@ -52,26 +67,9 @@ public class MongoQueryExecutor {
   public MongoCursor<BasicDBObject> aggregate(final Query originalQuery) {
     Query query = transformAndLog(originalQuery);
 
-    BasicDBObject filterClause = getFilterClause(query, Query::getFilter);
-    BasicDBObject groupFilterClause = getFilterClause(query, Query::getAggregationFilter);
-
-    BasicDBObject groupClause = getGroupClause(query);
-    BasicDBObject sortClause = getSortClause(query);
-
-    BasicDBObject skipClause = getSkipClause(query);
-    BasicDBObject limitClause = getLimitClause(query);
-
-    BasicDBObject projectClause = getProjectClause(query);
-
     List<BasicDBObject> pipeline =
-        Stream.of(
-                filterClause,
-                groupClause,
-                projectClause,
-                groupFilterClause,
-                sortClause,
-                skipClause,
-                limitClause)
+        AGGREGATE_PIPELINE_FUNCTIONS.stream()
+            .flatMap(function -> function.apply(query).stream())
             .filter(not(BasicDBObject::isEmpty))
             .collect(Collectors.toList());
 

@@ -42,6 +42,7 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -475,6 +476,24 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/distinct_count_response.json");
+  }
+
+  @Test
+  public void testUnnestAndAggregate() throws IOException {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addAggregation(IdentifierExpression.of("sales.medium.type"))
+            .addSelection(
+                AggregateExpression.of(SUM, IdentifierExpression.of("sales.medium.volume")),
+                "totalSales")
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales")))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium")))
+            .addSort(IdentifierExpression.of("totalSales"), DESC)
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsEqual(iterator, "mongo/aggregate_on_nested_array_reponse.json");
   }
 
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)
