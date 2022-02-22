@@ -11,7 +11,11 @@ import lombok.NoArgsConstructor;
 import lombok.ToString;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
-import org.hypertrace.core.documentstore.expression.type.*;
+import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.FromTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
 
 /**
  * A generic query definition that supports expressions. Note that this class is a more general
@@ -19,7 +23,7 @@ import org.hypertrace.core.documentstore.expression.type.*;
  *
  * <p>Example: <code>
  *     SELECT col4, SUM(col5) AS total
- *     FROM <collection>
+ *     FROM collection, unnest(array_col)
  *     WHERE col1 < 7 AND col2 != col3
  *     GROUP BY col4, col6
  *     HAVING SUM(col5) >= 100
@@ -32,6 +36,7 @@ import org.hypertrace.core.documentstore.expression.type.*;
  *         .addSelection(
  *             AggregateExpression.of(SUM, IdentifierExpression.of("col5")),
  *             "total")
+ *         .addFromClause(UnnestExpression.of(IdentifierExpression.of("array_col")))
  *         .setFilter(LogicalExpression.of(
  *             RelationalExpression.of(
  *                 IdentifierExpression.of("col1"),
@@ -59,11 +64,6 @@ import org.hypertrace.core.documentstore.expression.type.*;
  *         .setOffset(5)
  *         .setLimit(10)
  *         .build();
- *
- * unwind operator
- *
- *
- *
  *  </code>
  */
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
