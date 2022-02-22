@@ -45,7 +45,6 @@ public final class TransformedQueryBuilder extends Query.QueryBuilder {
   }
 
   private void copyFromClauses(final Query query) {
-    // Iterate through elements to ensure deep-copy
     query.getFromTypeExpressions().forEach(this::addFromClause);
   }
 }

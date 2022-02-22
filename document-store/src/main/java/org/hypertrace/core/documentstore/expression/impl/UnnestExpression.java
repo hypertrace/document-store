@@ -7,6 +7,10 @@ import lombok.Value;
 import org.hypertrace.core.documentstore.expression.type.FromTypeExpression;
 import org.hypertrace.core.documentstore.parser.FromTypeExpressionVisitor;
 
+/**
+ * This expression allows expanding an array field to a set of rows <code>
+ *  UnnestExpression.of(IdentifierExpression.of("array_col")) </code>
+ */
 @Value
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class UnnestExpression implements FromTypeExpression {
