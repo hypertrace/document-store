@@ -641,6 +641,7 @@ public class DocStoreTest {
     Map<String, Document> subDoc1 = new HashMap<>(), subDoc2 = new HashMap<>();
     subDoc1.put("subDocPath1", Utils.createDocument("timestamp", "100"));
     subDoc2.put("subDocPath2", Utils.createDocument("timestamp", "100"));
+    subDoc2.put("foo3", Utils.createDocument("attr", "[]"));
     toUpdate.put(key1, subDoc1);
     toUpdate.put(key2, subDoc2);
     BulkUpdateResult bulkUpdateResult = collection.bulkUpdateSubDocs(toUpdate);
@@ -667,23 +668,34 @@ public class DocStoreTest {
     Key key1 = new SingleValueKey("tenant-1", "testKey1");
     Key key2 = new SingleValueKey("tenant-2", "testKey2");
     Key key3 = new SingleValueKey("tenant-3", "testKey3");
+    Key key4 = new SingleValueKey("tenant-4", "testKey4");
+    Key key5 = new SingleValueKey("tenant-5", "testKey5");
     collection.upsert(key1, Utils.createDocument("foo1", "bar1"));
     collection.upsert(key3, Utils.createDocument("foo3", "bar3"));
+    collection.upsert(key4, Utils.createDocument("foo4", "bar4"));
+    collection.upsert(key5, Utils.createDocument("different5", "bar5"));
 
     Map<Key, Map<String, Document>> toUpdate = new HashMap<>();
     Map<String, Document> subDoc1 = new HashMap<>(),
         subDoc2 = new HashMap<>(),
-        subDoc3 = new HashMap<>();
+        subDoc3 = new HashMap<>(),
+        subDoc4 = new HashMap<>(),
+        subDoc5 = new HashMap<>();
     subDoc1.put("subDocPath1", Utils.createDocument("nested1", "100"));
     subDoc2.put("subDocPath2", Utils.createDocument("nested2", "100"));
+    subDoc5.put("foo5", Utils.createDocument("nested5", "[]"));
     // update on already existing subDocPath
     subDoc3.put("foo3", Utils.createDocument("nested3", "100"));
+    Document emptyObject = Utils.createDocument("someKey", "{}");
+    subDoc4.put("foo4", Utils.createDocument("nested4", emptyObject.toJson()));
     toUpdate.put(key1, subDoc1);
     toUpdate.put(key2, subDoc2);
     toUpdate.put(key3, subDoc3);
+    toUpdate.put(key4, subDoc4);
+    toUpdate.put(key5, subDoc5);
     BulkUpdateResult bulkUpdateResult = collection.bulkUpdateSubDocs(toUpdate);
     long result = bulkUpdateResult.getUpdatedCount();
-    assertEquals(2, result);
+    assertEquals(4, result);
 
     Query query = new Query();
     query.setFilter(new Filter(Op.EQ, "_id", key1.toString()));
@@ -698,6 +710,20 @@ public class DocStoreTest {
     root = OBJECT_MAPPER.readTree(it.next().toJson());
     nestedTimestamp = root.findValue("foo3").toString();
     assertEquals("{\"nested3\":\"100\"}", nestedTimestamp);
+
+    query = new Query();
+    query.setFilter(new Filter(Op.EQ, "_id", key4.toString()));
+    it = collection.search(query);
+    root = OBJECT_MAPPER.readTree(it.next().toJson());
+    String nestedValue = root.findValue("foo4").toString();
+    assertEquals("{\"nested4\":\"{\\\"someKey\\\":\\\"{}\\\"}\"}", nestedValue);
+
+    query = new Query();
+    query.setFilter(new Filter(Op.EQ, "_id", key5.toString()));
+    it = collection.search(query);
+    root = OBJECT_MAPPER.readTree(it.next().toJson());
+    nestedValue = root.findValue("foo5").toString();
+    assertEquals("{\"nested5\":\"[]\"}", nestedValue);
 
     query = new Query();
     query.setFilter(new Filter(Op.EQ, "_id", key2.toString()));

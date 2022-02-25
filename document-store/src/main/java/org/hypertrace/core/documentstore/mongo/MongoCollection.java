@@ -296,7 +296,9 @@ public class MongoCollection implements Collection {
       for (String subDocPath : subDocuments.keySet()) {
         Document subDocument = subDocuments.get(subDocPath);
         try {
-          BasicDBObject dbObject = new BasicDBObject(subDocPath, getSanitizedObject(subDocument));
+          BasicDBObject literalObject =
+              new BasicDBObject("$literal", getSanitizedObject(subDocument));
+          BasicDBObject dbObject = new BasicDBObject(subDocPath, literalObject);
           dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
           BasicDBObject setObject = new BasicDBObject("$set", dbObject);
           updateOperations.add(setObject);
