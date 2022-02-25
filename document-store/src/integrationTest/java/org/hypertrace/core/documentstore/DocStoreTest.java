@@ -641,7 +641,6 @@ public class DocStoreTest {
     Map<String, Document> subDoc1 = new HashMap<>(), subDoc2 = new HashMap<>();
     subDoc1.put("subDocPath1", Utils.createDocument("timestamp", "100"));
     subDoc2.put("subDocPath2", Utils.createDocument("timestamp", "100"));
-    subDoc2.put("foo3", Utils.createDocument("attr", "[]"));
     toUpdate.put(key1, subDoc1);
     toUpdate.put(key2, subDoc2);
     BulkUpdateResult bulkUpdateResult = collection.bulkUpdateSubDocs(toUpdate);

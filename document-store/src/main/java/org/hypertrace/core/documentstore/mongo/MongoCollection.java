@@ -296,6 +296,9 @@ public class MongoCollection implements Collection {
       for (String subDocPath : subDocuments.keySet()) {
         Document subDocument = subDocuments.get(subDocPath);
         try {
+          /* Wrapping the subDocument with $literal to be able to provide empty object "{}" as value
+           *  Throws error otherwise if empty object is provided as value.
+           *  https://jira.mongodb.org/browse/SERVER-54046 */
           BasicDBObject literalObject =
               new BasicDBObject("$literal", getSanitizedObject(subDocument));
           BasicDBObject dbObject = new BasicDBObject(subDocPath, literalObject);
