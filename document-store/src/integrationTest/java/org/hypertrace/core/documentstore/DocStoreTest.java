@@ -683,11 +683,16 @@ public class DocStoreTest {
         subDoc5 = new HashMap<>();
     subDoc1.put("subDocPath1", Utils.createDocument("nested1", "100"));
     subDoc2.put("subDocPath2", Utils.createDocument("nested2", "100"));
-    subDoc5.put("foo5", Utils.createDocument("nested5", "[]"));
+    subDoc5.put("foo5", Utils.createDocument(ImmutablePair.of("nested5", List.of())));
     // update on already existing subDocPath
     subDoc3.put("foo3", Utils.createDocument("nested3", "100"));
-    Document emptyObject = Utils.createDocument("someKey", "{}");
-    subDoc4.put("foo4", Utils.createDocument("nested4", emptyObject.toJson()));
+    ObjectNode emptyValuedNode = OBJECT_MAPPER.createObjectNode();
+    emptyValuedNode.set("someKey", OBJECT_MAPPER.createObjectNode());
+
+    ObjectNode nested4ValueNode = OBJECT_MAPPER.createObjectNode();
+    nested4ValueNode.set("nested4", emptyValuedNode);
+    subDoc4.put("foo4", new JSONDocument(nested4ValueNode));
+
     toUpdate.put(key1, subDoc1);
     toUpdate.put(key2, subDoc2);
     toUpdate.put(key3, subDoc3);
@@ -716,14 +721,14 @@ public class DocStoreTest {
     it = collection.search(query);
     root = OBJECT_MAPPER.readTree(it.next().toJson());
     String nestedValue = root.findValue("foo4").toString();
-    assertEquals("{\"nested4\":\"{\\\"someKey\\\":\\\"{}\\\"}\"}", nestedValue);
+    assertEquals("{\"nested4\":{\"someKey\":{}}}", nestedValue);
 
     query = new Query();
     query.setFilter(new Filter(Op.EQ, "_id", key5.toString()));
     it = collection.search(query);
     root = OBJECT_MAPPER.readTree(it.next().toJson());
     nestedValue = root.findValue("foo5").toString();
-    assertEquals("{\"nested5\":\"[]\"}", nestedValue);
+    assertEquals("{\"nested5\":[]}", nestedValue);
 
     query = new Query();
     query.setFilter(new Filter(Op.EQ, "_id", key2.toString()));
