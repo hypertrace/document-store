@@ -582,7 +582,11 @@ public class MongoCollection implements Collection {
     return new Iterator<>() {
       @Override
       public boolean hasNext() {
-        return cursor.hasNext();
+        boolean hasNext = cursor.hasNext();
+        if (!hasNext) {
+          cursor.close();
+        }
+        return hasNext;
       }
 
       @Override
