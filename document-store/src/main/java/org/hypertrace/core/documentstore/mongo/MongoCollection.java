@@ -591,7 +591,12 @@ public class MongoCollection implements Collection {
 
       @Override
       public Document next() {
-        return dbObjectToDocument(cursor.next());
+        try {
+          return dbObjectToDocument(cursor.next());
+        } catch (Exception ex) {
+          cursor.close();
+          throw ex;
+        }
       }
     };
   }
