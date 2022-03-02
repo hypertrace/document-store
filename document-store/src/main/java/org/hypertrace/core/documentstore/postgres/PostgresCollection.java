@@ -13,16 +13,17 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.SneakyThrows;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
+import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
@@ -45,6 +46,7 @@ public class PostgresCollection implements Collection {
   public static final String CREATED_AT = "created_at";
   public static final String DOC_PATH_SEPARATOR = "\\.";
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final CloseableIterator<Document> EMPTY_ITERATOR = createEmptyIterator();
 
   private final Connection client;
   private final String collectionName;
@@ -232,7 +234,7 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> search(Query query) {
+  public CloseableIterator<Document> search(Query query) {
     String filters = null;
     StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ").append(collectionName);
     Params.Builder paramsBuilder = Params.newBuilder();
@@ -272,16 +274,18 @@ public class PostgresCollection implements Collection {
       LOGGER.error("SQLException querying documents. query: {}", query, e);
     }
 
-    return Collections.emptyIterator();
+    return EMPTY_ITERATOR;
   }
 
   @Override
-  public Iterator<Document> find(final org.hypertrace.core.documentstore.query.Query query) {
+  public CloseableIterator<Document> find(
+      final org.hypertrace.core.documentstore.query.Query query) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public Iterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query) {
+  public CloseableIterator<Document> aggregate(
+      final org.hypertrace.core.documentstore.query.Query query) {
     throw new UnsupportedOperationException();
   }
 
@@ -464,7 +468,7 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public Iterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
+  public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
     String query = null;
     try {
@@ -541,7 +545,7 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  static class PostgresResultIterator implements Iterator {
+  static class PostgresResultIterator implements CloseableIterator {
 
     private final ObjectMapper MAPPER = new ObjectMapper();
     private ResultSet resultSet;
@@ -604,5 +608,30 @@ public class PostgresCollection implements Collection {
       }
       return null;
     }
+
+    @SneakyThrows
+    @Override
+    public void close() {
+      resultSet.close();
+    }
+  }
+
+  private static CloseableIterator<Document> createEmptyIterator() {
+    return new CloseableIterator<>() {
+      @Override
+      public void close() {
+        // empty iterator
+      }
+
+      @Override
+      public boolean hasNext() {
+        return false;
+      }
+
+      @Override
+      public Document next() {
+        throw new NoSuchElementException();
+      }
+    };
   }
 }
