@@ -58,26 +58,26 @@ public interface Collection {
    * column values, sorting by expressions, etc., ref. {@link #find}
    *
    * @param query filter to query matching documents
-   * @return {@link ClosableIterator} of matching documents
+   * @return {@link CloseableIterator} of matching documents
    */
-  ClosableIterator<Document> search(Query query);
+  CloseableIterator<Document> search(Query query);
 
   /**
    * Find the documents matching the query. Note that this method is a generic version of {@link
    * #search(Query)}
    *
    * @param query The query definition to find
-   * @return {@link ClosableIterator} of matching documents
+   * @return {@link CloseableIterator} of matching documents
    */
-  ClosableIterator<Document> find(final org.hypertrace.core.documentstore.query.Query query);
+  CloseableIterator<Document> find(final org.hypertrace.core.documentstore.query.Query query);
 
   /**
    * Aggregate the documents conforming to the query specification.
    *
    * @param query The aggregate query specification
-   * @return {@link ClosableIterator} of matching documents
+   * @return {@link CloseableIterator} of matching documents
    */
-  ClosableIterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query);
+  CloseableIterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query);
 
   /**
    * Delete the document with the given key.
@@ -123,7 +123,7 @@ public interface Collection {
    * This helps the clients to see how the documents were prior to upserting them and do that in one
    * less round trip.
    */
-  ClosableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
+  CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException;
 
   /** Drops a collections */

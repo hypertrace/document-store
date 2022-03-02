@@ -42,7 +42,7 @@ import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
-import org.hypertrace.core.documentstore.ClosableIterator;
+import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
@@ -412,7 +412,7 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public ClosableIterator<Document> search(Query query) {
+  public CloseableIterator<Document> search(Query query) {
     Map<String, Object> map = new HashMap<>();
 
     // If there is a filter in the query, parse it fully.
@@ -457,13 +457,13 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public ClosableIterator<Document> find(
+  public CloseableIterator<Document> find(
       final org.hypertrace.core.documentstore.query.Query query) {
     return convertToDocumentIterator(queryExecutor.find(query));
   }
 
   @Override
-  public ClosableIterator<Document> aggregate(
+  public CloseableIterator<Document> aggregate(
       final org.hypertrace.core.documentstore.query.Query query) {
     return convertToDocumentIterator(queryExecutor.aggregate(query));
   }
@@ -545,7 +545,7 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public ClosableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
+  public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
     try {
       // First get all the documents for the given keys.
@@ -581,8 +581,8 @@ public class MongoCollection implements Collection {
                 "$in", keys.stream().map(Key::toString).collect(Collectors.toList()))));
   }
 
-  private ClosableIterator<Document> convertToDocumentIterator(MongoCursor<BasicDBObject> cursor) {
-    return new ClosableIterator<>() {
+  private CloseableIterator<Document> convertToDocumentIterator(MongoCursor<BasicDBObject> cursor) {
+    return new CloseableIterator<>() {
       @Override
       public void close() {
         cursor.close();
