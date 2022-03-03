@@ -22,6 +22,7 @@ import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -102,6 +103,16 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.find(query);
     assertSizeEqual(resultDocs, "mongo/collection_data.json");
+  }
+
+  @Test
+  public void testHasNext() throws IOException {
+    Query query = Query.builder().build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertSizeEqual(resultDocs, "mongo/collection_data.json");
+    // hasNext should not throw error even after cursor is closed
+    assertFalse(resultDocs.hasNext());
   }
 
   @Test

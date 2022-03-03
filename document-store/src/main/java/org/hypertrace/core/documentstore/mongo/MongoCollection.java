@@ -588,14 +588,19 @@ public class MongoCollection implements Collection {
 
   private CloseableIterator<Document> convertToDocumentIterator(MongoCursor<BasicDBObject> cursor) {
     return new CloseableIterator<>() {
+      private boolean closed = false;
+
       @Override
       public void close() {
-        cursor.close();
+        if (!closed) {
+          cursor.close();
+        }
+        closed = true;
       }
 
       @Override
       public boolean hasNext() {
-        boolean hasNext = cursor.hasNext();
+        boolean hasNext = !closed && cursor.hasNext();
         if (!hasNext) {
           close();
         }
