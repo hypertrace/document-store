@@ -498,13 +498,42 @@ public class MongoQueryExecutorIntegrationTest {
             .addSelection(
                 AggregateExpression.of(SUM, IdentifierExpression.of("sales.medium.volume")),
                 "totalSales")
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales")))
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium")))
+            // we don't want to consider entries where sales data is missing
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
             .addSort(IdentifierExpression.of("totalSales"), DESC)
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsEqual(iterator, "mongo/aggregate_on_nested_array_reponse.json");
+  }
+
+  @Test
+  public void testUnnestAndAggregate_preserveEmptyTrue() throws IOException {
+    // include all documents in the result irrespective of `sales` field
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsEqual(iterator, "mongo/unwind_preserving_empty_array_response.json");
+  }
+
+  @Test
+  public void testUnnestAndAggregate_preserveEmptyFalse() throws IOException {
+    // consider only those documents where sales field is missing
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsEqual(iterator, "mongo/unwind_not_preserving_empty_array_response.json");
   }
 
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)

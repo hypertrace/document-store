@@ -54,7 +54,13 @@
     "item": "Mirror",
     "price": 20,
     "quantity": 1,
-    "date": "2014-03-01T09:00:00Z"
+    "date": "2014-03-01T09:00:00Z",
+    "sales": [
+      {
+        "city": "delhi",
+        "medium": []
+      }
+    ]
   },
   {
     "_id": 3,
@@ -115,7 +121,8 @@
     "item": "Shampoo",
     "price": 5,
     "quantity": 20,
-    "date": "2014-04-04T11:21:39.736Z"
+    "date": "2014-04-04T11:21:39.736Z",
+    "sales": []
   },
   {
     "_id": 5,
