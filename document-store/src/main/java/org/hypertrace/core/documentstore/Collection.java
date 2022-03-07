@@ -106,6 +106,11 @@ public interface Collection {
   /** @return the number of documents in the collection */
   long count();
 
+  /** @return the number of documents matching the passed filter conditions
+   * Note that this method is a generic version of {@link #count()}
+   */
+  long count(final org.hypertrace.core.documentstore.query.Filter filter);
+
   /**
    * @return the total number of documents matching the query applying the filters passed, and
    *     ignoring offset and limit

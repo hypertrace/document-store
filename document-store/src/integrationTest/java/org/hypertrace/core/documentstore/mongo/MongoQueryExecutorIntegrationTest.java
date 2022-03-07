@@ -22,6 +22,7 @@ import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.Assert.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 import com.typesafe.config.Config;
@@ -52,7 +53,6 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.Sort;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
@@ -491,8 +491,8 @@ public class MongoQueryExecutorIntegrationTest {
 
   @Test
   public void testUnnestAndAggregate() throws IOException {
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
+    Query query =
+        Query.builder()
             .addSelection(IdentifierExpression.of("sales.medium.type"))
             .addAggregation(IdentifierExpression.of("sales.medium.type"))
             .addSelection(
@@ -507,6 +507,12 @@ public class MongoQueryExecutorIntegrationTest {
     assertDocsEqual(iterator, "mongo/aggregate_on_nested_array_reponse.json");
   }
 
+  @Test
+  public void testCountMatching() {
+    final Filter filter = Filter.builder().expression(LogicalExpression.builder().operator(AND).operand(RelationalExpression.of(IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap"))).operand(RelationalExpression.of(IdentifierExpression.of("props.brand"), EQ, ConstantExpression.of("Dettol"))).build()).build();
+    assertEquals(1, collection.count(filter));
+  }
+
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)
       throws IOException {
     String fileContent = readFileFromResource(filePath).orElseThrow();
@@ -517,7 +523,7 @@ public class MongoQueryExecutorIntegrationTest {
       actual.add(convertDocumentToMap(documents.next()));
     }
 
-    Assertions.assertEquals(expected, actual);
+    assertEquals(expected, actual);
   }
 
   private static void assertSizeEqual(Iterator<Document> documents, String filePath)
@@ -530,6 +536,6 @@ public class MongoQueryExecutorIntegrationTest {
       documents.next();
     }
 
-    Assertions.assertEquals(expected, actual);
+    assertEquals(expected, actual);
   }
 }

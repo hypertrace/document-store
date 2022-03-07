@@ -26,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.mongo.parser.MongoFromTypeExpressionParser;
 import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
+import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 
@@ -77,6 +78,11 @@ public class MongoQueryExecutor {
     AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
 
     return iterable.cursor();
+  }
+
+  public long count(final Filter filter) {
+    final BasicDBObject filterClause = getFilter(filter.getExpression());
+    return collection.countDocuments(filterClause);
   }
 
   private void logClauses(

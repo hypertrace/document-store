@@ -40,8 +40,12 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
       return new BasicDBObject();
     }
 
-    FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser();
-    Map<String, Object> filter = filterOptional.get().accept(parser);
+    return getFilter(filterOptional.get());
+  }
+
+  public static BasicDBObject getFilter(final FilterTypeExpression filterTypeExpression) {
+    final FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser();
+    Map<String, Object> filter = filterTypeExpression.accept(parser);
     return new BasicDBObject(filter);
   }
 }
