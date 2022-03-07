@@ -506,6 +506,11 @@ public class MongoCollection implements Collection {
   }
 
   @Override
+  public long count(final org.hypertrace.core.documentstore.query.Filter filter) {
+    return queryExecutor.count(filter);
+  }
+
+  @Override
   public long total(Query query) {
     Map<String, Object> map = new HashMap<>();
 

@@ -509,7 +509,21 @@ public class MongoQueryExecutorIntegrationTest {
 
   @Test
   public void testCountMatching() {
-    final Filter filter = Filter.builder().expression(LogicalExpression.builder().operator(AND).operand(RelationalExpression.of(IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap"))).operand(RelationalExpression.of(IdentifierExpression.of("props.brand"), EQ, ConstantExpression.of("Dettol"))).build()).build();
+    final Filter filter =
+        Filter.builder()
+            .expression(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("props.brand"),
+                            EQ,
+                            ConstantExpression.of("Dettol")))
+                    .build())
+            .build();
     assertEquals(1, collection.count(filter));
   }
 
