@@ -527,6 +527,17 @@ public class MongoQueryExecutorIntegrationTest {
     assertEquals(1, collection.count(filter));
   }
 
+  @Test
+  public void testCountNonMatching() {
+    final Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props.brand"), EQ, ConstantExpression.of("Hamam")))
+            .build();
+    assertEquals(0, collection.count(filter));
+  }
+
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)
       throws IOException {
     String fileContent = readFileFromResource(filePath).orElseThrow();
