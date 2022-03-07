@@ -19,9 +19,12 @@ public class UnnestExpression implements FromTypeExpression {
 
   IdentifierExpression identifierExpression;
 
-  public static UnnestExpression of(final IdentifierExpression identifierExpression) {
+  boolean preserveNullAndEmptyArrays;
+
+  public static UnnestExpression of(
+      final IdentifierExpression identifierExpression, boolean preserveNullAndEmptyArrays) {
     Preconditions.checkArgument(identifierExpression != null, "expression is null");
-    return new UnnestExpression(identifierExpression);
+    return new UnnestExpression(identifierExpression, preserveNullAndEmptyArrays);
   }
 
   @Override

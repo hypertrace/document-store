@@ -11,6 +11,7 @@ import org.hypertrace.core.documentstore.query.Query;
 public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor {
 
   private static final String PATH_KEY = "path";
+  public static final String PRESERVE_NULL_AND_EMPTY_ARRAYS = "preserveNullAndEmptyArrays";
   private static final String UNWIND_OPERATOR = "$unwind";
 
   private static final MongoIdentifierPrefixingParser mongoIdentifierPrefixingParser =
@@ -21,7 +22,13 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
   public BasicDBObject visit(UnnestExpression unnestExpression) {
     String parsedIdentifierExpression =
         mongoIdentifierPrefixingParser.visit(unnestExpression.getIdentifierExpression());
-    return new BasicDBObject(UNWIND_OPERATOR, Map.of(PATH_KEY, parsedIdentifierExpression));
+    return new BasicDBObject(
+        UNWIND_OPERATOR,
+        Map.of(
+            PATH_KEY,
+            parsedIdentifierExpression,
+            PRESERVE_NULL_AND_EMPTY_ARRAYS,
+            unnestExpression.isPreserveNullAndEmptyArrays()));
   }
 
   public static List<BasicDBObject> getFromClauses(final Query query) {
