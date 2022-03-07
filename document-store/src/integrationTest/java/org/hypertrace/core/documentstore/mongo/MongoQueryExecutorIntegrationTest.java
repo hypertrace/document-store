@@ -524,7 +524,7 @@ public class MongoQueryExecutorIntegrationTest {
                             ConstantExpression.of("Dettol")))
                     .build())
             .build();
-    assertEquals(1, collection.count(filter));
+    assertEquals(1, collection.total(filter));
   }
 
   @Test
@@ -535,7 +535,7 @@ public class MongoQueryExecutorIntegrationTest {
                 RelationalExpression.of(
                     IdentifierExpression.of("props.brand"), EQ, ConstantExpression.of("Hamam")))
             .build();
-    assertEquals(0, collection.count(filter));
+    assertEquals(0, collection.total(filter));
   }
 
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)

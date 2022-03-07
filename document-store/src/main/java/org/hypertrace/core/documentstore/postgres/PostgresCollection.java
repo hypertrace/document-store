@@ -397,7 +397,7 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public long count(org.hypertrace.core.documentstore.query.Filter filter) {
+  public long total(org.hypertrace.core.documentstore.query.Filter filter) {
     throw new UnsupportedOperationException();
   }
 
