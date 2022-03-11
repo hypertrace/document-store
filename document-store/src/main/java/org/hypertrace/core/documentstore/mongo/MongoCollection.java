@@ -40,6 +40,7 @@ import org.bson.conversions.Bson;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
+import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.CloseableIterator;
@@ -477,6 +478,12 @@ public class MongoCollection implements Collection {
   public boolean delete(Key key) {
     DeleteResult deleteResult = collection.deleteOne(this.selectionCriteriaForKey(key));
     return deleteResult.getDeletedCount() > 0;
+  }
+
+  @Override
+  public BulkDeleteResult delete(Set<Key> keys) {
+    DeleteResult deleteResult = collection.deleteMany(this.selectionCriteriaForKeys(keys));
+    return new BulkDeleteResult(deleteResult.getDeletedCount());
   }
 
   @Override

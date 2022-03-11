@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
@@ -86,6 +87,13 @@ public interface Collection {
    * @return True if the document was deleted, false otherwise.
    */
   boolean delete(Key key);
+
+  /**
+   * Delete the documents for the given keys
+   *
+   * @param keys {@link Key}s of the document to be deleted
+   */
+  BulkDeleteResult delete(Set<Key> keys);
 
   /**
    * Deletes a sub document

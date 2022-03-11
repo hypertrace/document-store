@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
+import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.CloseableIterator;
@@ -342,6 +343,31 @@ public class PostgresCollection implements Collection {
       LOGGER.error("SQLException deleting document. key: {}", key, e);
     }
     return false;
+  }
+
+  @Override
+  public BulkDeleteResult delete(Set<Key> keys) {
+    String ids =
+        keys.stream().map(key -> "'" + key.toString() + "'").collect(Collectors.joining(", "));
+    String space = " ";
+    String deleteSQL =
+        new StringBuilder("DELETE FROM")
+            .append(space)
+            .append(collectionName)
+            .append(" WHERE ")
+            .append(ID)
+            .append(" IN ")
+            .append("(")
+            .append(ids)
+            .append(")")
+            .toString();
+    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
+      int deletedCount = preparedStatement.executeUpdate();
+      return new BulkDeleteResult(deletedCount);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting documents. keys: {}", keys, e);
+    }
+    return new BulkDeleteResult(0);
   }
 
   @Override

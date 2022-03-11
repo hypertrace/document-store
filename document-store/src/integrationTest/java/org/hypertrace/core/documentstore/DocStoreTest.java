@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomUtils;
@@ -979,6 +980,23 @@ public class DocStoreTest {
     Assertions.assertEquals(collection.count(), 1);
     collection.delete(docKey);
     Assertions.assertEquals(collection.count(), 0);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testBulkDelete(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    SingleValueKey docKey1 = new SingleValueKey("default", "testKey1");
+    collection.upsert(docKey1, Utils.createDocument("foo1", "bar1"));
+    SingleValueKey docKey2 = new SingleValueKey("default", "testKey2");
+    collection.upsert(docKey2, Utils.createDocument("foo2", "bar2"));
+    SingleValueKey docKey3 = new SingleValueKey("default", "testKey3");
+    collection.upsert(docKey3, Utils.createDocument("foo3", "bar3"));
+
+    Assertions.assertEquals(collection.count(), 3);
+    collection.delete(Set.of(docKey1, docKey2));
+    Assertions.assertEquals(collection.count(), 1);
   }
 
   @ParameterizedTest
