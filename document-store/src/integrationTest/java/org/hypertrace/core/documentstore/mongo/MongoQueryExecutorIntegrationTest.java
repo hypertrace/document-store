@@ -21,8 +21,8 @@ import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
-import static org.junit.Assert.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
