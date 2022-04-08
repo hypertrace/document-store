@@ -2,6 +2,26 @@
   {
     "item": "Soap",
     "sales": {
+      "city": "pune",
+      "medium": {
+        "type": "online",
+        "volume": 2000
+      }
+    }
+  },
+  {
+    "item": "Soap",
+    "sales": {
+      "city": "pune",
+      "medium": {
+        "type": "distributionChannel",
+        "volume": 300
+      }
+    }
+  },
+  {
+    "item": "Soap",
+    "sales": {
       "city": "delhi",
       "medium": {
         "type": "online",
@@ -23,6 +43,42 @@
     "item": "Soap",
     "sales": {
       "city": "delhi",
+      "medium": {
+        "type": "retail",
+        "volume": 500
+      }
+    }
+  },
+  {
+    "item": "Soap"
+  },
+  {
+    "item": "Soap"
+  },
+  {
+    "item": "Shampoo",
+    "sales": {
+      "city": "mumbai",
+      "medium": {
+        "type": "online",
+        "volume": 5000
+      }
+    }
+  },
+  {
+    "item": "Shampoo",
+    "sales": {
+      "city": "mumbai",
+      "medium": {
+        "type": "distributionChannel",
+        "volume": 700
+      }
+    }
+  },
+  {
+    "item": "Shampoo",
+    "sales": {
+      "city": "mumbai",
       "medium": {
         "type": "retail",
         "volume": 500
@@ -60,9 +116,18 @@
     }
   },
   {
+    "item": "Shampoo"
+  },
+  {
     "item": "Mirror",
     "sales": {
       "city": "delhi"
     }
+  },
+  {
+    "item": "Comb"
+  },
+  {
+    "item": "Comb"
   }
 ]
