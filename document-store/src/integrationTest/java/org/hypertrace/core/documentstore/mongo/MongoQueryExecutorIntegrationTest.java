@@ -523,6 +523,29 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
+  public void testFilterAndUnnest() throws IOException {
+    // include all documents in the result irrespective of `sales` field
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("sales.city"), EQ, ConstantExpression.of("delhi")))
+            .build();
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium"))
+            .setFilter(filter)
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsEqual(iterator, "mongo/unwind_filter_response.json");
+  }
+
+  @Test
   public void testUnnestAndAggregate_preserveEmptyFalse() throws IOException {
     // consider only those documents where sales field is missing
     org.hypertrace.core.documentstore.query.Query query =

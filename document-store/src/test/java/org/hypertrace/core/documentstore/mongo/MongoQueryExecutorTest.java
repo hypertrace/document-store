@@ -597,6 +597,16 @@ class MongoQueryExecutorTest {
 
   @Test
   public void testUnwindAndGroup() {
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse("{\"$match\": {\"class\": {\"$lte\": 10}}}"),
+            BasicDBObject.parse(
+                "{\"$unwind\": {\"path\": \"$class.students\", \"preserveNullAndEmptyArrays\": true}}"),
+            BasicDBObject.parse(
+                "{\"$unwind\": {\"path\": \"$class.students.courses\", \"preserveNullAndEmptyArrays\": true}}"),
+            BasicDBObject.parse("{\"$match\": {\"class\": {\"$lte\": 10}}}"),
+            BasicDBObject.parse(
+                "{\"$group\": {\"_id\": {\"class\\\\u002estudents\\\\u002ecourses\": \"$class.students.courses\"}}}"));
     Query query =
         Query.builder()
             .setFilter(
@@ -607,16 +617,6 @@ class MongoQueryExecutorTest {
             .addFromClause(
                 UnnestExpression.of(IdentifierExpression.of("class.students.courses"), true))
             .build();
-
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse("{\"$match\": {\"class\": {\"$lte\": 10}}}"),
-            BasicDBObject.parse(
-                "{\"$unwind\": {\"path\": \"$class.students\", \"preserveNullAndEmptyArrays\": true}}"),
-            BasicDBObject.parse(
-                "{\"$unwind\": {\"path\": \"$class.students.courses\", \"preserveNullAndEmptyArrays\": true}}"),
-            BasicDBObject.parse(
-                "{\"$group\": {\"_id\": {\"class\\\\u002estudents\\\\u002ecourses\": \"$class.students.courses\"}}}"));
 
     testAggregation(query, pipeline);
   }

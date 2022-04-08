@@ -1,0 +1,61 @@
+[
+  {
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "distributionChannel",
+        "volume": 1000
+      }
+    }
+  },
+  {
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "retail",
+        "volume": 500
+      }
+    }
+  },
+  {
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "online",
+        "volume": 1000
+      }
+    }
+  },
+  {
+    "sales": {
+      "city": "delhi"
+    }
+  },
+  {
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "distributionChannel",
+        "volume": 3000
+      }
+    }
+  },
+  {
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "retail",
+        "volume": 500
+      }
+    }
+  },
+  {
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "online",
+        "volume": 1000
+      }
+    }
+  }
+]
