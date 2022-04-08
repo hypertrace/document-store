@@ -24,7 +24,6 @@ import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
@@ -589,14 +588,10 @@ public class MongoQueryExecutorIntegrationTest {
     List<Map<String, Object>> expected = convertJsonToMap(fileContent);
 
     List<Map<String, Object>> actual = new ArrayList<>();
-    List<String> resultDocs = new ArrayList<>();
     while (documents.hasNext()) {
-      Document document = documents.next();
-      resultDocs.add(document.toJson());
-      actual.add(convertDocumentToMap(document));
+      actual.add(convertDocumentToMap(documents.next()));
     }
 
-    String jsonResult = new ObjectMapper().writeValueAsString(resultDocs);
     Assertions.assertEquals(expected, actual);
   }
 
