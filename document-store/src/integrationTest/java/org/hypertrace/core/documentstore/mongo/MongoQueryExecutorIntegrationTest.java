@@ -557,20 +557,21 @@ public class MongoQueryExecutorIntegrationTest {
 
   @Test
   public void testFilterAndUnnest() throws IOException {
-    Filter filter =
-        Filter.builder()
-            .expression(
-                RelationalExpression.of(
-                    IdentifierExpression.of("sales.city"), EQ, ConstantExpression.of("delhi")))
-            .build();
+    RelationalExpression relationalExpression =
+        RelationalExpression.of(
+            IdentifierExpression.of("sales.city"), EQ, ConstantExpression.of("delhi"));
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("sales.city"))
             .addSelection(IdentifierExpression.of("sales.medium"))
-            .setFilter(filter)
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(true)
+                    .filterTypeExpression(relationalExpression)
+                    .build())
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
             .addSort(IdentifierExpression.of("item"), DESC)
             .addSort(IdentifierExpression.of("sales.city"), DESC)

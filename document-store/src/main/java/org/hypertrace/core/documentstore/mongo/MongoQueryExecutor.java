@@ -37,7 +37,6 @@ public class MongoQueryExecutor {
           List.of(
               query -> singleton(getFilterClause(query, Query::getFilter)),
               MongoFromTypeExpressionParser::getFromClauses,
-              MongoQueryExecutor::reApplyFilterAfterUnwind,
               query -> singleton(getGroupClause(query)),
               query -> singleton(getProjectClause(query)),
               query -> singleton(getFilterClause(query, Query::getAggregationFilter)),
@@ -78,15 +77,6 @@ public class MongoQueryExecutor {
     AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
 
     return iterable.cursor();
-  }
-
-  private static Collection<BasicDBObject> reApplyFilterAfterUnwind(Query query) {
-    BasicDBObject dbObject =
-        query.getFromTypeExpressions().size() > 0
-            ? getFilterClause(query, Query::getFilter)
-            : new BasicDBObject();
-
-    return singleton(dbObject);
   }
 
   private void logClauses(

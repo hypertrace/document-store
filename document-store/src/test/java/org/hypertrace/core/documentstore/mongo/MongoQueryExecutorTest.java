@@ -615,7 +615,6 @@ class MongoQueryExecutorTest {
                 "{\"$unwind\": {\"path\": \"$class.students\", \"preserveNullAndEmptyArrays\": true}}"),
             BasicDBObject.parse(
                 "{\"$unwind\": {\"path\": \"$class.students.courses\", \"preserveNullAndEmptyArrays\": true}}"),
-            BasicDBObject.parse("{\"$match\": {\"class\": {\"$lte\": 10}}}"),
             BasicDBObject.parse(
                 "{\"$group\": {\"_id\": {\"class\\\\u002estudents\\\\u002ecourses\": \"$class.students.courses\"}}}"));
 
