@@ -29,6 +29,15 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   public static BasicDBObject getFilterClause(
       final Query query, final Function<Query, Optional<FilterTypeExpression>> filterProvider) {
     BasicDBObject filters = getFilter(query, filterProvider);
+    return convertFilterToClause(filters);
+  }
+
+  public static BasicDBObject getFilterClause(FilterTypeExpression filterTypeExpression) {
+    BasicDBObject filters = getFilter(filterTypeExpression);
+    return convertFilterToClause(filters);
+  }
+
+  private static BasicDBObject convertFilterToClause(BasicDBObject filters) {
     return filters.isEmpty() ? new BasicDBObject() : new BasicDBObject(FILTER_CLAUSE, filters);
   }
 
@@ -40,8 +49,12 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
       return new BasicDBObject();
     }
 
+    return getFilter(filterOptional.get());
+  }
+
+  private static BasicDBObject getFilter(FilterTypeExpression filterTypeExpression) {
     FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser();
-    Map<String, Object> filter = filterOptional.get().accept(parser);
+    Map<String, Object> filter = filterTypeExpression.accept(parser);
     return new BasicDBObject(filter);
   }
 }

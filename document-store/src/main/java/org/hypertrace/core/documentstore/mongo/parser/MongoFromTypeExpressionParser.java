@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
 import com.mongodb.BasicDBObject;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -19,25 +20,36 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
 
   @SuppressWarnings("unchecked")
   @Override
-  public BasicDBObject visit(UnnestExpression unnestExpression) {
+  public List<BasicDBObject> visit(UnnestExpression unnestExpression) {
     String parsedIdentifierExpression =
         mongoIdentifierPrefixingParser.visit(unnestExpression.getIdentifierExpression());
-    return new BasicDBObject(
-        UNWIND_OPERATOR,
-        Map.of(
-            PATH_KEY,
-            parsedIdentifierExpression,
-            PRESERVE_NULL_AND_EMPTY_ARRAYS,
-            unnestExpression.isPreserveNullAndEmptyArrays()));
+    List<BasicDBObject> objects = new ArrayList<>();
+    objects.add(
+        new BasicDBObject(
+            UNWIND_OPERATOR,
+            Map.of(
+                PATH_KEY,
+                parsedIdentifierExpression,
+                PRESERVE_NULL_AND_EMPTY_ARRAYS,
+                unnestExpression.isPreserveNullAndEmptyArrays())));
+
+    if (null != unnestExpression.getFilterTypeExpression()) {
+      objects.add(
+          MongoFilterTypeExpressionParser.getFilterClause(
+              unnestExpression.getFilterTypeExpression()));
+    }
+
+    return objects;
   }
 
   public static List<BasicDBObject> getFromClauses(final Query query) {
     MongoFromTypeExpressionParser mongoFromTypeExpressionParser =
         new MongoFromTypeExpressionParser();
     return query.getFromTypeExpressions().stream()
-        .map(
+        .flatMap(
             fromTypeExpression ->
-                (BasicDBObject) fromTypeExpression.accept(mongoFromTypeExpressionParser))
+                ((List<BasicDBObject>) fromTypeExpression.accept(mongoFromTypeExpressionParser))
+                    .stream())
         .collect(Collectors.toList());
   }
 }

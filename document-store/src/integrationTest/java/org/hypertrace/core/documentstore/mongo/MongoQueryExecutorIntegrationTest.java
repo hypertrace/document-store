@@ -536,6 +536,53 @@ public class MongoQueryExecutorIntegrationTest {
     assertDocsEqual(iterator, "mongo/unwind_not_preserving_empty_array_response.json");
   }
 
+  @Test
+  public void testUnnest() throws IOException {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .addSort(IdentifierExpression.of("sales.city"), DESC)
+            .addSort(IdentifierExpression.of("sales.medium.volume"), DESC)
+            .addSort(IdentifierExpression.of("sales.medium.type"), DESC)
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsEqual(iterator, "mongo/unwind_response.json");
+  }
+
+  @Test
+  public void testFilterAndUnnest() throws IOException {
+    RelationalExpression relationalExpression =
+        RelationalExpression.of(
+            IdentifierExpression.of("sales.city"), EQ, ConstantExpression.of("delhi"));
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium"))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(true)
+                    .filterTypeExpression(relationalExpression)
+                    .build())
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .addSort(IdentifierExpression.of("sales.city"), DESC)
+            .addSort(IdentifierExpression.of("sales.medium.volume"), DESC)
+            .addSort(IdentifierExpression.of("sales.medium.type"), DESC)
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsEqual(iterator, "mongo/unwind_filter_response.json");
+  }
+
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)
       throws IOException {
     String fileContent = readFileFromResource(filePath).orElseThrow();

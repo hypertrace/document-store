@@ -1,0 +1,68 @@
+[
+  {
+    "item": "Soap",
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "online",
+        "volume": 1000
+      }
+    }
+  },
+  {
+    "item": "Soap",
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "distributionChannel",
+        "volume": 1000
+      }
+    }
+  },
+  {
+    "item": "Soap",
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "retail",
+        "volume": 500
+      }
+    }
+  },
+  {
+    "item": "Shampoo",
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "distributionChannel",
+        "volume": 3000
+      }
+    }
+  },
+  {
+    "item": "Shampoo",
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "online",
+        "volume": 1000
+      }
+    }
+  },
+  {
+    "item": "Shampoo",
+    "sales": {
+      "city": "delhi",
+      "medium": {
+        "type": "retail",
+        "volume": 500
+      }
+    }
+  },
+  {
+    "item": "Mirror",
+    "sales": {
+      "city": "delhi"
+    }
+  }
+]
