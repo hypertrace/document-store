@@ -296,6 +296,8 @@ public class MongoQueryExecutorIntegrationTest {
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
             .build();
 
+    // select count(item) as count from DB
+    // select count(*) as count from DB where db->doc contains items
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/count_response.json");
   }
@@ -307,6 +309,10 @@ public class MongoQueryExecutorIntegrationTest {
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
             .build();
+
+    // select count(item) as count, count(item) as count from DB
+    // select count(*) as count from DB where db->doc contains items
+    // Check for disctinct
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/count_response.json");
@@ -344,6 +350,11 @@ public class MongoQueryExecutorIntegrationTest {
             .setPagination(Pagination.builder().limit(10).offset(0).build())
             .build();
 
+    // Select sum(price * quantity) as total, item from DB where quantiti != 10
+    // group_by item having total > 11 and total < 99
+    // sort by total
+
+    // are we using this?
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/sum_response.json");
   }
@@ -503,7 +514,9 @@ public class MongoQueryExecutorIntegrationTest {
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
             .addSort(IdentifierExpression.of("totalSales"), DESC)
             .build();
-
+    // select sum(sales.medium.volume) as totalSales, sales.medium.type from
+    // check this out?
+    // This one is used?
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsEqual(iterator, "mongo/aggregate_on_nested_array_reponse.json");
   }
