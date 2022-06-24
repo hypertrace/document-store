@@ -8,7 +8,6 @@ import java.util.Optional;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
-import lombok.ToString;
 import lombok.Value;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
