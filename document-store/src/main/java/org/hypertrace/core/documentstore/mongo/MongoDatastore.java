@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.mongo.MongoCollection.CREATED_TIME;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -85,6 +86,11 @@ public class MongoDatastore implements Datastore {
   public boolean healthCheck() {
     Document document = this.database.runCommand(new Document("ping", "1"));
     return !document.isEmpty();
+  }
+
+  @Override
+  public String getCreatedTimePath() {
+    return CREATED_TIME;
   }
 
   @VisibleForTesting

@@ -17,4 +17,6 @@ public interface Datastore {
   Collection getCollection(String collectionName);
 
   boolean healthCheck();
+
+  String getCreatedTimePath();
 }

@@ -56,14 +56,15 @@ import org.slf4j.LoggerFactory;
 
 /** An implementation of the {@link Collection} interface with MongoDB as the backend */
 public class MongoCollection implements Collection {
+  /* follow json/protobuf convention to make it deser, let's not make our life harder */
+  public static final String CREATED_TIME = "createdTime";
+
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoCollection.class);
 
   // Fields automatically added for each document
   public static final String ID_KEY = "_id";
   private static final String LAST_UPDATE_TIME = "_lastUpdateTime";
   private static final String LAST_UPDATED_TIME = "lastUpdatedTime";
-  /* follow json/protobuf convention to make it deser, let's not make our life harder */
-  private static final String CREATED_TIME = "createdTime";
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 

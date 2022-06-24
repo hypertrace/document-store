@@ -132,6 +132,11 @@ public class PostgresDatastore implements Datastore {
     return false;
   }
 
+  @Override
+  public String getCreatedTimePath() {
+    return CREATED_AT;
+  }
+
   public Connection getPostgresClient() {
     return client;
   }
