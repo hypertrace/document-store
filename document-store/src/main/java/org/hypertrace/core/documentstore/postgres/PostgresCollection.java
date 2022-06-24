@@ -346,6 +346,40 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
+  public boolean delete(Filter filter) {
+    String filters = null;
+    StringBuilder sqlBuilder = new StringBuilder("DELETE * FROM ").append(collectionName);
+    Params.Builder paramsBuilder = Params.newBuilder();
+
+    // If there is a filter in the query, parse it fully.
+    if (filter != null) {
+      filters = PostgresQueryParser.parseFilter(filter, paramsBuilder);
+    }
+
+    LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
+
+    if (filters != null) {
+      sqlBuilder.append(" WHERE ").append(filters);
+    }
+
+    try {
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
+      int deletedCount = preparedStatement.executeUpdate();
+      return deletedCount > 0;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException querying documents. filter: {}", filter, e);
+    }
+
+    return false;
+  }
+
+  @Override
+  public boolean delete(org.hypertrace.core.documentstore.query.Filter filter) {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public BulkDeleteResult delete(Set<Key> keys) {
     String ids =
         keys.stream().map(key -> "'" + key.toString() + "'").collect(Collectors.joining(", "));
