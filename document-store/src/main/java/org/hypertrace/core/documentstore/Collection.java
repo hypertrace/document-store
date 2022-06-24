@@ -81,6 +81,15 @@ public interface Collection {
   CloseableIterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query);
 
   /**
+   * Count the result-set size of applying aggregations. Note that this method is a generic version
+   * of {@link #total(Query)}
+   *
+   * @param query The query definition whose result-set size is to be determined
+   * @return The number of documents conforming to the input query
+   */
+  long aggregateCount(final org.hypertrace.core.documentstore.query.Query query);
+
+  /**
    * Delete the document with the given key.
    *
    * @param key The {@link Key} of the document to be deleted.
