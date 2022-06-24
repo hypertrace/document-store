@@ -9,6 +9,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
+import lombok.Value;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
@@ -67,15 +68,15 @@ import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
  *  </code>
  */
 @AllArgsConstructor(access = AccessLevel.PACKAGE)
-@ToString
-public final class Query {
-  private final Selection selection; // Missing selection represents fetching all the columns
-  private final Filter filter;
-  private final Aggregation aggregation;
-  private final Filter aggregationFilter;
-  private final Sort sort;
-  private final Pagination pagination; // Missing pagination represents fetching all the records
-  private final FromClause fromClause;
+@Value
+public class Query {
+  Selection selection; // Missing selection represents fetching all the columns
+  Filter filter;
+  Aggregation aggregation;
+  Filter aggregationFilter;
+  Sort sort;
+  Pagination pagination; // Missing pagination represents fetching all the records
+  FromClause fromClause;
 
   public List<SelectionSpec> getSelections() {
     return selection == null ? emptyList() : unmodifiableList(selection.getSelectionSpecs());
