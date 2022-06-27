@@ -429,7 +429,7 @@ public class MongoQueryExecutorIntegrationTest {
             .build();
 
     assertThrows(IllegalArgumentException.class, () -> collection.aggregate(query));
-    assertThrows(IllegalArgumentException.class, () -> collection.aggregateCount(query));
+    assertThrows(IllegalArgumentException.class, () -> collection.count(query));
   }
 
   @Test
@@ -454,7 +454,7 @@ public class MongoQueryExecutorIntegrationTest {
             .build();
 
     assertThrows(UnsupportedOperationException.class, () -> collection.aggregate(query));
-    assertThrows(UnsupportedOperationException.class, () -> collection.aggregateCount(query));
+    assertThrows(UnsupportedOperationException.class, () -> collection.count(query));
   }
 
   @Test
@@ -631,7 +631,7 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   private static void assertSizeEqual(final Query query, final String filePath) throws IOException {
-    final long actualSize = collection.aggregateCount(query);
+    final long actualSize = collection.count(query);
     final String fileContent = readFileFromResource(filePath).orElseThrow();
     final long expectedSize = convertJsonToMap(fileContent).size();
     assertEquals(expectedSize, actualSize);

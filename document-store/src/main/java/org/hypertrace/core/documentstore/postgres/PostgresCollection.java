@@ -291,7 +291,7 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public long aggregateCount(org.hypertrace.core.documentstore.query.Query query) {
+  public long count(org.hypertrace.core.documentstore.query.Query query) {
     throw new UnsupportedOperationException();
   }
 
