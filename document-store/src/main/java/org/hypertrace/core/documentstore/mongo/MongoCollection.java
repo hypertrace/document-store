@@ -476,7 +476,7 @@ public class MongoCollection implements Collection {
 
   @Override
   public long count(org.hypertrace.core.documentstore.query.Query query) {
-    return queryExecutor.aggregationCount(query);
+    return queryExecutor.count(query);
   }
 
   @Override

@@ -83,7 +83,7 @@ public class MongoQueryExecutor {
     return iterable.cursor();
   }
 
-  public long aggregationCount(final Query originalQuery) {
+  public long count(final Query originalQuery) {
     final Query query = transformAndLog(originalQuery);
 
     final List<BasicDBObject> pipeline =
