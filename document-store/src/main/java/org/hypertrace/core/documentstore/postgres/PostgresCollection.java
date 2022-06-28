@@ -347,15 +347,12 @@ public class PostgresCollection implements Collection {
 
   @Override
   public boolean delete(Filter filter) {
-    String filters = null;
+    if (filter == null) {
+      throw new UnsupportedOperationException("Filter must be provided");
+    }
     StringBuilder sqlBuilder = new StringBuilder("DELETE * FROM ").append(collectionName);
     Params.Builder paramsBuilder = Params.newBuilder();
-
-    // If there is a filter in the query, parse it fully.
-    if (filter != null) {
-      filters = PostgresQueryParser.parseFilter(filter, paramsBuilder);
-    }
-
+    String filters = PostgresQueryParser.parseFilter(filter, paramsBuilder);
     LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
 
     if (filters != null) {
@@ -586,7 +583,8 @@ public class PostgresCollection implements Collection {
 
   private String getUpsertSQL() {
     return String.format(
-        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
+        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = "
+            + "?::jsonb ",
         collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 

@@ -483,12 +483,10 @@ public class MongoCollection implements Collection {
 
   @Override
   public boolean delete(Filter filter) {
-    Map<String, Object> map = new HashMap<>();
-    // If there is a filter in the query, parse it fully.
-    if (filter != null) {
-      map = MongoQueryParser.parseFilter(filter);
+    if (filter == null) {
+      throw new UnsupportedOperationException("Filter must be provided");
     }
-
+    Map<String, Object> map = MongoQueryParser.parseFilter(filter);
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug(
           "Sending delete query to mongo: {} : {}",
