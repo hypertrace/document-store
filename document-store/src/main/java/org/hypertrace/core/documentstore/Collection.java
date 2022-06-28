@@ -129,6 +129,15 @@ public interface Collection {
   long total(Query query);
 
   /**
+   * Count the result-set size of executing the given query. Note that this method is a generic
+   * version of {@link #count()} and {@link #total(Query)}
+   *
+   * @param query The query definition whose result-set size is to be determined
+   * @return The number of documents conforming to the input query
+   */
+  long count(final org.hypertrace.core.documentstore.query.Query query);
+
+  /**
    * @param documents to be upserted in bulk
    * @return true if the operation succeeded
    */
