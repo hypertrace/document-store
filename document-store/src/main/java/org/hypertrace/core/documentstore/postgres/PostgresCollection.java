@@ -290,6 +290,11 @@ public class PostgresCollection implements Collection {
     throw new UnsupportedOperationException();
   }
 
+  @Override
+  public long count(org.hypertrace.core.documentstore.query.Query query) {
+    throw new UnsupportedOperationException();
+  }
+
   @VisibleForTesting
   protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
       throws SQLException, RuntimeException {
