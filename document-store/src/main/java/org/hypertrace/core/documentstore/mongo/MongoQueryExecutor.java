@@ -1,10 +1,13 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static java.lang.Long.parseLong;
 import static java.util.Collections.singleton;
 import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.applyPagination;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getLimitClause;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getSkipClause;
+import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
+import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.getCountClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilterClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoGroupTypeExpressionParser.getGroupClause;
@@ -21,6 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
@@ -77,6 +81,29 @@ public class MongoQueryExecutor {
     AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
 
     return iterable.cursor();
+  }
+
+  public long count(final Query originalQuery) {
+    final Query query = transformAndLog(originalQuery);
+
+    final List<BasicDBObject> pipeline =
+        Stream.concat(
+                AGGREGATE_PIPELINE_FUNCTIONS.stream()
+                    .flatMap(function -> function.apply(query).stream()),
+                Stream.of(getCountClause()))
+            .filter(not(BasicDBObject::isEmpty))
+            .collect(Collectors.toList());
+
+    logPipeline(pipeline);
+    final AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
+
+    try (final MongoCursor<BasicDBObject> cursor = iterable.cursor()) {
+      if (cursor.hasNext()) {
+        return parseLong(cursor.next().get(COUNT_ALIAS).toString());
+      }
+    }
+
+    return 0;
   }
 
   private void logClauses(
