@@ -321,27 +321,6 @@ public class MongoDocStoreTest {
   }
 
   @Test
-  public void testDeleteByHTFilter() throws IOException {
-    datastore.createCollection(COLLECTION_NAME, null);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    collection.upsert(
-        new SingleValueKey("default", "testKey1"), Utils.createDocument("field", "value"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey2"), Utils.createDocument("field", "value"));
-    collection.upsert(
-        new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value1"));
-    assertEquals(2, collection.count());
-    collection.delete(org.hypertrace.core.documentstore.query.Filter.builder()
-        .expression(RelationalExpression.of(
-            IdentifierExpression.of("field"),
-            RelationalOperator.EQ,
-            ConstantExpression.of("value")
-        ))
-        .build());
-    assertEquals(1, collection.count());
-  }
-
-  @Test
   public void testSelections() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);

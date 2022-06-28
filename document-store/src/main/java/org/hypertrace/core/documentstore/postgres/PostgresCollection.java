@@ -375,11 +375,6 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public boolean delete(org.hypertrace.core.documentstore.query.Filter filter) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public BulkDeleteResult delete(Set<Key> keys) {
     String ids =
         keys.stream().map(key -> "'" + key.toString() + "'").collect(Collectors.joining(", "));

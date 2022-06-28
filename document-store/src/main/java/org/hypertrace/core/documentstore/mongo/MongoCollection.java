@@ -1,7 +1,5 @@
 package org.hypertrace.core.documentstore.mongo;
 
-import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -499,23 +497,6 @@ public class MongoCollection implements Collection {
     }
     BasicDBObject ref = new BasicDBObject(map);
     DeleteResult deleteResult = collection.deleteMany(ref);
-    return deleteResult.getDeletedCount() > 0;
-  }
-
-  @Override
-  public boolean delete(org.hypertrace.core.documentstore.query.Filter filter) {
-    BasicDBObject filterClause =
-        getFilter(
-            org.hypertrace.core.documentstore.query.Query.builder().setFilter(filter).build(),
-            org.hypertrace.core.documentstore.query.Query::getFilter);
-
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug(
-          "Sending delete query to mongo: {} : {}",
-          collection.getNamespace().getCollectionName(),
-          filterClause.toString());
-    }
-    DeleteResult deleteResult = collection.deleteMany(filterClause);
     return deleteResult.getDeletedCount() > 0;
   }
 

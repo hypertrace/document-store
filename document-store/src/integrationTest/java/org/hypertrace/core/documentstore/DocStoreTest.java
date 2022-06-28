@@ -30,7 +30,6 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
-import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
@@ -63,9 +62,7 @@ public class DocStoreTest {
   private static final String MONGO_LAST_UPDATE_TIME_KEY = "_lastUpdateTime";
   private static final String MONGO_LAST_UPDATED_TIME_KEY = "lastUpdatedTime";
   private static final String MONGO_CREATED_TIME_KEY = "createdTime";
-  /**
-   * Postgres related time fields
-   */
+  /** Postgres related time fields */
   public static final String POSTGRES_UPDATED_AT = "updated_at";
 
   public static final String POSTGRES_CREATED_AT = "created_at";
@@ -243,34 +240,6 @@ public class DocStoreTest {
     collection.delete(org.hypertrace.core.documentstore.Filter.eq("field", "value"));
     assertEquals(1, collection.count());
   }
-
-  @ParameterizedTest
-  @MethodSource("databaseContextProvider")
-  public void testDeleteByHTFilter(String dataStoreName) {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-    Map<Key, Document> bulkMap = new HashMap<>();
-    bulkMap.put(new SingleValueKey("default", "testKey1"), Utils.createDocument("field", "value"));
-    bulkMap.put(new SingleValueKey("default", "testKey2"), Utils.createDocument("field", "value"));
-    bulkMap.put(new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value"));
-    bulkMap.put(new SingleValueKey("default", "testKey4"), Utils.createDocument("field", "value"));
-    bulkMap.put(new SingleValueKey("default", "testKey5"), Utils.createDocument("field", "value"));
-    bulkMap.put(
-        new SingleValueKey("default", "testKey6"),
-        Utils.createDocument("email", "bob@example.com"));
-
-    assertTrue(collection.bulkUpsert(bulkMap));
-
-    collection.delete(org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(RelationalExpression.of(
-                IdentifierExpression.of("field"),
-                RelationalOperator.EQ,
-                ConstantExpression.of("value")
-            ))
-        .build());
-    assertEquals(1, collection.count());
-  }
-
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
@@ -1540,9 +1509,8 @@ public class DocStoreTest {
 
   /**
    * mongo {"_lastUpdateTime":{"$date":"2021-03-14T15:43:04.842Z"},"createdTime":1615736584763,
-   * "foo1":"bar1","lastUpdatedTime":1615736584763}
-   * postgres {"foo1":"bar1","created_at":"2021-03-14 21:20:00.178909","updated_at":"2021-03-14
-   * 21:20:00.178909"}
+   * "foo1":"bar1","lastUpdatedTime":1615736584763} postgres {"foo1":"bar1","created_at":"2021-03-14
+   * 21:20:00.178909","updated_at":"2021-03-14 21:20:00.178909"}
    */
   private static void verifyTimeRelatedFieldsPresent(String doc, String dataStoreName) {
     if (isMongo(dataStoreName)) {

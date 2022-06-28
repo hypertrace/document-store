@@ -97,14 +97,6 @@ public interface Collection {
   boolean delete(Filter filter);
 
   /**
-   * Delete the document matching the given query.
-   *
-   * @param query The query to determine documents to be deleted. Only the filter clause.
-   * @return True if the documents are deleted, false otherwise.
-   */
-  boolean delete(final org.hypertrace.core.documentstore.query.Filter filter);
-
-  /**
    * Delete the documents for the given keys
    *
    * @param keys {@link Key}s of the document to be deleted
