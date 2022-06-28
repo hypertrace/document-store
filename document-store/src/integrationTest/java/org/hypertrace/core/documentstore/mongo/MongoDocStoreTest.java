@@ -59,7 +59,9 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-/** Integration tests for the MongoDB doc store */
+/**
+ * Integration tests for the MongoDB doc store
+ */
 @Testcontainers
 public class MongoDocStoreTest {
 
@@ -310,7 +312,7 @@ public class MongoDocStoreTest {
         new SingleValueKey("default", "testKey2"), Utils.createDocument("field", "value"));
     collection.upsert(
         new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value1"));
-    assertEquals(2, collection.count());
+    assertEquals(3, collection.count());
     // Delete one of the documents and test again.
     collection.delete(org.hypertrace.core.documentstore.Filter.eq("field", "value"));
     assertEquals(1, collection.count());
@@ -444,9 +446,9 @@ public class MongoDocStoreTest {
     Map<Key, Document> documentMapV1 =
         Map.of(
             new SingleValueKey("default", "testKey1"),
-                Utils.createDocument("id", "1", "testKey1", "abc-v1"),
+            Utils.createDocument("id", "1", "testKey1", "abc-v1"),
             new SingleValueKey("default", "testKey2"),
-                Utils.createDocument("id", "2", "testKey2", "xyz-v1"));
+            Utils.createDocument("id", "2", "testKey2", "xyz-v1"));
 
     Iterator<Document> iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV1);
     // Initially there shouldn't be any documents.
@@ -456,9 +458,9 @@ public class MongoDocStoreTest {
     Map<Key, Document> documentMapV2 =
         Map.of(
             new SingleValueKey("default", "testKey1"),
-                Utils.createDocument("id", "1", "testKey1", "abc-v2"),
+            Utils.createDocument("id", "1", "testKey1", "abc-v2"),
             new SingleValueKey("default", "testKey2"),
-                Utils.createDocument("id", "2", "testKey2", "xyz-v2"));
+            Utils.createDocument("id", "2", "testKey2", "xyz-v2"));
     iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV2);
     assertEquals(2, collection.count());
     List<Document> documents = new ArrayList<>();
