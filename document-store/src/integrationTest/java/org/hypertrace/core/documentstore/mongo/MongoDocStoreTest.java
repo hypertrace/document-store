@@ -59,9 +59,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
-/**
- * Integration tests for the MongoDB doc store
- */
+/** Integration tests for the MongoDB doc store */
 @Testcontainers
 public class MongoDocStoreTest {
 

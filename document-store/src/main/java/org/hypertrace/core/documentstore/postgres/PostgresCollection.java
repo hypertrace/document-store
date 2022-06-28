@@ -36,9 +36,7 @@ import org.hypertrace.core.documentstore.UpdateResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Provides {@link Collection} implementation on Postgres using jsonb format
- */
+/** Provides {@link Collection} implementation on Postgres using jsonb format */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -111,9 +109,7 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /**
-   * create a new document if one doesn't exists with key
-   */
+  /** create a new document if one doesn't exists with key */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
