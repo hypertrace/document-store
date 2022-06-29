@@ -366,12 +366,11 @@ public class PostgresCollection implements Collection {
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
-      int deletedCount = preparedStatement.executeUpdate();
-      return deletedCount > 0;
+      preparedStatement.executeUpdate();
+      return true;
     } catch (SQLException e) {
-      LOGGER.error("SQLException querying documents. filter: {}", filter, e);
+      LOGGER.error("SQLException deleting documents. filter: {}", filter, e);
     }
-
     return false;
   }
 
