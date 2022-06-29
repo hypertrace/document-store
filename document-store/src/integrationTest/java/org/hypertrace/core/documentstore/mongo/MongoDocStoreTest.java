@@ -328,8 +328,8 @@ public class MongoDocStoreTest {
     collection.upsert(
         new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value1"));
     assertEquals(3, collection.count());
-    UnsupportedOperationException exception = assertThrows(
-        UnsupportedOperationException.class, () -> collection.delete((Filter) null));
+    UnsupportedOperationException exception =
+        assertThrows(UnsupportedOperationException.class, () -> collection.delete((Filter) null));
     assertTrue(exception.getMessage().contains("Filter must be provided"));
     assertEquals(3, collection.count());
   }

@@ -254,8 +254,8 @@ public class DocStoreTest {
 
     assertTrue(collection.bulkUpsert(bulkMap));
 
-    UnsupportedOperationException exception = assertThrows(
-        UnsupportedOperationException.class, () -> collection.delete((Filter) null));
+    UnsupportedOperationException exception =
+        assertThrows(UnsupportedOperationException.class, () -> collection.delete((Filter) null));
     assertTrue(exception.getMessage().contains("Filter must be provided"));
     assertEquals(6, collection.count());
   }
