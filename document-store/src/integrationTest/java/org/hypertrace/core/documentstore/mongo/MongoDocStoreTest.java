@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -314,6 +315,28 @@ public class MongoDocStoreTest {
     // Delete one of the documents and test again.
     collection.delete(org.hypertrace.core.documentstore.Filter.eq("field", "value"));
     assertEquals(1, collection.count());
+  }
+
+  @Test
+  public void testDeleteByFilterUnsupportedOperation() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("field", "value"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("field", "value"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value1"));
+    assertEquals(3, collection.count());
+    UnsupportedOperationException exception = assertThrows(
+        UnsupportedOperationException.class, () -> collection.delete((Filter) null));
+    assertTrue(exception.getMessage().contains("Filter must be provided"));
+
+    exception = assertThrows(
+        UnsupportedOperationException.class, () -> collection.delete(new Filter()));
+    assertTrue(exception.getMessage().contains("Parsed filter is invalid"));
+
+    assertEquals(3, collection.count());
   }
 
   @Test

@@ -359,11 +359,10 @@ public class PostgresCollection implements Collection {
     Params.Builder paramsBuilder = Params.newBuilder();
     String filters = PostgresQueryParser.parseFilter(filter, paramsBuilder);
     LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
-
-    if (filters != null) {
-      sqlBuilder.append(" WHERE ").append(filters);
+    if (filters == null)  {
+      throw new UnsupportedOperationException("Parsed filter is invalid");
     }
-
+    sqlBuilder.append(" WHERE ").append(filters);
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());

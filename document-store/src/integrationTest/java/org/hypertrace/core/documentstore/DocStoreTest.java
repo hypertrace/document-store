@@ -239,6 +239,34 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
+  public void testDeleteByFilterUnsupportedOperationException(String dataStoreName) {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Document> bulkMap = new HashMap<>();
+    bulkMap.put(new SingleValueKey("default", "testKey1"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey2"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey4"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey5"), Utils.createDocument("field", "value"));
+    bulkMap.put(
+        new SingleValueKey("default", "testKey6"),
+        Utils.createDocument("email", "bob@example.com"));
+
+    assertTrue(collection.bulkUpsert(bulkMap));
+
+    UnsupportedOperationException exception = assertThrows(
+        UnsupportedOperationException.class, () -> collection.delete((Filter) null));
+    assertTrue(exception.getMessage().contains("Filter must be provided"));
+
+    exception = assertThrows(
+        UnsupportedOperationException.class, () -> collection.delete(new Filter()));
+    assertTrue(exception.getMessage().contains("Parsed filter is invalid"));
+
+    assertEquals(6, collection.count());
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
   public void testWithDifferentFieldTypes(String dataStoreName) throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     datastore.createCollection(COLLECTION_NAME, null);

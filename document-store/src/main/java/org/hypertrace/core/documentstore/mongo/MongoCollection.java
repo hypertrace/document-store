@@ -498,6 +498,9 @@ public class MongoCollection implements Collection {
           collection.getNamespace().getCollectionName(),
           Arrays.toString(map.entrySet().toArray()));
     }
+    if (map.isEmpty()) {
+      throw new UnsupportedOperationException("Parsed filter is invalid");
+    }
     BasicDBObject ref = new BasicDBObject(map);
     DeleteResult deleteResult = collection.deleteMany(ref);
     return deleteResult.getDeletedCount() > 0;
