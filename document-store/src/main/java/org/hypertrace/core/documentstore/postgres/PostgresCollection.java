@@ -366,8 +366,8 @@ public class PostgresCollection implements Collection {
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
-      preparedStatement.executeUpdate();
-      return true;
+      int deletedCount = preparedStatement.executeUpdate();
+      return deletedCount > 0;
     } catch (SQLException e) {
       LOGGER.error("SQLException deleting documents. filter: {}", filter, e);
     }
