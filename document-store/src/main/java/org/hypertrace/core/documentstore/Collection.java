@@ -89,6 +89,14 @@ public interface Collection {
   boolean delete(Key key);
 
   /**
+   * Delete the document matching the given filter.
+   *
+   * @param filter The filter to determine documents to be deleted. Only the filter clause.
+   * @return True if the documents are deleted, false otherwise.
+   */
+  boolean delete(Filter filter);
+
+  /**
    * Delete the documents for the given keys
    *
    * @param keys {@link Key}s of the document to be deleted

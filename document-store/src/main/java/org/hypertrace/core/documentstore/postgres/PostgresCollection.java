@@ -351,6 +351,30 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
+  public boolean delete(Filter filter) {
+    if (filter == null) {
+      throw new UnsupportedOperationException("Filter must be provided");
+    }
+    StringBuilder sqlBuilder = new StringBuilder("DELETE FROM ").append(collectionName);
+    Params.Builder paramsBuilder = Params.newBuilder();
+    String filters = PostgresQueryParser.parseFilter(filter, paramsBuilder);
+    LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
+    if (filters == null) {
+      throw new UnsupportedOperationException("Parsed filter is invalid");
+    }
+    sqlBuilder.append(" WHERE ").append(filters);
+    try {
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
+      int deletedCount = preparedStatement.executeUpdate();
+      return deletedCount > 0;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting documents. filter: {}", filter, e);
+    }
+    return false;
+  }
+
+  @Override
   public BulkDeleteResult delete(Set<Key> keys) {
     String ids =
         keys.stream().map(key -> "'" + key.toString() + "'").collect(Collectors.joining(", "));
@@ -562,7 +586,8 @@ public class PostgresCollection implements Collection {
 
   private String getUpsertSQL() {
     return String.format(
-        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
+        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = "
+            + "?::jsonb ",
         collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
