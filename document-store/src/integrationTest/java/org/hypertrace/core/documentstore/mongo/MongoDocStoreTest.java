@@ -331,11 +331,6 @@ public class MongoDocStoreTest {
     UnsupportedOperationException exception = assertThrows(
         UnsupportedOperationException.class, () -> collection.delete((Filter) null));
     assertTrue(exception.getMessage().contains("Filter must be provided"));
-
-    exception = assertThrows(
-        UnsupportedOperationException.class, () -> collection.delete(new Filter()));
-    assertTrue(exception.getMessage().contains("Parsed filter is invalid"));
-
     assertEquals(3, collection.count());
   }
 
