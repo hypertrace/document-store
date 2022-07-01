@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -301,6 +302,39 @@ public class MongoDocStoreTest {
   }
 
   @Test
+  public void testDeleteByFilter() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("field", "value"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("field", "value"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value1"));
+    assertEquals(3, collection.count());
+    // Delete one of the documents and test again.
+    collection.delete(org.hypertrace.core.documentstore.Filter.eq("field", "value"));
+    assertEquals(1, collection.count());
+  }
+
+  @Test
+  public void testDeleteByFilterUnsupportedOperation() throws IOException {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"), Utils.createDocument("field", "value"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"), Utils.createDocument("field", "value"));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value1"));
+    assertEquals(3, collection.count());
+    UnsupportedOperationException exception =
+        assertThrows(UnsupportedOperationException.class, () -> collection.delete((Filter) null));
+    assertTrue(exception.getMessage().contains("Filter must be provided"));
+    assertEquals(3, collection.count());
+  }
+
+  @Test
   public void testSelections() throws IOException {
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -428,9 +462,9 @@ public class MongoDocStoreTest {
     Map<Key, Document> documentMapV1 =
         Map.of(
             new SingleValueKey("default", "testKey1"),
-                Utils.createDocument("id", "1", "testKey1", "abc-v1"),
+            Utils.createDocument("id", "1", "testKey1", "abc-v1"),
             new SingleValueKey("default", "testKey2"),
-                Utils.createDocument("id", "2", "testKey2", "xyz-v1"));
+            Utils.createDocument("id", "2", "testKey2", "xyz-v1"));
 
     Iterator<Document> iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV1);
     // Initially there shouldn't be any documents.
@@ -440,9 +474,9 @@ public class MongoDocStoreTest {
     Map<Key, Document> documentMapV2 =
         Map.of(
             new SingleValueKey("default", "testKey1"),
-                Utils.createDocument("id", "1", "testKey1", "abc-v2"),
+            Utils.createDocument("id", "1", "testKey1", "abc-v2"),
             new SingleValueKey("default", "testKey2"),
-                Utils.createDocument("id", "2", "testKey2", "xyz-v2"));
+            Utils.createDocument("id", "2", "testKey2", "xyz-v2"));
     iterator = collection.bulkUpsertAndReturnOlderDocuments(documentMapV2);
     assertEquals(2, collection.count());
     List<Document> documents = new ArrayList<>();

@@ -56,6 +56,7 @@ import org.slf4j.LoggerFactory;
 
 /** An implementation of the {@link Collection} interface with MongoDB as the backend */
 public class MongoCollection implements Collection {
+
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoCollection.class);
 
   // Fields automatically added for each document
@@ -75,12 +76,12 @@ public class MongoCollection implements Collection {
   private final MongoQueryExecutor queryExecutor;
 
   /**
-   * The current MongoDB servers we use have a known issue -
-   * https://jira.mongodb.org/browse/SERVER-47212 where the findAndModify operation might fail with
-   * duplicate key exception and server was supposed to retry that but it doesn't. Since the fix
-   * isn't available in the released MongoDB versions, we are retrying the upserts in these cases in
-   * client layer so that we avoid frequent failures in this layer. TODO: This code should be
-   * removed once MongoDB server is upgraded to 4.7.0+
+   * The current MongoDB servers we use have a known issue - https://jira.mongodb
+   * .org/browse/SERVER-47212 where the findAndModify operation might fail with duplicate key
+   * exception and server was supposed to retry that but it doesn't. Since the fix isn't available
+   * in the released MongoDB versions, we are retrying the upserts in these cases in client layer so
+   * that we avoid frequent failures in this layer. TODO: This code should be removed once MongoDB
+   * server is upgraded to 4.7.0+
    */
   private final RetryPolicy<Object> upsertRetryPolicy =
       new RetryPolicy<>()
@@ -475,8 +476,33 @@ public class MongoCollection implements Collection {
   }
 
   @Override
+  public long count(org.hypertrace.core.documentstore.query.Query query) {
+    return queryExecutor.count(query);
+  }
+
+  @Override
   public boolean delete(Key key) {
     DeleteResult deleteResult = collection.deleteOne(this.selectionCriteriaForKey(key));
+    return deleteResult.getDeletedCount() > 0;
+  }
+
+  @Override
+  public boolean delete(Filter filter) {
+    if (filter == null) {
+      throw new UnsupportedOperationException("Filter must be provided");
+    }
+    Map<String, Object> map = MongoQueryParser.parseFilter(filter);
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug(
+          "Sending delete query to mongo: {} : {}",
+          collection.getNamespace().getCollectionName(),
+          Arrays.toString(map.entrySet().toArray()));
+    }
+    if (map.isEmpty()) {
+      throw new UnsupportedOperationException("Parsed filter is invalid");
+    }
+    BasicDBObject ref = new BasicDBObject(map);
+    DeleteResult deleteResult = collection.deleteMany(ref);
     return deleteResult.getDeletedCount() > 0;
   }
 

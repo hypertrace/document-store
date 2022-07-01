@@ -89,6 +89,14 @@ public interface Collection {
   boolean delete(Key key);
 
   /**
+   * Delete the document matching the given filter.
+   *
+   * @param filter The filter to determine documents to be deleted. Only the filter clause.
+   * @return True if the documents are deleted, false otherwise.
+   */
+  boolean delete(Filter filter);
+
+  /**
    * Delete the documents for the given keys
    *
    * @param keys {@link Key}s of the document to be deleted
@@ -119,6 +127,15 @@ public interface Collection {
    *     ignoring offset and limit
    */
   long total(Query query);
+
+  /**
+   * Count the result-set size of executing the given query. Note that this method is a generic
+   * version of {@link #count()} and {@link #total(Query)}
+   *
+   * @param query The query definition whose result-set size is to be determined
+   * @return The number of documents conforming to the input query
+   */
+  long count(final org.hypertrace.core.documentstore.query.Query query);
 
   /**
    * @param documents to be upserted in bulk

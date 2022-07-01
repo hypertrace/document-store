@@ -21,6 +21,7 @@ import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -52,7 +53,6 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.Sort;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.GenericContainer;
@@ -103,6 +103,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.find(query);
     assertSizeEqual(resultDocs, "mongo/collection_data.json");
+    assertSizeEqual(query, "mongo/collection_data.json");
   }
 
   @Test
@@ -137,6 +138,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/simple_filter_response.json");
+    assertSizeEqual(query, "mongo/simple_filter_response.json");
   }
 
   @Test
@@ -163,6 +165,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/simple_filter_response.json");
+    assertSizeEqual(query, "mongo/simple_filter_response.json");
   }
 
   @Test
@@ -202,6 +205,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/filter_with_sorting_and_pagination_response.json");
+    assertSizeEqual(query, "mongo/filter_with_sorting_and_pagination_response.json");
   }
 
   @Test
@@ -243,6 +247,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/filter_with_sorting_and_pagination_response.json");
+    assertSizeEqual(query, "mongo/filter_with_sorting_and_pagination_response.json");
   }
 
   @Test
@@ -279,6 +284,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/filter_on_nested_fields_response.json");
+    assertSizeEqual(query, "mongo/filter_on_nested_fields_response.json");
   }
 
   @Test
@@ -287,6 +293,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertSizeEqual(resultDocs, "mongo/collection_data.json");
+    assertSizeEqual(query, "mongo/collection_data.json");
   }
 
   @Test
@@ -300,6 +307,7 @@ public class MongoQueryExecutorIntegrationTest {
     // select count(*) as count from DB where db->doc contains items
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/count_response.json");
+    assertSizeEqual(query, "mongo/count_response.json");
   }
 
   @Test
@@ -316,6 +324,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/count_response.json");
+    assertSizeEqual(query, "mongo/count_response.json");
   }
 
   @Test
@@ -357,6 +366,7 @@ public class MongoQueryExecutorIntegrationTest {
     // are we using this?
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/sum_response.json");
+    assertSizeEqual(query, "mongo/sum_response.json");
   }
 
   @Test
@@ -396,6 +406,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/sum_response.json");
+    assertSizeEqual(query, "mongo/sum_response.json");
   }
 
   @Test
@@ -414,6 +425,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json");
+    assertSizeEqual(query, "mongo/aggregate_on_nested_fields_response.json");
   }
 
   @Test
@@ -428,6 +440,7 @@ public class MongoQueryExecutorIntegrationTest {
             .build();
 
     assertThrows(IllegalArgumentException.class, () -> collection.aggregate(query));
+    assertThrows(IllegalArgumentException.class, () -> collection.count(query));
   }
 
   @Test
@@ -452,6 +465,7 @@ public class MongoQueryExecutorIntegrationTest {
             .build();
 
     assertThrows(UnsupportedOperationException.class, () -> collection.aggregate(query));
+    assertThrows(UnsupportedOperationException.class, () -> collection.count(query));
   }
 
   @Test
@@ -478,6 +492,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/multi_level_grouping_response.json");
+    assertSizeEqual(query, "mongo/multi_level_grouping_response.json");
   }
 
   @Test
@@ -498,6 +513,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/distinct_count_response.json");
+    assertSizeEqual(query, "mongo/distinct_count_response.json");
   }
 
   @Test
@@ -519,6 +535,7 @@ public class MongoQueryExecutorIntegrationTest {
     // This one is used?
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsEqual(iterator, "mongo/aggregate_on_nested_array_reponse.json");
+    assertSizeEqual(query, "mongo/aggregate_on_nested_array_reponse.json");
   }
 
   @Test
@@ -533,6 +550,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsEqual(iterator, "mongo/unwind_preserving_empty_array_response.json");
+    assertSizeEqual(query, "mongo/unwind_preserving_empty_array_response.json");
   }
 
   @Test
@@ -547,6 +565,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsEqual(iterator, "mongo/unwind_not_preserving_empty_array_response.json");
+    assertSizeEqual(query, "mongo/unwind_not_preserving_empty_array_response.json");
   }
 
   @Test
@@ -566,6 +585,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsEqual(iterator, "mongo/unwind_response.json");
+    assertSizeEqual(query, "mongo/unwind_response.json");
   }
 
   @Test
@@ -594,6 +614,7 @@ public class MongoQueryExecutorIntegrationTest {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsEqual(iterator, "mongo/unwind_filter_response.json");
+    assertSizeEqual(query, "mongo/unwind_filter_response.json");
   }
 
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)
@@ -606,7 +627,7 @@ public class MongoQueryExecutorIntegrationTest {
       actual.add(convertDocumentToMap(documents.next()));
     }
 
-    Assertions.assertEquals(expected, actual);
+    assertEquals(expected, actual);
   }
 
   private static void assertSizeEqual(Iterator<Document> documents, String filePath)
@@ -619,6 +640,13 @@ public class MongoQueryExecutorIntegrationTest {
       documents.next();
     }
 
-    Assertions.assertEquals(expected, actual);
+    assertEquals(expected, actual);
+  }
+
+  private static void assertSizeEqual(final Query query, final String filePath) throws IOException {
+    final long actualSize = collection.count(query);
+    final String fileContent = readFileFromResource(filePath).orElseThrow();
+    final long expectedSize = convertJsonToMap(fileContent).size();
+    assertEquals(expectedSize, actualSize);
   }
 }

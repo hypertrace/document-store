@@ -219,6 +219,50 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
+  public void testDeleteByDocFilter(String dataStoreName) {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Document> bulkMap = new HashMap<>();
+    bulkMap.put(new SingleValueKey("default", "testKey1"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey2"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey4"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey5"), Utils.createDocument("field", "value"));
+    bulkMap.put(
+        new SingleValueKey("default", "testKey6"),
+        Utils.createDocument("email", "bob@example.com"));
+
+    assertTrue(collection.bulkUpsert(bulkMap));
+
+    collection.delete(org.hypertrace.core.documentstore.Filter.eq("field", "value"));
+    assertEquals(1, collection.count());
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testDeleteByFilterUnsupportedOperationException(String dataStoreName) {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Map<Key, Document> bulkMap = new HashMap<>();
+    bulkMap.put(new SingleValueKey("default", "testKey1"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey2"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey3"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey4"), Utils.createDocument("field", "value"));
+    bulkMap.put(new SingleValueKey("default", "testKey5"), Utils.createDocument("field", "value"));
+    bulkMap.put(
+        new SingleValueKey("default", "testKey6"),
+        Utils.createDocument("email", "bob@example.com"));
+
+    assertTrue(collection.bulkUpsert(bulkMap));
+
+    UnsupportedOperationException exception =
+        assertThrows(UnsupportedOperationException.class, () -> collection.delete((Filter) null));
+    assertTrue(exception.getMessage().contains("Filter must be provided"));
+    assertEquals(6, collection.count());
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
   public void testWithDifferentFieldTypes(String dataStoreName) throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     datastore.createCollection(COLLECTION_NAME, null);
@@ -613,14 +657,18 @@ public class DocStoreTest {
     Assertions.assertFalse(documents.isEmpty());
 
     // mongo
-    // {"_lastUpdateTime":{"$date":"2021-03-14T18:53:14.914Z"},"createdTime":1615747994870,"foo1":"bar1","lastUpdatedTime":1615747994920,"subdoc":{"subfoo1":"subbar1","nesteddoc":{"nestedfoo1":"nestedbar1"}}}
+    // {"_lastUpdateTime":{"$date":"2021-03-14T18:53:14.914Z"},"createdTime":1615747994870,
+    // "foo1":"bar1","lastUpdatedTime":1615747994920,"subdoc":{"subfoo1":"subbar1",
+    // "nesteddoc":{"nestedfoo1":"nestedbar1"}}}
 
     // postgres
-    // {"foo1":"bar1","subdoc":{"subfoo1":"subbar1","nesteddoc":{"nestedfoo1":"nestedbar1"}},"created_at":"2021-03-15 00:24:50.981147","updated_at":"2021-03-15 00:24:50.981147"}
+    // {"foo1":"bar1","subdoc":{"subfoo1":"subbar1","nesteddoc":{"nestedfoo1":"nestedbar1"}},
+    // "created_at":"2021-03-15 00:24:50.981147","updated_at":"2021-03-15 00:24:50.981147"}
     System.out.println(documents.get(0).toJson());
     ObjectNode jsonNode = (ObjectNode) OBJECT_MAPPER.readTree(documents.get(0).toJson());
     String expected =
-        "{\"foo1\":\"bar1\",\"subdoc\":{\"subfoo1\":\"subbar1\",\"nesteddoc\":{\"nestedfoo1\":\"nestedbar1\"}}}";
+        "{\"foo1\":\"bar1\",\"subdoc\":{\"subfoo1\":\"subbar1\","
+            + "\"nesteddoc\":{\"nestedfoo1\":\"nestedbar1\"}}}";
     if (isMongo(dataStoreName)) {
       jsonNode.remove(MONGO_CREATED_TIME_KEY);
       jsonNode.remove(MONGO_LAST_UPDATE_TIME_KEY);
@@ -1045,7 +1093,13 @@ public class DocStoreTest {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     String documentString =
-        "{\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+        "{\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101"
+            + "\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},"
+            + "\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},"
+            + "\"FQN\":{\"value\":{\"string\":\"driver\"}}},"
+            + "\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\","
+            + "\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string"
+            + "\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document = new JSONDocument(documentString);
     SingleValueKey key = new SingleValueKey("default", "testKey1");
     collection.upsert(key, document);
@@ -1068,19 +1122,42 @@ public class DocStoreTest {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     String docStr1 =
-        "{\"amount\":1234.5,\"testKeyExist\":null,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+        "{\"amount\":1234.5,\"testKeyExist\":null,"
+            + "\"attributes\":{\"trace_id\":{\"value\":{\"string"
+            + "\":\"00000000000000005e194fdf9fbf5101\"}},"
+            + "\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},"
+            + "\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},"
+            + "\"FQN\":{\"value\":{\"string\":\"driver\"}}},"
+            + "\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\","
+            + "\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string"
+            + "\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document1 = new JSONDocument(docStr1);
     SingleValueKey key1 = new SingleValueKey("default", "testKey1");
     collection.upsert(key1, document1);
 
     String docStr2 =
-        "{\"amount\":1234,\"testKeyExist\":123,\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":123,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+        "{\"amount\":1234,\"testKeyExist\":123,"
+            + "\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":123,"
+            + "\"string\":\"00000000000000005e194fdf9fbf5101\"}},"
+            + "\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},"
+            + "\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},"
+            + "\"FQN\":{\"value\":{\"string\":\"driver\"}}},"
+            + "\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\","
+            + "\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string"
+            + "\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document2 = new JSONDocument(docStr2);
     SingleValueKey key2 = new SingleValueKey("default", "testKey2");
     collection.upsert(key2, document2);
 
     String docStr3 =
-        "{\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":null,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+        "{\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":null,"
+            + "\"string\":\"00000000000000005e194fdf9fbf5101\"}},"
+            + "\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},"
+            + "\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},"
+            + "\"FQN\":{\"value\":{\"string\":\"driver\"}}},"
+            + "\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\","
+            + "\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string"
+            + "\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document3 = new JSONDocument(docStr3);
     SingleValueKey key3 = new SingleValueKey("default", "testKey3");
     collection.upsert(key3, document3);
@@ -1338,19 +1415,42 @@ public class DocStoreTest {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     String docStr1 =
-        "{\"amount\":1234.5,\"testKeyExist\":null,\"attributes\":{\"trace_id\":{\"value\":{\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+        "{\"amount\":1234.5,\"testKeyExist\":null,"
+            + "\"attributes\":{\"trace_id\":{\"value\":{\"string"
+            + "\":\"00000000000000005e194fdf9fbf5101\"}},"
+            + "\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},"
+            + "\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},"
+            + "\"FQN\":{\"value\":{\"string\":\"driver\"}}},"
+            + "\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\","
+            + "\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string"
+            + "\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document1 = new JSONDocument(docStr1);
     SingleValueKey key1 = new SingleValueKey("default", "testKey1");
     collection.upsert(key1, document1);
 
     String docStr2 =
-        "{\"amount\":1234,\"testKeyExist\":123,\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":123,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+        "{\"amount\":1234,\"testKeyExist\":123,"
+            + "\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":123,"
+            + "\"string\":\"00000000000000005e194fdf9fbf5101\"}},"
+            + "\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},"
+            + "\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},"
+            + "\"FQN\":{\"value\":{\"string\":\"driver\"}}},"
+            + "\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\","
+            + "\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string"
+            + "\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document2 = new JSONDocument(docStr2);
     SingleValueKey key2 = new SingleValueKey("default", "testKey2");
     collection.upsert(key2, document2);
 
     String docStr3 =
-        "{\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":null,\"string\":\"00000000000000005e194fdf9fbf5101\"}},\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\",\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string\":\"driver\"}}},\"tenantId\":\"__default\"}";
+        "{\"attributes\":{\"trace_id\":{\"value\":{\"testKeyExistNested\":null,"
+            + "\"string\":\"00000000000000005e194fdf9fbf5101\"}},"
+            + "\"span_id\":{\"value\":{\"string\":\"6449f1f720c93a67\"}},"
+            + "\"service_type\":{\"value\":{\"string\":\"JAEGER_SERVICE\"}},"
+            + "\"FQN\":{\"value\":{\"string\":\"driver\"}}},"
+            + "\"entityId\":\"e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa\",\"entityName\":\"driver\","
+            + "\"entityType\":\"SERVICE\",\"identifyingAttributes\":{\"FQN\":{\"value\":{\"string"
+            + "\":\"driver\"}}},\"tenantId\":\"__default\"}";
     Document document3 = new JSONDocument(docStr3);
     SingleValueKey key3 = new SingleValueKey("default", "testKey3");
     collection.upsert(key3, document3);
@@ -1380,7 +1480,9 @@ public class DocStoreTest {
       List<Document> documents = new ArrayList<>();
       while (true) {
         documents.add(results.next());
-        if (!results.hasNext()) break;
+        if (!results.hasNext()) {
+          break;
+        }
       }
       Assertions.assertEquals(1, documents.size());
     }
@@ -1426,10 +1528,9 @@ public class DocStoreTest {
   }
 
   /**
-   * mongo
-   * {"_lastUpdateTime":{"$date":"2021-03-14T15:43:04.842Z"},"createdTime":1615736584763,"foo1":"bar1","lastUpdatedTime":1615736584763}
-   * postgres {"foo1":"bar1","created_at":"2021-03-14 21:20:00.178909","updated_at":"2021-03-14
-   * 21:20:00.178909"}
+   * mongo {"_lastUpdateTime":{"$date":"2021-03-14T15:43:04.842Z"},"createdTime":1615736584763,
+   * "foo1":"bar1","lastUpdatedTime":1615736584763} postgres {"foo1":"bar1","created_at":"2021-03-14
+   * 21:20:00.178909","updated_at":"2021-03-14 21:20:00.178909"}
    */
   private static void verifyTimeRelatedFieldsPresent(String doc, String dataStoreName) {
     if (isMongo(dataStoreName)) {
