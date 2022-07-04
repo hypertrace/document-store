@@ -33,6 +33,7 @@ import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -90,7 +91,9 @@ public class PostgresCollection implements Collection {
     paramsBuilder.addObjectParam(jsonString);
 
     if (condition != null) {
-      String conditionQuery = PostgresQueryParser.parseFilter(condition, paramsBuilder);
+      String conditionQuery =
+          org.hypertrace.core.documentstore.postgres.PostgresQueryParser.parseFilter(
+              condition, paramsBuilder);
       if (conditionQuery != null) {
         upsertQueryBuilder.append(" WHERE ").append(conditionQuery);
       }
@@ -242,7 +245,9 @@ public class PostgresCollection implements Collection {
 
     // If there is a filter in the query, parse it fully.
     if (query.getFilter() != null) {
-      filters = PostgresQueryParser.parseFilter(query.getFilter(), paramsBuilder);
+      filters =
+          org.hypertrace.core.documentstore.postgres.PostgresQueryParser.parseFilter(
+              query.getFilter(), paramsBuilder);
     }
 
     LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
@@ -252,7 +257,9 @@ public class PostgresCollection implements Collection {
     }
 
     if (!query.getOrderBys().isEmpty()) {
-      String orderBySQL = PostgresQueryParser.parseOrderBys(query.getOrderBys());
+      String orderBySQL =
+          org.hypertrace.core.documentstore.postgres.PostgresQueryParser.parseOrderBys(
+              query.getOrderBys());
       sqlBuilder.append(" ORDER BY ").append(orderBySQL);
     }
 
@@ -287,7 +294,17 @@ public class PostgresCollection implements Collection {
   @Override
   public CloseableIterator<Document> aggregate(
       final org.hypertrace.core.documentstore.query.Query query) {
-    throw new UnsupportedOperationException();
+    PostgresQueryParser queryParser = new PostgresQueryParser(collectionName);
+    String sqlQuery = queryParser.parse(query);
+    try {
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
+      ResultSet resultSet = preparedStatement.executeQuery();
+      return new PostgresResultIterator(resultSet);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException querying documents. query: {}", query, e);
+    }
+    return EMPTY_ITERATOR;
   }
 
   @Override
@@ -357,7 +374,9 @@ public class PostgresCollection implements Collection {
     }
     StringBuilder sqlBuilder = new StringBuilder("DELETE FROM ").append(collectionName);
     Params.Builder paramsBuilder = Params.newBuilder();
-    String filters = PostgresQueryParser.parseFilter(filter, paramsBuilder);
+    String filters =
+        org.hypertrace.core.documentstore.postgres.PostgresQueryParser.parseFilter(
+            filter, paramsBuilder);
     LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
     if (filters == null) {
       throw new UnsupportedOperationException("Parsed filter is invalid");
@@ -460,7 +479,9 @@ public class PostgresCollection implements Collection {
     long count = -1;
     // on any in-correct filter input, it will return total without filtering
     if (query.getFilter() != null) {
-      String parsedQuery = PostgresQueryParser.parseFilter(query.getFilter(), paramsBuilder);
+      String parsedQuery =
+          org.hypertrace.core.documentstore.postgres.PostgresQueryParser.parseFilter(
+              query.getFilter(), paramsBuilder);
       if (parsedQuery != null) {
         totalSQLBuilder.append(" WHERE ").append(parsedQuery);
       }

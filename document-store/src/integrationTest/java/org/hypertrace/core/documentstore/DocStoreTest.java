@@ -1,7 +1,9 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
+import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,6 +28,9 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
@@ -128,8 +133,7 @@ public class DocStoreTest {
 
   @MethodSource
   private static Stream<Arguments> databaseContextProvider() {
-    //return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
-    return Stream.of(Arguments.of(POSTGRES_STORE));
+    return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
   }
 
   @ParameterizedTest
@@ -1486,6 +1490,34 @@ public class DocStoreTest {
       }
       Assertions.assertEquals(1, documents.size());
     }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testNewAggregateApiWhereClause(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(POSTGRES_STORE);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // query docs
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    int count = 0;
+    while (resultDocs.hasNext()) {
+      count++;
+      resultDocs.next();
+    }
+    Assertions.assertEquals(10, count);
   }
 
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
