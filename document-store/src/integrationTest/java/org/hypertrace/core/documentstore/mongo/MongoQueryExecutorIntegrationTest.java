@@ -519,9 +519,7 @@ public class MongoQueryExecutorIntegrationTest {
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
             .addSort(IdentifierExpression.of("totalSales"), DESC)
             .build();
-    // select sum(sales.medium.volume) as totalSales, sales.medium.type from
-    // check this out?
-    // This one is used?
+
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsEqual(iterator, "mongo/aggregate_on_nested_array_reponse.json");
     assertSizeEqual(query, "mongo/aggregate_on_nested_array_reponse.json");
