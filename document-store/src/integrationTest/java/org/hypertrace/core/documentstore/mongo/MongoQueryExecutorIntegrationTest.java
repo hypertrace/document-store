@@ -303,8 +303,6 @@ public class MongoQueryExecutorIntegrationTest {
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
             .build();
 
-    // select count(item) as count from DB
-    // select count(*) as count from DB where db->doc contains items
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/count_response.json");
     assertSizeEqual(query, "mongo/count_response.json");
@@ -317,10 +315,6 @@ public class MongoQueryExecutorIntegrationTest {
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
             .build();
-
-    // select count(item) as count, count(item) as count from DB
-    // select count(*) as count from DB where db->doc contains items
-    // Check for disctinct
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/count_response.json");
@@ -359,11 +353,6 @@ public class MongoQueryExecutorIntegrationTest {
             .setPagination(Pagination.builder().limit(10).offset(0).build())
             .build();
 
-    // Select sum(price * quantity) as total, item from DB where quantiti != 10
-    // group_by item having total > 11 and total < 99
-    // sort by total
-
-    // are we using this?
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/sum_response.json");
     assertSizeEqual(query, "mongo/sum_response.json");
