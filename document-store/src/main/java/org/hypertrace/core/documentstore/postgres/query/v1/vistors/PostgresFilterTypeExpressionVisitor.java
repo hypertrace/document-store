@@ -18,7 +18,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
 
   @Override
   public <T> T visit(final LogicalExpression expression) {
-    throw new UnsupportedOperationException("TODO: not yet supported");
+    throw new UnsupportedOperationException("Not yet supported logical expression");
   }
 
   @Override

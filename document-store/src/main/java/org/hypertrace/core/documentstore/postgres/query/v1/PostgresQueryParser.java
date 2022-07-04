@@ -12,6 +12,7 @@ import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
 public class PostgresQueryParser {
+  private static String NOT_YET_SUPPORTED = "Not yet supported %s";
   private Builder paramsBuilder;
   private final String collection;
 
@@ -69,28 +70,29 @@ public class PostgresQueryParser {
 
   private Optional<String> parseGroupBy(List<GroupTypeExpression> groupTypeExpressionList) {
     if (groupTypeExpressionList.size() > 0) {
-      throw new UnsupportedOperationException("TODO: not supported group by, add impl");
+      throw new UnsupportedOperationException(String.format(NOT_YET_SUPPORTED, "group by clause"));
     }
     return Optional.empty();
   }
 
   private Optional<String> parseHaving(Optional<FilterTypeExpression> filterTypeExpression) {
     if (filterTypeExpression.isPresent()) {
-      throw new UnsupportedOperationException("TODO: not supported group by, add impl");
+      throw new UnsupportedOperationException(String.format(NOT_YET_SUPPORTED, "having clause"));
     }
     return Optional.empty();
   }
 
   private Optional<String> parseOrderBy(List<SortingSpec> sortingSpecs) {
     if (sortingSpecs.size() > 0) {
-      throw new UnsupportedOperationException("TODO: not supported group by, add impl");
+      throw new UnsupportedOperationException(String.format(NOT_YET_SUPPORTED, "order by clause"));
     }
     return Optional.empty();
   }
 
   private Optional<String> parsePagination(Optional<Pagination> pagination) {
     if (pagination.isPresent()) {
-      throw new UnsupportedOperationException("TODO: not supported group by, add impl");
+      throw new UnsupportedOperationException(
+          String.format(NOT_YET_SUPPORTED, "pagination clause"));
     }
     return Optional.empty();
   }
