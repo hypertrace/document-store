@@ -1517,7 +1517,7 @@ public class DocStoreTest {
       count++;
       resultDocs.next();
     }
-    Assertions.assertEquals(10, count);
+    Assertions.assertEquals(6, count);
   }
 
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
