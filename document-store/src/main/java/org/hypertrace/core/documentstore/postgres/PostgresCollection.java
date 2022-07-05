@@ -21,7 +21,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
-import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
@@ -37,7 +36,9 @@ import org.hypertrace.core.documentstore.UpdateResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Provides {@link Collection} implementation on Postgres using jsonb format */
+/**
+ * Provides {@link Collection} implementation on Postgres using jsonb format
+ */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -110,7 +111,9 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /** create a new document if one doesn't exists with key */
+  /**
+   * create a new document if one doesn't exists with key
+   */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -294,40 +297,7 @@ public class PostgresCollection implements Collection {
 
   @Override
   public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) {
-    Operation operation = request.getOperation();
-    if (operation.equals(Operation.ADD)) {
-      String updateSubDocSQL =
-          String.format(
-              "UPDATE %s SET %s=jsonb_insert(%s, ?::text[], ?::jsonb) WHERE %s=?",
-              collectionName, DOCUMENT, DOCUMENT, ID);
-      String jsonSubDocPath = getJsonSubDocPath(request.getSubDocPath());
-      try (PreparedStatement preparedStatement =
-          client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
-        Set<Key> keys = request.getKeys();
-        List<Document> subDocs = request.getSubDocuments();
-        // for each key, add all the sub-docs to the json array
-        for (Key key : keys) {
-          for (Document doc : subDocs) {
-            preparedStatement.setString(1, jsonSubDocPath);
-            preparedStatement.setString(2, doc.toJson());
-            preparedStatement.setString(3, key.toString());
-            preparedStatement.addBatch();
-          }
-        }
-
-        int resultSet = preparedStatement.executeUpdate();
-
-        if (LOGGER.isDebugEnabled()) {
-          LOGGER.debug("Write result: {}", resultSet);
-        }
-
-        return new BulkUpdateResult(resultSet);
-      } catch (SQLException e) {
-        return new BulkUpdateResult(0);
-      }
-    }
-
-    return null;
+    throw new UnsupportedOperationException();
   }
 
   @Override
