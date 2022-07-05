@@ -7,7 +7,6 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
