@@ -1,5 +1,10 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
@@ -33,6 +38,7 @@ import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
@@ -1516,6 +1522,49 @@ public class DocStoreTest {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertSizeAndDocsEqual(dataStoreName, iterator, 6, "mongo/simple_filter_quantity_neq_10.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testQueryV1ForFilterWithLogicalExpressionAndOr(String dataStoreName)
+      throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // query docs
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                LogicalExpression.builder()
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
+                    .operator(OR)
+                    .operand(
+                        LogicalExpression.builder()
+                            .operand(
+                                RelationalExpression.of(
+                                    IdentifierExpression.of("quantity"),
+                                    GTE,
+                                    ConstantExpression.of(5)))
+                            .operator(AND)
+                            .operand(
+                                RelationalExpression.of(
+                                    IdentifierExpression.of("quantity"),
+                                    LTE,
+                                    ConstantExpression.of(10)))
+                            .build())
+                    .build())
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 6, "mongo/filter_with_logical_and_or_operator.json");
   }
 
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
