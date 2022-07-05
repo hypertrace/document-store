@@ -1529,7 +1529,7 @@ public class DocStoreTest {
   public void testQueryV1ForFilterWithLogicalExpressionAndOr(String dataStoreName)
       throws IOException {
     Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
-    Datastore datastore = datastoreMap.get(POSTGRES_STORE);
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
     // add docs
@@ -1563,12 +1563,8 @@ public class DocStoreTest {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    int count = 0;
-    while (resultDocs.hasNext()) {
-      count++;
-      resultDocs.next();
-    }
-    Assertions.assertEquals(6, count);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 6, "mongo/filter_with_logical_and_or_operator.json");
   }
 
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
