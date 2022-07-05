@@ -8,7 +8,10 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
+import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap;
+import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
+import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -1502,7 +1505,7 @@ public class DocStoreTest {
   @MethodSource("databaseContextProvider")
   public void testNewAggregateApiWhereClause(String dataStoreName) throws IOException {
     Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
-    Datastore datastore = datastoreMap.get(POSTGRES_STORE);
+    Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
     // add docs
@@ -1517,13 +1520,8 @@ public class DocStoreTest {
                     IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
             .build();
 
-    Iterator<Document> resultDocs = collection.aggregate(query);
-    int count = 0;
-    while (resultDocs.hasNext()) {
-      count++;
-      resultDocs.next();
-    }
-    Assertions.assertEquals(6, count);
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertSizeAndDocsEqual(dataStoreName, iterator, 6, "mongo/simple_filter_quantity_neq_10.json");
   }
 
   @ParameterizedTest
@@ -1661,6 +1659,36 @@ public class DocStoreTest {
       return "_id";
     } else {
       return "id";
+    }
+  }
+
+  private static void assertSizeAndDocsEqual(String dataStoreName, Iterator<Document> documents, int expectedSize, String filePath)
+      throws IOException {
+    String fileContent = readFileFromResource(filePath).orElseThrow();
+    List<Map<String, Object>> expectedDocs = convertJsonToMap(fileContent);
+
+    List<Map<String, Object>> actualDocs = new ArrayList<>();
+    int actualSize = 0;
+    while (documents.hasNext()) {
+      Map<String, Object> doc = convertDocumentToMap(documents.next());
+      removesDateRelatedFields(dataStoreName, doc);
+      actualDocs.add(doc);
+      actualSize++;
+    }
+
+    long count = expectedDocs.stream().filter(expectedDoc -> actualDocs.contains(expectedDoc)).count();
+    assertEquals(expectedSize, actualSize);
+    assertEquals(expectedSize, count);
+  }
+
+  private static void removesDateRelatedFields(String dataStoreName, Map<String, Object> document) {
+    if (isMongo(dataStoreName)) {
+      document.remove(MONGO_CREATED_TIME_KEY);
+      document.remove(MONGO_LAST_UPDATED_TIME_KEY);
+      document.remove(MONGO_LAST_UPDATE_TIME_KEY);
+    } else if (isPostgress(dataStoreName)) {
+      document.remove(POSTGRES_CREATED_AT);
+      document.remove(POSTGRES_UPDATED_AT);
     }
   }
 }

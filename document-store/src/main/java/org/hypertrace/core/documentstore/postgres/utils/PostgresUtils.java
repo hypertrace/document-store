@@ -7,7 +7,6 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -19,14 +18,7 @@ public class PostgresUtils {
   private static final String JSON_FIELD_ACCESSOR = "->";
   private static final String JSON_DATA_ACCESSOR = "->>";
 
-  private static final Set<String> OUTER_COLUMNS =
-      new HashSet<>() {
-        {
-          add(CREATED_AT);
-          add(ID);
-          add(UPDATED_AT);
-        }
-      };
+  private static final Set<String> OUTER_COLUMNS = Set.of(CREATED_AT, ID, UPDATED_AT);
 
   private static StringBuilder prepareFieldAccessorExpr(String fieldName) {
     // Generate json field accessor statement
