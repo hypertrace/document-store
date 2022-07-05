@@ -148,71 +148,6 @@ public class PostgresCollection implements Collection {
     return new BulkUpdateResult(totalUpdateCountA + totalUpdateCountB);
   }
 
-  private int bulkUpdateRequestsWithFilter(List<BulkUpdateRequest> requests) {
-    // Note: We cannot batch statements as the filter clause can be difference for each request. So
-    // we need one PreparedStatement for each request. We try to update the batch on a best-effort
-    // basis. That is, if any update fails, then we still try the other ones.
-    int totalUpdates = 0;
-
-    for (var request : requests) {
-      var key = request.getKey();
-      var document = request.getDocument();
-      var filter = request.getFilter();
-
-      try {
-        totalUpdates += update(key, document, filter).getUpdatedCount();
-      } catch (IOException e) {
-        LOGGER.error("SQLException updating document. key: {} content: {}", key, document, e);
-      }
-    }
-    return totalUpdates;
-  }
-
-  private int bulkUpdateRequestsWithoutFilter(List<BulkUpdateRequest> requestsWithoutFilter) {
-    // We can batch all requests here since the query is the same.
-    try {
-
-      PreparedStatement ps = client.prepareStatement(getUpdateSQL());
-
-      for (var req : requestsWithoutFilter) {
-        var key = req.getKey();
-        var document = req.getDocument();
-
-        String jsonString = prepareDocument(key, document);
-        Params.Builder paramsBuilder = Params.newBuilder();
-        paramsBuilder.addObjectParam(key.toString());
-        paramsBuilder.addObjectParam(jsonString);
-
-        enrichPreparedStatementWithParams(ps, paramsBuilder.build());
-
-        ps.addBatch();
-      }
-      int[] updates = ps.executeBatch();
-
-      return Arrays.stream(updates).sum();
-
-    } catch (BatchUpdateException e) {
-
-      LOGGER.error("BatchUpdateException while executing batch", e);
-      return Arrays.stream(e.getUpdateCounts()).filter(updateCount -> updateCount >= 0).sum();
-
-    } catch (SQLException e) {
-
-      LOGGER.error(
-          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
-          e.getSQLState(),
-          e.getErrorCode(),
-          e);
-      return 0;
-
-    } catch (IOException e) {
-
-      LOGGER.error("IOException during bulk update requests without filter", e);
-      return 0;
-
-    }
-  }
-
   /**
    * For Postgres upsertAndReturn functionality is not supported directly. So using direct upsert
    * and then return document.
@@ -589,6 +524,70 @@ public class PostgresCollection implements Collection {
       }
 
       return preparedStatement.executeBatch();
+    }
+  }
+
+  private int bulkUpdateRequestsWithFilter(List<BulkUpdateRequest> requests) {
+    // Note: We cannot batch statements as the filter clause can be difference for each request. So
+    // we need one PreparedStatement for each request. We try to update the batch on a best-effort
+    // basis. That is, if any update fails, then we still try the other ones.
+    int totalUpdates = 0;
+
+    for (var request : requests) {
+      var key = request.getKey();
+      var document = request.getDocument();
+      var filter = request.getFilter();
+
+      try {
+        totalUpdates += update(key, document, filter).getUpdatedCount();
+      } catch (IOException e) {
+        LOGGER.error("SQLException updating document. key: {} content: {}", key, document, e);
+      }
+    }
+    return totalUpdates;
+  }
+
+  private int bulkUpdateRequestsWithoutFilter(List<BulkUpdateRequest> requestsWithoutFilter) {
+    // We can batch all requests here since the query is the same.
+    try {
+
+      PreparedStatement ps = client.prepareStatement(getUpdateSQL());
+
+      for (var req : requestsWithoutFilter) {
+        var key = req.getKey();
+        var document = req.getDocument();
+
+        String jsonString = prepareDocument(key, document);
+        Params.Builder paramsBuilder = Params.newBuilder();
+        paramsBuilder.addObjectParam(key.toString());
+        paramsBuilder.addObjectParam(jsonString);
+
+        enrichPreparedStatementWithParams(ps, paramsBuilder.build());
+
+        ps.addBatch();
+      }
+      int[] updates = ps.executeBatch();
+
+      return Arrays.stream(updates).sum();
+
+    } catch (BatchUpdateException e) {
+
+      LOGGER.error("BatchUpdateException while executing batch", e);
+      return Arrays.stream(e.getUpdateCounts()).filter(updateCount -> updateCount >= 0).sum();
+
+    } catch (SQLException e) {
+
+      LOGGER.error(
+          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+      return 0;
+
+    } catch (IOException e) {
+
+      LOGGER.error("IOException during bulk update requests without filter", e);
+      return 0;
     }
   }
 
