@@ -131,17 +131,19 @@ public class PostgresCollection implements Collection {
   @Override
   public BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception {
 
-    int totalUpdateCountA =
-        bulkUpdateRequestsWithFilter(
-            bulkUpdateRequests.stream()
-                .filter(req -> req.getFilter() != null)
-                .collect(Collectors.toList()));
+    var requestsWithFilter =
+        bulkUpdateRequests.stream()
+            .filter(req -> req.getFilter() != null)
+            .collect(Collectors.toList());
 
-    int totalUpdateCountB =
-        bulkUpdateRequestsWithoutFilter(
-            bulkUpdateRequests.stream()
-                .filter(req -> req.getFilter() == null)
-                .collect(Collectors.toList()));
+    var requestsWithoutFilter =
+        bulkUpdateRequests.stream()
+            .filter(req -> req.getFilter() == null)
+            .collect(Collectors.toList());
+
+    int totalUpdateCountA = bulkUpdateRequestsWithFilter(requestsWithFilter);
+
+    int totalUpdateCountB = bulkUpdateRequestsWithoutFilter(requestsWithoutFilter);
 
     return new BulkUpdateResult(totalUpdateCountA + totalUpdateCountB);
   }
@@ -185,9 +187,17 @@ public class PostgresCollection implements Collection {
 
         ps.addBatch();
       }
-      return ps.executeUpdate();
+      int[] updates = ps.executeBatch();
+      return Arrays.stream(updates).sum();
+    } catch (BatchUpdateException e) {
+      LOGGER.error("BatchUpdateException while executing batch", e);
+      return Arrays.stream(e.getUpdateCounts()).filter(updateCount -> updateCount >= 0).sum();
     } catch (SQLException e) {
-      LOGGER.error("SQLException during bulk update requests without filter", e);
+      LOGGER.error(
+          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
       return 0;
     } catch (IOException e) {
       LOGGER.error("IOException during bulk update requests without filter", e);
