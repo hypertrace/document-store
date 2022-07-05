@@ -19,14 +19,7 @@ public class PostgresUtils {
   private static final String JSON_FIELD_ACCESSOR = "->";
   private static final String JSON_DATA_ACCESSOR = "->>";
 
-  private static final Set<String> OUTER_COLUMNS =
-      new HashSet<>() {
-        {
-          add(CREATED_AT);
-          add(ID);
-          add(UPDATED_AT);
-        }
-      };
+  private static final Set<String> OUTER_COLUMNS = Set.of(CREATED_AT, ID, UPDATED_AT);
 
   private static StringBuilder prepareFieldAccessorExpr(String fieldName) {
     // Generate json field accessor statement
