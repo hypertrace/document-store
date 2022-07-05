@@ -64,8 +64,8 @@ public class PostgresQueryParser {
   }
 
   private Optional<String> parseFilter(Optional<FilterTypeExpression> filterTypeExpression) {
-    return Optional.ofNullable(
-        filterTypeExpression.get().accept(new PostgresFilterTypeExpressionVisitor(this)));
+    return filterTypeExpression.map(
+        expression -> expression.accept(new PostgresFilterTypeExpressionVisitor(this)));
   }
 
   private Optional<String> parseGroupBy(List<GroupTypeExpression> groupTypeExpressionList) {
