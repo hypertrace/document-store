@@ -287,7 +287,18 @@ public class PostgresCollection implements Collection {
   @Override
   public CloseableIterator<Document> aggregate(
       final org.hypertrace.core.documentstore.query.Query query) {
-    throw new UnsupportedOperationException();
+    org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
+        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(collectionName);
+    String sqlQuery = queryParser.parse(query);
+    try {
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
+      ResultSet resultSet = preparedStatement.executeQuery();
+      return new PostgresResultIterator(resultSet);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException querying documents. query: {}", query, e);
+    }
+    return EMPTY_ITERATOR;
   }
 
   @Override

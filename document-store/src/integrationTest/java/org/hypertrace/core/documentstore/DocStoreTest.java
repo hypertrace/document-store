@@ -1,7 +1,12 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
+import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap;
+import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
+import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
+import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -26,6 +31,9 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
@@ -1487,6 +1495,29 @@ public class DocStoreTest {
     }
   }
 
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testNewAggregateApiWhereClause(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // query docs
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertSizeAndDocsEqual(dataStoreName, iterator, 6, "mongo/simple_filter_quantity_neq_10.json");
+  }
+
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
       Collection collection, Operation operation, int numThreads, SingleValueKey documentKey) {
     List<CreateUpdateTestThread> threads = new ArrayList<CreateUpdateTestThread>();
@@ -1575,6 +1606,38 @@ public class DocStoreTest {
       return "_id";
     } else {
       return "id";
+    }
+  }
+
+  private static void assertSizeAndDocsEqual(
+      String dataStoreName, Iterator<Document> documents, int expectedSize, String filePath)
+      throws IOException {
+    String fileContent = readFileFromResource(filePath).orElseThrow();
+    List<Map<String, Object>> expectedDocs = convertJsonToMap(fileContent);
+
+    List<Map<String, Object>> actualDocs = new ArrayList<>();
+    int actualSize = 0;
+    while (documents.hasNext()) {
+      Map<String, Object> doc = convertDocumentToMap(documents.next());
+      removesDateRelatedFields(dataStoreName, doc);
+      actualDocs.add(doc);
+      actualSize++;
+    }
+
+    long count =
+        expectedDocs.stream().filter(expectedDoc -> actualDocs.contains(expectedDoc)).count();
+    assertEquals(expectedSize, actualSize);
+    assertEquals(expectedSize, count);
+  }
+
+  private static void removesDateRelatedFields(String dataStoreName, Map<String, Object> document) {
+    if (isMongo(dataStoreName)) {
+      document.remove(MONGO_CREATED_TIME_KEY);
+      document.remove(MONGO_LAST_UPDATED_TIME_KEY);
+      document.remove(MONGO_LAST_UPDATE_TIME_KEY);
+    } else if (isPostgress(dataStoreName)) {
+      document.remove(POSTGRES_CREATED_AT);
+      document.remove(POSTGRES_UPDATED_AT);
     }
   }
 }
