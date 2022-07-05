@@ -1662,7 +1662,8 @@ public class DocStoreTest {
     }
   }
 
-  private static void assertSizeAndDocsEqual(String dataStoreName, Iterator<Document> documents, int expectedSize, String filePath)
+  private static void assertSizeAndDocsEqual(
+      String dataStoreName, Iterator<Document> documents, int expectedSize, String filePath)
       throws IOException {
     String fileContent = readFileFromResource(filePath).orElseThrow();
     List<Map<String, Object>> expectedDocs = convertJsonToMap(fileContent);
@@ -1676,7 +1677,8 @@ public class DocStoreTest {
       actualSize++;
     }
 
-    long count = expectedDocs.stream().filter(expectedDoc -> actualDocs.contains(expectedDoc)).count();
+    long count =
+        expectedDocs.stream().filter(expectedDoc -> actualDocs.contains(expectedDoc)).count();
     assertEquals(expectedSize, actualSize);
     assertEquals(expectedSize, count);
   }
