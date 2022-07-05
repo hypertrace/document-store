@@ -566,9 +566,13 @@ public class PostgresCollection implements Collection {
 
         ps.addBatch();
       }
-      int[] updates = ps.executeBatch();
+      int[] updateCounts = ps.executeBatch();
 
-      return Arrays.stream(updates).sum();
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
+      }
+
+      return Arrays.stream(updateCounts).sum();
 
     } catch (BatchUpdateException e) {
 
