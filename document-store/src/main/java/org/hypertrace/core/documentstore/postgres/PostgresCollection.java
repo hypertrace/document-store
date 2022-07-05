@@ -188,20 +188,28 @@ public class PostgresCollection implements Collection {
         ps.addBatch();
       }
       int[] updates = ps.executeBatch();
+
       return Arrays.stream(updates).sum();
+
     } catch (BatchUpdateException e) {
+
       LOGGER.error("BatchUpdateException while executing batch", e);
       return Arrays.stream(e.getUpdateCounts()).filter(updateCount -> updateCount >= 0).sum();
+
     } catch (SQLException e) {
+
       LOGGER.error(
           "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
           e.getSQLState(),
           e.getErrorCode(),
           e);
       return 0;
+
     } catch (IOException e) {
+
       LOGGER.error("IOException during bulk update requests without filter", e);
       return 0;
+
     }
   }
 
