@@ -1,5 +1,4 @@
 package org.hypertrace.core.documentstore.postgres.query.v1;
-
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
