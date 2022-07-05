@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
+import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
@@ -97,7 +98,7 @@ public class PostgresCollection implements Collection {
     }
 
     try (PreparedStatement preparedStatement =
-        buildPreparedStatement(upsertQueryBuilder.toString(), paramsBuilder.build())) {
+        enrichPreparedStatementWithParams(upsertQueryBuilder.toString(), paramsBuilder.build())) {
       int result = preparedStatement.executeUpdate();
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: {}", result);
@@ -130,7 +131,69 @@ public class PostgresCollection implements Collection {
 
   @Override
   public BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception {
-    throw new UnsupportedOperationException();
+
+    int totalUpdateCountA =
+        bulkUpdateRequestsWithFilter(
+            bulkUpdateRequests.stream()
+                .filter(req -> req.getFilter() != null)
+                .collect(Collectors.toList()));
+
+    int totalUpdateCountB =
+        bulkUpdateRequestsWithoutFilter(
+            bulkUpdateRequests.stream()
+                .filter(req -> req.getFilter() == null)
+                .collect(Collectors.toList()));
+
+    return new BulkUpdateResult(totalUpdateCountA + totalUpdateCountB);
+  }
+
+  private int bulkUpdateRequestsWithFilter(List<BulkUpdateRequest> requests) {
+    // Note: We cannot batch statements as the filter clause can be difference for each request. So
+    // we need one PreparedStatement for each request. We try to update the batch on a best-effort
+    // basis. That is, if any update fails, then we still try the other ones.
+    int totalUpdates = 0;
+
+    for (var request : requests) {
+      var key = request.getKey();
+      var document = request.getDocument();
+      var filter = request.getFilter();
+
+      try {
+        totalUpdates += update(key, document, filter).getUpdatedCount();
+      } catch (IOException e) {
+        LOGGER.error("SQLException updating document. key: {} content: {}", key, document, e);
+      }
+    }
+    return totalUpdates;
+  }
+
+  private int bulkUpdateRequestsWithoutFilter(List<BulkUpdateRequest> requestsWithoutFilter) {
+    //We can batch all requests here since the query is the same.
+    try {
+
+      PreparedStatement ps = client.prepareStatement(getUpdateSQL());
+
+      for (var req : requestsWithoutFilter) {
+        var key = req.getKey();
+        var document = req.getDocument();
+
+        String jsonString = prepareDocument(key, document);
+        Params.Builder paramsBuilder = Params.newBuilder();
+        paramsBuilder.addObjectParam(key.toString());
+        paramsBuilder.addObjectParam(jsonString);
+
+        enrichPreparedStatementWithParams(ps, paramsBuilder.build());
+
+        ps.addBatch();
+      }
+      return ps.executeUpdate();
+    } catch (SQLException e) {
+      LOGGER.error("SQLException during bulk update requests without filter", e);
+      return 0;
+    } catch (IOException e) {
+      LOGGER.error("IOException during bulk update requests without filter", e);
+      return 0;
+    }
   }
 
   /**
@@ -231,7 +294,40 @@ public class PostgresCollection implements Collection {
 
   @Override
   public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) {
-    throw new UnsupportedOperationException();
+    Operation operation = request.getOperation();
+    if (operation.equals(Operation.ADD)) {
+      String updateSubDocSQL =
+          String.format(
+              "UPDATE %s SET %s=jsonb_insert(%s, ?::text[], ?::jsonb) WHERE %s=?",
+              collectionName, DOCUMENT, DOCUMENT, ID);
+      String jsonSubDocPath = getJsonSubDocPath(request.getSubDocPath());
+      try (PreparedStatement preparedStatement =
+          client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+        Set<Key> keys = request.getKeys();
+        List<Document> subDocs = request.getSubDocuments();
+        // for each key, add all the sub-docs to the json array
+        for (Key key : keys) {
+          for (Document doc : subDocs) {
+            preparedStatement.setString(1, jsonSubDocPath);
+            preparedStatement.setString(2, doc.toJson());
+            preparedStatement.setString(3, key.toString());
+            preparedStatement.addBatch();
+          }
+        }
+
+        int resultSet = preparedStatement.executeUpdate();
+
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Write result: {}", resultSet);
+        }
+
+        return new BulkUpdateResult(resultSet);
+      } catch (SQLException e) {
+        return new BulkUpdateResult(0);
+      }
+    }
+
+    return null;
   }
 
   @Override
@@ -268,7 +364,7 @@ public class PostgresCollection implements Collection {
 
     try {
       PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
+          enrichPreparedStatementWithParams(sqlBuilder.toString(), paramsBuilder.build());
       ResultSet resultSet = preparedStatement.executeQuery();
       return new PostgresResultIterator(resultSet);
     } catch (SQLException e) {
@@ -291,7 +387,7 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
+  protected PreparedStatement enrichPreparedStatementWithParams(String sqlQuery, Params params)
       throws SQLException, RuntimeException {
     PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
     params
@@ -309,6 +405,25 @@ public class PostgresCollection implements Collection {
               }
             });
     return preparedStatement;
+  }
+
+  @VisibleForTesting
+  protected void enrichPreparedStatementWithParams(
+      PreparedStatement preparedStatement, Params params) throws RuntimeException {
+    params
+        .getObjectParams()
+        .forEach(
+            (k, v) -> {
+              try {
+                if (isValidType(v)) {
+                  preparedStatement.setObject(k, v);
+                } else {
+                  throw new UnsupportedOperationException("Un-supported object types in filter");
+                }
+              } catch (SQLException e) {
+                LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
+              }
+            });
   }
 
   private boolean isValidType(Object v) {
@@ -438,7 +553,7 @@ public class PostgresCollection implements Collection {
     }
 
     try (PreparedStatement preparedStatement =
-        buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build())) {
+        enrichPreparedStatementWithParams(totalSQLBuilder.toString(), paramsBuilder.build())) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
