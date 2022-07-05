@@ -145,6 +145,10 @@ public class PostgresCollection implements Collection {
 
     int totalUpdateCountB = bulkUpdateRequestsWithoutFilter(requestsWithoutFilter);
 
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Write results for whole bulkUpdate {}", totalUpdateCountA + totalUpdateCountB);
+    }
+
     return new BulkUpdateResult(totalUpdateCountA + totalUpdateCountB);
   }
 
@@ -543,6 +547,9 @@ public class PostgresCollection implements Collection {
       } catch (IOException e) {
         LOGGER.error("SQLException updating document. key: {} content: {}", key, document, e);
       }
+    }
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Write result for bulkUpdateWithoutFilter {}", totalUpdates);
     }
     return totalUpdates;
   }
