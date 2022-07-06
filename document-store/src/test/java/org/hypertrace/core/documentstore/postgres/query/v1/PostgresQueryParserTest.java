@@ -131,4 +131,19 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals(5, params.getObjectParams().get(2));
     Assertions.assertEquals(10, params.getObjectParams().get(3));
   }
+
+  @Test
+  void testBasicSelectionExpression() {
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .build();
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
+    String sql = postgresQueryParser.parse(query);
+    Assertions.assertEquals("SELECT document->'item', document->'price' FROM testCollection", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(0, params.getObjectParams().size());
+  }
 }

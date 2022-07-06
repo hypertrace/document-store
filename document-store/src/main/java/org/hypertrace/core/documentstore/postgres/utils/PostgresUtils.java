@@ -20,7 +20,7 @@ public class PostgresUtils {
 
   private static final Set<String> OUTER_COLUMNS = Set.of(CREATED_AT, ID, UPDATED_AT);
 
-  private static StringBuilder prepareFieldAccessorExpr(String fieldName) {
+  public static StringBuilder prepareFieldAccessorExpr(String fieldName) {
     // Generate json field accessor statement
     if (!OUTER_COLUMNS.contains(fieldName)) {
       StringBuilder filterString = new StringBuilder(DOCUMENT);
@@ -39,7 +39,7 @@ public class PostgresUtils {
    * keys. Note: It doesn't handle array elements in json document. e.g SELECT * FROM TABLE where
    * document ->> 'first' = 'name' and document -> 'address' ->> 'pin' = "00000"
    */
-  private static String prepareFieldDataAccessorExpr(String fieldName) {
+  public static String prepareFieldDataAccessorExpr(String fieldName) {
     StringBuilder fieldPrefix = new StringBuilder(fieldName);
     if (!OUTER_COLUMNS.contains(fieldName)) {
       fieldPrefix = new StringBuilder(DOCUMENT);
