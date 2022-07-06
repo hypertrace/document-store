@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.postgres.query.v1;
 
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
@@ -7,6 +8,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -142,6 +144,30 @@ public class PostgresQueryParserTest {
     PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
     String sql = postgresQueryParser.parse(query);
     Assertions.assertEquals("SELECT document->'item', document->'price' FROM testCollection", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(0, params.getObjectParams().size());
+  }
+
+  @Test
+  void testFunctionalSelectionExpression() {
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(
+                FunctionExpression.builder()
+                    .operand(IdentifierExpression.of("price"))
+                    .operator(MULTIPLY)
+                    .operand(IdentifierExpression.of("quantity"))
+                    .build(),
+                "total")
+            .build();
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
+    String sql = postgresQueryParser.parse(query);
+    Assertions.assertEquals(
+        "SELECT document->'item', CAST (document->>'price' AS NUMERIC) "
+            + "* CAST (document->>'quantity' AS NUMERIC) AS total FROM testCollection",
+        sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     Assertions.assertEquals(0, params.getObjectParams().size());

@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
@@ -37,6 +38,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -1565,6 +1567,38 @@ public class DocStoreTest {
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertSizeAndDocsEqual(
         dataStoreName, resultDocs, 6, "mongo/filter_with_logical_and_or_operator.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testQueryV1ForSelectionExpression(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // query docs
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
+            .addSelection(IdentifierExpression.of("item"), "item")
+            .addSelection(
+                FunctionExpression.builder()
+                    .operand(IdentifierExpression.of("price"))
+                    .operator(MULTIPLY)
+                    .operand(IdentifierExpression.of("quantity"))
+                    .build(),
+                "total")
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 2, "mongo/test_selection_expression_result.json");
   }
 
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(

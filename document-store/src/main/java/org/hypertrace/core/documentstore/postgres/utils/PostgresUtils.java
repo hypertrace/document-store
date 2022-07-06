@@ -56,7 +56,7 @@ public class PostgresUtils {
     return fieldPrefix.toString();
   }
 
-  private static String prepareCast(String field, Object value) {
+  public static String prepareCast(String field, Object value) {
     String fmt = "CAST (%s AS %s)";
 
     // handle the case if the value type is collection for filter operator - `IN`
