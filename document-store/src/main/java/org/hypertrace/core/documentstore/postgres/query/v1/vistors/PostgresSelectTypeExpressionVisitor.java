@@ -58,7 +58,7 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
                 selectionSpec ->
                     Pair.of(
                         selectionSpec.getExpression().accept(selectTypeExpressionVisitor),
-                        selectionSpec.getAlias()))
+                        getAlias(selectionSpec, identifierExpressionVisitor)))
             .filter(p -> !StringUtils.isEmpty((String) p.getLeft()))
             .map(
                 p ->
@@ -70,7 +70,7 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
     return !childList.isEmpty() ? childList : null;
   }
 
-  private String getAlias(
+  private static String getAlias(
       SelectionSpec selectionSpec,
       PostgresIdentifierExpressionVisitor identifierExpressionVisitor) {
     return !StringUtils.isEmpty(selectionSpec.getAlias())

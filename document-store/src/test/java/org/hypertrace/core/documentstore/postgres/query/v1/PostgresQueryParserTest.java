@@ -143,7 +143,8 @@ public class PostgresQueryParserTest {
             .build();
     PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
     String sql = postgresQueryParser.parse(query);
-    Assertions.assertEquals("SELECT document->'item', document->'price' FROM testCollection", sql);
+    Assertions.assertEquals(
+        "SELECT document->'item' AS item, document->'price' AS price FROM testCollection", sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     Assertions.assertEquals(0, params.getObjectParams().size());
@@ -165,7 +166,7 @@ public class PostgresQueryParserTest {
     PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
     String sql = postgresQueryParser.parse(query);
     Assertions.assertEquals(
-        "SELECT document->'item', CAST (document->>'price' AS NUMERIC) "
+        "SELECT document->'item' AS item, CAST (document->>'price' AS NUMERIC) "
             + "* CAST (document->>'quantity' AS NUMERIC) AS total FROM testCollection",
         sql);
 
