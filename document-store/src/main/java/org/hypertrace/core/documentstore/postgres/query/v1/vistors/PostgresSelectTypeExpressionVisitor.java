@@ -45,10 +45,12 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
   }
 
   public static String getSelections(final List<SelectionSpec> selectionSpecs) {
-    // TODO: As in the current impl, the item without alias will have column name as ?column?
-    // need to take care of it, but what should be the name of nested field?
     PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor =
         new PostgresFieldIdentifierExpressionVisitor(new PostgresFunctionExpressionVisitor());
+
+    // used for if alias is missing
+    PostgresIdentifierExpressionVisitor identifierExpressionVisitor =
+        new PostgresIdentifierExpressionVisitor();
 
     String childList =
         selectionSpecs.stream()
@@ -66,5 +68,13 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
             .collect(Collectors.joining(", "));
 
     return !childList.isEmpty() ? childList : null;
+  }
+
+  private String getAlias(
+      SelectionSpec selectionSpec,
+      PostgresIdentifierExpressionVisitor identifierExpressionVisitor) {
+    return !StringUtils.isEmpty(selectionSpec.getAlias())
+        ? selectionSpec.getAlias()
+        : selectionSpec.getExpression().accept(identifierExpressionVisitor);
   }
 }

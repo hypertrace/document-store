@@ -1586,7 +1586,7 @@ public class DocStoreTest {
             .setFilter(
                 RelationalExpression.of(
                     IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
-            .addSelection(IdentifierExpression.of("item"), "item")
+            .addSelection(IdentifierExpression.of("item"))
             .addSelection(
                 FunctionExpression.builder()
                     .operand(IdentifierExpression.of("price"))
