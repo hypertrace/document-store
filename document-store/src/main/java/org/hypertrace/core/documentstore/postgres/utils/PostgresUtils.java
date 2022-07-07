@@ -7,9 +7,11 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 
@@ -17,10 +19,18 @@ public class PostgresUtils {
   private static final String QUESTION_MARK = "?";
   private static final String JSON_FIELD_ACCESSOR = "->";
   private static final String JSON_DATA_ACCESSOR = "->>";
+  private static final String DOT_STR = "_dot_";
+  private static final String DOT = ".";
 
   private static final Set<String> OUTER_COLUMNS = Set.of(CREATED_AT, ID, UPDATED_AT);
 
-  private static StringBuilder prepareFieldAccessorExpr(String fieldName) {
+  public enum Type {
+    STRING,
+    BOOLEAN,
+    NUMERIC,
+  }
+
+  public static StringBuilder prepareFieldAccessorExpr(String fieldName) {
     // Generate json field accessor statement
     if (!OUTER_COLUMNS.contains(fieldName)) {
       StringBuilder filterString = new StringBuilder(DOCUMENT);
@@ -39,7 +49,7 @@ public class PostgresUtils {
    * keys. Note: It doesn't handle array elements in json document. e.g SELECT * FROM TABLE where
    * document ->> 'first' = 'name' and document -> 'address' ->> 'pin' = "00000"
    */
-  private static String prepareFieldDataAccessorExpr(String fieldName) {
+  public static String prepareFieldDataAccessorExpr(String fieldName) {
     StringBuilder fieldPrefix = new StringBuilder(fieldName);
     if (!OUTER_COLUMNS.contains(fieldName)) {
       fieldPrefix = new StringBuilder(DOCUMENT);
@@ -56,24 +66,34 @@ public class PostgresUtils {
     return fieldPrefix.toString();
   }
 
-  private static String prepareCast(String field, Object value) {
-    String fmt = "CAST (%s AS %s)";
+  public static String prepareCast(String field, Object value) {
+    Type type = Type.STRING;
 
     // handle the case if the value type is collection for filter operator - `IN`
     // Currently, for `IN` operator, we are considering List collection, and it is fair
     // assumption that all its value of the same types. Based on that and for consistency
     // we will use CAST ( <field name> as <type> ) for all non string operator.
     // Ref : https://github.com/hypertrace/document-store/pull/30#discussion_r571782575
-
     if (value instanceof List<?> && ((List<Object>) value).size() > 0) {
       List<Object> listValue = (List<Object>) value;
       value = listValue.get(0);
     }
 
     if (value instanceof Number) {
-      return String.format(fmt, field, "NUMERIC");
+      type = Type.NUMERIC;
     } else if (value instanceof Boolean) {
-      return String.format(fmt, field, "BOOLEAN");
+      type = Type.NUMERIC;
+    }
+
+    return prepareCast(field, type);
+  }
+
+  public static String prepareCast(String field, Type type) {
+    String fmt = "CAST (%s AS %s)";
+    if (type.equals(Type.NUMERIC)) {
+      return String.format(fmt, field, type);
+    } else if (type.equals(Type.BOOLEAN)) {
+      return String.format(fmt, field, type);
     } else /* default is string */ {
       return field;
     }
@@ -193,5 +213,21 @@ public class PostgresUtils {
     }
     String filters = filterString.toString();
     return filters;
+  }
+
+  public static List<String> splitNestedField(String nestedFieldName) {
+    return Arrays.asList(StringUtils.split(nestedFieldName, DOT));
+  }
+
+  public static boolean isEncodedNestedField(String fieldName) {
+    return fieldName.contains(DOT_STR) ? true : false;
+  }
+
+  public static String encodeAliasForNestedField(String nestedFieldName) {
+    return StringUtils.replace(nestedFieldName, DOT, DOT_STR);
+  }
+
+  public static String decodeAliasForNestedField(String nestedFieldName) {
+    return StringUtils.replace(nestedFieldName, DOT_STR, DOT);
   }
 }
