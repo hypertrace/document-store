@@ -1,8 +1,5 @@
 package org.hypertrace.core.documentstore.postgres;
 
-import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.ADD;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -15,10 +12,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.Set;
-import org.apache.commons.lang3.tuple.ImmutablePair;
-import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
-import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
@@ -171,5 +164,4 @@ public class PostgresDocStoreTest {
     collection.drop();
     Assertions.assertFalse(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
   }
-
 }
