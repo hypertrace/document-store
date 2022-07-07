@@ -97,7 +97,7 @@ public class PostgresCollection implements Collection {
     }
 
     try (PreparedStatement preparedStatement =
-        enrichPreparedStatementWithParams(upsertQueryBuilder.toString(), paramsBuilder.build())) {
+        buildPreparedStatement(upsertQueryBuilder.toString(), paramsBuilder.build())) {
       int result = preparedStatement.executeUpdate();
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: {}", result);
@@ -287,7 +287,7 @@ public class PostgresCollection implements Collection {
 
     try {
       PreparedStatement preparedStatement =
-          enrichPreparedStatementWithParams(sqlBuilder.toString(), paramsBuilder.build());
+          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
       ResultSet resultSet = preparedStatement.executeQuery();
       return new PostgresResultIterator(resultSet);
     } catch (SQLException e) {
@@ -310,7 +310,7 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  protected PreparedStatement enrichPreparedStatementWithParams(String sqlQuery, Params params)
+  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
       throws SQLException, RuntimeException {
     PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
     params
@@ -476,7 +476,7 @@ public class PostgresCollection implements Collection {
     }
 
     try (PreparedStatement preparedStatement =
-        enrichPreparedStatementWithParams(totalSQLBuilder.toString(), paramsBuilder.build())) {
+        buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build())) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
