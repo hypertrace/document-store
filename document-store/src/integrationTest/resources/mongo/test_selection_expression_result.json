@@ -1,7 +1,10 @@
 [
   {
     "item": "Soap",
-    "total": 20
+    "total": 20,
+    "props": {
+      "brand": "Dettol"
+    }
   },
   {
     "item": "Soap",

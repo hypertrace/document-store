@@ -75,6 +75,7 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
       PostgresIdentifierExpressionVisitor identifierExpressionVisitor) {
     return !StringUtils.isEmpty(selectionSpec.getAlias())
         ? selectionSpec.getAlias()
-        : selectionSpec.getExpression().accept(identifierExpressionVisitor);
+        : StringUtils.replace(
+            selectionSpec.getExpression().accept(identifierExpressionVisitor), ".", "_dot_");
   }
 }

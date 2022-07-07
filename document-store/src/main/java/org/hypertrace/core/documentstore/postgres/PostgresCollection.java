@@ -1,7 +1,9 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.util.JSONPObject;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.sql.BatchUpdateException;
@@ -13,6 +15,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -21,6 +24,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
@@ -307,7 +311,7 @@ public class PostgresCollection implements Collection {
       ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
-              ? new PostgresResultIteratorWithMetaData(preparedStatement.getMetaData(), resultSet)
+              ? new PostgresResultIteratorWithMetaData(resultSet)
               : new PostgresResultIterator(resultSet);
       return closeableIterator;
     } catch (SQLException e) {
@@ -682,21 +686,32 @@ public class PostgresCollection implements Collection {
   }
 
   static class PostgresResultIteratorWithMetaData extends PostgresResultIterator {
-    protected ResultSetMetaData resultSetMetaData;
 
-    public PostgresResultIteratorWithMetaData(
-        ResultSetMetaData resultSetMetaData, ResultSet resultSet) {
+    public PostgresResultIteratorWithMetaData(ResultSet resultSet) {
       super(resultSet);
-      this.resultSetMetaData = resultSetMetaData;
     }
 
     @Override
     protected Document prepareDocument() throws SQLException, IOException {
+      ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
       int columnCount = resultSetMetaData.getColumnCount();
       Map<String, Object> jsonNode = new HashMap();
       for (int i = 1; i <= columnCount; i++) {
         String columnName = resultSetMetaData.getColumnName(i);
-        jsonNode.put(columnName, MAPPER.readTree(resultSet.getString(i)));
+        String columnValue = resultSet.getString(i);
+        if (StringUtils.isNotEmpty(columnValue)) {
+          columnName = StringUtils.replace(columnName, "_dot_", ".");
+          List<String> keys = Arrays.asList(StringUtils.split(columnName, "."));
+          Collections.reverse(keys);
+          Map<String, Object> pre = new HashMap<>(), cur = pre;
+          pre.put(keys.get(0), MAPPER.readTree(resultSet.getString(i)));
+          for (int j = 1; j < keys.size() - 1; j++) {
+              cur = new HashMap<>();
+              cur.put(keys.get(j), MAPPER.readTree(MAPPER.writeValueAsString(pre)));
+              pre = cur;
+          }
+          jsonNode.put(keys.get(keys.size() - 1), MAPPER.readTree(MAPPER.writeValueAsString(cur)));
+        }
       }
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
     }
