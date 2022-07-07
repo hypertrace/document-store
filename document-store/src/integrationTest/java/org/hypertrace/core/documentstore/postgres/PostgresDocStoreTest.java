@@ -1,6 +1,5 @@
 package org.hypertrace.core.documentstore.postgres;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
@@ -35,7 +34,6 @@ import org.testcontainers.utility.DockerImageName;
 public class PostgresDocStoreTest {
 
   private static final String COLLECTION_NAME = "mytest";
-  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private static GenericContainer<?> postgres;
   private static Datastore datastore;
