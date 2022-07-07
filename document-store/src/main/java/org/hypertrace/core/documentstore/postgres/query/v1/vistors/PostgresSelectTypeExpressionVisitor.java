@@ -2,13 +2,14 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeExpressionVisitor {
@@ -44,6 +45,12 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
     return baseVisitor.visit(expression);
   }
 
+  @AllArgsConstructor
+  static class PgSelection {
+    String fieldName;
+    String alias;
+  }
+
   public static String getSelections(final List<SelectionSpec> selectionSpecs) {
     PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor =
         new PostgresFieldIdentifierExpressionVisitor(new PostgresFunctionExpressionVisitor());
@@ -56,15 +63,15 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
         selectionSpecs.stream()
             .map(
                 selectionSpec ->
-                    Pair.of(
+                    new PgSelection(
                         selectionSpec.getExpression().accept(selectTypeExpressionVisitor),
                         getAlias(selectionSpec, identifierExpressionVisitor)))
-            .filter(p -> !StringUtils.isEmpty((String) p.getLeft()))
+            .filter(pgSelection -> StringUtils.isNotEmpty(pgSelection.fieldName))
             .map(
-                p ->
-                    StringUtils.isNotEmpty(p.getRight())
-                        ? "" + p.getLeft() + " AS " + p.getRight()
-                        : "" + p.getLeft() + "")
+                pgSelection ->
+                    StringUtils.isNotEmpty(pgSelection.alias)
+                        ? pgSelection.fieldName + " AS " + pgSelection.alias
+                        : pgSelection.fieldName)
             .collect(Collectors.joining(", "));
 
     return !childList.isEmpty() ? childList : null;
@@ -75,7 +82,7 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
       PostgresIdentifierExpressionVisitor identifierExpressionVisitor) {
     return !StringUtils.isEmpty(selectionSpec.getAlias())
         ? selectionSpec.getAlias()
-        : StringUtils.replace(
-            selectionSpec.getExpression().accept(identifierExpressionVisitor), ".", "_dot_");
+        : PostgresUtils.encodeAliasForNestedField(
+            selectionSpec.getExpression().accept(identifierExpressionVisitor));
   }
 }

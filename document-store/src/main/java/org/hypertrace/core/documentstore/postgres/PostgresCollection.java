@@ -36,6 +36,7 @@ import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -699,8 +700,9 @@ public class PostgresCollection implements Collection {
         String columnValue = resultSet.getString(i);
         if (StringUtils.isNotEmpty(columnValue)) {
           JsonNode leafNodeValue = MAPPER.readTree(columnValue);
-          if (isNestedField(columnName)) {
-            handleNestedField(columnName, jsonNode, leafNodeValue);
+          if (PostgresUtils.isEncodedNestedField(columnName)) {
+            handleNestedField(
+                PostgresUtils.decodeAliasForNestedField(columnName), jsonNode, leafNodeValue);
           } else {
             jsonNode.put(columnName, leafNodeValue);
           }
@@ -709,14 +711,9 @@ public class PostgresCollection implements Collection {
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
     }
 
-    private boolean isNestedField(String columnName) {
-      return columnName.contains("_dot_") ? true : false;
-    }
-
     private void handleNestedField(
         String columnName, Map<String, Object> rootNode, JsonNode leafNodeValue) {
-      columnName = StringUtils.replace(columnName, "_dot_", ".");
-      List<String> keys = Arrays.asList(StringUtils.split(columnName, "."));
+      List<String> keys = PostgresUtils.splitNestedField(columnName);
       // find the leaf node or create one for adding property value
       Map<String, Object> curNode = rootNode;
       for (int l = 0; l < keys.size() - 1; l++) {

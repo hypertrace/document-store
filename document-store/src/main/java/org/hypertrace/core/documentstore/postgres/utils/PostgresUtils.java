@@ -7,9 +7,11 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 
@@ -17,6 +19,8 @@ public class PostgresUtils {
   private static final String QUESTION_MARK = "?";
   private static final String JSON_FIELD_ACCESSOR = "->";
   private static final String JSON_DATA_ACCESSOR = "->>";
+  private static final String DOT_STR = "_dot_";
+  private static final String DOT = ".";
 
   private static final Set<String> OUTER_COLUMNS = Set.of(CREATED_AT, ID, UPDATED_AT);
 
@@ -209,5 +213,21 @@ public class PostgresUtils {
     }
     String filters = filterString.toString();
     return filters;
+  }
+
+  public static List<String> splitNestedField(String nestedFieldName) {
+    return Arrays.asList(StringUtils.split(nestedFieldName, DOT));
+  }
+
+  public static boolean isEncodedNestedField(String fieldName) {
+    return fieldName.contains(DOT_STR) ? true : false;
+  }
+
+  public static String encodeAliasForNestedField(String nestedFieldName) {
+    return StringUtils.replace(nestedFieldName, DOT, DOT_STR);
+  }
+
+  public static String decodeAliasForNestedField(String nestedFieldName) {
+    return StringUtils.replace(nestedFieldName, DOT_STR, DOT);
   }
 }

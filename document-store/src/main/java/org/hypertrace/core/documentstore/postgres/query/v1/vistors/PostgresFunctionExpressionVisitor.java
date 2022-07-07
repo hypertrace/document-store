@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+import java.util.Objects;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -30,8 +31,9 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
     String childList =
         expression.getOperands().stream()
             .map(exp -> exp.accept(selectTypeExpressionVisitor))
-            .filter(str -> !StringUtils.isEmpty((String) str))
-            .map(str -> "" + str + "")
+            .filter(Objects::nonNull)
+            .map(Object::toString)
+            .filter(StringUtils::isNotEmpty)
             .collect(collector);
 
     return !childList.isEmpty() ? childList : null;
