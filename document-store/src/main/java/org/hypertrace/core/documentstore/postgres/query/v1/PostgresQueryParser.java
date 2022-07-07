@@ -7,8 +7,10 @@ import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
 public class PostgresQueryParser {
@@ -30,6 +32,12 @@ public class PostgresQueryParser {
     StringBuilder sqlBuilder = new StringBuilder(String.format("SELECT * FROM %s", collection));
     paramsBuilder = Params.newBuilder();
 
+    // selection clause
+    Optional<String> selectionClause = parseSelection(query.getSelections());
+    if (selectionClause.isPresent()) {
+      sqlBuilder = new StringBuilder();
+      sqlBuilder.append(String.format("SELECT %s FROM %s", selectionClause.get(), collection));
+    }
     // where clause
     Optional<String> whereFilter = parseFilter(query.getFilter());
     if (whereFilter.isPresent()) {
@@ -61,6 +69,10 @@ public class PostgresQueryParser {
     }
 
     return sqlBuilder.toString();
+  }
+
+  private Optional<String> parseSelection(List<SelectionSpec> selectionSpecs) {
+    return Optional.ofNullable(PostgresSelectTypeExpressionVisitor.getSelections(selectionSpecs));
   }
 
   private Optional<String> parseFilter(Optional<FilterTypeExpression> filterTypeExpression) {
