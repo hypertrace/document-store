@@ -3,9 +3,7 @@ package org.hypertrace.core.documentstore.postgres;
 import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.ADD;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
@@ -20,15 +18,12 @@ import java.util.Properties;
 import java.util.Set;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
-import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
-import org.hypertrace.core.documentstore.Filter.Op;
-import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
@@ -176,46 +171,6 @@ public class PostgresDocStoreTest {
     collection.drop();
     Assertions.assertFalse(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
   }
-
-//  @Test
-//  public void whenBulkUpdatingExistingRecords_thenExpectOnlyRecordsWhoseConditionsMatchToBeUpdated()
-//      throws Exception {
-//    Collection collection = datastore.getCollection(COLLECTION_NAME);
-//    ObjectNode persistedObject = OBJECT_MAPPER.createObjectNode();
-//    persistedObject.put("foo1", "bar1");
-//    persistedObject.put("timestamp", 90);
-//
-//    collection.create(
-//        new SingleValueKey("tenant-1", "testKey1"), new JSONDocument(persistedObject));
-//
-//    ObjectNode updatedObject = OBJECT_MAPPER.createObjectNode();
-//    updatedObject.put("foo1", "bar1");
-//    updatedObject.put("timestamp", 110);
-//
-//    List<BulkUpdateRequest> toUpdate = new ArrayList<>();
-//    toUpdate.add(
-//        new BulkUpdateRequest(
-//            new SingleValueKey("tenant-1", "testKey1"),
-//            new JSONDocument(updatedObject),
-//            new Filter(Op.LT, "timestamp", 100)));
-//
-//    toUpdate.add(
-//        new BulkUpdateRequest(
-//            new SingleValueKey("tenant-1", "testKey2"),
-//            new JSONDocument(updatedObject),
-//            new Filter(Op.LT, "timestamp", 100)));
-//
-//    BulkUpdateResult result = collection.bulkUpdate(toUpdate);
-//    Assertions.assertEquals(1, result.getUpdatedCount());
-//
-//    Query query = new Query();
-//    query.setFilter(
-//        new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
-//    Iterator<Document> it = collection.search(query);
-//    JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
-//    Long timestamp = root.findValue("timestamp").asLong();
-//    Assertions.assertEquals(110, timestamp);
-//  }
 
   @Test
   public void test_bulkOperationOnArrayValue_addOperation() throws Exception {
