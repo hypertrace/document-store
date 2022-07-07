@@ -3,7 +3,6 @@ package org.hypertrace.core.documentstore.postgres;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.util.JSONPObject;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.sql.BatchUpdateException;
@@ -15,7 +14,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -700,20 +698,38 @@ public class PostgresCollection implements Collection {
         String columnName = resultSetMetaData.getColumnName(i);
         String columnValue = resultSet.getString(i);
         if (StringUtils.isNotEmpty(columnValue)) {
-          columnName = StringUtils.replace(columnName, "_dot_", ".");
-          List<String> keys = Arrays.asList(StringUtils.split(columnName, "."));
-          Collections.reverse(keys);
-          Map<String, Object> pre = new HashMap<>(), cur = pre;
-          pre.put(keys.get(0), MAPPER.readTree(resultSet.getString(i)));
-          for (int j = 1; j < keys.size() - 1; j++) {
-              cur = new HashMap<>();
-              cur.put(keys.get(j), MAPPER.readTree(MAPPER.writeValueAsString(pre)));
-              pre = cur;
+          JsonNode leafNodeValue = MAPPER.readTree(columnValue);
+          if (isNestedField(columnName)) {
+            handleNestedField(columnName, jsonNode, leafNodeValue);
+          } else {
+            jsonNode.put(columnName, leafNodeValue);
           }
-          jsonNode.put(keys.get(keys.size() - 1), MAPPER.readTree(MAPPER.writeValueAsString(cur)));
         }
       }
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+    }
+
+    private boolean isNestedField(String columnName) {
+      return columnName.contains("_dot_") ? true : false;
+    }
+
+    private void handleNestedField(
+        String columnName, Map<String, Object> rootNode, JsonNode leafNodeValue) {
+      columnName = StringUtils.replace(columnName, "_dot_", ".");
+      List<String> keys = Arrays.asList(StringUtils.split(columnName, "."));
+      // find the leaf node or create one for adding property value
+      Map<String, Object> curNode = rootNode;
+      for (int l = 0; l < keys.size() - 1; l++) {
+        String key = keys.get(l);
+        Map<String, Object> node = (Map<String, Object>) curNode.get(key);
+        if (node == null) {
+          node = new HashMap<>();
+          curNode.put(key, node);
+        }
+        curNode = node;
+      }
+      String leafKey = keys.get(keys.size() - 1);
+      curNode.put(leafKey, leafNodeValue);
     }
   }
 

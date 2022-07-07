@@ -1588,7 +1588,7 @@ public class DocStoreTest {
                     IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("props.brand"))
-     //       .addSelection(IdentifierExpression.of("props.seller.name"))
+            .addSelection(IdentifierExpression.of("props.seller.name"))
             .addSelection(
                 FunctionExpression.builder()
                     .operand(IdentifierExpression.of("price"))
