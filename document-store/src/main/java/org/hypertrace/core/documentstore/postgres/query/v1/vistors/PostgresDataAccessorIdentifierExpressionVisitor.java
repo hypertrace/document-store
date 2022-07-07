@@ -3,15 +3,11 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
 @NoArgsConstructor
 public class PostgresDataAccessorIdentifierExpressionVisitor
     extends PostgresSelectTypeExpressionVisitor {
-
-  enum Type {
-    BOOL,
-    NUMERIC
-  }
 
   private Type type = Type.NUMERIC;
 
@@ -35,7 +31,7 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
     String dataAccessor = PostgresUtils.prepareFieldDataAccessorExpr(expression.getName());
     if (type.equals(Type.NUMERIC)) {
       return PostgresUtils.prepareCast(dataAccessor, 1);
-    } else if (type.equals(Type.BOOL)) {
+    } else if (type.equals(Type.BOOLEAN)) {
       return PostgresUtils.prepareCast(dataAccessor, true);
     }
     return PostgresUtils.prepareCast(dataAccessor, "");
