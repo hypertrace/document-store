@@ -306,6 +306,22 @@ public class PostgresCollection implements Collection {
   @Override
   public CloseableIterator<Document> aggregate(
       final org.hypertrace.core.documentstore.query.Query query) {
+    org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
+        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(collectionName);
+    String sqlQuery = queryParser.parse(query);
+    try {
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
+      ResultSet resultSet = preparedStatement.executeQuery();
+      return new PostgresResultIterator(resultSet);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException querying documents. query: {}", query, e);
+    }
+    return EMPTY_ITERATOR;
+  }
+
+  @Override
+  public long count(org.hypertrace.core.documentstore.query.Query query) {
     throw new UnsupportedOperationException();
   }
 
@@ -379,6 +395,30 @@ public class PostgresCollection implements Collection {
       return true;
     } catch (SQLException e) {
       LOGGER.error("SQLException deleting document. key: {}", key, e);
+    }
+    return false;
+  }
+
+  @Override
+  public boolean delete(Filter filter) {
+    if (filter == null) {
+      throw new UnsupportedOperationException("Filter must be provided");
+    }
+    StringBuilder sqlBuilder = new StringBuilder("DELETE FROM ").append(collectionName);
+    Params.Builder paramsBuilder = Params.newBuilder();
+    String filters = PostgresQueryParser.parseFilter(filter, paramsBuilder);
+    LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
+    if (filters == null) {
+      throw new UnsupportedOperationException("Parsed filter is invalid");
+    }
+    sqlBuilder.append(" WHERE ").append(filters);
+    try {
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
+      int deletedCount = preparedStatement.executeUpdate();
+      return deletedCount > 0;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting documents. filter: {}", filter, e);
     }
     return false;
   }
@@ -666,7 +706,8 @@ public class PostgresCollection implements Collection {
 
   private String getUpsertSQL() {
     return String.format(
-        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = ?::jsonb ",
+        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = "
+            + "?::jsonb ",
         collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
