@@ -1603,6 +1603,44 @@ public class DocStoreTest {
         dataStoreName, resultDocs, 2, "mongo/test_selection_expression_result.json");
   }
 
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testQueryV1FunctionalSelectionExpressionWithNestedFieldWithAlias(String dataStoreName)
+      throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // query docs
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("props.brand"), "props_brand")
+            .addSelection(IdentifierExpression.of("props.seller.name"), "props_seller_name")
+            .addSelection(
+                FunctionExpression.builder()
+                    .operand(IdentifierExpression.of("price"))
+                    .operator(MULTIPLY)
+                    .operand(IdentifierExpression.of("quantity"))
+                    .build(),
+                "total")
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName,
+        resultDocs,
+        2,
+        "mongo/test_selection_expression_nested_fields_alias_result.json");
+  }
+
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(
       Collection collection, Operation operation, int numThreads, SingleValueKey documentKey) {
     List<CreateUpdateTestThread> threads = new ArrayList<CreateUpdateTestThread>();

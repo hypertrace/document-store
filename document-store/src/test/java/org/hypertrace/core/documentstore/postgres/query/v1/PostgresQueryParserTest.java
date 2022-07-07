@@ -173,4 +173,60 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     Assertions.assertEquals(0, params.getObjectParams().size());
   }
+
+  @Test
+  void testFunctionalSelectionExpressionWithNestedField() {
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("props.brand"))
+            .addSelection(IdentifierExpression.of("props.seller.name"))
+            .addSelection(
+                FunctionExpression.builder()
+                    .operand(IdentifierExpression.of("price"))
+                    .operator(MULTIPLY)
+                    .operand(IdentifierExpression.of("quantity"))
+                    .build(),
+                "total")
+            .build();
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
+    String sql = postgresQueryParser.parse(query);
+    Assertions.assertEquals(
+        "SELECT document->'item' AS item, document->'props'->'brand' AS props_dot_brand, "
+            + "document->'props'->'seller'->'name' AS props_dot_seller_dot_name, "
+            + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS total "
+            + "FROM testCollection",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(0, params.getObjectParams().size());
+  }
+
+  @Test
+  void testFunctionalSelectionExpressionWithNestedFieldWithAlias() {
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("props.brand"), "props_band")
+            .addSelection(IdentifierExpression.of("props.seller.name"), "props_seller_name")
+            .addSelection(
+                FunctionExpression.builder()
+                    .operand(IdentifierExpression.of("price"))
+                    .operator(MULTIPLY)
+                    .operand(IdentifierExpression.of("quantity"))
+                    .build(),
+                "total")
+            .build();
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
+    String sql = postgresQueryParser.parse(query);
+    Assertions.assertEquals(
+        "SELECT document->'item' AS item, document->'props'->'brand' AS props_band, "
+            + "document->'props'->'seller'->'name' AS props_seller_name, "
+            + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS total "
+            + "FROM testCollection",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(0, params.getObjectParams().size());
+  }
 }
