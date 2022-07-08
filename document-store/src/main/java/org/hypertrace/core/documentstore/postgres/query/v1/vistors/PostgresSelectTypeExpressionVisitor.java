@@ -53,7 +53,8 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
 
   public static String getSelections(final List<SelectionSpec> selectionSpecs) {
     PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor =
-        new PostgresFieldIdentifierExpressionVisitor(new PostgresFunctionExpressionVisitor());
+        new PostgresAggregateExpressionVisitor(
+            new PostgresFieldIdentifierExpressionVisitor(new PostgresFunctionExpressionVisitor()));
 
     // used for if alias is missing
     PostgresIdentifierExpressionVisitor identifierExpressionVisitor =

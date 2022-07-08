@@ -1,9 +1,16 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
@@ -37,6 +44,7 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
+import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -1639,6 +1647,46 @@ public class DocStoreTest {
         resultDocs,
         2,
         "mongo/test_selection_expression_nested_fields_alias_result.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testQueryV1AggregationExpression(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // Note : DISTINCT with group_by expression is not supported on SQL,
+    // So such query will return 0 results.
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), GT, ConstantExpression.of(5)))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(
+                AggregateExpression.of(AVG, IdentifierExpression.of("quantity")), "qty_avg")
+            .addSelection(
+                AggregateExpression.of(COUNT, IdentifierExpression.of("quantity")), "qty_count")
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_distinct_count")
+            .addSelection(
+                AggregateExpression.of(SUM, IdentifierExpression.of("quantity")), "qty_sum")
+            .addSelection(
+                AggregateExpression.of(MIN, IdentifierExpression.of("quantity")), "qty_min")
+            .addSelection(
+                AggregateExpression.of(MAX, IdentifierExpression.of("quantity")), "qty_max")
+            .addAggregation(IdentifierExpression.of("item"))
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 3, "mongo/test_aggregation_expression_result.json");
   }
 
   @ParameterizedTest

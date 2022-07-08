@@ -343,9 +343,10 @@ public class PostgresCollection implements Collection {
               : new PostgresResultIterator(resultSet);
       return closeableIterator;
     } catch (SQLException e) {
-      LOGGER.error("SQLException querying documents. query: {}", query, e);
+      LOGGER.error(
+          "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
+      throw new RuntimeException(e);
     }
-    return EMPTY_ITERATOR;
   }
 
   @VisibleForTesting

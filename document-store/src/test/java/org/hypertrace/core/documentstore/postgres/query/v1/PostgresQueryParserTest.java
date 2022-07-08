@@ -1,12 +1,21 @@
 package org.hypertrace.core.documentstore.postgres.query.v1;
 
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 
+import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -228,5 +237,66 @@ public class PostgresQueryParserTest {
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     Assertions.assertEquals(0, params.getObjectParams().size());
+  }
+
+  @Test
+  void testAggregationExpression() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(
+                AggregateExpression.of(AVG, IdentifierExpression.of("quantity")), "qty_avg")
+            .addSelection(
+                AggregateExpression.of(COUNT, IdentifierExpression.of("quantity")), "qty_count")
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_distinct_count")
+            .addSelection(
+                AggregateExpression.of(SUM, IdentifierExpression.of("quantity")), "qty_sum")
+            .addSelection(
+                AggregateExpression.of(MIN, IdentifierExpression.of("quantity")), "qty_min")
+            .addSelection(
+                AggregateExpression.of(MAX, IdentifierExpression.of("quantity")), "qty_max")
+            .addAggregation(IdentifierExpression.of("item"))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
+    String sql = postgresQueryParser.parse(query);
+    Assertions.assertEquals(
+        "SELECT document->'item' AS item, "
+            + "AVG( CAST (document->>'quantity' AS NUMERIC) ) AS qty_avg, "
+            + "COUNT( CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
+            + "COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_distinct_count, "
+            + "SUM( CAST (document->>'quantity' AS NUMERIC) ) AS qty_sum, "
+            + "MIN( CAST (document->>'quantity' AS NUMERIC) ) AS qty_min, "
+            + "MAX( CAST (document->>'quantity' AS NUMERIC) ) AS qty_max "
+            + "FROM testCollection WHERE CAST (document->>'price' AS NUMERIC) = ? "
+            + "GROUP BY document->'item'",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(1, params.getObjectParams().size());
+    Assertions.assertEquals(10, params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testAggregationExpressionDistinctCount() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
+            .addSelection(
+                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")),
+                "qty_distinct")
+            .addAggregation(IdentifierExpression.of("item"))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
+    Assertions.assertThrows(
+        UnsupportedOperationException.class, () -> postgresQueryParser.parse(query));
   }
 }

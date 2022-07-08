@@ -20,6 +20,13 @@ public class PostgresAggregateExpressionVisitor extends PostgresSelectTypeExpres
                 new PostgresConstantExpressionVisitor(this)));
 
     String value = expression.getExpression().accept(selectTypeExpressionVisitor);
-    return value != null ? String.format("%s( %s )", operator, value) : null;
+    return value != null ? convertToAggregationFunction(operator, value) : null;
+  }
+
+  private String convertToAggregationFunction(AggregationOperator operator, String value) {
+    if (operator.equals(AggregationOperator.DISTINCT_COUNT)) {
+      return String.format("COUNT(DISTINCT %s )", value);
+    }
+    return String.format("%s( %s )", operator, value);
   }
 }
