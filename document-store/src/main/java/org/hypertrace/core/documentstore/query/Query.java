@@ -125,7 +125,9 @@ public class Query {
     }
 
     public QueryBuilder setSelections(final List<SelectionSpec> selectionSpecs) {
-      if (CollectionUtils.isNotEmpty(selectionSpecs)) {
+      if (CollectionUtils.isEmpty(selectionSpecs)) {
+        this.selectionBuilder = null;
+      } else {
         getSelectionBuilder().clearSelectionSpecs();
       }
 
@@ -170,9 +172,12 @@ public class Query {
     }
 
     public QueryBuilder setAggregations(final List<GroupTypeExpression> expressions) {
-      if (CollectionUtils.isNotEmpty(expressions)) {
+      if (CollectionUtils.isEmpty(expressions)) {
+        this.aggregationBuilder = null;
+      } else {
         getAggregationBuilder().clearExpressions();
       }
+
       return addAggregations(expressions);
     }
 
@@ -204,9 +209,12 @@ public class Query {
     }
 
     public QueryBuilder setSorts(final List<SortingSpec> specs) {
-      if (CollectionUtils.isNotEmpty(specs)) {
+      if (CollectionUtils.isEmpty(specs)) {
+        this.sortBuilder = null;
+      } else {
         getSortBuilder().clearSortingSpecs();
       }
+
       return addSorts(specs);
     }
 
@@ -233,9 +241,12 @@ public class Query {
     }
 
     public QueryBuilder setFromClauses(final List<FromTypeExpression> expressions) {
-      if (CollectionUtils.isNotEmpty(expressions)) {
+      if (CollectionUtils.isEmpty(expressions)) {
+        this.fromClauseBuilder = null;
+      } else {
         getFromClauseBuilder().clearFromTypeExpressions();
       }
+
       return addFromClauses(expressions);
     }
 
