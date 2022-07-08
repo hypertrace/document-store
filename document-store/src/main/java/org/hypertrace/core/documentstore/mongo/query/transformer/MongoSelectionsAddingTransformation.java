@@ -84,8 +84,9 @@ final class MongoSelectionsAddingTransformation implements SelectTypeExpressionV
     final SelectTypeExpression pairingExpression;
 
     if (expression.getAggregator() == DISTINCT_COUNT || expression.getAggregator() == COUNT) {
-      // Since MongoDB doesn't support $distinctCount in aggregations, we convert this to
-      // $addToSet function. So, we need to project $size(set) instead of just the alias
+      // Since MongoDB doesn't support $distinctCount and $count(optional_field) in aggregations,
+      // we convert them to $addToSet and $push functions respectively.
+      // So, we need to project $size(set) or $size(list) instead of just the alias in these cases.
       pairingExpression =
           FunctionExpression.builder()
               .operator(LENGTH)
