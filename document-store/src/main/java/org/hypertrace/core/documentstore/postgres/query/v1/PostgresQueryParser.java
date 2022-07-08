@@ -47,7 +47,6 @@ public class PostgresQueryParser {
     // group by
     Optional<String> groupBy = parseGroupBy(query);
     if (groupBy.isPresent()) {
-      // add selection
       sqlBuilder.append(String.format(" GROUP BY %s", groupBy.get()));
     }
 

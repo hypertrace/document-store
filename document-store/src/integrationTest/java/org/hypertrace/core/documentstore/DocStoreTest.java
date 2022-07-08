@@ -1660,8 +1660,6 @@ public class DocStoreTest {
     boolean result = collection.bulkUpsert(documents);
     Assertions.assertTrue(result);
 
-    // Note : DISTINCT with group_by expression is not supported on SQL,
-    // So such query will return 0 results.
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .setFilter(
