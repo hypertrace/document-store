@@ -3,11 +3,18 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 import java.util.Objects;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
+import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 
+@NoArgsConstructor
 public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpressionVisitor {
+
+  public PostgresFunctionExpressionVisitor(PostgresSelectTypeExpressionVisitor baseVisitor) {
+    super(baseVisitor);
+  }
+
   @Override
   public String visit(final FunctionExpression expression) {
     int numArgs = expression.getOperands().size();
