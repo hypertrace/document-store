@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.postgres;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
@@ -9,10 +9,12 @@ import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +22,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
+import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
@@ -33,6 +36,7 @@ import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -130,7 +134,36 @@ public class PostgresCollection implements Collection {
 
   @Override
   public BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception {
-    throw new UnsupportedOperationException();
+
+    List<BulkUpdateRequest> requestsWithFilter =
+        bulkUpdateRequests.stream()
+            .filter(req -> req.getFilter() != null)
+            .collect(Collectors.toList());
+
+    List<BulkUpdateRequest> requestsWithoutFilter =
+        bulkUpdateRequests.stream()
+            .filter(req -> req.getFilter() == null)
+            .collect(Collectors.toList());
+
+    try {
+      long totalUpdateCountA = bulkUpdateRequestsWithFilter(requestsWithFilter);
+
+      long totalUpdateCountB = bulkUpdateRequestsWithoutFilter(requestsWithoutFilter);
+
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug(
+            "Write results for whole bulkUpdate {}", totalUpdateCountA + totalUpdateCountB);
+      }
+
+      return new BulkUpdateResult(totalUpdateCountA + totalUpdateCountB);
+
+    } catch (IOException e) {
+      LOGGER.error(
+          "Exception while executing bulk update, total docs updated {}",
+          e.getMessage(),
+          e.getCause());
+      throw e;
+    }
   }
 
   /**
@@ -281,11 +314,21 @@ public class PostgresCollection implements Collection {
   @Override
   public CloseableIterator<Document> find(
       final org.hypertrace.core.documentstore.query.Query query) {
-    throw new UnsupportedOperationException();
+    return executeQueryV1(query);
   }
 
   @Override
   public CloseableIterator<Document> aggregate(
+      final org.hypertrace.core.documentstore.query.Query query) {
+    return executeQueryV1(query);
+  }
+
+  @Override
+  public long count(org.hypertrace.core.documentstore.query.Query query) {
+    throw new UnsupportedOperationException();
+  }
+
+  private CloseableIterator<Document> executeQueryV1(
       final org.hypertrace.core.documentstore.query.Query query) {
     org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(collectionName);
@@ -294,22 +337,28 @@ public class PostgresCollection implements Collection {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
       ResultSet resultSet = preparedStatement.executeQuery();
-      return new PostgresResultIterator(resultSet);
+      CloseableIterator closeableIterator =
+          query.getSelections().size() > 0
+              ? new PostgresResultIteratorWithMetaData(resultSet)
+              : new PostgresResultIterator(resultSet);
+      return closeableIterator;
     } catch (SQLException e) {
       LOGGER.error("SQLException querying documents. query: {}", query, e);
     }
     return EMPTY_ITERATOR;
   }
 
-  @Override
-  public long count(org.hypertrace.core.documentstore.query.Query query) {
-    throw new UnsupportedOperationException();
-  }
-
   @VisibleForTesting
   protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
       throws SQLException, RuntimeException {
     PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
+    enrichPreparedStatementWithParams(preparedStatement, params);
+    return preparedStatement;
+  }
+
+  @VisibleForTesting
+  protected void enrichPreparedStatementWithParams(
+      PreparedStatement preparedStatement, Params params) throws RuntimeException {
     params
         .getObjectParams()
         .forEach(
@@ -324,7 +373,6 @@ public class PostgresCollection implements Collection {
                 LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
               }
             });
-    return preparedStatement;
   }
 
   private boolean isValidType(Object v) {
@@ -533,6 +581,89 @@ public class PostgresCollection implements Collection {
     }
   }
 
+  private long bulkUpdateRequestsWithFilter(List<BulkUpdateRequest> requests) throws IOException {
+    // Note: We cannot batch statements as the filter clause can be difference for each request. So
+    // we need one PreparedStatement for each request. We try to update the batch on a best-effort
+    // basis. That is, if any update fails, then we still try the other ones.
+    long totalRowsUpdated = 0;
+    Exception sampleException = null;
+
+    for (BulkUpdateRequest request : requests) {
+      Key key = request.getKey();
+      Document document = request.getDocument();
+      Filter filter = request.getFilter();
+
+      try {
+        totalRowsUpdated += update(key, document, filter).getUpdatedCount();
+      } catch (IOException e) {
+        sampleException = e;
+        LOGGER.error("SQLException updating document. key: {} content: {}", key, document, e);
+      }
+    }
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Write result for bulkUpdateWithoutFilter {}", totalRowsUpdated);
+    }
+    if (sampleException != null) {
+      throw new IOException(String.valueOf(totalRowsUpdated), sampleException);
+    }
+    return totalRowsUpdated;
+  }
+
+  private long bulkUpdateRequestsWithoutFilter(List<BulkUpdateRequest> requestsWithoutFilter)
+      throws IOException {
+    // We can batch all requests here since the query is the same.
+    long totalRowsUpdated = 0;
+    try {
+
+      PreparedStatement ps = client.prepareStatement(getUpdateSQL());
+
+      for (BulkUpdateRequest req : requestsWithoutFilter) {
+        Key key = req.getKey();
+        Document document = req.getDocument();
+
+        String jsonString = prepareDocument(key, document);
+        Params.Builder paramsBuilder = Params.newBuilder();
+        paramsBuilder.addObjectParam(key.toString());
+        paramsBuilder.addObjectParam(jsonString);
+
+        enrichPreparedStatementWithParams(ps, paramsBuilder.build());
+
+        ps.addBatch();
+      }
+
+      int[] updateCounts = ps.executeBatch();
+
+      totalRowsUpdated = Arrays.stream(updateCounts).filter(updateCount -> updateCount >= 0).sum();
+
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", totalRowsUpdated);
+      }
+
+      return totalRowsUpdated;
+
+    } catch (BatchUpdateException e) {
+      totalRowsUpdated =
+          Arrays.stream(e.getUpdateCounts()).filter(updateCount -> updateCount >= 0).sum();
+      LOGGER.error(
+          "BatchUpdateException while executing batch. Total rows updated: {}",
+          totalRowsUpdated,
+          e);
+      throw new IOException(String.valueOf(totalRowsUpdated), e);
+
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+      throw new IOException(String.valueOf(totalRowsUpdated), e);
+
+    } catch (IOException e) {
+      LOGGER.error("IOException during bulk update requests without filter", e);
+      throw new IOException(String.valueOf(totalRowsUpdated), e);
+    }
+  }
+
   @Override
   public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
@@ -614,10 +745,10 @@ public class PostgresCollection implements Collection {
 
   static class PostgresResultIterator implements CloseableIterator {
 
-    private final ObjectMapper MAPPER = new ObjectMapper();
-    private ResultSet resultSet;
-    private boolean cursorMovedForward = false;
-    private boolean hasNext = false;
+    protected final ObjectMapper MAPPER = new ObjectMapper();
+    protected ResultSet resultSet;
+    protected boolean cursorMovedForward = false;
+    protected boolean hasNext = false;
 
     public PostgresResultIterator(ResultSet resultSet) {
       this.resultSet = resultSet;
@@ -651,7 +782,7 @@ public class PostgresCollection implements Collection {
       }
     }
 
-    private Document prepareDocument() throws SQLException, JsonProcessingException, IOException {
+    protected Document prepareDocument() throws SQLException, IOException {
       String documentString = resultSet.getString(DOCUMENT);
       ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
       jsonNode.remove(DOCUMENT_ID);
@@ -664,22 +795,56 @@ public class PostgresCollection implements Collection {
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
     }
 
-    private String prepareNumericBlock(String fieldName, Object value) {
-      if (value instanceof Number) {
-        String fmt = "case jsonb_typeof(%s)\n" + "WHEN ‘number’ THEN (%s)::numeric > ?\n" + "end";
-      } else if (value instanceof Boolean) {
-        String fmtBoolean =
-            "case jsonb_typeof(<field>)\n"
-                + "WHEN 'boolean'  THEN (<field>)::boolean  > ?\n"
-                + "end";
-      }
-      return null;
-    }
-
     @SneakyThrows
     @Override
     public void close() {
       resultSet.close();
+    }
+  }
+
+  static class PostgresResultIteratorWithMetaData extends PostgresResultIterator {
+
+    public PostgresResultIteratorWithMetaData(ResultSet resultSet) {
+      super(resultSet);
+    }
+
+    @Override
+    protected Document prepareDocument() throws SQLException, IOException {
+      ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+      int columnCount = resultSetMetaData.getColumnCount();
+      Map<String, Object> jsonNode = new HashMap();
+      for (int i = 1; i <= columnCount; i++) {
+        String columnName = resultSetMetaData.getColumnName(i);
+        String columnValue = resultSet.getString(i);
+        if (StringUtils.isNotEmpty(columnValue)) {
+          JsonNode leafNodeValue = MAPPER.readTree(columnValue);
+          if (PostgresUtils.isEncodedNestedField(columnName)) {
+            handleNestedField(
+                PostgresUtils.decodeAliasForNestedField(columnName), jsonNode, leafNodeValue);
+          } else {
+            jsonNode.put(columnName, leafNodeValue);
+          }
+        }
+      }
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+    }
+
+    private void handleNestedField(
+        String columnName, Map<String, Object> rootNode, JsonNode leafNodeValue) {
+      List<String> keys = PostgresUtils.splitNestedField(columnName);
+      // find the leaf node or create one for adding property value
+      Map<String, Object> curNode = rootNode;
+      for (int l = 0; l < keys.size() - 1; l++) {
+        String key = keys.get(l);
+        Map<String, Object> node = (Map<String, Object>) curNode.get(key);
+        if (node == null) {
+          node = new HashMap<>();
+          curNode.put(key, node);
+        }
+        curNode = node;
+      }
+      String leafKey = keys.get(keys.size() - 1);
+      curNode.put(leafKey, leafNodeValue);
     }
   }
 

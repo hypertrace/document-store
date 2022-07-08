@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
@@ -37,6 +38,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -1565,6 +1567,152 @@ public class DocStoreTest {
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertSizeAndDocsEqual(
         dataStoreName, resultDocs, 6, "mongo/filter_with_logical_and_or_operator.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testQueryV1ForSelectionExpression(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // query docs
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("props.brand"))
+            .addSelection(IdentifierExpression.of("props.seller.name"))
+            .addSelection(
+                FunctionExpression.builder()
+                    .operand(IdentifierExpression.of("price"))
+                    .operator(MULTIPLY)
+                    .operand(IdentifierExpression.of("quantity"))
+                    .build(),
+                "total")
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 2, "mongo/test_selection_expression_result.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testQueryV1FunctionalSelectionExpressionWithNestedFieldWithAlias(String dataStoreName)
+      throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // query docs
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("props.brand"), "props_brand")
+            .addSelection(IdentifierExpression.of("props.seller.name"), "props_seller_name")
+            .addSelection(
+                FunctionExpression.builder()
+                    .operand(IdentifierExpression.of("price"))
+                    .operator(MULTIPLY)
+                    .operand(IdentifierExpression.of("quantity"))
+                    .build(),
+                "total")
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName,
+        resultDocs,
+        2,
+        "mongo/test_selection_expression_nested_fields_alias_result.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void whenBulkUpdatingNonExistentRecords_thenExpectNothingToBeUpdatedOrCreated(
+      String datastoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(datastoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+    objectNode.put("foo1", "bar1");
+    objectNode.put("timestamp", 100);
+
+    List<BulkUpdateRequest> toUpdate = new ArrayList<>();
+    toUpdate.add(
+        new BulkUpdateRequest(
+            new SingleValueKey("tenant-1", "testKey1"),
+            new JSONDocument(objectNode),
+            new Filter(Op.LT, "timestamp", 100)));
+    toUpdate.add(
+        new BulkUpdateRequest(
+            new SingleValueKey("tenant-1", "testKey2"),
+            new JSONDocument(objectNode),
+            new Filter(Op.LT, "timestamp", 100)));
+
+    BulkUpdateResult result = collection.bulkUpdate(toUpdate);
+    Assertions.assertEquals(0, result.getUpdatedCount());
+
+    Query query = new Query();
+    query.setFilter(
+        new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
+    Iterator<Document> it = collection.search(query);
+    assertFalse(it.hasNext());
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void whenBulkUpdatingExistingRecords_thenExpectOnlyRecordsWhoseConditionsMatchToBeUpdated(
+      String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    ObjectNode persistedObject = OBJECT_MAPPER.createObjectNode();
+    persistedObject.put("foo1", "bar1");
+    persistedObject.put("timestamp", 90);
+
+    collection.create(
+        new SingleValueKey("tenant-1", "testKey1"), new JSONDocument(persistedObject));
+
+    ObjectNode updatedObject = OBJECT_MAPPER.createObjectNode();
+    updatedObject.put("foo1", "bar1");
+    updatedObject.put("timestamp", 110);
+
+    List<BulkUpdateRequest> toUpdate = new ArrayList<>();
+    toUpdate.add(
+        new BulkUpdateRequest(
+            new SingleValueKey("tenant-1", "testKey1"),
+            new JSONDocument(updatedObject),
+            new Filter(Op.LT, "timestamp", 100)));
+
+    toUpdate.add(
+        new BulkUpdateRequest(
+            new SingleValueKey("tenant-1", "testKey2"),
+            new JSONDocument(updatedObject),
+            new Filter(Op.LT, "timestamp", 100)));
+
+    BulkUpdateResult result = collection.bulkUpdate(toUpdate);
+    Assertions.assertEquals(1, result.getUpdatedCount());
+
+    Query query = new Query();
+    query.setFilter(
+        new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
+    Iterator<Document> it = collection.search(query);
+    JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
+    Long timestamp = root.findValue("timestamp").asLong();
+    Assertions.assertEquals(110, timestamp);
   }
 
   private Map<String, List<CreateUpdateTestThread>> executeCreateUpdateThreads(

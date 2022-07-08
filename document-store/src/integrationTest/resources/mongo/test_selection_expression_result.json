@@ -1,0 +1,16 @@
+[
+  {
+    "item": "Soap",
+    "total": 20,
+    "props": {
+      "brand": "Dettol",
+      "seller": {
+        "name": "Metro Chemicals Pvt. Ltd."
+      }
+    }
+  },
+  {
+    "item": "Soap",
+    "total": 50
+  }
+]
