@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo.parser;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
@@ -26,6 +27,7 @@ final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionPars
               put(SUM, "$sum");
               put(MIN, "$min");
               put(MAX, "$max");
+              put(COUNT, "$push");
             }
           });
 

@@ -1,18 +1,18 @@
 package org.hypertrace.core.documentstore.mongo.query.transformer;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
-import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
 
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
@@ -72,9 +72,6 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
  * supported
  */
 final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressionVisitor {
-  private static final Function<AggregateExpression, AggregateExpression> COUNT_HANDLER =
-      expression -> AggregateExpression.of(SUM, ConstantExpression.of(1));
-
   private static final Function<AggregateExpression, AggregateExpression> DISTINCT_COUNT_HANDLER =
       expression -> AggregateExpression.of(DISTINCT, expression.getExpression());
 
@@ -84,16 +81,15 @@ final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressio
               new EnumMap<>(AggregationOperator.class) {
                 {
                   put(DISTINCT_COUNT, DISTINCT_COUNT_HANDLER);
-                  put(COUNT, COUNT_HANDLER);
                 }
               });
 
-  private final List<GroupTypeExpression> groupTypeExpressions;
+  private final Set<GroupTypeExpression> groupTypeExpressions;
   private final SelectionSpec source;
 
   MongoSelectionsUpdatingTransformation(
       List<GroupTypeExpression> groupTypeExpressions, SelectionSpec source) {
-    this.groupTypeExpressions = groupTypeExpressions;
+    this.groupTypeExpressions = new HashSet<>(groupTypeExpressions);
     this.source = source;
   }
 
@@ -118,16 +114,7 @@ final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressio
   @SuppressWarnings("unchecked")
   @Override
   public SelectionSpec visit(final IdentifierExpression expression) {
-    GroupTypeExpression matchingGroup = null;
-
-    for (final GroupTypeExpression group : groupTypeExpressions) {
-      if (expression.equals(group)) {
-        matchingGroup = group;
-        break;
-      }
-    }
-
-    if (matchingGroup == null) {
+    if (!groupTypeExpressions.contains(expression)) {
       return source;
     }
 

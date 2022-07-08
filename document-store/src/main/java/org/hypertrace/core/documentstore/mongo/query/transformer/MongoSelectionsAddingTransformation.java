@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.query.transformer;
 
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
@@ -82,9 +83,10 @@ final class MongoSelectionsAddingTransformation implements SelectTypeExpressionV
     final String encodedAlias = encodeKey(alias);
     final SelectTypeExpression pairingExpression;
 
-    if (expression.getAggregator() == DISTINCT_COUNT) {
-      // Since MongoDB doesn't support $distinctCount in aggregations, we convert this to
-      // $addToSet function. So, we need to project $size(set) instead of just the alias
+    if (expression.getAggregator() == DISTINCT_COUNT || expression.getAggregator() == COUNT) {
+      // Since MongoDB doesn't support $distinctCount and $count(optional_field) in aggregations,
+      // we convert them to $addToSet and $push functions respectively.
+      // So, we need to project $size(set) or $size(list) instead of just the alias in these cases.
       pairingExpression =
           FunctionExpression.builder()
               .operator(LENGTH)
