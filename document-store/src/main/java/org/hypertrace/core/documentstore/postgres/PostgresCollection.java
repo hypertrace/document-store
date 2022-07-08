@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
+import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
@@ -263,8 +264,43 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) {
-    throw new UnsupportedOperationException();
+  public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request)
+      throws IOException {
+    Operation operation = request.getOperation();
+    String jsonSubDocPath = getJsonSubDocPath(request.getSubDocPath());
+    if (operation == Operation.ADD) {
+      int totalUpdates = 0;
+      String updateSubDocSQL =
+          String.format(
+              "UPDATE %s SET %s=jsonb_insert(%s, ?::text[], ?::jsonb) WHERE %s=?",
+              collectionName, DOCUMENT, DOCUMENT, ID);
+      try(PreparedStatement preparedStatement =
+          client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+        for(Key key : request.getKeys()) {
+          for (Document subDoc : request.getSubDocuments()) {
+            preparedStatement.setString(1, jsonSubDocPath);
+            preparedStatement.setString(2, subDoc.toJson());
+            preparedStatement.setString(3, key.toString());
+            preparedStatement.addBatch();
+          }
+        }
+        int[] res = preparedStatement.executeBatch();
+
+        totalUpdates = Arrays.stream(res).sum();
+
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Write results, total updates: {}", totalUpdates);
+        }
+
+        return new BulkUpdateResult(totalUpdates);
+      } catch (BatchUpdateException e) {
+        totalUpdates = Arrays.stream(e.getUpdateCounts()).filter(count -> count >= 0).sum();
+        throw new IOException("Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+      } catch (SQLException e) {
+        throw new IOException("Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+      }
+    }
+    return null;
   }
 
   @Override

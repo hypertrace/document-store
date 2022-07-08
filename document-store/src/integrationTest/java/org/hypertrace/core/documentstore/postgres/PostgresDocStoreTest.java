@@ -1,5 +1,11 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.ADD;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
@@ -10,7 +16,13 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
+import java.util.stream.Collectors;
+import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
+import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
@@ -38,6 +50,8 @@ public class PostgresDocStoreTest {
   private static GenericContainer<?> postgres;
   private static Datastore datastore;
   private static String connectionUrl;
+
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @BeforeAll
   public static void init() {
@@ -161,5 +175,74 @@ public class PostgresDocStoreTest {
     Assertions.assertTrue(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
     collection.drop();
     Assertions.assertFalse(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
+  }
+
+  @Test
+  public void test_bulkOperationOnArrayValue_addOperation() throws Exception {
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1),
+            "attributes.labels.valueList.values",
+            ADD,
+            subDocuments);
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+    assertEquals(1, bulkUpdateResult.getUpdatedCount());
+  }
+
+  private Map<String, JsonNode> convertToMap(java.util.Collection<Document> docs, String key) {
+    return docs.stream()
+        .map(
+            d -> {
+              try {
+                return OBJECT_MAPPER.reader().readTree(d.toJson());
+              } catch (JsonProcessingException e) {
+                e.printStackTrace();
+              }
+              return null;
+            })
+        .filter(Objects::nonNull)
+        .collect(Collectors.toMap(d -> d.get(key).asText(), d -> d));
   }
 }
