@@ -3,10 +3,10 @@ package org.hypertrace.core.documentstore.postgres.query.v1;
 import java.util.List;
 import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresGroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -45,7 +45,7 @@ public class PostgresQueryParser {
     }
 
     // group by
-    Optional<String> groupBy = parseGroupBy(query.getAggregations());
+    Optional<String> groupBy = parseGroupBy(query);
     if (groupBy.isPresent()) {
       sqlBuilder.append(String.format(" GROUP BY %s", groupBy.get()));
     }
@@ -80,11 +80,8 @@ public class PostgresQueryParser {
         expression -> expression.accept(new PostgresFilterTypeExpressionVisitor(this)));
   }
 
-  private Optional<String> parseGroupBy(List<GroupTypeExpression> groupTypeExpressionList) {
-    if (groupTypeExpressionList.size() > 0) {
-      throw new UnsupportedOperationException(String.format(NOT_YET_SUPPORTED, "group by clause"));
-    }
-    return Optional.empty();
+  private Optional<String> parseGroupBy(Query query) {
+    return Optional.ofNullable(PostgresGroupTypeExpressionVisitor.getGroupByClause(query));
   }
 
   private Optional<String> parseHaving(Optional<FilterTypeExpression> filterTypeExpression) {

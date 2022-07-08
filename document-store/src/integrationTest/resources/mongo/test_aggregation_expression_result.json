@@ -1,0 +1,29 @@
+[
+  {
+    "qty_min":1,
+    "qty_avg":1.0,
+    "item":"Mirror",
+    "qty_max":1,
+    "qty_count":1,
+    "qty_distinct_count":1,
+    "qty_sum":1
+  },
+  {
+    "qty_min":5,
+    "qty_avg":7.5,
+    "item":"Comb",
+    "qty_max":10,
+    "qty_count":2,
+    "qty_distinct_count":2,
+    "qty_sum":15
+  },
+  {
+    "qty_min":2,
+    "qty_avg":4.0,
+    "item":"Soap",
+    "qty_max":5,
+    "qty_count":3,
+    "qty_distinct_count":2,
+    "qty_sum":12
+  }
+]
