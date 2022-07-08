@@ -134,7 +134,36 @@ public class PostgresCollection implements Collection {
 
   @Override
   public BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) throws Exception {
-    throw new UnsupportedOperationException();
+
+    List<BulkUpdateRequest> requestsWithFilter =
+        bulkUpdateRequests.stream()
+            .filter(req -> req.getFilter() != null)
+            .collect(Collectors.toList());
+
+    List<BulkUpdateRequest> requestsWithoutFilter =
+        bulkUpdateRequests.stream()
+            .filter(req -> req.getFilter() == null)
+            .collect(Collectors.toList());
+
+    try {
+      long totalUpdateCountA = bulkUpdateRequestsWithFilter(requestsWithFilter);
+
+      long totalUpdateCountB = bulkUpdateRequestsWithoutFilter(requestsWithoutFilter);
+
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug(
+            "Write results for whole bulkUpdate {}", totalUpdateCountA + totalUpdateCountB);
+      }
+
+      return new BulkUpdateResult(totalUpdateCountA + totalUpdateCountB);
+
+    } catch (IOException e) {
+      LOGGER.error(
+          "Exception while executing bulk update, total docs updated {}",
+          e.getMessage(),
+          e.getCause());
+      throw e;
+    }
   }
 
   /**
@@ -323,6 +352,13 @@ public class PostgresCollection implements Collection {
   protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
       throws SQLException, RuntimeException {
     PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
+    enrichPreparedStatementWithParams(preparedStatement, params);
+    return preparedStatement;
+  }
+
+  @VisibleForTesting
+  protected void enrichPreparedStatementWithParams(
+      PreparedStatement preparedStatement, Params params) throws RuntimeException {
     params
         .getObjectParams()
         .forEach(
@@ -337,7 +373,6 @@ public class PostgresCollection implements Collection {
                 LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
               }
             });
-    return preparedStatement;
   }
 
   private boolean isValidType(Object v) {
@@ -543,6 +578,89 @@ public class PostgresCollection implements Collection {
       }
 
       return preparedStatement.executeBatch();
+    }
+  }
+
+  private long bulkUpdateRequestsWithFilter(List<BulkUpdateRequest> requests) throws IOException {
+    // Note: We cannot batch statements as the filter clause can be difference for each request. So
+    // we need one PreparedStatement for each request. We try to update the batch on a best-effort
+    // basis. That is, if any update fails, then we still try the other ones.
+    long totalRowsUpdated = 0;
+    Exception sampleException = null;
+
+    for (BulkUpdateRequest request : requests) {
+      Key key = request.getKey();
+      Document document = request.getDocument();
+      Filter filter = request.getFilter();
+
+      try {
+        totalRowsUpdated += update(key, document, filter).getUpdatedCount();
+      } catch (IOException e) {
+        sampleException = e;
+        LOGGER.error("SQLException updating document. key: {} content: {}", key, document, e);
+      }
+    }
+    if (LOGGER.isDebugEnabled()) {
+      LOGGER.debug("Write result for bulkUpdateWithoutFilter {}", totalRowsUpdated);
+    }
+    if (sampleException != null) {
+      throw new IOException(String.valueOf(totalRowsUpdated), sampleException);
+    }
+    return totalRowsUpdated;
+  }
+
+  private long bulkUpdateRequestsWithoutFilter(List<BulkUpdateRequest> requestsWithoutFilter)
+      throws IOException {
+    // We can batch all requests here since the query is the same.
+    long totalRowsUpdated = 0;
+    try {
+
+      PreparedStatement ps = client.prepareStatement(getUpdateSQL());
+
+      for (BulkUpdateRequest req : requestsWithoutFilter) {
+        Key key = req.getKey();
+        Document document = req.getDocument();
+
+        String jsonString = prepareDocument(key, document);
+        Params.Builder paramsBuilder = Params.newBuilder();
+        paramsBuilder.addObjectParam(key.toString());
+        paramsBuilder.addObjectParam(jsonString);
+
+        enrichPreparedStatementWithParams(ps, paramsBuilder.build());
+
+        ps.addBatch();
+      }
+
+      int[] updateCounts = ps.executeBatch();
+
+      totalRowsUpdated = Arrays.stream(updateCounts).filter(updateCount -> updateCount >= 0).sum();
+
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", totalRowsUpdated);
+      }
+
+      return totalRowsUpdated;
+
+    } catch (BatchUpdateException e) {
+      totalRowsUpdated =
+          Arrays.stream(e.getUpdateCounts()).filter(updateCount -> updateCount >= 0).sum();
+      LOGGER.error(
+          "BatchUpdateException while executing batch. Total rows updated: {}",
+          totalRowsUpdated,
+          e);
+      throw new IOException(String.valueOf(totalRowsUpdated), e);
+
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+      throw new IOException(String.valueOf(totalRowsUpdated), e);
+
+    } catch (IOException e) {
+      LOGGER.error("IOException during bulk update requests without filter", e);
+      throw new IOException(String.valueOf(totalRowsUpdated), e);
     }
   }
 
