@@ -311,11 +311,37 @@ class MongoQueryExecutorTest {
                     + "   { "
                     + "     _id: null, "
                     + "     total: {"
-                    + "       \"$sum\": 1"
+                    + "       \"$push\": 1"
                     + "     }"
                     + "   }"
                     + "}"),
-            BasicDBObject.parse("{" + "\"$project\": {" + "    \"total\": \"$total\"" + "}" + "}"));
+            BasicDBObject.parse(
+                "{" + "\"$project\": {" + "    \"total\": {\"$size\": \"$total\"}" + "}" + "}"));
+
+    testAggregation(query, pipeline);
+  }
+
+  @Test
+  public void testFieldCount() {
+    Query query =
+        Query.builder()
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("path")), "total")
+            .build();
+
+    List<BasicDBObject> pipeline =
+        List.of(
+            BasicDBObject.parse(
+                "{"
+                    + "\"$group\": "
+                    + "   { "
+                    + "     _id: null, "
+                    + "     total: {"
+                    + "       \"$push\": \"$path\""
+                    + "     }"
+                    + "   }"
+                    + "}"),
+            BasicDBObject.parse(
+                "{" + "\"$project\": {" + "    \"total\": { \"$size\": \"$total\" }" + "}" + "}"));
 
     testAggregation(query, pipeline);
   }
@@ -339,7 +365,7 @@ class MongoQueryExecutorTest {
                     + "   { "
                     + "     _id: null, "
                     + "     total: {"
-                    + "       \"$sum\": 1"
+                    + "       \"$push\": 1"
                     + "     }"
                     + "   }"
                     + "}"),
@@ -348,7 +374,7 @@ class MongoQueryExecutorTest {
                     + "\"$project\": "
                     + "   {"
                     + "     name: 1,"
-                    + "     total: \"$total\""
+                    + "     total: {\"$size\": \"$total\"}"
                     + "   }"
                     + "}"));
 

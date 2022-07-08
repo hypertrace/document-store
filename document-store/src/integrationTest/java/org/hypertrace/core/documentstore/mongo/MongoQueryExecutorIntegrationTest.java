@@ -309,6 +309,20 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
+  public void testOptionalFieldCount() throws IOException {
+    Query query =
+        Query.builder()
+            .addSelection(
+                AggregateExpression.of(COUNT, IdentifierExpression.of("props.seller.name")),
+                "count")
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsEqual(resultDocs, "mongo/optional_field_count_response.json");
+    assertSizeEqual(query, "mongo/optional_field_count_response.json");
+  }
+
+  @Test
   public void testAggregateWithDuplicateSelections() throws IOException {
     Query query =
         Query.builder()
