@@ -43,7 +43,9 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Provides {@link Collection} implementation on Postgres using jsonb format */
+/**
+ * Provides {@link Collection} implementation on Postgres using jsonb format
+ */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -116,7 +118,9 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /** create a new document if one doesn't exists with key */
+  /**
+   * create a new document if one doesn't exists with key
+   */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -271,166 +275,97 @@ public class PostgresCollection implements Collection {
     Operation operation = request.getOperation();
     int totalUpdates = 0;
     String jsonSubDocPath = getJsonSubDocPath(request.getSubDocPath());
-    if (operation == Operation.ADD) {
-      // total rows updated
-      StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
-      String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
-      String nestingClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
-      for (int i = 0; i < request.getSubDocuments().size() - 1; i++) {
-        finalClause = String.format(finalClause, nestingClause);
+    switch (operation) {
+      case ADD:
+        return addImpl(request, totalUpdates, jsonSubDocPath);
+      case SET:
+        return setImpl(request, totalUpdates, jsonSubDocPath);
+      case REMOVE:
+      default:
+        throw new UnsupportedOperationException("Operartion not supported yet!");
+    }
+  }
+
+  private BulkUpdateResult addImpl(
+      BulkArrayValueUpdateRequest request, int totalUpdates, String jsonSubDocPath)
+      throws IOException {
+    // total rows updated
+    StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
+    String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
+    String nestingClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
+    for (int i = 0; i < request.getSubDocuments().size() - 1; i++) {
+      finalClause = String.format(finalClause, nestingClause);
+    }
+    String finalQuery =
+        String.format(
+            sb.append(finalClause).append("WHERE %s=?").toString(),
+            collectionName,
+            DOCUMENT,
+            DOCUMENT,
+            ID);
+    jsonSubDocPath = jsonSubDocPath.substring(0, jsonSubDocPath.length() - 1) + ",0" + "}";
+    try (PreparedStatement preparedStatement =
+        client.prepareStatement(finalQuery, Statement.RETURN_GENERATED_KEYS)) {
+      for (Key key : request.getKeys()) {
+        int paramCount = 0;
+        for (Document subDoc : request.getSubDocuments()) {
+          preparedStatement.setString(++paramCount, jsonSubDocPath);
+          preparedStatement.setString(++paramCount, subDoc.toJson());
+        }
+        preparedStatement.setString(++paramCount, key.toString());
+        preparedStatement.addBatch();
       }
-      String finalQuery =
-          String.format(
-              sb.append(finalClause).append("WHERE %s=?").toString(),
-              collectionName,
-              DOCUMENT,
-              DOCUMENT,
-              ID);
-      jsonSubDocPath = jsonSubDocPath.substring(0, jsonSubDocPath.length() - 1) + ",0" + "}";
-      try (PreparedStatement preparedStatement =
-          client.prepareStatement(finalQuery, Statement.RETURN_GENERATED_KEYS)) {
-        for (Key key : request.getKeys()) {
-          int paramCount = 0;
-          for (Document subDoc : request.getSubDocuments()) {
-            preparedStatement.setString(++paramCount, jsonSubDocPath);
-            preparedStatement.setString(++paramCount, subDoc.toJson());
-          }
-          preparedStatement.setString(++paramCount, key.toString());
-          preparedStatement.addBatch();
-        }
-        int[] res = preparedStatement.executeBatch();
+      int[] res = preparedStatement.executeBatch();
 
-        totalUpdates = Arrays.stream(res).sum();
+      totalUpdates = Arrays.stream(res).sum();
 
-        if (LOGGER.isDebugEnabled()) {
-          LOGGER.debug("Write results, total updates: {}", totalUpdates);
-        }
-
-        return new BulkUpdateResult(totalUpdates);
-      } catch (BatchUpdateException e) {
-        totalUpdates = Arrays.stream(e.getUpdateCounts()).filter(count -> count >= 0).sum();
-        throw new IOException(
-            "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
-      } catch (SQLException e) {
-        throw new IOException(
-            "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write results, total updates: {}", totalUpdates);
       }
-    } else if (operation == Operation.SET) {
-      String updateSubDocSQL =
-          String.format(
-              "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
-              collectionName, DOCUMENT, DOCUMENT, ID);
-      String bulkArrayUpdateSetQuery =
-          getBulkArrayUpdateSetQuery(request.getSubDocPath(), DOCUMENT);
-      // get documents as JSON array
-      try (PreparedStatement ps =
-          client.prepareStatement(
-              "UPDATE myTest SET \"document\"=jsonb_set(CASE WHEN \"document\"->'attributes'->'labels' IS NULL THEN jsonb_set(\"document\",array['attributes','labels'], '{\"valueList\":{\"values\":[]}}') ELSE \"document\" END, ?::text[], ?::jsonb) WHERE id=?",
-              Statement.RETURN_GENERATED_KEYS)) {
-        String docsAsJSONArray = getDocsAsJSONArray(request.getSubDocuments());
-        for (Key key : request.getKeys()) {
-          ps.setString(1, jsonSubDocPath);
-          ps.setString(2, docsAsJSONArray);
-          ps.setString(3, key.toString());
-          ps.addBatch();
-        }
 
-        int[] res = ps.executeBatch();
+      return new BulkUpdateResult(totalUpdates);
+    } catch (BatchUpdateException e) {
+      totalUpdates = Arrays.stream(e.getUpdateCounts()).filter(count -> count >= 0).sum();
+      throw new IOException(
+          "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+    } catch (SQLException e) {
+      throw new IOException(
+          "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+    }
+  }
 
-        totalUpdates = Arrays.stream(res).sum();
-
-        if (LOGGER.isDebugEnabled()) {
-          LOGGER.debug("Write results, total updates: {}", totalUpdates);
-        }
-
-        return new BulkUpdateResult(totalUpdates);
-
-      } catch (BatchUpdateException e) {
-        totalUpdates = Arrays.stream(e.getUpdateCounts()).filter(count -> count >= 0).sum();
-        throw new IOException(
-            "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
-      } catch (SQLException e) {
-        throw new IOException(
-            "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+  private BulkUpdateResult setImpl(
+      BulkArrayValueUpdateRequest request, int totalUpdates, String jsonSubDocPath)
+      throws IOException {
+    // get documents as JSON array
+    String query = getBulkArrayUpdateSetQuery(request.getSubDocPath(), DOCUMENT);
+    try (PreparedStatement ps = client.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
+      String docsAsJSONArray = getDocsAsJSONArray(request.getSubDocuments());
+      for (Key key : request.getKeys()) {
+        ps.setString(1, jsonSubDocPath);
+        ps.setString(2, docsAsJSONArray);
+        ps.setString(3, key.toString());
+        ps.addBatch();
       }
-    } else {
 
+      int[] res = ps.executeBatch();
+
+      totalUpdates = Arrays.stream(res).sum();
+
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write results, total updates: {}", totalUpdates);
+      }
+
+      return new BulkUpdateResult(totalUpdates);
+
+    } catch (BatchUpdateException e) {
+      totalUpdates = Arrays.stream(e.getUpdateCounts()).filter(count -> count >= 0).sum();
+      throw new IOException(
+          "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+    } catch (SQLException e) {
+      throw new IOException(
+          "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
     }
-    return null;
-  }
-
-  private String getDocsAsJSONArray(List<Document> docs) throws JsonProcessingException {
-    ArrayNode arrNode = MAPPER.createArrayNode();
-    for (Document doc : docs) {
-      JsonNode jsonNode = MAPPER.readTree(doc.toJson());
-      arrNode.add(jsonNode);
-    }
-    return MAPPER.writeValueAsString(arrNode);
-  }
-
-  private String getBulkArrayUpdateSetQuery(String path, String jsonField)
-      throws JsonProcessingException {
-    String[] paths = path.split("\\.");
-    // if the JSON field is NULL, then SET the entire path
-    StringBuilder sb =
-        new StringBuilder("UPDATE %s SET ")
-            .append(jsonField)
-            .append("=jsonb_set(CASE WHEN ")
-            .append(jsonField)
-            .append(" is NULL THEN '")
-            .append(buildJSONDocFromRoot(paths, 0))
-            .append("'");
-    for (int i = 0; i < paths.length; i++) {
-      // Now do the same for each nested field
-      sb.append(" WHEN ")
-          .append(jsonField)
-          .append("->")
-          .append(getPathTill(paths, i + 1))
-          .append(" IS NULL THEN jsonb_set( ")
-          .append(jsonField)
-          .append(",")
-          .append("{")
-          .append(getSubDocPath(paths, i + 1))
-          .append("}")
-          .append(",")
-          .append("'")
-          .append(buildJSONDocFromRoot(paths, i + 1))
-          .append("'")
-          .append(")");
-    }
-    //final clauses
-    sb.append(" ELSE ")
-        .append("document")
-        .append(" END ")
-        .append(",")
-        .append("?::text[], ?::jsonb) WHERE %s=?");
-    return String.format(sb.toString(), collectionName, ID);
-  }
-
-  private String getSubDocPath(String[] paths, int i) {
-    return getPathTill(paths, i).replace("->",",");
-  }
-
-  private String getPathTill(String[] paths, int till) {
-    StringBuilder path = new StringBuilder("'" + paths[0] + "'");
-    for (int i = 1; i < till; i++) {
-      path.append("->").append("'").append(paths[i]).append("'");
-    }
-    return path.toString();
-  }
-
-  private String buildJSONDocFromRoot(String[] path, int from) throws JsonProcessingException {
-    // starts with the root node
-    ObjectNode currNode = MAPPER.createObjectNode();
-    ObjectNode rootNode = currNode;
-    for (int i = from; i < path.length - 1; i++) {
-      ObjectNode childNode = MAPPER.createObjectNode();
-      String nodeName = path[i];
-      currNode.put(nodeName, childNode);
-      currNode = childNode;
-    }
-    currNode.set(path[path.length - 1], MAPPER.createArrayNode());
-    return MAPPER.writeValueAsString(rootNode);
   }
 
   @Override
@@ -560,6 +495,94 @@ public class PostgresCollection implements Collection {
   @VisibleForTesting
   private String getJsonSubDocPath(String subDocPath) {
     return "{" + subDocPath.replaceAll(DOC_PATH_SEPARATOR, ",") + "}";
+  }
+
+  @VisibleForTesting
+  private String getDocsAsJSONArray(List<Document> docs) throws JsonProcessingException {
+    ArrayNode arrNode = MAPPER.createArrayNode();
+    for (Document doc : docs) {
+      JsonNode jsonNode = MAPPER.readTree(doc.toJson());
+      arrNode.add(jsonNode);
+    }
+    return MAPPER.writeValueAsString(arrNode);
+  }
+
+  @VisibleForTesting
+  private String getBulkArrayUpdateSetQuery(String path, String jsonField)
+      throws JsonProcessingException {
+    String[] paths = path.split("\\.");
+    // if the JSON field is NULL, then SET the entire path
+    StringBuilder sb =
+        new StringBuilder("UPDATE %s SET ")
+            .append("\"")
+            .append(jsonField)
+            .append("\"")
+            .append("=jsonb_set(CASE WHEN ")
+            .append("\"")
+            .append(jsonField)
+            .append("\"")
+            .append(" is NULL THEN '")
+            .append(buildJSONDocFromRoot(paths, 0))
+            .append("'");
+    for (int i = 0; i < paths.length; i++) {
+      // Now do the same for each nested field
+      sb.append(" WHEN ")
+          .append("\"")
+          .append(jsonField)
+          .append("\"")
+          .append("->")
+          .append(getPathTill(paths, i + 1))
+          .append(" IS NULL THEN jsonb_set(")
+          .append("\"")
+          .append(jsonField)
+          .append("\"")
+          .append(",")
+          .append("'{")
+          .append(getSubDocPath(paths, i + 1))
+          .append("}'")
+          .append(",")
+          .append("'")
+          .append(buildJSONDocFromRoot(paths, i + 1))
+          .append("'")
+          .append(")");
+    }
+    // final clauses
+    sb.append(" ELSE ")
+        .append("document")
+        .append(" END ")
+        .append(",")
+        .append("?::text[], ?::jsonb) WHERE %s=?");
+    return String.format(sb.toString(), collectionName, ID);
+  }
+
+  private String getSubDocPath(String[] paths, int till) {
+    StringBuilder sb = new StringBuilder();
+    for (int i = 0; i < till; i++) {
+      sb.append(paths[i]).append(",");
+    }
+    return sb.substring(0, sb.length() - 1);
+  }
+
+  private String getPathTill(String[] paths, int till) {
+    StringBuilder path = new StringBuilder("'" + paths[0] + "'");
+    for (int i = 1; i < till; i++) {
+      path.append("->").append("'").append(paths[i]).append("'");
+    }
+    return path.toString();
+  }
+
+  private String buildJSONDocFromRoot(String[] path, int from) throws JsonProcessingException {
+    // starts with the root node
+    ObjectNode currNode = MAPPER.createObjectNode();
+    ObjectNode rootNode = currNode;
+    for (int i = from; i < path.length - 1; i++) {
+      ObjectNode childNode = MAPPER.createObjectNode();
+      String nodeName = path[i];
+      currNode.put(nodeName, childNode);
+      currNode = childNode;
+    }
+    currNode.set(path[path.length - 1], MAPPER.createArrayNode());
+    return MAPPER.writeValueAsString(rootNode);
   }
 
   @Override
