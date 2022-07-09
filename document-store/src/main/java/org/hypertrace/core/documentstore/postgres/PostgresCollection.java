@@ -329,15 +329,14 @@ public class PostgresCollection implements Collection {
       try (PreparedStatement ps = client.prepareStatement(updateSubDocSQL,
           Statement.RETURN_GENERATED_KEYS)) {
         String docsAsJSONArray = getDocsAsJSONArray(request.getSubDocuments());
+        String bulkArrayUpdateSetQuery = getBulkArrayUpdateSetQuery(request.getSubDocPath(),
+            request.getSubDocuments());
         for (Key key : request.getKeys()) {
           ps.setString(1, jsonSubDocPath);
           ps.setString(2, docsAsJSONArray);
           ps.setString(3, key.toString());
           ps.addBatch();
         }
-
-        String bulkArrayUpdateSetQuery = getBulkArrayUpdateSetQuery(request.getSubDocPath(),
-            request.getSubDocuments());
 
         int[] res = ps.executeBatch();
 
@@ -376,16 +375,17 @@ public class PostgresCollection implements Collection {
       throws JsonProcessingException {
     //UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?
     String[] paths = path.split("\\.");
-    StringBuilder sb = new StringBuilder("UPDATE %s SET %s=jsonb_set("
-        + "CASE WHEN %s is NULL THEN '" + buildJsonPath(paths, 0) + "'");
+    StringBuilder sb = new StringBuilder("UPDATE %s SET \"document\"=jsonb_set("
+        + "CASE WHEN \"document\" is NULL THEN '" + buildJsonPath(paths, 0) + "'");
     for (int i = 0; i < paths.length; i++) {
-      sb.append(" WHEN %s->").append(getPathTill(paths, i))
-          .append(" IS NULL THEN jsonb_set(%s,array['").append(paths[i]).append("'], '")
+      String pathTill = getPathTill(paths, i + 1);
+      sb.append(" WHEN \"document\"->").append(pathTill)
+          .append(" IS NULL THEN jsonb_set(\"document\",array['").append(paths[i]).append("'], '")
           .append(buildJsonPath(paths, i + 1)).append("'");
     }
-    sb.append("ELSE %s END, ?::text[], ?::jsonb) WHERE %s=?");
+    sb.append(" ELSE \"document\" END, ?::text[], ?::jsonb) WHERE %s=?");
     //UPDATE %s SET %s=jsonb_set(CASE WHEN %s is NULL THEN '{"attributes":{"labels":{"valueList":{"values":[]}}}}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['attributes'], '{"labels":{"valueList":{"values":[]}}}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['labels'], '{"valueList":{"values":[]}}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['valueList'], '{"values":[]}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['values'], '{"values":[]}'
-    return sb.toString();
+    return String.format(sb.toString(), collectionName, ID);
   }
 
   private String getPathTill(String[] paths, int till) {
