@@ -23,7 +23,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
-import javax.print.Doc;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
@@ -44,9 +43,7 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Provides {@link Collection} implementation on Postgres using jsonb format
- */
+/** Provides {@link Collection} implementation on Postgres using jsonb format */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -119,9 +116,7 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /**
-   * create a new document if one doesn't exists with key
-   */
+  /** create a new document if one doesn't exists with key */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -325,12 +320,13 @@ public class PostgresCollection implements Collection {
           String.format(
               "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
               collectionName, DOCUMENT, DOCUMENT, ID);
-      String bulkArrayUpdateSetQuery = getBulkArrayUpdateSetQuery(request.getSubDocPath(),
-          request.getSubDocuments());
-      //get documents as JSON array
-      try (PreparedStatement ps = client.prepareStatement(
-          "UPDATE myTest SET \"document\"=jsonb_set(CASE WHEN \"document\"->'attributes'->'labels' IS NULL THEN jsonb_set(\"document\",array['attributes','labels'], '{\"valueList\":{\"values\":[]}}') ELSE \"document\" END, ?::text[], ?::jsonb) WHERE id=?",
-          Statement.RETURN_GENERATED_KEYS)) {
+      String bulkArrayUpdateSetQuery =
+          getBulkArrayUpdateSetQuery(request.getSubDocPath(), DOCUMENT);
+      // get documents as JSON array
+      try (PreparedStatement ps =
+          client.prepareStatement(
+              "UPDATE myTest SET \"document\"=jsonb_set(CASE WHEN \"document\"->'attributes'->'labels' IS NULL THEN jsonb_set(\"document\",array['attributes','labels'], '{\"valueList\":{\"values\":[]}}') ELSE \"document\" END, ?::text[], ?::jsonb) WHERE id=?",
+              Statement.RETURN_GENERATED_KEYS)) {
         String docsAsJSONArray = getDocsAsJSONArray(request.getSubDocuments());
         for (Key key : request.getKeys()) {
           ps.setString(1, jsonSubDocPath);
@@ -372,22 +368,47 @@ public class PostgresCollection implements Collection {
     return MAPPER.writeValueAsString(arrNode);
   }
 
-  private String getBulkArrayUpdateSetQuery(String path, List<Document> docs)
+  private String getBulkArrayUpdateSetQuery(String path, String jsonField)
       throws JsonProcessingException {
-    //UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?
     String[] paths = path.split("\\.");
-    StringBuilder sb = new StringBuilder("UPDATE %s SET \"document\"=jsonb_set("
-        + "CASE WHEN \"document\" is NULL THEN '" + buildJsonPath(paths, 0) + "'");
+    // if the JSON field is NULL, then SET the entire path
+    StringBuilder sb =
+        new StringBuilder("UPDATE %s SET ")
+            .append(jsonField)
+            .append("=jsonb_set(CASE WHEN ")
+            .append(jsonField)
+            .append(" is NULL THEN '")
+            .append(buildJSONDocFromRoot(paths, 0))
+            .append("'");
     for (int i = 0; i < paths.length; i++) {
-      String pathTill = getPathTill(paths, i + 1);
-      sb.append(" WHEN \"document\"->").append(pathTill)
-          .append(" IS NULL THEN jsonb_set(\"document\",array[").append("'attributes','labels'")
-          .append("], '")
-          .append(buildJsonPath(paths, i + 1)).append("'");
+      // Now do the same for each nested field
+      sb.append(" WHEN ")
+          .append(jsonField)
+          .append("->")
+          .append(getPathTill(paths, i + 1))
+          .append(" IS NULL THEN jsonb_set( ")
+          .append(jsonField)
+          .append(",")
+          .append("{")
+          .append(getSubDocPath(paths, i + 1))
+          .append("}")
+          .append(",")
+          .append("'")
+          .append(buildJSONDocFromRoot(paths, i + 1))
+          .append("'")
+          .append(")");
     }
-    sb.append(" ELSE \"document\" END, ?::text[], ?::jsonb) WHERE %s=?");
-    //UPDATE %s SET %s=jsonb_set(CASE WHEN %s is NULL THEN '{"attributes":{"labels":{"valueList":{"values":[]}}}}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['attributes'], '{"labels":{"valueList":{"values":[]}}}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['labels'], '{"valueList":{"values":[]}}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['valueList'], '{"values":[]}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['values'], '{"values":[]}'
+    //final clauses
+    sb.append(" ELSE ")
+        .append("document")
+        .append(" END ")
+        .append(",")
+        .append("?::text[], ?::jsonb) WHERE %s=?");
     return String.format(sb.toString(), collectionName, ID);
+  }
+
+  private String getSubDocPath(String[] paths, int i) {
+    return getPathTill(paths, i).replace("->",",");
   }
 
   private String getPathTill(String[] paths, int till) {
@@ -398,8 +419,8 @@ public class PostgresCollection implements Collection {
     return path.toString();
   }
 
-  private String buildJsonPath(String[] path, int from) throws JsonProcessingException {
-    //starts with the root node
+  private String buildJSONDocFromRoot(String[] path, int from) throws JsonProcessingException {
+    // starts with the root node
     ObjectNode currNode = MAPPER.createObjectNode();
     ObjectNode rootNode = currNode;
     for (int i = from; i < path.length - 1; i++) {
