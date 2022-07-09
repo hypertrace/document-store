@@ -277,18 +277,18 @@ public class PostgresCollection implements Collection {
     String jsonSubDocPath = getJsonSubDocPath(request.getSubDocPath());
     switch (operation) {
       case ADD:
-        return addImpl(request, totalUpdates, jsonSubDocPath);
+        return addImpl(request, jsonSubDocPath);
       case SET:
-        return setImpl(request, totalUpdates, jsonSubDocPath);
+        return setImpl(request, jsonSubDocPath);
       case REMOVE:
       default:
-        throw new UnsupportedOperationException("Operartion not supported yet!");
+        throw new UnsupportedOperationException("Operation not supported yet!");
     }
   }
 
-  private BulkUpdateResult addImpl(
-      BulkArrayValueUpdateRequest request, int totalUpdates, String jsonSubDocPath)
+  private BulkUpdateResult addImpl(BulkArrayValueUpdateRequest request, String jsonSubDocPath)
       throws IOException {
+    int totalUpdates = 0;
     // total rows updated
     StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
     String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
@@ -334,9 +334,9 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private BulkUpdateResult setImpl(
-      BulkArrayValueUpdateRequest request, int totalUpdates, String jsonSubDocPath)
+  private BulkUpdateResult setImpl(BulkArrayValueUpdateRequest request, String jsonSubDocPath)
       throws IOException {
+    int totalUpdates = 0;
     // get documents as JSON array
     String query = getBulkArrayUpdateSetQuery(request.getSubDocPath(), DOCUMENT);
     try (PreparedStatement ps = client.prepareStatement(query, Statement.RETURN_GENERATED_KEYS)) {
@@ -498,55 +498,40 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  private String getDocsAsJSONArray(List<Document> docs) throws JsonProcessingException {
-    ArrayNode arrNode = MAPPER.createArrayNode();
-    for (Document doc : docs) {
-      JsonNode jsonNode = MAPPER.readTree(doc.toJson());
-      arrNode.add(jsonNode);
-    }
-    return MAPPER.writeValueAsString(arrNode);
-  }
-
-  @VisibleForTesting
   private String getBulkArrayUpdateSetQuery(String path, String jsonField)
       throws JsonProcessingException {
+    // ref on why this was done:
+    // https://stackoverflow.com/questions/46797443/how-to-use-postgresql-jsonb-set-to-create-new-deep-object-element
     String[] paths = path.split("\\.");
     // if the JSON field is NULL, then SET the entire path
     StringBuilder sb =
         new StringBuilder("UPDATE %s SET ")
-            .append("\"")
             .append(jsonField)
-            .append("\"")
             .append("=jsonb_set(CASE WHEN ")
-            .append("\"")
             .append(jsonField)
-            .append("\"")
             .append(" is NULL THEN '")
-            .append(buildJSONDocFromRoot(paths, 0))
+            .append(buildNestedJsonDocFromPath(paths, 0))
             .append("'");
     for (int i = 0; i < paths.length; i++) {
-      // Now do the same for each nested field
+      // Now do the same for each nested field. If it is NULL, create it. Do it till the entire path
+      // is created.
       sb.append(" WHEN ")
-          .append("\"")
           .append(jsonField)
-          .append("\"")
           .append("->")
-          .append(getPathTill(paths, i + 1))
+          .append(getSubPathTillIdxForDereference(paths, i + 1))
           .append(" IS NULL THEN jsonb_set(")
-          .append("\"")
           .append(jsonField)
-          .append("\"")
           .append(",")
           .append("'{")
-          .append(getSubDocPath(paths, i + 1))
+          .append(getCSVSubPathTillIdx(paths, i + 1))
           .append("}'")
           .append(",")
           .append("'")
-          .append(buildJSONDocFromRoot(paths, i + 1))
+          .append(buildNestedJsonDocFromPath(paths, i + 1))
           .append("'")
           .append(")");
     }
-    // final clauses
+    // finally, once we are sure that the path exists, set the new values
     sb.append(" ELSE ")
         .append("document")
         .append(" END ")
@@ -555,7 +540,8 @@ public class PostgresCollection implements Collection {
     return String.format(sb.toString(), collectionName, ID);
   }
 
-  private String getSubDocPath(String[] paths, int till) {
+  //Returns path as a CSV till the passed index
+  private String getCSVSubPathTillIdx(String[] paths, int till) {
     StringBuilder sb = new StringBuilder();
     for (int i = 0; i < till; i++) {
       sb.append(paths[i]).append(",");
@@ -563,7 +549,9 @@ public class PostgresCollection implements Collection {
     return sb.substring(0, sb.length() - 1);
   }
 
-  private String getPathTill(String[] paths, int till) {
+  // For a path: ["attributes","labels","valueList","values"], creates a path like:
+  // 'attributes'->'labels'->... till the passed index
+  private String getSubPathTillIdxForDereference(String[] paths, int till) {
     StringBuilder path = new StringBuilder("'" + paths[0] + "'");
     for (int i = 1; i < till; i++) {
       path.append("->").append("'").append(paths[i]).append("'");
@@ -571,11 +559,13 @@ public class PostgresCollection implements Collection {
     return path.toString();
   }
 
-  private String buildJSONDocFromRoot(String[] path, int from) throws JsonProcessingException {
+  @VisibleForTesting
+  private String buildNestedJsonDocFromPath(String[] path, int rootNodeIdx)
+      throws JsonProcessingException {
     // starts with the root node
     ObjectNode currNode = MAPPER.createObjectNode();
     ObjectNode rootNode = currNode;
-    for (int i = from; i < path.length - 1; i++) {
+    for (int i = rootNodeIdx; i < path.length - 1; i++) {
       ObjectNode childNode = MAPPER.createObjectNode();
       String nodeName = path[i];
       currNode.put(nodeName, childNode);
@@ -583,6 +573,16 @@ public class PostgresCollection implements Collection {
     }
     currNode.set(path[path.length - 1], MAPPER.createArrayNode());
     return MAPPER.writeValueAsString(rootNode);
+  }
+
+  @VisibleForTesting
+  private String getDocsAsJSONArray(List<Document> docs) throws JsonProcessingException {
+    ArrayNode arrNode = MAPPER.createArrayNode();
+    for (Document doc : docs) {
+      JsonNode jsonNode = MAPPER.readTree(doc.toJson());
+      arrNode.add(jsonNode);
+    }
+    return MAPPER.writeValueAsString(arrNode);
   }
 
   @Override
