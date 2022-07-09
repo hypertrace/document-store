@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.print.Doc;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
@@ -43,7 +44,9 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Provides {@link Collection} implementation on Postgres using jsonb format */
+/**
+ * Provides {@link Collection} implementation on Postgres using jsonb format
+ */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -116,7 +119,9 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /** create a new document if one doesn't exists with key */
+  /**
+   * create a new document if one doesn't exists with key
+   */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -269,10 +274,10 @@ public class PostgresCollection implements Collection {
   public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request)
       throws IOException {
     Operation operation = request.getOperation();
+    int totalUpdates = 0;
     String jsonSubDocPath = getJsonSubDocPath(request.getSubDocPath());
     if (operation == Operation.ADD) {
       // total rows updated
-      int totalUpdates = 0;
       StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
       String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
       String nestingClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
@@ -315,34 +320,22 @@ public class PostgresCollection implements Collection {
         throw new IOException(
             "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
       }
-    } else if(operation == Operation.SET) {
-      // total rows updated
-      int totalUpdates = 0;
-      StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
-      String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
-      String nestingClause = "jsonb_set(%s, ?::text[], ?::jsonb)";
-      for (int i = 0; i < request.getSubDocuments().size() - 1; i++) {
-        finalClause = String.format(finalClause, nestingClause);
-      }
-      String finalQuery =
+    } else if (operation == Operation.SET) {
+      String updateSubDocSQL =
           String.format(
-              sb.append(finalClause).append("WHERE %s=?").toString(),
-              collectionName,
-              DOCUMENT,
-              DOCUMENT,
-              ID);
-      try (PreparedStatement preparedStatement =
-          client.prepareStatement(finalQuery, Statement.RETURN_GENERATED_KEYS)) {
+              "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
+              collectionName, DOCUMENT, DOCUMENT, ID);
+      //get documents as JSON array
+      try (PreparedStatement ps = client.prepareStatement(updateSubDocSQL,
+          Statement.RETURN_GENERATED_KEYS)) {
+        String docsAsJSONArray = getDocsAsJSONArray(request.getSubDocuments());
         for (Key key : request.getKeys()) {
-          int paramCount = 0;
-          for (Document subDoc : request.getSubDocuments()) {
-            preparedStatement.setString(++paramCount, jsonSubDocPath);
-            preparedStatement.setString(++paramCount, subDoc.toJson());
-          }
-          preparedStatement.setString(++paramCount, key.toString());
-          preparedStatement.addBatch();
+          ps.setString(1, jsonSubDocPath);
+          ps.setString(2, docsAsJSONArray);
+          ps.setString(3, key.toString());
+          ps.addBatch();
         }
-        int[] res = preparedStatement.executeBatch();
+        int[] res = ps.executeBatch();
 
         totalUpdates = Arrays.stream(res).sum();
 
@@ -351,6 +344,7 @@ public class PostgresCollection implements Collection {
         }
 
         return new BulkUpdateResult(totalUpdates);
+
       } catch (BatchUpdateException e) {
         totalUpdates = Arrays.stream(e.getUpdateCounts()).filter(count -> count >= 0).sum();
         throw new IOException(
@@ -359,31 +353,17 @@ public class PostgresCollection implements Collection {
         throw new IOException(
             "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
       }
-
     }
     return null;
   }
 
-  public void createDoc(String path, int totalDocuments) throws JsonProcessingException {
-    //ex: {attributes,labels,valueList,values}
-    //"{labels:{"valueList":{values:[?,?]}}}"
-//    String[] paths = path.split(",");
-    ObjectMapper mapper = new ObjectMapper();
-    ObjectNode rootNode = mapper.createObjectNode();
-    //labels
-    ObjectNode childNodeLevel1 = mapper.createObjectNode();
-    //valueList
-    ObjectNode childNodeLevel2 = mapper.createObjectNode();
-    //values
-    ArrayNode childNodeLevel3 = mapper.createArrayNode();
-    rootNode.put("labels", childNodeLevel1);
-    childNodeLevel1.put("valueList", childNodeLevel2);
-    childNodeLevel2.put("values", childNodeLevel3);
-    childNodeLevel3.add("?");
-    childNodeLevel3.add("?");
-    String doc = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(rootNode);
-    doc = doc.replace("\"?\"","?");
-    System.out.println(doc);
+  private String getDocsAsJSONArray(List<Document> docs) throws JsonProcessingException {
+    ArrayNode arrNode = MAPPER.createArrayNode();
+    for (Document doc : docs) {
+      JsonNode jsonNode = MAPPER.readTree(doc.toJson());
+      arrNode.add(jsonNode);
+    }
+    return MAPPER.writeValueAsString(arrNode);
   }
 
   @Override
