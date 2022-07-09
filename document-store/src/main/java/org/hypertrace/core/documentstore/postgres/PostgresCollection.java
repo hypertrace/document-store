@@ -1,7 +1,9 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
@@ -313,10 +315,75 @@ public class PostgresCollection implements Collection {
         throw new IOException(
             "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
       }
-    } else {
+    } else if(operation == Operation.SET) {
+      // total rows updated
+      int totalUpdates = 0;
+      StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
+      String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
+      String nestingClause = "jsonb_set(%s, ?::text[], ?::jsonb)";
+      for (int i = 0; i < request.getSubDocuments().size() - 1; i++) {
+        finalClause = String.format(finalClause, nestingClause);
+      }
+      String finalQuery =
+          String.format(
+              sb.append(finalClause).append("WHERE %s=?").toString(),
+              collectionName,
+              DOCUMENT,
+              DOCUMENT,
+              ID);
+      try (PreparedStatement preparedStatement =
+          client.prepareStatement(finalQuery, Statement.RETURN_GENERATED_KEYS)) {
+        for (Key key : request.getKeys()) {
+          int paramCount = 0;
+          for (Document subDoc : request.getSubDocuments()) {
+            preparedStatement.setString(++paramCount, jsonSubDocPath);
+            preparedStatement.setString(++paramCount, subDoc.toJson());
+          }
+          preparedStatement.setString(++paramCount, key.toString());
+          preparedStatement.addBatch();
+        }
+        int[] res = preparedStatement.executeBatch();
+
+        totalUpdates = Arrays.stream(res).sum();
+
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Write results, total updates: {}", totalUpdates);
+        }
+
+        return new BulkUpdateResult(totalUpdates);
+      } catch (BatchUpdateException e) {
+        totalUpdates = Arrays.stream(e.getUpdateCounts()).filter(count -> count >= 0).sum();
+        throw new IOException(
+            "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+      } catch (SQLException e) {
+        throw new IOException(
+            "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+      }
 
     }
     return null;
+  }
+
+  public void createDoc(String path, int totalDocuments) throws JsonProcessingException {
+    //ex: {attributes,labels,valueList,values}
+    //"{labels:{"valueList":{values:[?,?]}}}"
+//    String[] paths = path.split(",");
+    ObjectMapper mapper = new ObjectMapper();
+    ObjectNode rootNode = mapper.createObjectNode();
+    //labels
+    ObjectNode childNodeLevel1 = mapper.createObjectNode();
+    //valueList
+    ObjectNode childNodeLevel2 = mapper.createObjectNode();
+    //values
+    ArrayNode childNodeLevel3 = mapper.createArrayNode();
+    rootNode.put("labels", childNodeLevel1);
+    childNodeLevel1.put("valueList", childNodeLevel2);
+    childNodeLevel2.put("values", childNodeLevel3);
+    childNodeLevel3.add("?");
+    childNodeLevel3.add("?");
+    String doc = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(rootNode);
+    doc = doc.replace("\"?\"","?");
+    System.out.println(doc);
   }
 
   @Override
