@@ -269,20 +269,32 @@ public class PostgresCollection implements Collection {
     Operation operation = request.getOperation();
     String jsonSubDocPath = getJsonSubDocPath(request.getSubDocPath());
     if (operation == Operation.ADD) {
+      // total rows updated
       int totalUpdates = 0;
-      String updateSubDocSQL =
+      StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
+      String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
+      String nestingClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
+      for (int i = 0; i < request.getSubDocuments().size() - 1; i++) {
+        finalClause = String.format(finalClause, nestingClause);
+      }
+      String finalQuery =
           String.format(
-              "UPDATE %s SET %s=jsonb_insert(%s, ?::text[], ?::jsonb) WHERE %s=?",
-              collectionName, DOCUMENT, DOCUMENT, ID);
-      try(PreparedStatement preparedStatement =
-          client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
-        for(Key key : request.getKeys()) {
+              sb.append(finalClause).append("WHERE %s=?").toString(),
+              collectionName,
+              DOCUMENT,
+              DOCUMENT,
+              ID);
+      jsonSubDocPath = jsonSubDocPath.substring(0, jsonSubDocPath.length() - 1) + ",0" + "}";
+      try (PreparedStatement preparedStatement =
+          client.prepareStatement(finalQuery, Statement.RETURN_GENERATED_KEYS)) {
+        for (Key key : request.getKeys()) {
+          int paramCount = 0;
           for (Document subDoc : request.getSubDocuments()) {
-            preparedStatement.setString(1, jsonSubDocPath);
-            preparedStatement.setString(2, subDoc.toJson());
-            preparedStatement.setString(3, key.toString());
-            preparedStatement.addBatch();
+            preparedStatement.setString(++paramCount, jsonSubDocPath);
+            preparedStatement.setString(++paramCount, subDoc.toJson());
           }
+          preparedStatement.setString(++paramCount, key.toString());
+          preparedStatement.addBatch();
         }
         int[] res = preparedStatement.executeBatch();
 
@@ -295,10 +307,14 @@ public class PostgresCollection implements Collection {
         return new BulkUpdateResult(totalUpdates);
       } catch (BatchUpdateException e) {
         totalUpdates = Arrays.stream(e.getUpdateCounts()).filter(count -> count >= 0).sum();
-        throw new IOException("Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+        throw new IOException(
+            "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
       } catch (SQLException e) {
-        throw new IOException("Exception occurred while executing batch update, total updates: " + totalUpdates, e);
+        throw new IOException(
+            "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
       }
+    } else {
+
     }
     return null;
   }
