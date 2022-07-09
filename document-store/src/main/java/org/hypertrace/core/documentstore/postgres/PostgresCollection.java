@@ -335,6 +335,10 @@ public class PostgresCollection implements Collection {
           ps.setString(3, key.toString());
           ps.addBatch();
         }
+
+        String bulkArrayUpdateSetQuery = getBulkArrayUpdateSetQuery(request.getSubDocPath(),
+            request.getSubDocuments());
+
         int[] res = ps.executeBatch();
 
         totalUpdates = Arrays.stream(res).sum();
@@ -353,6 +357,8 @@ public class PostgresCollection implements Collection {
         throw new IOException(
             "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
       }
+    } else {
+
     }
     return null;
   }
@@ -364,6 +370,44 @@ public class PostgresCollection implements Collection {
       arrNode.add(jsonNode);
     }
     return MAPPER.writeValueAsString(arrNode);
+  }
+
+  private String getBulkArrayUpdateSetQuery(String path, List<Document> docs)
+      throws JsonProcessingException {
+    //UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?
+    String[] paths = path.split("\\.");
+    StringBuilder sb = new StringBuilder("UPDATE %s SET %s=jsonb_set("
+        + "CASE WHEN %s is NULL THEN '" + buildJsonPath(paths, 0) + "'");
+    for (int i = 0; i < paths.length; i++) {
+      sb.append(" WHEN %s->").append(getPathTill(paths, i))
+          .append(" IS NULL THEN jsonb_set(%s,array['").append(paths[i]).append("'], '")
+          .append(buildJsonPath(paths, i + 1)).append("'");
+    }
+    sb.append("ELSE %s END, ?::text[], ?::jsonb) WHERE %s=?");
+    //UPDATE %s SET %s=jsonb_set(CASE WHEN %s is NULL THEN '{"attributes":{"labels":{"valueList":{"values":[]}}}}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['attributes'], '{"labels":{"valueList":{"values":[]}}}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['labels'], '{"valueList":{"values":[]}}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['valueList'], '{"values":[]}'WHEN %s->'attributes' IS NULL THEN jsonb_set(%s,array['values'], '{"values":[]}'
+    return sb.toString();
+  }
+
+  private String getPathTill(String[] paths, int till) {
+    StringBuilder path = new StringBuilder("'" + paths[0] + "'");
+    for (int i = 1; i < till; i++) {
+      path.append("->").append("'").append(paths[i]).append("'");
+    }
+    return path.toString();
+  }
+
+  private String buildJsonPath(String[] path, int from) throws JsonProcessingException {
+    //starts with the root node
+    ObjectNode currNode = MAPPER.createObjectNode();
+    ObjectNode rootNode = currNode;
+    for (int i = from; i < path.length - 1; i++) {
+      ObjectNode childNode = MAPPER.createObjectNode();
+      String nodeName = path[i];
+      currNode.put(nodeName, childNode);
+      currNode = childNode;
+    }
+    currNode.set(path[path.length - 1], MAPPER.createArrayNode());
+    return MAPPER.writeValueAsString(rootNode);
   }
 
   @Override
