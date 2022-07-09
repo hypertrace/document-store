@@ -730,7 +730,7 @@ public class DocStoreTest {
     Key key3 = new SingleValueKey("default", "testKey3");
     Document key3InsertedDocument =
         Utils.createDocument(
-            ImmutablePair.of("id", "t estKey3"),
+            ImmutablePair.of("id", "testKey3"),
             ImmutablePair.of("attributes", Map.of("name", "testKey3")));
     Document key3ExpectedDocument =
         Utils.createDocument(

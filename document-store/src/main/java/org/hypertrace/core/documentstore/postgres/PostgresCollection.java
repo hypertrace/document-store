@@ -325,12 +325,13 @@ public class PostgresCollection implements Collection {
           String.format(
               "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
               collectionName, DOCUMENT, DOCUMENT, ID);
+      String bulkArrayUpdateSetQuery = getBulkArrayUpdateSetQuery(request.getSubDocPath(),
+          request.getSubDocuments());
       //get documents as JSON array
-      try (PreparedStatement ps = client.prepareStatement(updateSubDocSQL,
+      try (PreparedStatement ps = client.prepareStatement(
+          "UPDATE myTest SET \"document\"=jsonb_set(CASE WHEN \"document\"->'attributes'->'labels' IS NULL THEN jsonb_set(\"document\",array['attributes','labels'], '{\"valueList\":{\"values\":[]}}') ELSE \"document\" END, ?::text[], ?::jsonb) WHERE id=?",
           Statement.RETURN_GENERATED_KEYS)) {
         String docsAsJSONArray = getDocsAsJSONArray(request.getSubDocuments());
-        String bulkArrayUpdateSetQuery = getBulkArrayUpdateSetQuery(request.getSubDocPath(),
-            request.getSubDocuments());
         for (Key key : request.getKeys()) {
           ps.setString(1, jsonSubDocPath);
           ps.setString(2, docsAsJSONArray);
@@ -380,7 +381,8 @@ public class PostgresCollection implements Collection {
     for (int i = 0; i < paths.length; i++) {
       String pathTill = getPathTill(paths, i + 1);
       sb.append(" WHEN \"document\"->").append(pathTill)
-          .append(" IS NULL THEN jsonb_set(\"document\",array['").append(paths[i]).append("'], '")
+          .append(" IS NULL THEN jsonb_set(\"document\",array[").append("'attributes','labels'")
+          .append("], '")
           .append(buildJsonPath(paths, i + 1)).append("'");
     }
     sb.append(" ELSE \"document\" END, ?::text[], ?::jsonb) WHERE %s=?");
