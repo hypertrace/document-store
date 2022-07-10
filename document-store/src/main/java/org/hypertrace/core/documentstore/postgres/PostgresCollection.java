@@ -273,7 +273,6 @@ public class PostgresCollection implements Collection {
   public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request)
       throws IOException {
     Operation operation = request.getOperation();
-    int totalUpdates = 0;
     String jsonSubDocPath = getJsonSubDocPath(request.getSubDocPath());
     switch (operation) {
       case ADD:
@@ -289,23 +288,13 @@ public class PostgresCollection implements Collection {
   private BulkUpdateResult addImpl(BulkArrayValueUpdateRequest request, String jsonSubDocPath)
       throws IOException {
     int totalUpdates = 0;
-    // total rows updated
-    StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
-    String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
-    String nestingClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
-    for (int i = 0; i < request.getSubDocuments().size() - 1; i++) {
-      finalClause = String.format(finalClause, nestingClause);
-    }
-    String finalQuery =
-        String.format(
-            sb.append(finalClause).append("WHERE %s=?").toString(),
-            collectionName,
-            DOCUMENT,
-            DOCUMENT,
-            ID);
+    //UPDATE myTest SET document=jsonb_insert(jsonb_insert(document, ?::text[], ?::jsonb), ?::text[], ?::jsonb)WHERE id=?
+    String query = getBulkArrayUpdateAddQuery(request);
+    //always add at the head of the array
     jsonSubDocPath = jsonSubDocPath.substring(0, jsonSubDocPath.length() - 1) + ",0" + "}";
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(finalQuery, Statement.RETURN_GENERATED_KEYS)) {
+        client.prepareStatement(query,
+            Statement.RETURN_GENERATED_KEYS)) {
       for (Key key : request.getKeys()) {
         int paramCount = 0;
         for (Document subDoc : request.getSubDocuments()) {
@@ -332,6 +321,57 @@ public class PostgresCollection implements Collection {
       throw new IOException(
           "Exception occurred while executing batch update, total updates: " + totalUpdates, e);
     }
+  }
+
+  private String getBulkArrayUpdateAddQuery(BulkArrayValueUpdateRequest request)
+      throws JsonProcessingException {
+    StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
+    String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
+    String nestingClause;
+
+    String[] paths = request.getSubDocPath().split("\\.");
+    // if the JSON field is NULL, then SET the entire path
+    StringBuilder sb2 =
+        new StringBuilder("jsonb_insert(CASE WHEN ")
+            .append("document")
+            .append(" is NULL THEN '")
+            .append(buildNestedJsonDocFromPath(paths, 0))
+            .append("'");
+    for (int i = 0; i < paths.length; i++) {
+      // Now do the same for each nested field. If it is NULL, create it. Do it till the entire path
+      // is created.
+      sb2.append(" WHEN ")
+          .append("document")
+          .append("->")
+          .append(getSubPathTillIdxForDereference(paths, i + 1))
+          .append(" IS NULL THEN jsonb_set(")
+          .append("document")
+          .append(",")
+          .append("'{")
+          .append(getCSVSubPathTillIdx(paths, i + 1))
+          .append("}'")
+          .append(",")
+          .append("'")
+          .append(buildNestedJsonDocFromPath(paths, i + 1))
+          .append("'")
+          .append(")");
+    }
+    // finally, once we are sure that the path exists, set the new values
+    sb2.append(" ELSE ")
+        .append("document")
+        .append(" END ")
+        .append(",")
+        .append("?::text[], ?::jsonb)");
+    nestingClause = String.format(sb2.toString(), collectionName, ID);
+
+    for (int i = 0; i < request.getSubDocuments().size() - 1; i++) {
+      finalClause = String.format(finalClause, nestingClause);
+    }
+    return String.format(
+        sb.append(finalClause).append(" WHERE %s=?").toString(),
+        collectionName,
+        DOCUMENT,
+        ID);
   }
 
   private BulkUpdateResult setImpl(BulkArrayValueUpdateRequest request, String jsonSubDocPath)
