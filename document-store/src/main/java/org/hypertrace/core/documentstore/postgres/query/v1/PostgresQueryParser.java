@@ -17,29 +17,23 @@ public class PostgresQueryParser {
   private static String NOT_YET_SUPPORTED = "Not yet supported %s";
   private final String collection;
 
-  @Getter private Builder paramsBuilder;
+  @Getter private final Builder paramsBuilder = Params.newBuilder();
 
-  @Getter private Query query;
+  @Getter private final Query query;
 
   // map of alias name to parsed expression
   // e.g qty : COUNT(DISTINCT CAST(document->>'quantity' AS NUMERIC))
-  @Getter private Map<String, String> pgSelections;
+  @Getter private final Map<String, String> pgSelections = new HashMap<>();
 
-  private void resetParser(Query query) {
-    this.query = query;
-    paramsBuilder = Params.newBuilder();
-    pgSelections = new HashMap<>();
-  }
-
-  public PostgresQueryParser(String collection) {
+  public PostgresQueryParser(String collection, Query query) {
     this.collection = collection;
+    this.query = query;
   }
 
-  public String parse(Query query) {
+  public String parse() {
     // prepare selection and form clause
     // TODO : add impl for selection + form clause for unwind
     StringBuilder sqlBuilder = new StringBuilder();
-    this.resetParser(query);
 
     // where clause
     Optional<String> whereFilter = parseFilter();

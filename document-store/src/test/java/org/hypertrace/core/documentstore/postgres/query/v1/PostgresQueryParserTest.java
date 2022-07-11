@@ -40,8 +40,8 @@ public class PostgresQueryParserTest {
                 RelationalExpression.of(
                     IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
             .build();
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT * FROM testCollection "
             + "WHERE document->'quantity' IS NULL OR CAST (document->'quantity' AS NUMERIC) != ?",
@@ -68,8 +68,8 @@ public class PostgresQueryParserTest {
                             ConstantExpression.of("Kolkata")))
                     .build())
             .build();
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT * FROM testCollection "
             + "WHERE (CAST (document->'quantity' AS NUMERIC) > ?) "
@@ -96,8 +96,8 @@ public class PostgresQueryParserTest {
                             IdentifierExpression.of("quantity"), LTE, ConstantExpression.of(10)))
                     .build())
             .build();
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT * FROM testCollection WHERE (CAST (document->'quantity' AS NUMERIC) >= ?) "
             + "AND (CAST (document->'quantity' AS NUMERIC) <= ?)",
@@ -123,8 +123,8 @@ public class PostgresQueryParserTest {
                             IdentifierExpression.of("quantity"), LTE, ConstantExpression.of(10)))
                     .build())
             .build();
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT * FROM testCollection WHERE (CAST (document->'quantity' AS NUMERIC) >= ?) "
             + "OR (CAST (document->'quantity' AS NUMERIC) <= ?)",
@@ -162,8 +162,8 @@ public class PostgresQueryParserTest {
                     .build())
             .build();
 
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT * FROM testCollection WHERE (CAST (document->'price' AS NUMERIC) >= ?) "
             + "AND ((CAST (document->'quantity' AS NUMERIC) >= ?) "
@@ -183,8 +183,8 @@ public class PostgresQueryParserTest {
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("price"))
             .build();
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT document->'item' AS item, document->'price' AS price FROM testCollection", sql);
 
@@ -205,8 +205,8 @@ public class PostgresQueryParserTest {
                     .build(),
                 "total")
             .build();
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT document->'item' AS item, CAST (document->>'price' AS NUMERIC) "
             + "* CAST (document->>'quantity' AS NUMERIC) AS total FROM testCollection",
@@ -231,8 +231,8 @@ public class PostgresQueryParserTest {
                     .build(),
                 "total")
             .build();
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT document->'item' AS item, document->'props'->'brand' AS props_dot_brand, "
             + "document->'props'->'seller'->'name' AS props_dot_seller_dot_name, "
@@ -259,8 +259,8 @@ public class PostgresQueryParserTest {
                     .build(),
                 "total")
             .build();
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT document->'item' AS item, document->'props'->'brand' AS props_band, "
             + "document->'props'->'seller'->'name' AS props_seller_name, "
@@ -296,8 +296,8 @@ public class PostgresQueryParserTest {
             .addAggregation(IdentifierExpression.of("item"))
             .build();
 
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT document->'item' AS item, "
             + "AVG( CAST (document->>'quantity' AS NUMERIC) ) AS qty_avg, "
@@ -328,9 +328,8 @@ public class PostgresQueryParserTest {
             .addAggregation(IdentifierExpression.of("item"))
             .build();
 
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    Assertions.assertThrows(
-        UnsupportedOperationException.class, () -> postgresQueryParser.parse(query));
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    Assertions.assertThrows(UnsupportedOperationException.class, () -> postgresQueryParser.parse());
   }
 
   @Test
@@ -347,8 +346,8 @@ public class PostgresQueryParserTest {
                     IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
             .build();
 
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
         "SELECT COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
@@ -359,6 +358,39 @@ public class PostgresQueryParserTest {
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     Assertions.assertEquals(10, params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testAggregationFilterAndWhereFilter() {
+    Query query =
+        Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), LTE, ConstantExpression.of(7.5)))
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "SELECT COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
+            + "document->'item' AS item FROM testCollection "
+            + "WHERE CAST (document->'price' AS NUMERIC) <= ? "
+            + "GROUP BY document->'item' "
+            + "HAVING COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) <= ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(7.5, params.getObjectParams().get(1));
+    Assertions.assertEquals(10, params.getObjectParams().get(2));
   }
 
   @Test
@@ -384,8 +416,8 @@ public class PostgresQueryParserTest {
                     .build())
             .build();
 
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
         "SELECT COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "

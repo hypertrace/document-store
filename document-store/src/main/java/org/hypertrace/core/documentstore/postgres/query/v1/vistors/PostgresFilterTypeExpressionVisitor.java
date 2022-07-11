@@ -48,6 +48,11 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     String key = lhs.accept(lhsVisitor);
     Object value = rhs.accept(rhsVisitor);
 
+    // In SQL, the alias is not supported in the Filter and Having clause.
+    // As of now, where is clause is first parsed and it is not using any alias expression
+    // However, having clause is parsed after group by, and the query can have alias expression.
+    // So, for alias expression in having clause, we are extracting it from previously parsed
+    // selection clause.
     return postgresQueryParser.getPgSelections().containsKey(key)
         ? PostgresUtils.prepareParsedNonCompositeFilter(
             postgresQueryParser.getPgSelections().get(key),
