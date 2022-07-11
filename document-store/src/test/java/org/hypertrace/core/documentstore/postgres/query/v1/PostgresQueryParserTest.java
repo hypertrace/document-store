@@ -50,6 +50,36 @@ public class PostgresQueryParserTest {
   }
 
   @Test
+  void testFilterWithNestedFiled() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("props.address.city"),
+                            EQ,
+                            ConstantExpression.of("Kolkata")))
+                    .build())
+            .build();
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
+    String sql = postgresQueryParser.parse(query);
+    Assertions.assertEquals(
+        "SELECT * FROM testCollection "
+            + "WHERE (CAST (document->'quantity' AS NUMERIC) > ?) "
+            + "AND (CAST (document->'props'->'address'->'city' AS STRING) = ?)",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(5, params.getObjectParams().get(1));
+    Assertions.assertEquals("Kolkata", params.getObjectParams().get(2));
+  }
+
+  @Test
   void testFilterWithLogicalExpressionAnd() {
     Query query =
         Query.builder()

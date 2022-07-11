@@ -1513,7 +1513,30 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void testNewAggregateApiWhereClause(String dataStoreName) throws IOException {
+  public void testQueryV1ForSimpleWhereClause(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // query docs
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertSizeAndDocsEqual(dataStoreName, iterator, 6, "mongo/simple_filter_quantity_neq_10.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testQueryV1FilterWithNestedFiled(String dataStoreName) throws IOException {
     Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);

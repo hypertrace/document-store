@@ -95,7 +95,7 @@ public class PostgresUtils {
     } else if (type.equals(Type.BOOLEAN)) {
       return String.format(fmt, field, type);
     } else /* default is string */ {
-      return field;
+      return String.format(fmt, field, type);
     }
   }
 
