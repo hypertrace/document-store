@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.Getter;
@@ -12,6 +13,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelec
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSortTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.SortingSpec;
 
 public class PostgresQueryParser {
   private static String NOT_YET_SUPPORTED = "Not yet supported %s";
