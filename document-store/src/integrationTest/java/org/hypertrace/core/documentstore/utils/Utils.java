@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.utils;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -7,7 +9,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -91,5 +95,21 @@ public class Utils {
   public static Map<String, Object> convertDocumentToMap(Document document)
       throws JsonProcessingException {
     return OBJECT_MAPPER.readValue(document.toJson(), new TypeReference<>() {});
+  }
+
+  public static void assertDocsAndSizeEqual(
+      Iterator<Document> documents, String filePath, int expectedSize) throws IOException {
+    String fileContent = readFileFromResource(filePath).orElseThrow();
+    List<Map<String, Object>> expected = convertJsonToMap(fileContent);
+
+    int actualSize = 0;
+    List<Map<String, Object>> actual = new ArrayList<>();
+    while (documents.hasNext()) {
+      actual.add(convertDocumentToMap(documents.next()));
+      actualSize++;
+    }
+
+    assertEquals(expected, actual);
+    assertEquals(expectedSize, actualSize);
   }
 }

@@ -2,7 +2,6 @@ package org.hypertrace.core.documentstore.mongo;
 
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
-import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
@@ -496,27 +495,6 @@ public class MongoQueryExecutorIntegrationTest {
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsEqual(resultDocs, "mongo/multi_level_grouping_response.json");
     assertSizeEqual(query, "mongo/multi_level_grouping_response.json");
-  }
-
-  @Test
-  public void testDistinctCount() throws IOException {
-    Query query =
-        Query.builder()
-            .addSelection(
-                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
-                "qty_count")
-            .addSelection(IdentifierExpression.of("item"))
-            .addAggregation(IdentifierExpression.of("item"))
-            .setAggregationFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(1000)))
-            .addSort(IdentifierExpression.of("qty_count"), DESC)
-            .addSort(IdentifierExpression.of("item"), DESC)
-            .build();
-
-    Iterator<Document> resultDocs = collection.aggregate(query);
-    assertDocsEqual(resultDocs, "mongo/distinct_count_response.json");
-    assertSizeEqual(query, "mongo/distinct_count_response.json");
   }
 
   @Test
