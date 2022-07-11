@@ -3,7 +3,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
@@ -47,7 +47,7 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
     return baseVisitor.visit(expression);
   }
 
-  @AllArgsConstructor
+  @NoArgsConstructor
   static class PgSelection {
     String fieldName;
     String alias;
@@ -69,30 +69,28 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
     String childList =
         selectionSpecs.stream()
             .map(
-                selectionSpec ->
-                    new PgSelection(
-                        selectionSpec.getExpression().accept(selectTypeExpressionVisitor),
-                        getAlias(selectionSpec, identifierExpressionVisitor)))
+                selectionSpec -> {
+                  PgSelection pgSelection = new PgSelection();
+                  pgSelection.fieldName =
+                      selectionSpec.getExpression().accept(selectTypeExpressionVisitor);
+                  if (!StringUtils.isEmpty(selectionSpec.getAlias())) {
+                    pgSelection.alias = selectionSpec.getAlias();
+                    pgSelections.put(pgSelection.alias, pgSelection.fieldName);
+                  } else {
+                    pgSelection.alias =
+                        PostgresUtils.encodeAliasForNestedField(
+                            selectionSpec.getExpression().accept(identifierExpressionVisitor));
+                  }
+                  return pgSelection;
+                })
             .filter(pgSelection -> StringUtils.isNotEmpty(pgSelection.fieldName))
             .map(
-                pgSelection -> {
-                  if (StringUtils.isNotEmpty(pgSelection.alias)) {
-                    pgSelections.put(pgSelection.alias, pgSelection.fieldName);
-                    return pgSelection.fieldName + " AS " + pgSelection.alias;
-                  }
-                  return pgSelection.fieldName;
-                })
+                pgSelection ->
+                    StringUtils.isNotEmpty(pgSelection.alias)
+                        ? pgSelection.fieldName + " AS " + pgSelection.alias
+                        : pgSelection.fieldName)
             .collect(Collectors.joining(", "));
 
     return !childList.isEmpty() ? childList : null;
-  }
-
-  private static String getAlias(
-      SelectionSpec selectionSpec,
-      PostgresIdentifierExpressionVisitor identifierExpressionVisitor) {
-    return !StringUtils.isEmpty(selectionSpec.getAlias())
-        ? selectionSpec.getAlias()
-        : PostgresUtils.encodeAliasForNestedField(
-            selectionSpec.getExpression().accept(identifierExpressionVisitor));
   }
 }
