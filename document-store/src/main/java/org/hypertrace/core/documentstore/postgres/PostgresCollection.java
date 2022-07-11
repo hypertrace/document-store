@@ -1,7 +1,9 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
@@ -16,14 +18,17 @@ import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.print.Doc;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
+import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
@@ -40,7 +45,9 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Provides {@link Collection} implementation on Postgres using jsonb format */
+/**
+ * Provides {@link Collection} implementation on Postgres using jsonb format
+ */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -113,7 +120,9 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /** create a new document if one doesn't exists with key */
+  /**
+   * create a new document if one doesn't exists with key
+   */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -264,7 +273,83 @@ public class PostgresCollection implements Collection {
 
   @Override
   public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) {
-    throw new UnsupportedOperationException();
+    Operation operation = request.getOperation();
+    switch (operation) {
+      case ADD:
+        try {
+          return addImpl(request);
+        } catch (JsonProcessingException e) {
+          e.printStackTrace();
+        }
+      case SET:
+        return setImpl(request);
+      case REMOVE:
+        return removeImpl(request);
+      default:
+        throw new UnsupportedOperationException("Unsupported operation: " + operation);
+    }
+  }
+
+  private BulkUpdateResult removeImpl(BulkArrayValueUpdateRequest request) {
+    return null;
+  }
+
+  private BulkUpdateResult setImpl(BulkArrayValueUpdateRequest request) {
+    return null;
+  }
+
+  private BulkUpdateResult addImpl(BulkArrayValueUpdateRequest request)
+      throws JsonProcessingException {
+    Set<Key> keys = request.getKeys();
+    String[] pathTokens = request.getSubDocPath().split("\\.");
+    Map<Key, Document> upsertMap = new HashMap<>();
+    for (Key key : keys) {
+      Query getQuery = new Query();
+      getQuery.addSelection(DOCUMENT);
+      getQuery.setFilter(Filter.eq(ID, key.toString()));
+      Document doc = search(getQuery).next();
+      if (doc != null) {
+        JsonNode rootNode = MAPPER.readTree(doc.toJson());
+        //check if path exists
+        JsonNode currNode = rootNode;
+        StringBuilder existingPath = new StringBuilder();
+        for(int i = 0; i < pathTokens.length; i++) {
+          if (currNode.path(pathTokens[i]).isMissingNode()) {
+            if (i == pathTokens.length - 1) {
+              ((ObjectNode) currNode).put(pathTokens[i], MAPPER.createArrayNode());
+            } else {
+              ((ObjectNode) currNode).put(pathTokens[i], MAPPER.createObjectNode());
+            }
+          }
+          currNode = currNode.path(pathTokens[i]);
+        }
+        ArrayNode candidateArray = (ArrayNode) currNode;
+        for (Document subDoc : request.getSubDocuments()) {
+          boolean alreadyContainsDoc = false;
+          Iterator<JsonNode> arrayElems = candidateArray.elements();
+          while (arrayElems.hasNext()) {
+            JsonNode next = arrayElems.next();
+            if (next.equals(MAPPER.readTree(subDoc.toJson()))) {
+              alreadyContainsDoc = true;
+              break;
+            }
+          }
+          if (!alreadyContainsDoc) {
+            candidateArray.add(MAPPER.readTree(subDoc.toJson()));
+          }
+        }
+        upsertMap.put(key, new JSONDocument(rootNode));
+      }
+    }
+    try {
+      int[] res = bulkUpsertImpl(upsertMap);
+      return new BulkUpdateResult(Arrays.stream(res).sum());
+    } catch (SQLException e) {
+      e.printStackTrace();
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return null;
   }
 
   @Override
