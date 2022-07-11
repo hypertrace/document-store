@@ -26,20 +26,22 @@ public class PostgresSortTypeExpressionVisitor implements SortTypeExpressionVisi
   @Override
   public String visit(AggregateExpression expression) {
     throw new UnsupportedOperationException(
-        "Not yes supported sorting directly by aggregation expression."
+        "Sorting using aggregation expression is not yet supported."
             + "Use alias in selection for aggregation expression for sorting");
   }
 
   @Override
   public String visit(FunctionExpression expression) {
     throw new UnsupportedOperationException(
-        "Not yes supported sorting directly by functional expression."
+        "Sorting using function expression is not yet supported."
             + "Use alias in selection for functional expression for sorting");
   }
 
   @Override
   public String visit(IdentifierExpression expression) {
-    // NOTE: alias is supported in ORDER BY clause in SQL
+    // NOTE: SQL supports alias as part of ORDER BY clause.
+    // So, if we have already found any user-defined alias, we will use it.
+    // Otherwise, we are using a field accessor pattern.
     String fieldName = identifierExpressionVisitor.visit(expression);
 
     return postgresQueryParser.getPgSelections().containsKey(fieldName)

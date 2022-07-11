@@ -112,17 +112,4 @@ public class Utils {
     assertEquals(expected, actual);
     assertEquals(expectedSize, actualSize);
   }
-
-  public static void assertSizeEqual(Iterator<Document> documents, String filePath)
-      throws IOException {
-    String fileContent = readFileFromResource(filePath).orElseThrow();
-    int expected = convertJsonToMap(fileContent).size();
-    int actual;
-
-    for (actual = 0; documents.hasNext(); actual++) {
-      documents.next();
-    }
-
-    assertEquals(expected, actual);
-  }
 }
