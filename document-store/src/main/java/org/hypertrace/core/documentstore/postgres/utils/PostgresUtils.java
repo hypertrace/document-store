@@ -114,7 +114,6 @@ public class PostgresUtils {
 
   public static String parseNonCompositeFilter(
       String fieldName, String op, Object value, Builder paramsBuilder) {
-    // String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName), value);
     String fullFieldName = prepareCast(prepareFieldAccessorExpr(fieldName).toString(), value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
