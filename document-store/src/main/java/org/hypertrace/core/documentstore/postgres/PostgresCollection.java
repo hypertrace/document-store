@@ -286,8 +286,11 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private BulkUpdateResult removeImpl(BulkArrayValueUpdateRequest request, String jsonSubDocPath) {
-    //implementation
+  private BulkUpdateResult removeImpl(BulkArrayValueUpdateRequest request, String jsonSubDocPath)
+    throws IOException{
+    String query = getBulkArrayUpdateAddQuery(request);
+    jsonSubDocPath = jsonSubDocPath.substring(0, jsonSubDocPath.length() - 1) + ",0" + "}";
+
     return null;
   }
 
