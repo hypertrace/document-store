@@ -1,8 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
 import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.ADD;
-import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.REMOVE;
-import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.SET;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -735,5 +733,4 @@ public class MongoDocStoreTest {
       assertEquals(expectedAttributesJsonNode, attributesJsonNode);
     }
   }
-
 }

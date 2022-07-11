@@ -67,7 +67,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -1236,7 +1235,8 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void test_bulkOperationOnArrayValue_removeOperation(String dataStoreName) throws Exception {
+  public void test_bulkOperationOnArrayValue_removeOperation(String dataStoreName)
+      throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);

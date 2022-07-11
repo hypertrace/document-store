@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.stream.Collectors;
-import javax.print.Doc;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
@@ -46,9 +45,7 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Provides {@link Collection} implementation on Postgres using jsonb format
- */
+/** Provides {@link Collection} implementation on Postgres using jsonb format */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -121,9 +118,7 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /**
-   * create a new document if one doesn't exists with key
-   */
+  /** create a new document if one doesn't exists with key */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -309,7 +304,7 @@ public class PostgresCollection implements Collection {
         for (String pathToken : pathTokens) {
           currNode = currNode.path(pathToken);
         }
-        //if we do not end up in an array node, then the path doesn't exist. So do not do anything
+        // if we do not end up in an array node, then the path doesn't exist. So do not do anything
         if (!currNode.isArray()) {
           continue;
         }
@@ -361,7 +356,7 @@ public class PostgresCollection implements Collection {
           LOGGER.error("Malformed JSON for key: {}", key);
           continue;
         }
-        //create path if missing
+        // create path if missing
         JsonNode currNode = rootNode;
         for (int i = 0; i < pathTokens.length; i++) {
           if (currNode.path(pathTokens[i]).isMissingNode()) {
@@ -430,7 +425,7 @@ public class PostgresCollection implements Collection {
           LOGGER.error("Malformed JSON for key: {}", key);
           continue;
         }
-        //create path if missing
+        // create path if missing
         JsonNode currNode = rootNode;
         for (int i = 0; i < pathTokens.length; i++) {
           if (currNode.path(pathTokens[i]).isMissingNode()) {
