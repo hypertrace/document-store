@@ -15,6 +15,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -287,8 +288,60 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private BulkUpdateResult removeImpl(BulkArrayValueUpdateRequest request) {
-    return null;
+  private BulkUpdateResult removeImpl(BulkArrayValueUpdateRequest request) throws IOException {
+    Set<Key> keys = request.getKeys();
+    String[] pathTokens = request.getSubDocPath().split("\\.");
+    Map<Key, Document> upsertMap = new HashMap<>();
+    for (Key key : keys) {
+      Query getQuery = new Query();
+      getQuery.addSelection(DOCUMENT);
+      getQuery.setFilter(Filter.eq(ID, key.toString()));
+      Document doc = search(getQuery).next();
+      if (doc != null) {
+        JsonNode rootNode;
+        try {
+          rootNode = MAPPER.readTree(doc.toJson());
+        } catch (JsonProcessingException e) {
+          LOGGER.error("Malformed JSON for key: {}", key);
+          continue;
+        }
+        JsonNode currNode = rootNode;
+        for (String pathToken : pathTokens) {
+          currNode = currNode.path(pathToken);
+        }
+        //if we do not end up in an array node, then the path doesn't exist. So do not do anything
+        if (!currNode.isArray()) {
+          continue;
+        }
+        ArrayNode candidateArray = (ArrayNode) currNode;
+        for (Document subDoc : request.getSubDocuments()) {
+          Iterator<JsonNode> iterator = candidateArray.iterator();
+          List<Integer> indicesToRemove = new ArrayList<>();
+          int idx = 0;
+          while (iterator.hasNext()) {
+            if (iterator.next().equals(MAPPER.readTree(subDoc.toJson()))) {
+              indicesToRemove.add(idx);
+            }
+            idx++;
+          }
+          indicesToRemove.forEach(candidateArray::remove);
+        }
+        upsertMap.put(key, new JSONDocument(rootNode));
+      } else {
+        LOGGER.warn("Row with key: {} does not exist", key);
+      }
+    }
+    try {
+      int[] res = bulkUpsertImpl(upsertMap);
+      return new BulkUpdateResult(Arrays.stream(res).sum());
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+      throw new IOException(e);
+    }
   }
 
   private BulkUpdateResult addImpl(BulkArrayValueUpdateRequest request) throws IOException {
