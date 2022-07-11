@@ -1531,7 +1531,7 @@ public class DocStoreTest {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    assertSizeAndDocsEqual(dataStoreName, iterator, 6, "mongo/simple_filter_quantity_neq_10.json");
+    assertSizeAndDocsEqual(dataStoreName, iterator, 4, "mongo/simple_filter_quantity_neq_10.json");
   }
 
   @ParameterizedTest
@@ -1685,6 +1685,35 @@ public class DocStoreTest {
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertSizeAndDocsEqual(
         dataStoreName, resultDocs, 3, "mongo/test_aggregation_expression_result.json");
+  }
+
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testQueryV1AggregationFilter(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 4, "mongo/distinct_count_response.json");
   }
 
   @ParameterizedTest

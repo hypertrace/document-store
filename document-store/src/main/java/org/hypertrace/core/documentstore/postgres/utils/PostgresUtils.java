@@ -215,6 +215,76 @@ public class PostgresUtils {
     return filters;
   }
 
+  public static String prepareParsedNonCompositeFilter(
+      String preparedExpression, String op, Object value, Builder paramsBuilder) {
+    StringBuilder filterString = new StringBuilder(preparedExpression);
+    String sqlOperator;
+    Boolean isMultiValued = false;
+    switch (op) {
+      case "EQ":
+        sqlOperator = " = ";
+        break;
+      case "GT":
+        sqlOperator = " > ";
+        break;
+      case "LT":
+        sqlOperator = " < ";
+        break;
+      case "GTE":
+        sqlOperator = " >= ";
+        break;
+      case "LTE":
+        sqlOperator = " <= ";
+        break;
+      case "LIKE":
+        // Case insensitive regex search, Append % at beginning and end of value to do a regex
+        // search
+        sqlOperator = " ILIKE ";
+        value = "%" + value + "%";
+        break;
+      case "NOT_IN":
+        // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        sqlOperator = " NOT IN ";
+        isMultiValued = true;
+        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        break;
+      case "IN":
+        // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        sqlOperator = " IN ";
+        isMultiValued = true;
+        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        break;
+      case "NOT_EXISTS":
+        sqlOperator = " IS NULL ";
+        value = null;
+        break;
+      case "EXISTS":
+        sqlOperator = " IS NOT NULL ";
+        value = null;
+        break;
+      case "NEQ":
+        // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        sqlOperator = " != ";
+        break;
+      case "CONTAINS":
+        // TODO: Matches condition inside an array of documents
+      default:
+        throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+    }
+
+    filterString.append(sqlOperator);
+    if (value != null) {
+      if (isMultiValued) {
+        filterString.append(value);
+      } else {
+        filterString.append(QUESTION_MARK);
+        paramsBuilder.addObjectParam(value);
+      }
+    }
+    String filters = filterString.toString();
+    return filters;
+  }
+
   public static List<String> splitNestedField(String nestedFieldName) {
     return Arrays.asList(StringUtils.split(nestedFieldName, DOT));
   }
