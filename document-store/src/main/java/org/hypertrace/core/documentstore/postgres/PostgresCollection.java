@@ -294,10 +294,8 @@ public class PostgresCollection implements Collection {
   private BulkUpdateResult addImpl(BulkArrayValueUpdateRequest request, String jsonSubDocPath)
       throws IOException {
     int totalUpdates = 0;
-    //UPDATE myTest SET document=jsonb_insert(jsonb_insert(document, ?::text[], ?::jsonb), ?::text[], ?::jsonb)WHERE id=?
     String query = getBulkArrayUpdateAddQuery(request);
-    //always add at the head of the array
-    jsonSubDocPath = jsonSubDocPath.substring(0, jsonSubDocPath.length() - 1) + ",0" + "}";
+    jsonSubDocPath = getJsonSubDocPathForArrayInsertion(jsonSubDocPath, 0);
     try (PreparedStatement preparedStatement =
         client.prepareStatement(query,
             Statement.RETURN_GENERATED_KEYS)) {
@@ -329,11 +327,17 @@ public class PostgresCollection implements Collection {
     }
   }
 
+  private String getJsonSubDocPathForArrayInsertion(String jsonSubDocPath, int indexToInsertAt) {
+    return jsonSubDocPath.substring(0, jsonSubDocPath.length() - 1) + "," + indexToInsertAt + "}";
+  }
+
   private String getBulkArrayUpdateAddQuery(BulkArrayValueUpdateRequest request)
       throws JsonProcessingException {
+    //we basically created a nested query, one query for each document
     StringBuilder sb = new StringBuilder("UPDATE %s SET %s=");
+    //the outermost insert
     String finalClause = "jsonb_insert(%s, ?::text[], ?::jsonb)";
-    String nestingClause;
+    String nestedClause;
 
     String[] paths = request.getSubDocPath().split("\\.");
     // if the JSON field is NULL, then SET the entire path
@@ -368,10 +372,11 @@ public class PostgresCollection implements Collection {
         .append(" END ")
         .append(",")
         .append("?::text[], ?::jsonb)");
-    nestingClause = String.format(sb2.toString(), collectionName, ID);
+
+    nestedClause = String.format(sb2.toString(), collectionName, ID);
 
     for (int i = 0; i < request.getSubDocuments().size() - 1; i++) {
-      finalClause = String.format(finalClause, nestingClause);
+      finalClause = String.format(finalClause, nestedClause);
     }
     return String.format(
         sb.append(finalClause).append(" WHERE %s=?").toString(),
@@ -544,17 +549,16 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  private String getBulkArrayUpdateSetQuery(String path, String jsonField)
+  private String getBulkArrayUpdateSetQuery(String path, String field)
       throws JsonProcessingException {
-    // ref on why this was done:
-    // https://stackoverflow.com/questions/46797443/how-to-use-postgresql-jsonb-set-to-create-new-deep-object-element
+    //The query generation logic takes care of missing paths by first creating the missing path, and then doing a json_set
     String[] paths = path.split("\\.");
     // if the JSON field is NULL, then SET the entire path
     StringBuilder sb =
         new StringBuilder("UPDATE %s SET ")
-            .append(jsonField)
+            .append(field)
             .append("=jsonb_set(CASE WHEN ")
-            .append(jsonField)
+            .append(field)
             .append(" is NULL THEN '")
             .append(buildNestedJsonDocFromPath(paths, 0))
             .append("'");
@@ -562,16 +566,18 @@ public class PostgresCollection implements Collection {
       // Now do the same for each nested field. If it is NULL, create it. Do it till the entire path
       // is created.
       sb.append(" WHEN ")
-          .append(jsonField)
+          .append(field)
           .append("->")
           .append(getSubPathTillIdxForDereference(paths, i + 1))
           .append(" IS NULL THEN jsonb_set(")
-          .append(jsonField)
+          .append(field)
           .append(",")
+          //json path
           .append("'{")
           .append(getCSVSubPathTillIdx(paths, i + 1))
           .append("}'")
           .append(",")
+          //actual json doc
           .append("'")
           .append(buildNestedJsonDocFromPath(paths, i + 1))
           .append("'")
