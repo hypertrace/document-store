@@ -22,7 +22,9 @@ public class PostgresQueryParser {
 
   @Getter private Query query;
 
-  @Getter private Map<String, String> pgSelections; // alias to field name
+  // map of alias name to parsed expression
+  // e.g qty : COUNT(DISTINCT CAST(document->>'quantity' AS NUMERIC))
+  @Getter private Map<String, String> pgSelections;
 
   private void resetParser(Query query) {
     this.query = query;

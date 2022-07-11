@@ -41,6 +41,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     RelationalOperator operator = expression.getOperator();
     SelectTypeExpression rhs = expression.getRhs();
 
+    // Only an identifier LHS and a constant RHS is supported as of now.
     PostgresSelectTypeExpressionVisitor lhsVisitor = new PostgresIdentifierExpressionVisitor();
     PostgresSelectTypeExpressionVisitor rhsVisitor = new PostgresConstantExpressionVisitor();
 
