@@ -280,9 +280,15 @@ public class PostgresCollection implements Collection {
       case SET:
         return setImpl(request, jsonSubDocPath);
       case REMOVE:
+        return removeImpl(request, jsonSubDocPath);
       default:
-        throw new UnsupportedOperationException("Operation not supported yet!");
+        throw new UnsupportedOperationException("Not supported!");
     }
+  }
+
+  private BulkUpdateResult removeImpl(BulkArrayValueUpdateRequest request, String jsonSubDocPath) {
+    //implementation
+    return null;
   }
 
   private BulkUpdateResult addImpl(BulkArrayValueUpdateRequest request, String jsonSubDocPath)
