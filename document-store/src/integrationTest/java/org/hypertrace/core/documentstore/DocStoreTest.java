@@ -12,8 +12,10 @@ import static org.hypertrace.core.documentstore.expression.operators.LogicalOper
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
@@ -54,6 +56,11 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
+import org.hypertrace.core.documentstore.query.Pagination;
+import org.hypertrace.core.documentstore.query.Selection;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
+import org.hypertrace.core.documentstore.query.Sort;
+import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.Operation;
 import org.hypertrace.core.documentstore.utils.Utils;
@@ -1835,6 +1842,54 @@ public class DocStoreTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqual(resultDocs, "mongo/distinct_count_response.json", 4);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testFindWithSortingAndPagination(String datastoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(datastoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("price")),
+            SelectionSpec.of(IdentifierExpression.of("quantity")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+
+    org.hypertrace.core.documentstore.query.Filter filter =
+        org.hypertrace.core.documentstore.query.Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+            .build();
+
+    Sort sort =
+        Sort.builder()
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
+            .build();
+
+    Pagination pagination = Pagination.builder().offset(1).limit(3).build();
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setSelection(selection)
+            .setFilter(filter)
+            .setSort(sort)
+            .setPagination(pagination)
+            .build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    Utils.assertDocsAndSizeEqual(
+        resultDocs, "mongo/filter_with_sorting_and_pagination_response.json", 3);
   }
 
   @ParameterizedTest

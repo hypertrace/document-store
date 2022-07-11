@@ -13,11 +13,13 @@ import static org.hypertrace.core.documentstore.expression.operators.LogicalOper
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 
+import java.util.List;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -25,7 +27,13 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
+import org.hypertrace.core.documentstore.query.Filter;
+import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.Selection;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
+import org.hypertrace.core.documentstore.query.Sort;
+import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -488,5 +496,64 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     Assertions.assertEquals(1, params.getObjectParams().size());
     Assertions.assertEquals(1000, params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testFindWithSortingAndPagination() {
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("price")),
+            SelectionSpec.of(IdentifierExpression.of("quantity")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+            .build();
+
+    Sort sort =
+        Sort.builder()
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
+            .build();
+
+    Pagination pagination = Pagination.builder().offset(1).limit(3).build();
+
+    Query query =
+        Query.builder()
+            .setSelection(selection)
+            .setFilter(filter)
+            .setSort(sort)
+            .setPagination(pagination)
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "SELECT document->'item' AS item, "
+            + "document->'price' AS price, "
+            + "document->'quantity' AS quantity, "
+            + "document->'date' AS date "
+            + "FROM testCollection "
+            + "WHERE CAST (document->'item' AS STRING) IN (?, ?, ?, ?) "
+            + "ORDER BY document->'quantity' DESC,document->'item' ASC "
+            + "OFFSET ? LIMIT ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(6, params.getObjectParams().size());
+    Assertions.assertEquals("Mirror", params.getObjectParams().get(1));
+    Assertions.assertEquals("Comb", params.getObjectParams().get(2));
+    Assertions.assertEquals("Shampoo", params.getObjectParams().get(3));
+    Assertions.assertEquals("Bottle", params.getObjectParams().get(4));
+    Assertions.assertEquals(1, params.getObjectParams().get(5));
+    Assertions.assertEquals(3, params.getObjectParams().get(6));
   }
 }
