@@ -331,8 +331,9 @@ public class PostgresCollection implements Collection {
   private CloseableIterator<Document> executeQueryV1(
       final org.hypertrace.core.documentstore.query.Query query) {
     org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
-        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(collectionName);
-    String sqlQuery = queryParser.parse(query);
+        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
+            collectionName, query);
+    String sqlQuery = queryParser.parse();
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());

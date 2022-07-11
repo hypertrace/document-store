@@ -94,7 +94,10 @@ public class PostgresUtils {
       return String.format(fmt, field, type);
     } else if (type.equals(Type.BOOLEAN)) {
       return String.format(fmt, field, type);
-    } else /* default is string */ {
+    } else {
+      // default is string
+      // Note: As we are using field accessor pattern, we are casting String too.
+      // See more details on method : prepareParsedNonCompositeFilter
       return String.format(fmt, field, type);
     }
   }
@@ -215,8 +218,18 @@ public class PostgresUtils {
     return filters;
   }
 
+  /**
+   * In SQL, both having clause and group by clause should match the field accessor pattern. So, as
+   * part of the below method, we are only using field accessor pattern. This method will be used in
+   * Having / Where clause perperation.
+   *
+   * <p>See the corresponding test at {@link
+   * PostgresQueryParserTest.testAggregationFilterAlongWithNonAliasFields} In the above example,
+   * check how the price is accessed using -> instead of ->>.
+   */
   public static String prepareParsedNonCompositeFilter(
       String preparedExpression, String op, Object value, Builder paramsBuilder) {
+    // TODO : combine this method with parseNonCompositeFilter
     StringBuilder filterString = new StringBuilder(preparedExpression);
     String sqlOperator;
     Boolean isMultiValued = false;
