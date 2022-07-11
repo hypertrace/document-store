@@ -444,8 +444,8 @@ public class PostgresQueryParserTest {
             .addSort(IdentifierExpression.of("item"), DESC)
             .build();
 
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
         "SELECT document->'item' AS item, document->'price' AS price "
@@ -473,8 +473,8 @@ public class PostgresQueryParserTest {
             .addSort(IdentifierExpression.of("item"), DESC)
             .build();
 
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
-    String sql = postgresQueryParser.parse(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
         "SELECT COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
