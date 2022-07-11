@@ -1,7 +1,6 @@
 package org.hypertrace.core.documentstore.postgres.query.v1;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import lombok.Getter;
@@ -10,9 +9,9 @@ import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresGroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSortTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
-import org.hypertrace.core.documentstore.query.SortingSpec;
 
 public class PostgresQueryParser {
   private static String NOT_YET_SUPPORTED = "Not yet supported %s";
@@ -100,11 +99,7 @@ public class PostgresQueryParser {
   }
 
   private Optional<String> parseOrderBy() {
-    List<SortingSpec> sortingSpecs = this.query.getSorts();
-    if (sortingSpecs.size() > 0) {
-      throw new UnsupportedOperationException(String.format(NOT_YET_SUPPORTED, "order by clause"));
-    }
-    return Optional.empty();
+    return PostgresSortTypeExpressionVisitor.getOrderByClause(this);
   }
 
   private Optional<String> parsePagination() {

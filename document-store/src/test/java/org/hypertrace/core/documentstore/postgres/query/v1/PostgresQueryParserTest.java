@@ -15,6 +15,8 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
@@ -398,5 +400,61 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     Assertions.assertEquals(10, params.getObjectParams().get(1));
     Assertions.assertEquals(5, params.getObjectParams().get(2));
+  }
+
+  @Test
+  void testSimpleOrderByClause() {
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSort(IdentifierExpression.of("price"), ASC)
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
+    String sql = postgresQueryParser.parse(query);
+
+    Assertions.assertEquals(
+        "SELECT document->'item' AS item, document->'price' AS price "
+            + "FROM testCollection "
+            + "ORDER BY document->'price' ASC,document->'item' DESC",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(0, params.getObjectParams().size());
+  }
+
+  @Test
+  void testOrderByClauseWithAlias() {
+    Query query =
+        Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(1000)))
+            .addSort(IdentifierExpression.of("qty_count"), DESC)
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION);
+    String sql = postgresQueryParser.parse(query);
+
+    Assertions.assertEquals(
+        "SELECT COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
+            + "document->'item' AS item "
+            + "FROM testCollection "
+            + "GROUP BY document->'item' "
+            + "HAVING COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) <= ? "
+            + "ORDER BY qty_count DESC,document->'item' DESC",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(1, params.getObjectParams().size());
+    Assertions.assertEquals(1000, params.getObjectParams().get(1));
   }
 }

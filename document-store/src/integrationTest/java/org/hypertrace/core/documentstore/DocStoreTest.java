@@ -14,8 +14,10 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
+import static org.hypertrace.core.documentstore.utils.Utils.assertDocsAndSizeEqual;
 import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.createDocumentsFromResource;
@@ -1773,6 +1775,35 @@ public class DocStoreTest {
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertSizeAndDocsEqual(
         dataStoreName, resultDocs, 4, "mongo/test_aggr_alias_distinct_count_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(1000)))
+            .addSort(IdentifierExpression.of("qty_count"), DESC)
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsAndSizeEqual(resultDocs, "mongo/distinct_count_response.json", 4);
   }
 
   @ParameterizedTest
