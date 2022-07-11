@@ -359,6 +359,39 @@ public class PostgresQueryParserTest {
   }
 
   @Test
+  void testAggregationFilterAndWhereFilter() {
+    Query query =
+        Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), LTE, ConstantExpression.of(7.5)))
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "SELECT COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
+            + "document->'item' AS item FROM testCollection "
+            + "WHERE CAST (document->'price' AS NUMERIC) <= ? "
+            + "GROUP BY document->'item' "
+            + "HAVING COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) <= ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(7.5, params.getObjectParams().get(1));
+    Assertions.assertEquals(10, params.getObjectParams().get(2));
+  }
+
+  @Test
   void testAggregationFilterAlongWithNonAliasFields() {
     Query query =
         Query.builder()
