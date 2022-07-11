@@ -10,6 +10,7 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.query.Query;
 
 public class PostgresGroupTypeExpressionVisitor implements GroupTypeExpressionVisitor {
@@ -28,7 +29,8 @@ public class PostgresGroupTypeExpressionVisitor implements GroupTypeExpressionVi
     return selectTypeExpressionVisitor.visit(expression);
   }
 
-  public static String getGroupByClause(final Query query) {
+  public static String getGroupByClause(PostgresQueryParser postgresQueryParser) {
+    Query query = postgresQueryParser.getQuery();
     if (query.getAggregations().size() <= 0) return null;
 
     if (!validate(query)) {

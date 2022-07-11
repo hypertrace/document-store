@@ -1,0 +1,22 @@
+[
+  {
+    "item":"Soap",
+    "qty_count":1,
+    "price":20
+  },
+  {
+    "item":"Mirror",
+    "qty_count":1,
+    "price":20
+  },
+  {
+    "item":"Comb",
+    "qty_count":2,
+    "price":7.5
+  },
+  {
+    "item":"Soap",
+    "qty_count":2,
+    "price":10
+  }
+]

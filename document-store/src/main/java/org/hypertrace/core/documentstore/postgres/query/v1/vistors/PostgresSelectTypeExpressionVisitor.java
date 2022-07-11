@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
@@ -9,6 +10,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
@@ -51,7 +53,9 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
     String alias;
   }
 
-  public static String getSelections(final List<SelectionSpec> selectionSpecs) {
+  public static String getSelections(PostgresQueryParser postgresQueryParser) {
+    List<SelectionSpec> selectionSpecs = postgresQueryParser.getQuery().getSelections();
+
     PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor =
         new PostgresAggregateExpressionVisitor(
             new PostgresFieldIdentifierExpressionVisitor(new PostgresFunctionExpressionVisitor()));
@@ -60,13 +64,20 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
     PostgresIdentifierExpressionVisitor identifierExpressionVisitor =
         new PostgresIdentifierExpressionVisitor();
 
+    Map<String, String> pgSelections = postgresQueryParser.getPgSelections();
+
     String childList =
         selectionSpecs.stream()
             .map(
-                selectionSpec ->
-                    new PgSelection(
-                        selectionSpec.getExpression().accept(selectTypeExpressionVisitor),
-                        getAlias(selectionSpec, identifierExpressionVisitor)))
+                selectionSpec -> {
+                  PgSelection pgSelection =
+                      new PgSelection(
+                          selectionSpec.getExpression().accept(selectTypeExpressionVisitor),
+                          getAlias(selectionSpec, identifierExpressionVisitor));
+                  memorizedSelectionForUserDefinedAlias(
+                      selectionSpec, pgSelection.fieldName, pgSelections);
+                  return pgSelection;
+                })
             .filter(pgSelection -> StringUtils.isNotEmpty(pgSelection.fieldName))
             .map(
                 pgSelection ->
@@ -85,5 +96,12 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
         ? selectionSpec.getAlias()
         : PostgresUtils.encodeAliasForNestedField(
             selectionSpec.getExpression().accept(identifierExpressionVisitor));
+  }
+
+  private static void memorizedSelectionForUserDefinedAlias(
+      SelectionSpec selectionSpec, String parsedFieldName, Map<String, String> pgSelections) {
+    if (!StringUtils.isEmpty(selectionSpec.getAlias())) {
+      pgSelections.put(selectionSpec.getAlias(), parsedFieldName);
+    }
   }
 }

@@ -94,8 +94,11 @@ public class PostgresUtils {
       return String.format(fmt, field, type);
     } else if (type.equals(Type.BOOLEAN)) {
       return String.format(fmt, field, type);
-    } else /* default is string */ {
-      return field;
+    } else {
+      // default is string
+      // Note: As we are using field accessor pattern, we are casting String too.
+      // See more details on method : prepareParsedNonCompositeFilter
+      return String.format(fmt, field, type);
     }
   }
 
@@ -114,7 +117,7 @@ public class PostgresUtils {
 
   public static String parseNonCompositeFilter(
       String fieldName, String op, Object value, Builder paramsBuilder) {
-    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName), value);
+    String fullFieldName = prepareCast(prepareFieldAccessorExpr(fieldName).toString(), value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
     Boolean isMultiValued = false;
@@ -195,6 +198,86 @@ public class PostgresUtils {
         if (notEquals != null) {
           filterString = notEquals.append(" IS NULL OR ").append(fullFieldName);
         }
+        break;
+      case "CONTAINS":
+        // TODO: Matches condition inside an array of documents
+      default:
+        throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+    }
+
+    filterString.append(sqlOperator);
+    if (value != null) {
+      if (isMultiValued) {
+        filterString.append(value);
+      } else {
+        filterString.append(QUESTION_MARK);
+        paramsBuilder.addObjectParam(value);
+      }
+    }
+    String filters = filterString.toString();
+    return filters;
+  }
+
+  /**
+   * In SQL, both having clause and group by clause should match the field accessor pattern. So, as
+   * part of the below method, we are only using field accessor pattern. This method will be used in
+   * Having / Where clause perperation.
+   *
+   * <p>See the corresponding test at {@link
+   * PostgresQueryParserTest.testAggregationFilterAlongWithNonAliasFields} In the above example,
+   * check how the price is accessed using -> instead of ->>.
+   */
+  public static String prepareParsedNonCompositeFilter(
+      String preparedExpression, String op, Object value, Builder paramsBuilder) {
+    // TODO : combine this method with parseNonCompositeFilter
+    StringBuilder filterString = new StringBuilder(preparedExpression);
+    String sqlOperator;
+    Boolean isMultiValued = false;
+    switch (op) {
+      case "EQ":
+        sqlOperator = " = ";
+        break;
+      case "GT":
+        sqlOperator = " > ";
+        break;
+      case "LT":
+        sqlOperator = " < ";
+        break;
+      case "GTE":
+        sqlOperator = " >= ";
+        break;
+      case "LTE":
+        sqlOperator = " <= ";
+        break;
+      case "LIKE":
+        // Case insensitive regex search, Append % at beginning and end of value to do a regex
+        // search
+        sqlOperator = " ILIKE ";
+        value = "%" + value + "%";
+        break;
+      case "NOT_IN":
+        // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        sqlOperator = " NOT IN ";
+        isMultiValued = true;
+        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        break;
+      case "IN":
+        // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        sqlOperator = " IN ";
+        isMultiValued = true;
+        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        break;
+      case "NOT_EXISTS":
+        sqlOperator = " IS NULL ";
+        value = null;
+        break;
+      case "EXISTS":
+        sqlOperator = " IS NOT NULL ";
+        value = null;
+        break;
+      case "NEQ":
+        // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        sqlOperator = " != ";
         break;
       case "CONTAINS":
         // TODO: Matches condition inside an array of documents
