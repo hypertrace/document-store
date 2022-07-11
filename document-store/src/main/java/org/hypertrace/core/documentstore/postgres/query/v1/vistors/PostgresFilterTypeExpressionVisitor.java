@@ -16,7 +16,7 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
 
-  private PostgresQueryParser postgresQueryParser;
+  protected PostgresQueryParser postgresQueryParser;
 
   public PostgresFilterTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
     this.postgresQueryParser = postgresQueryParser;
@@ -48,29 +48,12 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     String key = lhs.accept(lhsVisitor);
     Object value = rhs.accept(rhsVisitor);
 
-    // In SQL, the alias is not supported in the Filter and Having clause.
-    // As of now, where is clause is first parsed and it is not using any alias expression
-    // However, having clause is parsed after group by, and the query can have alias expression.
-    // So, for alias expression in having clause, we are extracting it from previously parsed
-    // selection clause.
-    return postgresQueryParser.getPgSelections().containsKey(key)
-        ? PostgresUtils.prepareParsedNonCompositeFilter(
-            postgresQueryParser.getPgSelections().get(key),
-            operator.toString(),
-            value,
-            this.postgresQueryParser.getParamsBuilder())
-        : PostgresUtils.parseNonCompositeFilter(
-            key, operator.toString(), value, this.postgresQueryParser.getParamsBuilder());
+    return PostgresUtils.parseNonCompositeFilter(
+        key, operator.toString(), value, this.postgresQueryParser.getParamsBuilder());
   }
 
   public static Optional<String> getFilterClause(PostgresQueryParser postgresQueryParser) {
     return prepareFilterClause(postgresQueryParser.getQuery().getFilter(), postgresQueryParser);
-  }
-
-  public static Optional<String> getAggregationFilterClause(
-      PostgresQueryParser postgresQueryParser) {
-    return prepareFilterClause(
-        postgresQueryParser.getQuery().getAggregationFilter(), postgresQueryParser);
   }
 
   private static Optional<String> prepareFilterClause(

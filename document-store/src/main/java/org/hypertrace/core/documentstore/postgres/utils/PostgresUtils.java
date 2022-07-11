@@ -94,8 +94,8 @@ public class PostgresUtils {
       return String.format(fmt, field, type);
     } else if (type.equals(Type.BOOLEAN)) {
       return String.format(fmt, field, type);
-    } else {
-      return prepareFieldDataAccessorExpr(field);
+    } else /* default is string */ {
+      return field;
     }
   }
 
@@ -114,7 +114,7 @@ public class PostgresUtils {
 
   public static String parseNonCompositeFilter(
       String fieldName, String op, Object value, Builder paramsBuilder) {
-    String fullFieldName = prepareCast(prepareFieldAccessorExpr(fieldName).toString(), value);
+    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName), value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
     Boolean isMultiValued = false;
@@ -221,8 +221,8 @@ public class PostgresUtils {
    * Having / Where clause perperation.
    *
    * <p>See the corresponding test at
-   * PostgresQueryParserTest.testAggregationFilterAlongWithNonAliasFields.
-   * In the above example, check how the price is accessed using -> instead of ->>.
+   * PostgresQueryParserTest.testAggregationFilterAlongWithNonAliasFields. In the above example,
+   * check how the price is accessed using -> instead of ->>.
    */
   public static String prepareParsedNonCompositeFilter(
       String preparedExpression, String op, Object value, Builder paramsBuilder) {

@@ -112,4 +112,23 @@ public class Utils {
     assertEquals(expected, actual);
     assertEquals(expectedSize, actualSize);
   }
+
+  public static void assertDocsAndSizeEqualWithoutOrder(
+      Iterator<Document> documents, String filePath, int expectedSize) throws IOException {
+    String fileContent = readFileFromResource(filePath).orElseThrow();
+    List<Map<String, Object>> expectedDocs = convertJsonToMap(fileContent);
+
+    List<Map<String, Object>> actualDocs = new ArrayList<>();
+    int actualSize = 0;
+    while (documents.hasNext()) {
+      Map<String, Object> doc = convertDocumentToMap(documents.next());
+      actualDocs.add(doc);
+      actualSize++;
+    }
+
+    long count =
+        expectedDocs.stream().filter(expectedDoc -> actualDocs.contains(expectedDoc)).count();
+    assertEquals(expectedSize, actualSize);
+    assertEquals(expectedSize, count);
+  }
 }

@@ -1558,12 +1558,22 @@ public class DocStoreTest {
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("props.seller.address.city"),
+                            EQ,
+                            ConstantExpression.of("Kolkata")))
+                    .build())
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    assertSizeAndDocsEqual(dataStoreName, iterator, 6, "mongo/simple_filter_quantity_neq_10.json");
+    assertSizeAndDocsEqual(
+        dataStoreName, iterator, 1, "mongo/test_nest_field_filter_response.json");
   }
 
   @ParameterizedTest
@@ -1775,44 +1785,6 @@ public class DocStoreTest {
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertSizeAndDocsEqual(
         dataStoreName, resultDocs, 2, "mongo/test_aggr_filter_and_where_filter_result.json");
-  }
-
-  @ParameterizedTest
-  @MethodSource("databaseContextProvider")
-  public void testQueryQ1AggregationFilterAlongWithNonAliasFields(String dataStoreName)
-      throws IOException {
-    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-
-    // add docs
-    boolean result = collection.bulkUpsert(documents);
-    Assertions.assertTrue(result);
-
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
-            .addSelection(
-                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
-                "qty_count")
-            .addSelection(IdentifierExpression.of("item"))
-            .addSelection(IdentifierExpression.of("price"))
-            .addAggregation(IdentifierExpression.of("item"))
-            .addAggregation(IdentifierExpression.of("price"))
-            .setAggregationFilter(
-                LogicalExpression.builder()
-                    .operator(AND)
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("price"), GT, ConstantExpression.of(5)))
-                    .build())
-            .build();
-
-    Iterator<Document> resultDocs = collection.aggregate(query);
-    assertSizeAndDocsEqual(
-        dataStoreName, resultDocs, 4, "mongo/test_aggr_alias_distinct_count_response.json");
   }
 
   @ParameterizedTest

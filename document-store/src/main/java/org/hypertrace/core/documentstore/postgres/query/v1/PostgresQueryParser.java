@@ -6,6 +6,7 @@ import java.util.Optional;
 import lombok.Getter;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresAggregationFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresGroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelectTypeExpressionVisitor;
@@ -88,7 +89,7 @@ public class PostgresQueryParser {
   }
 
   private Optional<String> parseHaving() {
-    return PostgresFilterTypeExpressionVisitor.getAggregationFilterClause(this);
+    return PostgresAggregationFilterTypeExpressionVisitor.getAggregationFilterClause(this);
   }
 
   private Optional<String> parseOrderBy() {
