@@ -323,7 +323,7 @@ public class PostgresCollection implements Collection {
         }
         upsertMap.put(key, new JSONDocument(rootNode));
       } else {
-        LOGGER.warn("Row with key: {} does not exist", key);
+        LOGGER.warn("Could not get row with key: {}", key);
       }
     }
     return upsertDocs(upsertMap);
@@ -369,7 +369,7 @@ public class PostgresCollection implements Collection {
         }
         upsertMap.put(key, new JSONDocument(rootNode));
       } else {
-        LOGGER.warn("Row with key: {} does not exist", key);
+        LOGGER.warn("Could not get row with key: {}", key);
       }
     }
     return upsertDocs(upsertMap);
@@ -423,7 +423,7 @@ public class PostgresCollection implements Collection {
         }
         docs.put(key, new JSONDocument(rootNode));
       } else {
-        LOGGER.warn("Row with key: {} does not exist", key);
+        LOGGER.warn("Could not get row with key: {}", key);
       }
     }
     return upsertDocs(docs);
