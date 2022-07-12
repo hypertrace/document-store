@@ -341,7 +341,6 @@ public class PostgresCollection implements Collection {
 
   private BulkUpdateResult addImpl(BulkArrayValueUpdateRequest request) throws IOException {
     Set<Key> keys = request.getKeys();
-    String[] pathTokens = request.getSubDocPath().split("\\.");
     Map<Key, Document> upsertMap = new HashMap<>();
     for (Key key : keys) {
       Query getQuery = new Query();
@@ -357,18 +356,8 @@ public class PostgresCollection implements Collection {
           continue;
         }
         // create path if missing
-        JsonNode currNode = rootNode;
-        for (int i = 0; i < pathTokens.length; i++) {
-          if (currNode.path(pathTokens[i]).isMissingNode()) {
-            if (i == pathTokens.length - 1) {
-              ((ObjectNode) currNode).put(pathTokens[i], MAPPER.createArrayNode());
-            } else {
-              ((ObjectNode) currNode).put(pathTokens[i], MAPPER.createObjectNode());
-            }
-          }
-          currNode = currNode.path(pathTokens[i]);
-        }
-        ArrayNode candidateArray = (ArrayNode) currNode;
+        JsonNode arrayNode = createPathInJson(request.getSubDocPath(), rootNode);
+        ArrayNode candidateArray = (ArrayNode) arrayNode;
         for (Document subDoc : request.getSubDocuments()) {
           boolean alreadyContainsDoc = false;
           Iterator<JsonNode> arrayElems = candidateArray.elements();
@@ -425,18 +414,7 @@ public class PostgresCollection implements Collection {
           LOGGER.error("Malformed JSON for key: {}", key);
           continue;
         }
-        // create path if missing
-        JsonNode currNode = rootNode;
-        for (int i = 0; i < pathTokens.length; i++) {
-          if (currNode.path(pathTokens[i]).isMissingNode()) {
-            if (i == pathTokens.length - 1) {
-              ((ObjectNode) currNode).put(pathTokens[i], MAPPER.createArrayNode());
-            } else {
-              ((ObjectNode) currNode).put(pathTokens[i], MAPPER.createObjectNode());
-            }
-          }
-          currNode = currNode.path(pathTokens[i]);
-        }
+        JsonNode currNode = createPathInJson(request.getSubDocPath(), rootNode);
         ArrayNode candidateArray = (ArrayNode) currNode;
         candidateArray.removeAll();
         for (Document subDoc : request.getSubDocuments()) {
@@ -774,6 +752,25 @@ public class PostgresCollection implements Collection {
 
       return preparedStatement.executeBatch();
     }
+  }
+
+  @VisibleForTesting
+  private JsonNode createPathInJson(String path, JsonNode rootNode) {
+    String[] pathTokens = path.split("\\.");
+    // create path if missing
+    // attributes.labels.valueList.values
+    JsonNode currNode = rootNode;
+    for (int i = 0; i < pathTokens.length; i++) {
+      if (currNode.path(pathTokens[i]).isMissingNode()) {
+        if (i == pathTokens.length - 1) {
+          ((ObjectNode) currNode).put(pathTokens[i], MAPPER.createArrayNode());
+        } else {
+          ((ObjectNode) currNode).put(pathTokens[i], MAPPER.createObjectNode());
+        }
+      }
+      currNode = currNode.path(pathTokens[i]);
+    }
+    return currNode;
   }
 
   private long bulkUpdateRequestsWithFilter(List<BulkUpdateRequest> requests) throws IOException {

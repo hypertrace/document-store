@@ -1022,6 +1022,7 @@ public class DocStoreTest {
             "attributes.labels.valueList.values",
             SET,
             subDocuments);
+    // candidate under test
     BulkUpdateResult bulkUpdateResult =
         collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
     assertEquals(4, bulkUpdateResult.getUpdatedCount());
