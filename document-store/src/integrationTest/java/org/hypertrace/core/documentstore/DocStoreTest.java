@@ -30,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -160,7 +161,7 @@ public class DocStoreTest {
 
   @MethodSource
   private static Stream<Arguments> databaseContextProvider() {
-    return Stream.of(Arguments.of(POSTGRES_STORE), Arguments.of(MONGO_STORE));
+    return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
   }
 
   @ParameterizedTest
@@ -1059,6 +1060,10 @@ public class DocStoreTest {
     }
   }
 
+  /**
+   * When malformed docs are supplied, then a {@link JsonParseException} is thrown and the original
+   * document remains untouched (even if other documents are valid JSONs)
+   */
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
   public void test_bulkOperationOnArrayValue_setOperation_malformedDocs(String dataStoreName)
@@ -1098,9 +1103,11 @@ public class DocStoreTest {
                             List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
     collection.upsert(key1, key1InsertedDocument);
 
-    Document label2Document = () -> "malformedJson";
-    Document label3Document =
+    // valid doc
+    Document label2Document =
         Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    // malformed doc
+    Document label3Document = () -> "malformedJson";
     List<Document> subDocuments = List.of(label2Document, label3Document);
 
     BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
@@ -1110,8 +1117,10 @@ public class DocStoreTest {
     try {
       collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
       throw new AssertionError("Expected exception not thrown!");
-    } catch (IOException e) {
-      //
+    } catch (JsonParseException e) {
+      // success
+    } catch (Exception e) {
+      throw new AssertionError("Unexpected exception!");
     }
 
     // get all documents
@@ -1134,6 +1143,30 @@ public class DocStoreTest {
       JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
       assertEquals(expectedAttributesJsonNode, attributesJsonNode);
     }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_setOperation_missingDoc(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", SET, subDocuments);
+    // candidate under test
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+    assertEquals(0, bulkUpdateResult.getUpdatedCount());
   }
 
   @ParameterizedTest
@@ -1395,6 +1428,30 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_addOperation_missingDoc(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", ADD, subDocuments);
+    // candidate under test
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+    assertEquals(0, bulkUpdateResult.getUpdatedCount());
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
   public void test_bulkOperationOnArrayValue_removeOperation(String dataStoreName)
       throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -1628,6 +1685,30 @@ public class DocStoreTest {
       JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
       assertEquals(expectedAttributesJsonNode, attributesJsonNode);
     }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_removeOperation_missingDoc(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", REMOVE, subDocuments);
+    // candidate under test
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+    assertEquals(0, bulkUpdateResult.getUpdatedCount());
   }
 
   private Map<String, JsonNode> convertToMap(java.util.Collection<Document> docs, String key) {

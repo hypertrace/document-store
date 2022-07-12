@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -378,9 +379,9 @@ public class PostgresCollection implements Collection {
     JsonNode subDocAsJSON;
     try {
       subDocAsJSON = MAPPER.readTree(subDoc.toJson());
-    } catch (JsonProcessingException e) {
+    } catch (JsonParseException e) {
       LOGGER.error("Malformed JSON for key: {}", key);
-      throw new IOException("Malformed JSON supplied in request, key: " + key, e);
+      throw e;
     }
     return subDocAsJSON;
   }
