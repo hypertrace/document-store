@@ -160,7 +160,7 @@ public class DocStoreTest {
 
   @MethodSource
   private static Stream<Arguments> databaseContextProvider() {
-    return Stream.of(Arguments.of(POSTGRES_STORE));
+    return Stream.of(Arguments.of(POSTGRES_STORE), Arguments.of(MONGO_STORE));
   }
 
   @ParameterizedTest
@@ -1010,6 +1010,9 @@ public class DocStoreTest {
                                 ImmutablePair.of("value", Map.of("string", "Label3"))))))));
     collection.upsert(key4, key4InsertedDocument);
 
+    // we don't insert any doc with this key, to test for a missing doc path
+    Key key5 = new SingleValueKey("default", "testKey5");
+
     Document label2Document =
         Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
     Document label3Document =
@@ -1018,7 +1021,7 @@ public class DocStoreTest {
 
     BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
         new BulkArrayValueUpdateRequest(
-            Set.of(key1, key2, key3, key4),
+            Set.of(key1, key2, key3, key4, key5),
             "attributes.labels.valueList.values",
             SET,
             subDocuments);
@@ -1046,6 +1049,83 @@ public class DocStoreTest {
                 key3ExpectedDocument,
                 key4ExpectedDocument),
             "id");
+
+    // Verify that the documents returned are as expected
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_setOperation_malformedDocs(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    // if any subdoc is malformed, then the document should not be touched
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Document label2Document = () -> "malformedJson";
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", SET, subDocuments);
+    // candidate under test
+    try {
+      collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+      throw new AssertionError("Expected exception not thrown!");
+    } catch (IOException e) {
+      //
+    }
+
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+
+    assertEquals(1, documents.size());
+
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs = convertToMap(List.of(key1ExpectedDocument), "id");
 
     // Verify that the documents returned are as expected
     for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
@@ -1189,6 +1269,8 @@ public class DocStoreTest {
                                 ImmutablePair.of("value", Map.of("string", "Label3"))))))));
     collection.upsert(key4, key4InsertedDocument);
 
+    Key key5 = new SingleValueKey("default", "testKey5");
+
     Document label2Document =
         Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
     Document label3Document =
@@ -1197,7 +1279,7 @@ public class DocStoreTest {
 
     BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
         new BulkArrayValueUpdateRequest(
-            Set.of(key1, key2, key3, key4),
+            Set.of(key1, key2, key3, key4, key5),
             "attributes.labels.valueList.values",
             ADD,
             subDocuments);
@@ -1224,6 +1306,83 @@ public class DocStoreTest {
                 key3ExpectedDocument,
                 key4ExpectedDocument),
             "id");
+
+    // Verify that the documents returned are as expected
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_addOperation_malformedDocs(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    // if any subdoc is malformed, then the document should not be touched
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Document label2Document = () -> "malformedJson";
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", ADD, subDocuments);
+    // candidate under test
+    try {
+      collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+      throw new AssertionError("Expected exception not thrown!");
+    } catch (Exception e) {
+      //
+    }
+
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+
+    assertEquals(1, documents.size());
+
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs = convertToMap(List.of(key1ExpectedDocument), "id");
 
     // Verify that the documents returned are as expected
     for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
@@ -1347,6 +1506,8 @@ public class DocStoreTest {
                             List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
     collection.upsert(key4, key4InsertedDocument);
 
+    Key key5 = new SingleValueKey("default", "testKey5");
+
     Document label2Document =
         Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
     Document label3Document =
@@ -1355,13 +1516,13 @@ public class DocStoreTest {
 
     BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
         new BulkArrayValueUpdateRequest(
-            Set.of(key1, key2, key3, key4),
+            Set.of(key1, key2, key3, key4, key5),
             "attributes.labels.valueList.values",
             REMOVE,
             subDocuments);
     BulkUpdateResult bulkUpdateResult =
         collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
-    assertEquals(3, bulkUpdateResult.getUpdatedCount());
+    assertEquals(4, bulkUpdateResult.getUpdatedCount());
 
     // get all documents
     Query query = new Query();
@@ -1382,6 +1543,83 @@ public class DocStoreTest {
                 key3ExpectedDocument,
                 key4ExpectedDocument),
             "id");
+
+    // Verify that the documents returned are as expected
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_removeOperation_malformedDocs(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    // if any subdoc is malformed, then the document should not be touched
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Document label2Document = () -> "malformedJson";
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", REMOVE, subDocuments);
+    // candidate under test
+    try {
+      collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+      throw new AssertionError("Expected exception not thrown!");
+    } catch (Exception e) {
+      //
+    }
+
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+
+    assertEquals(1, documents.size());
+
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs = convertToMap(List.of(key1ExpectedDocument), "id");
 
     // Verify that the documents returned are as expected
     for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {

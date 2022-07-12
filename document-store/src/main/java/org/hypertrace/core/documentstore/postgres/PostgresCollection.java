@@ -288,13 +288,12 @@ public class PostgresCollection implements Collection {
     String[] pathTokens = request.getSubDocPath().split("\\.");
     Map<Key, Document> upsertMap = new HashMap<>();
     for (Key key : keys) {
-      Query getQuery = new Query();
-      getQuery.addSelection(DOCUMENT);
-      getQuery.setFilter(Filter.eq(ID, key.toString()));
-      Document doc = search(getQuery).next();
-      if (doc != null) {
+      Query getQuery = getSelectDocumentQueryForKey(key);
+      CloseableIterator<Document> searchRes = search(getQuery);
+      if (searchRes.hasNext()) {
         JsonNode rootNode;
         try {
+          Document doc = searchRes.next();
           rootNode = MAPPER.readTree(doc.toJson());
         } catch (JsonProcessingException e) {
           LOGGER.error("Malformed JSON for key: {}", key);
@@ -326,48 +325,36 @@ public class PostgresCollection implements Collection {
         LOGGER.warn("Row with key: {} does not exist", key);
       }
     }
-    try {
-      int[] res = bulkUpsertImpl(upsertMap);
-      return new BulkUpdateResult(Arrays.stream(res).sum());
-    } catch (SQLException e) {
-      LOGGER.error(
-          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
-          e.getSQLState(),
-          e.getErrorCode(),
-          e);
-      throw new IOException(e);
-    }
+    return upsertDocs(upsertMap);
+  }
+
+  private Query getSelectDocumentQueryForKey(Key key) {
+    return new Query().withSelection(DOCUMENT).withFilter(Filter.eq(ID, key.toString()));
   }
 
   private BulkUpdateResult addImpl(BulkArrayValueUpdateRequest request) throws IOException {
     Set<Key> keys = request.getKeys();
     Map<Key, Document> upsertMap = new HashMap<>();
     for (Key key : keys) {
-      Query getQuery = new Query();
-      getQuery.addSelection(DOCUMENT);
-      getQuery.setFilter(Filter.eq(ID, key.toString()));
-      Document doc = search(getQuery).next();
-      if (doc != null) {
+      Query getQuery = getSelectDocumentQueryForKey(key);
+      CloseableIterator<Document> searchRes = search(getQuery);
+      if (searchRes.hasNext()) {
         JsonNode rootNode;
         try {
+          Document doc = searchRes.next();
           rootNode = MAPPER.readTree(doc.toJson());
         } catch (JsonProcessingException e) {
-          LOGGER.error("Malformed JSON for key: {}", key);
+          LOGGER.warn("Malformed doc for id: {}, continuing for remaining keys", key, e);
           continue;
         }
         // create path if missing
-        JsonNode arrayNode = createPathInJson(request.getSubDocPath(), rootNode);
+        JsonNode arrayNode = createPathInDoc(request.getSubDocPath(), rootNode);
         ArrayNode candidateArray = (ArrayNode) arrayNode;
         for (Document subDoc : request.getSubDocuments()) {
+          // we don't insert docs if they exist already (so the array behaves like a set here)
           boolean alreadyContainsDoc = false;
           Iterator<JsonNode> arrayElems = candidateArray.elements();
-          JsonNode subDocAsJSON = null;
-          try {
-            subDocAsJSON = MAPPER.readTree(subDoc.toJson());
-          } catch (JsonProcessingException e) {
-            LOGGER.error("Malformed subdoc: {}, cannot insert", subDoc);
-            continue;
-          }
+          JsonNode subDocAsJSON = getSubDocAsJSON(key, subDoc);
           while (arrayElems.hasNext()) {
             JsonNode next = arrayElems.next();
             if (next.equals(subDocAsJSON)) {
@@ -384,8 +371,23 @@ public class PostgresCollection implements Collection {
         LOGGER.warn("Row with key: {} does not exist", key);
       }
     }
+    return upsertDocs(upsertMap);
+  }
+
+  private JsonNode getSubDocAsJSON(Key key, Document subDoc) throws IOException {
+    JsonNode subDocAsJSON;
     try {
-      int[] res = bulkUpsertImpl(upsertMap);
+      subDocAsJSON = MAPPER.readTree(subDoc.toJson());
+    } catch (JsonProcessingException e) {
+      LOGGER.error("Malformed JSON for key: {}", key);
+      throw new IOException("Malformed JSON supplied in request, key: " + key, e);
+    }
+    return subDocAsJSON;
+  }
+
+  private BulkUpdateResult upsertDocs(Map<Key, Document> docs) throws IOException {
+    try {
+      int[] res = bulkUpsertImpl(docs);
       return new BulkUpdateResult(Arrays.stream(res).sum());
     } catch (SQLException e) {
       LOGGER.error(
@@ -399,43 +401,31 @@ public class PostgresCollection implements Collection {
 
   private BulkUpdateResult setImpl(BulkArrayValueUpdateRequest request) throws IOException {
     Set<Key> keys = request.getKeys();
-    String[] pathTokens = request.getSubDocPath().split("\\.");
-    Map<Key, Document> upsertMap = new HashMap<>();
+    Map<Key, Document> docs = new HashMap<>();
     for (Key key : keys) {
-      Query getQuery = new Query();
-      getQuery.addSelection(DOCUMENT);
-      getQuery.setFilter(Filter.eq(ID, key.toString()));
-      Document doc = search(getQuery).next();
-      if (doc != null) {
+      Query getQuery = getSelectDocumentQueryForKey(key);
+      CloseableIterator<Document> searchRes = search(getQuery);
+      if (searchRes.hasNext()) {
         JsonNode rootNode;
         try {
+          Document doc = searchRes.next();
           rootNode = MAPPER.readTree(doc.toJson());
         } catch (JsonProcessingException e) {
           LOGGER.error("Malformed JSON for key: {}", key);
           continue;
         }
-        JsonNode currNode = createPathInJson(request.getSubDocPath(), rootNode);
+        JsonNode currNode = createPathInDoc(request.getSubDocPath(), rootNode);
         ArrayNode candidateArray = (ArrayNode) currNode;
         candidateArray.removeAll();
         for (Document subDoc : request.getSubDocuments()) {
-          candidateArray.add(MAPPER.readTree(subDoc.toJson()));
+          candidateArray.add(getSubDocAsJSON(key, subDoc));
         }
-        upsertMap.put(key, new JSONDocument(rootNode));
+        docs.put(key, new JSONDocument(rootNode));
       } else {
         LOGGER.warn("Row with key: {} does not exist", key);
       }
     }
-    try {
-      int[] res = bulkUpsertImpl(upsertMap);
-      return new BulkUpdateResult(Arrays.stream(res).sum());
-    } catch (SQLException e) {
-      LOGGER.error(
-          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
-          e.getSQLState(),
-          e.getErrorCode(),
-          e);
-      throw new IOException(e);
-    }
+    return upsertDocs(docs);
   }
 
   @Override
@@ -755,7 +745,7 @@ public class PostgresCollection implements Collection {
   }
 
   @VisibleForTesting
-  private JsonNode createPathInJson(String path, JsonNode rootNode) {
+  JsonNode createPathInDoc(String path, JsonNode rootNode) {
     String[] pathTokens = path.split("\\.");
     // create path if missing
     // attributes.labels.valueList.values
