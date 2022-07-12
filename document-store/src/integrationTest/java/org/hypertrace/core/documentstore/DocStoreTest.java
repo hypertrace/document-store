@@ -37,6 +37,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
+import java.sql.DatabaseMetaData;
+import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,6 +61,7 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
+import org.hypertrace.core.documentstore.postgres.PostgresCollection;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.Operation;
@@ -1405,6 +1408,36 @@ public class DocStoreTest {
             })
         .filter(Objects::nonNull)
         .collect(Collectors.toMap(d -> d.get(key).asText(), d -> d));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_createPathInJSON(String dataStoreName) throws Exception {
+    String inputNode = "{\"id\":\"testKey2\",\"attributes\":{\"name\":\"testKey2\",\"labels\":{\"valueList\":{\"values\":[{\"value\":{\"string\":\"Label2\"}}]}}},\"created_at\":\"2022-07-12 17:46:03.750437\",\"updated_at\":\"2022-07-12 17:46:03.750437\"}";
+    ObjectMapper objectMapper = new ObjectMapper();
+    JsonNode rootNode = objectMapper.readTree(inputNode);
+
+    String path1 = "attributes.labels.valueList.values";
+    String outputNode1 = "[{\"value\":{\"string\":\"Label2\"}}]";
+    JsonNode expectedRootNode1 = objectMapper.readTree(outputNode1);
+
+    String path2 = "attributes.labels.attrNotPresent.values";
+    String outputNode2 = "[]";
+    JsonNode expectedRootNode2 = objectMapper.readTree(outputNode2);
+
+    String path3 = null;
+
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    PostgresCollection collection = (PostgresCollection) datastore.getCollection(COLLECTION_NAME);
+    try {
+      Assertions.assertEquals(collection.createPathInJson(path1, rootNode), expectedRootNode1);
+      Assertions.assertEquals(collection.createPathInJson(path2, rootNode), expectedRootNode2);
+      Assertions.assertEquals(collection.createPathInJson(path3, rootNode), rootNode);
+    } catch (Exception e) {
+      System.out.println("Created path is not right");
+      Assertions.fail();
+    }
   }
 
   @ParameterizedTest
