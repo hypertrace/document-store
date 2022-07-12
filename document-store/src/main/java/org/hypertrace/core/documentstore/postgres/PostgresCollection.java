@@ -273,6 +273,8 @@ public class PostgresCollection implements Collection {
       throws Exception {
     Operation operation = request.getOperation();
     switch (operation) {
+        // todo: All of these implementations do a GET -> in memory update -> UPSERT which is not
+        // optimal. Changes this logic to use a single query using jsob_set and json_insert
       case ADD:
         return addImpl(request);
       case SET:
