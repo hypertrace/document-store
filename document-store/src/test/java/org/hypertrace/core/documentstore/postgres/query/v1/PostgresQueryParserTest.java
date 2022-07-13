@@ -26,6 +26,7 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -541,5 +542,50 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals("Bottle", params.getObjectParams().get(4));
     Assertions.assertEquals(1, params.getObjectParams().get(5));
     Assertions.assertEquals(3, params.getObjectParams().get(6));
+  }
+
+  @Test
+  void testUnnestWithoutPreserveNullAndEmptyArrays() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "With \n"
+            + "table1 as (SELECT * from testCollection), \n"
+            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p(sales),jsonb_array_elements(document->'sales'->'medium') p(sales_dot_medium))) \n"
+            + "SELECT * FROM table2",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(0, params.getObjectParams().size());
+  }
+
+  @Test
+  void testUnnestWithPreserveNullAndEmptyArrays() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "With \n"
+            + "table1 as (SELECT * from testCollection), \n"
+            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p(sales),jsonb_array_elements(document->'sales'->'medium') p(sales_dot_medium)), \n"
+            + "table3 as (SELECT m.created_at,m.id,m.updated_at,m.document, d.sales,d.sales_dot_medium from testCollection m LEFT JOIN table2 d on(m.id = d.id)) \n"
+            + "SELECT * FROM table3",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(0, params.getObjectParams().size());
   }
 }

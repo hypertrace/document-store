@@ -10,6 +10,7 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDA
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.postgres.Params;
@@ -22,7 +23,9 @@ public class PostgresUtils {
   private static final String DOT_STR = "_dot_";
   private static final String DOT = ".";
 
-  private static final Set<String> OUTER_COLUMNS = Set.of(CREATED_AT, ID, UPDATED_AT);
+  public static final Set<String> OUTER_COLUMNS =
+      new TreeSet<>(List.of(ID, CREATED_AT, UPDATED_AT));
+  public static final Set<String> DOCUMENT_COLUMN = new TreeSet<>(List.of(DOCUMENT));
 
   public enum Type {
     STRING,
