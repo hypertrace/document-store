@@ -170,46 +170,6 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
-  public void testFindWithSortingAndPagination() throws IOException {
-    List<SelectionSpec> selectionSpecs =
-        List.of(
-            SelectionSpec.of(IdentifierExpression.of("item")),
-            SelectionSpec.of(IdentifierExpression.of("price")),
-            SelectionSpec.of(IdentifierExpression.of("quantity")),
-            SelectionSpec.of(IdentifierExpression.of("date")));
-    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
-
-    Filter filter =
-        Filter.builder()
-            .expression(
-                RelationalExpression.of(
-                    IdentifierExpression.of("item"),
-                    IN,
-                    ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
-            .build();
-
-    Sort sort =
-        Sort.builder()
-            .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
-            .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
-            .build();
-
-    Pagination pagination = Pagination.builder().offset(1).limit(3).build();
-
-    Query query =
-        Query.builder()
-            .setSelection(selection)
-            .setFilter(filter)
-            .setSort(sort)
-            .setPagination(pagination)
-            .build();
-
-    Iterator<Document> resultDocs = collection.find(query);
-    assertDocsEqual(resultDocs, "mongo/filter_with_sorting_and_pagination_response.json");
-    assertSizeEqual(query, "mongo/filter_with_sorting_and_pagination_response.json");
-  }
-
-  @Test
   public void testFindWithDuplicateSortingAndPagination() throws IOException {
     List<SelectionSpec> selectionSpecs =
         List.of(
