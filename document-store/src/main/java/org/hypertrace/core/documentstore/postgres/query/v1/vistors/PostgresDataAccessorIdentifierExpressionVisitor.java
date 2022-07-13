@@ -29,11 +29,6 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
   @Override
   public String visit(final IdentifierExpression expression) {
     String dataAccessor = PostgresUtils.prepareFieldDataAccessorExpr(expression.getName());
-    if (type.equals(Type.NUMERIC)) {
-      return PostgresUtils.prepareCast(dataAccessor, 1);
-    } else if (type.equals(Type.BOOLEAN)) {
-      return PostgresUtils.prepareCast(dataAccessor, true);
-    }
-    return PostgresUtils.prepareCast(dataAccessor, "");
+    return PostgresUtils.prepareCast(dataAccessor, type);
   }
 }

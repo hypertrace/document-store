@@ -1,103 +1,17 @@
 [
   {
-    "date":"2014-03-01T08:00:00Z",
-    "item":"Soap",
-    "price":10,
+    "date":"2015-09-10T08:43:00Z",
+    "item":"Comb",
+    "price":7.5,
     "props":{
-      "size":"M",
-      "brand":"Dettol",
       "seller":{
-        "name":"Metro Chemicals Pvt. Ltd.",
-        "address":{
-          "city":"Mumbai",
-          "pincode":400004
-        }
-      }
-    },
-    "sales":[
-      {
-        "city":"delhi",
-        "medium":[
-          {
-            "type":"distributionChannel",
-            "volume":1000
-          },
-          {
-            "type":"retail",
-            "volume":500
-          },
-          {
-            "type":"online",
-            "volume":1000
-          }
-        ]
-      },
-      {
-        "city":"pune",
-        "medium":[
-          {
-            "type":"distributionChannel",
-            "volume":300
-          },
-          {
-            "type":"online",
-            "volume":2000
-          }
-        ]
-      }
-    ],
-    "quantity":2
-  },
-  {
-    "date":"2014-03-01T09:00:00Z",
-    "item":"Mirror",
-    "price":20,
-    "sales":[
-      {
-        "city":"delhi",
-        "medium":[
-
-        ]
-      }
-    ],
-    "quantity":1
-  },
-  {
-    "date":"2016-02-06T20:20:13Z",
-    "item":"Soap",
-    "price":10,
-    "quantity":5
-  },
-  {
-    "date":"2014-04-04T11:21:39.736Z",
-    "item":"Shampoo",
-    "price":5,
-    "sales":[
-
-    ],
-    "quantity":20
-  },
-  {
-    "date":"2014-04-04T21:23:13.331Z",
-    "item":"Soap",
-    "price":20,
-    "props":{
-      "size":"S",
-      "brand":"Lifebuoy",
-      "seller":{
-        "name":"Hans and Co.",
+        "name":"Go Go Plastics",
         "address":{
           "city":"Kolkata",
           "pincode":700007
         }
       }
     },
-    "quantity":5
-  },
-  {
-    "date":"2015-06-04T05:08:13Z",
-    "item":"Comb",
-    "price":7.5,
-    "quantity":5
+    "quantity":10
   }
 ]
