@@ -1809,7 +1809,6 @@ public class DocStoreTest {
     assertSizeEqual(resultDocs, 11);
   }
 
-
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
   public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {

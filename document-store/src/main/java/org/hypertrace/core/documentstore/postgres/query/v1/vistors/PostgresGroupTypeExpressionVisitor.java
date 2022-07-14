@@ -15,8 +15,11 @@ import org.hypertrace.core.documentstore.query.Query;
 
 public class PostgresGroupTypeExpressionVisitor implements GroupTypeExpressionVisitor {
 
-  PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor =
-      new PostgresFieldIdentifierExpressionVisitor();
+  private PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor;
+
+  public PostgresGroupTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
+    selectTypeExpressionVisitor = new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser);
+  }
 
   @Override
   public String visit(final FunctionExpression expression) {
@@ -40,7 +43,7 @@ public class PostgresGroupTypeExpressionVisitor implements GroupTypeExpressionVi
     List<GroupTypeExpression> groupTypeExpressions = query.getAggregations();
 
     PostgresGroupTypeExpressionVisitor groupTypeExpressionVisitor =
-        new PostgresGroupTypeExpressionVisitor();
+        new PostgresGroupTypeExpressionVisitor(postgresQueryParser);
 
     String childList =
         groupTypeExpressions.stream()

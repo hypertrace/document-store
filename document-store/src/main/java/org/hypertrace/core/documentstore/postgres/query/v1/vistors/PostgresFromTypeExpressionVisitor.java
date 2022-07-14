@@ -11,15 +11,16 @@ import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisitor {
-  private static String fmtWithPreserveNullAndEmpty = "With \n%s, \n%s, \n%s) \n";
-  private static String fmtWithoutPreserveNullAndEmpty = "With \n%s, \n%s) \n";
+  private static String fmtWithPreserveNullAndEmpty = "With \n%s, \n%s, \n%s \n";
+  private static String fmtWithoutPreserveNullAndEmpty = "With \n%s, \n%s \n";
 
   private PostgresQueryParser postgresQueryParser;
   private PostgresFieldIdentifierExpressionVisitor postgresFieldIdentifierExpressionVisitor;
 
   public PostgresFromTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
     this.postgresQueryParser = postgresQueryParser;
-    this.postgresFieldIdentifierExpressionVisitor = new PostgresFieldIdentifierExpressionVisitor();
+    this.postgresFieldIdentifierExpressionVisitor =
+        new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser);
   }
 
   @Override
@@ -37,14 +38,16 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
               + "multiple unnest expressions is not supported");
     }
 
+    String baseFieldName = unnestExpression.getIdentifierExpression().getName();
+    String columnName = PostgresUtils.encodeAliasForNestedField(baseFieldName);
+
     String fieldName =
         unnestExpression.getIdentifierExpression().accept(postgresFieldIdentifierExpressionVisitor);
-    String columnName =
-        PostgresUtils.encodeAliasForNestedField(
-            unnestExpression.getIdentifierExpression().getName());
-    postgresQueryParser.getPgColumnNames().put(fieldName, columnName);
 
-    return String.format("jsonb_array_elements(%s) p(%s)", fieldName, columnName);
+    postgresQueryParser.getPgColumnNames().put(baseFieldName, columnName);
+    int lastIndex = postgresQueryParser.getPgColumnNames().size();
+
+    return String.format("jsonb_array_elements(%s) p%s(%s)", fieldName, lastIndex, columnName);
   }
 
   public static Optional<String> getFromClause(PostgresQueryParser postgresQueryParser) {
@@ -90,7 +93,9 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
     String queryFmt = "table3 as (SELECT %s, %s from %s m " + "LEFT JOIN table2 d on(m.id = d.id)";
 
     List<String> orderedSet =
-        Stream.concat(PostgresUtils.OUTER_COLUMNS.stream(), PostgresUtils.DOCUMENT_COLUMN.stream())
+        Stream.concat(
+                PostgresUtils.OUTER_COLUMNS.stream(),
+                List.of(PostgresUtils.DOCUMENT_COLUMN).stream())
             .collect(Collectors.toList());
 
     String baseColumnsStr =

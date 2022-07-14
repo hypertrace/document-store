@@ -558,7 +558,7 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals(
         "With \n"
             + "table1 as (SELECT * from testCollection), \n"
-            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p(sales),jsonb_array_elements(document->'sales'->'medium') p(sales_dot_medium))) \n"
+            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),jsonb_array_elements(sales->'medium') p2(sales_dot_medium)) \n"
             + "SELECT * FROM table2",
         sql);
 
@@ -580,8 +580,8 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals(
         "With \n"
             + "table1 as (SELECT * from testCollection), \n"
-            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p(sales),jsonb_array_elements(document->'sales'->'medium') p(sales_dot_medium)), \n"
-            + "table3 as (SELECT m.created_at,m.id,m.updated_at,m.document, d.sales,d.sales_dot_medium from testCollection m LEFT JOIN table2 d on(m.id = d.id)) \n"
+            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),jsonb_array_elements(sales->'medium') p2(sales_dot_medium)), \n"
+            + "table3 as (SELECT m.created_at,m.id,m.updated_at,m.document, d.sales_dot_medium,d.sales from testCollection m LEFT JOIN table2 d on(m.id = d.id) \n"
             + "SELECT * FROM table3",
         sql);
 

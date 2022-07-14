@@ -15,12 +15,13 @@ public class PostgresSortTypeExpressionVisitor implements SortTypeExpressionVisi
 
   private PostgresQueryParser postgresQueryParser;
   private PostgresIdentifierExpressionVisitor identifierExpressionVisitor;
-  PostgresFieldIdentifierExpressionVisitor fieldIdentifierExpressionVisitor;
+  private PostgresFieldIdentifierExpressionVisitor fieldIdentifierExpressionVisitor;
 
   public PostgresSortTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
     this.postgresQueryParser = postgresQueryParser;
     identifierExpressionVisitor = new PostgresIdentifierExpressionVisitor();
-    fieldIdentifierExpressionVisitor = new PostgresFieldIdentifierExpressionVisitor();
+    fieldIdentifierExpressionVisitor =
+        new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser);
   }
 
   @Override

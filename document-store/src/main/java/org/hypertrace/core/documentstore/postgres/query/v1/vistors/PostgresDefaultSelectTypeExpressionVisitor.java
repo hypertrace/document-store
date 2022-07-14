@@ -6,6 +6,7 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PostgresDefaultSelectTypeExpressionVisitor
@@ -31,5 +32,11 @@ public class PostgresDefaultSelectTypeExpressionVisitor
   @Override
   public <T> T visit(final IdentifierExpression expression) {
     throw new UnsupportedOperationException(String.valueOf(expression));
+  }
+
+  @Override
+  public PostgresQueryParser getPostgresQueryParser() {
+    /* this will eventually throw null pointer exception */
+    return postgresQueryParser;
   }
 }

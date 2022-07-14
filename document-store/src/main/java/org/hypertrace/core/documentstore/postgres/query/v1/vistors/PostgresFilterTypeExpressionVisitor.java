@@ -12,6 +12,8 @@ import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.postgres.query.v1.mapper.FieldNameToColumnMapper;
+import org.hypertrace.core.documentstore.postgres.query.v1.mapper.FieldNameToColumnMapper.PgFieldColumn;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
@@ -45,11 +47,18 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     PostgresSelectTypeExpressionVisitor lhsVisitor = new PostgresIdentifierExpressionVisitor();
     PostgresSelectTypeExpressionVisitor rhsVisitor = new PostgresConstantExpressionVisitor();
 
-    String key = lhs.accept(lhsVisitor);
+    String fieldName = lhs.accept(lhsVisitor);
     Object value = rhs.accept(rhsVisitor);
 
+    PgFieldColumn pgFieldColumn =
+        FieldNameToColumnMapper.toColumnName(postgresQueryParser, fieldName);
+
     return PostgresUtils.parseNonCompositeFilter(
-        key, operator.toString(), value, this.postgresQueryParser.getParamsBuilder());
+        pgFieldColumn.getFieldName(),
+        pgFieldColumn.getColumnName(),
+        operator.toString(),
+        value,
+        this.postgresQueryParser.getParamsBuilder());
   }
 
   public static Optional<String> getFilterClause(PostgresQueryParser postgresQueryParser) {
