@@ -295,13 +295,13 @@ public class PostgresCollection implements Collection {
     }
     Iterator<Document> docs = searchDocsForKeys(request.getKeys());
     while (docs.hasNext()) {
-      JsonNode rootNode = getDocAsJSON(docs.next());
+      JsonNode docRoot = getDocAsJSON(docs.next());
       JsonNode currNode;
-      currNode = getJsonNodeAtPath(request.getSubDocPath(), rootNode, false);
+      currNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, false);
       if (currNode == null) {
         LOGGER.warn(
             "Removal path does not exist for {}, continuing with other documents",
-            rootNode.get(ID).textValue());
+            docRoot.get(ID).textValue());
         continue;
       }
       HashSet<JsonNode> existingItems = new HashSet<>();
@@ -310,8 +310,8 @@ public class PostgresCollection implements Collection {
       existingItems.removeAll(subDocs);
       candidateArray.removeAll();
       candidateArray.addAll(existingItems);
-      String id = rootNode.findValue(ID).asText();
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(rootNode));
+      String id = docRoot.findValue(ID).asText();
+      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
     }
     return upsertDocs(upsertMap);
   }
@@ -333,21 +333,21 @@ public class PostgresCollection implements Collection {
     }
     Iterator<Document> docs = searchDocsForKeys(request.getKeys());
     while (docs.hasNext()) {
-      JsonNode rootNode = getDocAsJSON(docs.next());
+      JsonNode docRoot = getDocAsJSON(docs.next());
       // create path if missing
-      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), rootNode, true);
+      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, true);
       ArrayNode candidateArray = (ArrayNode) arrayNode;
       assert candidateArray != null;
       Iterator<JsonNode> iterator = candidateArray.iterator();
-      Set<JsonNode> arrayElems = new HashSet<>();
+      Set<JsonNode> existingElems = new HashSet<>();
       while (iterator.hasNext()) {
-        arrayElems.add(iterator.next());
+        existingElems.add(iterator.next());
       }
-      arrayElems.addAll(subDocs);
+      existingElems.addAll(subDocs);
       candidateArray.removeAll();
-      candidateArray.addAll(arrayElems);
-      String id = rootNode.findValue(ID).asText();
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(rootNode));
+      candidateArray.addAll(existingElems);
+      String id = docRoot.findValue(ID).asText();
+      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
     }
     return upsertDocs(upsertMap);
   }
@@ -394,15 +394,15 @@ public class PostgresCollection implements Collection {
     }
     Iterator<Document> docs = searchDocsForKeys(request.getKeys());
     while (docs.hasNext()) {
-      JsonNode rootNode = getDocAsJSON(docs.next());
+      JsonNode docRoot = getDocAsJSON(docs.next());
       // create path if missing
-      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), rootNode, true);
+      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, true);
       assert arrayNode != null;
       ArrayNode candidateArray = (ArrayNode) arrayNode;
       candidateArray.removeAll();
       candidateArray.addAll(subDocs);
-      String id = rootNode.findValue(ID).asText();
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(rootNode));
+      String id = docRoot.findValue(ID).asText();
+      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
     }
     return upsertDocs(upsertMap);
   }
