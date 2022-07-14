@@ -45,7 +45,9 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Provides {@link Collection} implementation on Postgres using jsonb format */
+/**
+ * Provides {@link Collection} implementation on Postgres using jsonb format
+ */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -118,7 +120,9 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /** create a new document if one doesn't exists with key */
+  /**
+   * create a new document if one doesn't exists with key
+   */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -272,8 +276,8 @@ public class PostgresCollection implements Collection {
       throws Exception {
     Operation operation = request.getOperation();
     switch (operation) {
-        // todo: All of these implementations do a GET -> in memory update -> UPSERT which is not
-        // optimal. Changes this logic to use a single query using jsob_set and json_insert
+      // todo: All of these implementations do a GET -> in memory update -> UPSERT which is not
+      // optimal. Changes this logic to use a single query using jsob_set and json_insert
       case ADD:
         return bulkAddOnArrayValue(request);
       case SET:
