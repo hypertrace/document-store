@@ -38,15 +38,19 @@ import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
+import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Provides {@link Collection} implementation on Postgres using jsonb format */
+/**
+ * Provides {@link Collection} implementation on Postgres using jsonb format
+ */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -119,7 +123,9 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /** create a new document if one doesn't exists with key */
+  /**
+   * create a new document if one doesn't exists with key
+   */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -273,20 +279,21 @@ public class PostgresCollection implements Collection {
       throws Exception {
     Operation operation = request.getOperation();
     switch (operation) {
-        // todo: All of these implementations do a GET -> in memory update -> UPSERT which is not
-        // optimal. Changes this logic to use a single query using jsob_set and json_insert
+      // todo: All of these implementations do a GET -> in memory update -> UPSERT which is not
+      // optimal. Changes this logic to use a single query using jsob_set and json_insert
       case ADD:
-        return addImpl(request);
+        return bulkAddOnArrayValue(request);
       case SET:
-        return setImpl(request);
+        return bulkSetOnArrayValue(request);
       case REMOVE:
-        return removeImpl(request);
+        return bulkRemoveOnArrayValue(request);
       default:
         throw new UnsupportedOperationException("Unsupported operation: " + operation);
     }
   }
 
-  private BulkUpdateResult removeImpl(BulkArrayValueUpdateRequest request) throws IOException {
+  private BulkUpdateResult bulkRemoveOnArrayValue(BulkArrayValueUpdateRequest request)
+      throws IOException {
     Set<Key> keys = request.getKeys();
     String[] pathTokens = request.getSubDocPath().split("\\.");
     Map<Key, Document> upsertMap = new HashMap<>();
@@ -311,8 +318,25 @@ public class PostgresCollection implements Collection {
           continue;
         }
         ArrayNode candidateArray = (ArrayNode) currNode;
+        Set<JsonNode> subDocs =
+            request.getSubDocuments().stream()
+                .map(
+                    doc -> {
+                      try {
+                        return MAPPER.readTree(doc.toJson());
+                      } catch (JsonProcessingException e) {
+                        e.printStackTrace();
+                      }
+                      return null;
+                    })
+                .collect(Collectors.toSet());
+        Set<JsonNode> subDocsInArray = new HashSet<>();
+        Iterator<JsonNode> iterator = candidateArray.iterator();
+        while (iterator.hasNext()) {
+          subDocsInArray.add(iterator.next());
+        }
         for (Document subDoc : request.getSubDocuments()) {
-          Iterator<JsonNode> iterator = candidateArray.iterator();
+//          Iterator<JsonNode> iterator = candidateArray.iterator();
           List<Integer> indicesToRemove = new ArrayList<>();
           int idx = 0;
           while (iterator.hasNext()) {
@@ -335,46 +359,48 @@ public class PostgresCollection implements Collection {
     return new Query().withSelection(DOCUMENT).withFilter(Filter.eq(ID, key.toString()));
   }
 
-  private BulkUpdateResult addImpl(BulkArrayValueUpdateRequest request) throws IOException {
-    Set<Key> keys = request.getKeys();
+  private BulkUpdateResult bulkAddOnArrayValue(BulkArrayValueUpdateRequest request)
+      throws IOException {
     Map<Key, Document> upsertMap = new HashMap<>();
-    for (Key key : keys) {
-      Query getQuery = getSelectDocumentQueryForKey(key);
-      CloseableIterator<Document> searchRes = search(getQuery);
-      if (searchRes.hasNext()) {
-        JsonNode rootNode;
-        try {
-          Document doc = searchRes.next();
-          rootNode = MAPPER.readTree(doc.toJson());
-        } catch (JsonProcessingException e) {
-          LOGGER.warn("Malformed doc for id: {}, continuing for remaining keys", key, e);
-          continue;
-        }
-        // create path if missing
-        JsonNode arrayNode = createPathInDoc(request.getSubDocPath(), rootNode);
-        ArrayNode candidateArray = (ArrayNode) arrayNode;
-        for (Document subDoc : request.getSubDocuments()) {
-          // we don't insert docs if they exist already (so the array behaves like a set here)
-          boolean alreadyContainsDoc = false;
-          Iterator<JsonNode> arrayElems = candidateArray.elements();
-          JsonNode subDocAsJSON = getSubDocAsJSON(key, subDoc);
-          while (arrayElems.hasNext()) {
-            JsonNode next = arrayElems.next();
-            if (next.equals(subDocAsJSON)) {
-              alreadyContainsDoc = true;
-              break;
-            }
-          }
-          if (!alreadyContainsDoc) {
-            candidateArray.add(subDocAsJSON);
-          }
-        }
-        upsertMap.put(key, new JSONDocument(rootNode));
-      } else {
-        LOGGER.warn("Could not get row with key: {}", key);
+    List<Key> keys = new ArrayList<>(request.getKeys());
+    Set<JsonNode> subDocs = new HashSet<>();
+    for (Document subDoc : request.getSubDocuments()) {
+      try {
+        subDocs.add(MAPPER.readTree(subDoc.toJson()));
+      } catch (Exception e) {
+        LOGGER.error("Malformed subDoc");
       }
     }
+    Iterator<Document> docs = searchDocuments(keys);
+    while (docs.hasNext()) {
+      JsonNode rootNode;
+      Document doc = docs.next();
+      try {
+        rootNode = MAPPER.readTree(doc.toJson());
+      } catch (JsonProcessingException e) {
+        LOGGER.warn("Malformed doc for id, continuing for remaining keys");
+        continue;
+      }
+      // create path if missing
+      JsonNode arrayNode = createPathInDoc(request.getSubDocPath(), rootNode);
+      ArrayNode candidateArray = (ArrayNode) arrayNode;
+      Iterator<JsonNode> iterator = candidateArray.iterator();
+      Set<JsonNode> arrayElems = new HashSet<>();
+      while (iterator.hasNext()) {
+        arrayElems.add(iterator.next());
+      }
+      arrayElems.addAll(subDocs);
+      upsertMap.put(new SingleValueKey(rootNode.get(DOCUMENT_ID).toString()),
+          new JSONDocument(rootNode));
+    }
     return upsertDocs(upsertMap);
+  }
+
+  private CloseableIterator<Document> searchDocuments(List<Key> keys) {
+    List<String> keysAsStr = keys.stream().map(a -> a.toString()).collect(Collectors.toList());
+    Query query1 = new Query().withSelection("*")
+        .withFilter(new Filter(Filter.Op.IN, "id", keysAsStr));
+    return search(query1);
   }
 
   private JsonNode getSubDocAsJSON(Key key, Document subDoc) throws IOException {
@@ -402,7 +428,8 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private BulkUpdateResult setImpl(BulkArrayValueUpdateRequest request) throws IOException {
+  private BulkUpdateResult bulkSetOnArrayValue(BulkArrayValueUpdateRequest request)
+      throws IOException {
     Set<Key> keys = request.getKeys();
     Map<Key, Document> docs = new HashMap<>();
     for (Key key : keys) {
@@ -970,7 +997,7 @@ public class PostgresCollection implements Collection {
     protected Document prepareDocument() throws SQLException, IOException {
       String documentString = resultSet.getString(DOCUMENT);
       ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
-      jsonNode.remove(DOCUMENT_ID);
+//      jsonNode.remove(DOCUMENT_ID);
       // Add Timestamps to Document
       Timestamp createdAt = resultSet.getTimestamp(CREATED_AT);
       Timestamp updatedAt = resultSet.getTimestamp(UPDATED_AT);
