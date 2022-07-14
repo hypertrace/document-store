@@ -45,9 +45,7 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Provides {@link Collection} implementation on Postgres using jsonb format
- */
+/** Provides {@link Collection} implementation on Postgres using jsonb format */
 public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
@@ -120,9 +118,7 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /**
-   * create a new document if one doesn't exists with key
-   */
+  /** create a new document if one doesn't exists with key */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -276,8 +272,8 @@ public class PostgresCollection implements Collection {
       throws Exception {
     Operation operation = request.getOperation();
     switch (operation) {
-      // todo: All of these implementations do a GET -> in memory update -> UPSERT which is not
-      // optimal. Changes this logic to use a single query using jsob_set and json_insert
+        // todo: All of these implementations do a GET -> in memory update -> UPSERT which is not
+        // optimal. Changes this logic to use a single query using jsob_set and json_insert
       case ADD:
         return bulkAddOnArrayValue(request);
       case SET:
@@ -287,128 +283,6 @@ public class PostgresCollection implements Collection {
       default:
         throw new UnsupportedOperationException("Unsupported operation: " + operation);
     }
-  }
-
-  private BulkUpdateResult bulkRemoveOnArrayValue(BulkArrayValueUpdateRequest request)
-      throws IOException {
-    Map<Key, Document> upsertMap = new HashMap<>();
-    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
-    HashSet<JsonNode> subDocs = new HashSet<>();
-    for (Document subDoc : request.getSubDocuments()) {
-      subDocs.add(getDocAsJSON(subDoc));
-    }
-    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
-    while (docs.hasNext()) {
-      JsonNode docRoot = getDocAsJSON(docs.next());
-      JsonNode currNode;
-      currNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, false);
-      if (currNode == null) {
-        LOGGER.warn(
-            "Removal path does not exist for {}, continuing with other documents",
-            docRoot.get(ID).textValue());
-        continue;
-      }
-      HashSet<JsonNode> existingItems = new HashSet<>();
-      ArrayNode candidateArray = (ArrayNode) currNode;
-      candidateArray.forEach(existingItems::add);
-      existingItems.removeAll(subDocs);
-      candidateArray.removeAll();
-      candidateArray.addAll(existingItems);
-      String id = docRoot.findValue(ID).asText();
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
-    }
-    return upsertDocs(upsertMap);
-  }
-
-  private Map<String, String> getDocIdToTenantIdMap(BulkArrayValueUpdateRequest request) {
-    return request.getKeys().stream()
-        .collect(
-            Collectors.toMap(
-                key -> key.toString().split(":")[1], key -> key.toString().split(":")[0]));
-  }
-
-  private BulkUpdateResult bulkAddOnArrayValue(BulkArrayValueUpdateRequest request)
-      throws IOException {
-    Map<Key, Document> upsertMap = new HashMap<>();
-    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
-    Set<JsonNode> subDocs = new HashSet<>();
-    for (Document subDoc : request.getSubDocuments()) {
-      subDocs.add(getDocAsJSON(subDoc));
-    }
-    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
-    while (docs.hasNext()) {
-      JsonNode docRoot = getDocAsJSON(docs.next());
-      // create path if missing
-      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, true);
-      ArrayNode candidateArray = (ArrayNode) arrayNode;
-      assert candidateArray != null;
-      Iterator<JsonNode> iterator = candidateArray.iterator();
-      Set<JsonNode> existingElems = new HashSet<>();
-      while (iterator.hasNext()) {
-        existingElems.add(iterator.next());
-      }
-      existingElems.addAll(subDocs);
-      candidateArray.removeAll();
-      candidateArray.addAll(existingElems);
-      String id = docRoot.findValue(ID).asText();
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
-    }
-    return upsertDocs(upsertMap);
-  }
-
-  private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
-    List<String> keysAsStr = keys.stream().map(Key::toString).collect(Collectors.toList());
-    Query query =
-        new Query().withSelection("*").withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
-    return search(query);
-  }
-
-  private JsonNode getDocAsJSON(Document subDoc) throws IOException {
-    JsonNode subDocAsJSON;
-    try {
-      subDocAsJSON = MAPPER.readTree(subDoc.toJson());
-    } catch (JsonParseException e) {
-      LOGGER.error("Malformed subDoc JSON, cannot deserialize");
-      throw e;
-    }
-    return subDocAsJSON;
-  }
-
-  private BulkUpdateResult upsertDocs(Map<Key, Document> docs) throws IOException {
-    try {
-      int[] res = bulkUpsertImpl(docs);
-      return new BulkUpdateResult(Arrays.stream(res).sum());
-    } catch (SQLException e) {
-      LOGGER.error(
-          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
-          e.getSQLState(),
-          e.getErrorCode(),
-          e);
-      throw new IOException(e);
-    }
-  }
-
-  private BulkUpdateResult bulkSetOnArrayValue(BulkArrayValueUpdateRequest request)
-      throws IOException {
-    Map<Key, Document> upsertMap = new HashMap<>();
-    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
-    Set<JsonNode> subDocs = new HashSet<>();
-    for (Document subDoc : request.getSubDocuments()) {
-      subDocs.add(getDocAsJSON(subDoc));
-    }
-    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
-    while (docs.hasNext()) {
-      JsonNode docRoot = getDocAsJSON(docs.next());
-      // create path if missing
-      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, true);
-      assert arrayNode != null;
-      ArrayNode candidateArray = (ArrayNode) arrayNode;
-      candidateArray.removeAll();
-      candidateArray.addAll(subDocs);
-      String id = docRoot.findValue(ID).asText();
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
-    }
-    return upsertDocs(upsertMap);
   }
 
   @Override
@@ -470,76 +344,6 @@ public class PostgresCollection implements Collection {
   @Override
   public long count(org.hypertrace.core.documentstore.query.Query query) {
     throw new UnsupportedOperationException();
-  }
-
-  private CloseableIterator<Document> executeQueryV1(
-      final org.hypertrace.core.documentstore.query.Query query) {
-    org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
-        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-            collectionName, query);
-    String sqlQuery = queryParser.parse();
-    try {
-      PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
-      ResultSet resultSet = preparedStatement.executeQuery();
-      CloseableIterator closeableIterator =
-          query.getSelections().size() > 0
-              ? new PostgresResultIteratorWithMetaData(resultSet)
-              : new PostgresResultIterator(resultSet);
-      return closeableIterator;
-    } catch (SQLException e) {
-      LOGGER.error(
-          "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
-      throw new RuntimeException(e);
-    }
-  }
-
-  @VisibleForTesting
-  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
-      throws SQLException, RuntimeException {
-    PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
-    enrichPreparedStatementWithParams(preparedStatement, params);
-    return preparedStatement;
-  }
-
-  @VisibleForTesting
-  protected void enrichPreparedStatementWithParams(
-      PreparedStatement preparedStatement, Params params) throws RuntimeException {
-    params
-        .getObjectParams()
-        .forEach(
-            (k, v) -> {
-              try {
-                if (isValidType(v)) {
-                  preparedStatement.setObject(k, v);
-                } else {
-                  throw new UnsupportedOperationException("Un-supported object types in filter");
-                }
-              } catch (SQLException e) {
-                LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
-              }
-            });
-  }
-
-  private boolean isValidType(Object v) {
-    Set<Class<?>> validClassez =
-        new HashSet<>() {
-          {
-            add(Double.class);
-            add(Float.class);
-            add(Integer.class);
-            add(Long.class);
-            add(String.class);
-            add(Boolean.class);
-            add(Number.class);
-          }
-        };
-    return validClassez.contains(v.getClass());
-  }
-
-  @VisibleForTesting
-  private String getJsonSubDocPath(String subDocPath) {
-    return "{" + subDocPath.replaceAll(DOC_PATH_SEPARATOR, ",") + "}";
   }
 
   @Override
@@ -708,6 +512,250 @@ public class PostgresCollection implements Collection {
     return false;
   }
 
+  @Override
+  public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
+      throws IOException {
+    String query = null;
+    try {
+      String collect =
+          documents.keySet().stream()
+              .map(val -> "'" + val.toString() + "'")
+              .collect(Collectors.joining(", "));
+
+      String space = " ";
+      query =
+          new StringBuilder("SELECT * FROM")
+              .append(space)
+              .append(collectionName)
+              .append(" WHERE ")
+              .append(ID)
+              .append(" IN ")
+              .append("(")
+              .append(collect)
+              .append(")")
+              .toString();
+
+      PreparedStatement preparedStatement = client.prepareStatement(query);
+      ResultSet resultSet = preparedStatement.executeQuery();
+
+      // Now go ahead and bulk upsert the documents.
+      int[] updateCounts = bulkUpsertImpl(documents);
+      if (LOGGER.isDebugEnabled()) {
+        LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
+      }
+
+      return new PostgresResultIterator(resultSet);
+    } catch (IOException e) {
+      LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException querying documents. query: {}", query, e);
+    }
+
+    throw new IOException("Could not bulk upsert the documents.");
+  }
+
+  @VisibleForTesting
+  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
+      throws SQLException, RuntimeException {
+    PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
+    enrichPreparedStatementWithParams(preparedStatement, params);
+    return preparedStatement;
+  }
+
+  @VisibleForTesting
+  protected void enrichPreparedStatementWithParams(
+      PreparedStatement preparedStatement, Params params) throws RuntimeException {
+    params
+        .getObjectParams()
+        .forEach(
+            (k, v) -> {
+              try {
+                if (isValidType(v)) {
+                  preparedStatement.setObject(k, v);
+                } else {
+                  throw new UnsupportedOperationException("Un-supported object types in filter");
+                }
+              } catch (SQLException e) {
+                LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
+              }
+            });
+  }
+
+  @Override
+  public void drop() {
+    String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
+    try (PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL)) {
+      preparedStatement.executeUpdate();
+    } catch (SQLException e) {
+      LOGGER.error("Exception deleting table name: {}", collectionName);
+    }
+  }
+
+  private BulkUpdateResult bulkRemoveOnArrayValue(BulkArrayValueUpdateRequest request)
+      throws IOException {
+    Map<Key, Document> upsertMap = new HashMap<>();
+    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
+    HashSet<JsonNode> subDocs = new HashSet<>();
+    for (Document subDoc : request.getSubDocuments()) {
+      subDocs.add(getDocAsJSON(subDoc));
+    }
+    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
+    while (docs.hasNext()) {
+      JsonNode docRoot = getDocAsJSON(docs.next());
+      JsonNode currNode;
+      currNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, false);
+      if (currNode == null) {
+        LOGGER.warn(
+            "Removal path does not exist for {}, continuing with other documents",
+            docRoot.get(ID).textValue());
+        continue;
+      }
+      HashSet<JsonNode> existingItems = new HashSet<>();
+      ArrayNode candidateArray = (ArrayNode) currNode;
+      candidateArray.forEach(existingItems::add);
+      existingItems.removeAll(subDocs);
+      candidateArray.removeAll();
+      candidateArray.addAll(existingItems);
+      String id = docRoot.findValue(ID).asText();
+      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
+    }
+    return upsertDocs(upsertMap);
+  }
+
+  private Map<String, String> getDocIdToTenantIdMap(BulkArrayValueUpdateRequest request) {
+    return request.getKeys().stream()
+        .collect(
+            Collectors.toMap(
+                key -> key.toString().split(":")[1], key -> key.toString().split(":")[0]));
+  }
+
+  private BulkUpdateResult bulkAddOnArrayValue(BulkArrayValueUpdateRequest request)
+      throws IOException {
+    Map<Key, Document> upsertMap = new HashMap<>();
+    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
+    Set<JsonNode> subDocs = new HashSet<>();
+    for (Document subDoc : request.getSubDocuments()) {
+      subDocs.add(getDocAsJSON(subDoc));
+    }
+    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
+    while (docs.hasNext()) {
+      JsonNode docRoot = getDocAsJSON(docs.next());
+      // create path if missing
+      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, true);
+      ArrayNode candidateArray = (ArrayNode) arrayNode;
+      assert candidateArray != null;
+      Iterator<JsonNode> iterator = candidateArray.iterator();
+      Set<JsonNode> existingElems = new HashSet<>();
+      while (iterator.hasNext()) {
+        existingElems.add(iterator.next());
+      }
+      existingElems.addAll(subDocs);
+      candidateArray.removeAll();
+      candidateArray.addAll(existingElems);
+      String id = docRoot.findValue(ID).asText();
+      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
+    }
+    return upsertDocs(upsertMap);
+  }
+
+  private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
+    List<String> keysAsStr = keys.stream().map(Key::toString).collect(Collectors.toList());
+    Query query =
+        new Query().withSelection("*").withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
+    return search(query);
+  }
+
+  private JsonNode getDocAsJSON(Document subDoc) throws IOException {
+    JsonNode subDocAsJSON;
+    try {
+      subDocAsJSON = MAPPER.readTree(subDoc.toJson());
+    } catch (JsonParseException e) {
+      LOGGER.error("Malformed subDoc JSON, cannot deserialize");
+      throw e;
+    }
+    return subDocAsJSON;
+  }
+
+  private BulkUpdateResult upsertDocs(Map<Key, Document> docs) throws IOException {
+    try {
+      int[] res = bulkUpsertImpl(docs);
+      return new BulkUpdateResult(Arrays.stream(res).sum());
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException bulk updating documents (without filters). SQLState: {} Error Code:{}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+      throw new IOException(e);
+    }
+  }
+
+  private BulkUpdateResult bulkSetOnArrayValue(BulkArrayValueUpdateRequest request)
+      throws IOException {
+    Map<Key, Document> upsertMap = new HashMap<>();
+    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
+    Set<JsonNode> subDocs = new HashSet<>();
+    for (Document subDoc : request.getSubDocuments()) {
+      subDocs.add(getDocAsJSON(subDoc));
+    }
+    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
+    while (docs.hasNext()) {
+      JsonNode docRoot = getDocAsJSON(docs.next());
+      // create path if missing
+      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, true);
+      assert arrayNode != null;
+      ArrayNode candidateArray = (ArrayNode) arrayNode;
+      candidateArray.removeAll();
+      candidateArray.addAll(subDocs);
+      String id = docRoot.findValue(ID).asText();
+      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
+    }
+    return upsertDocs(upsertMap);
+  }
+
+  private CloseableIterator<Document> executeQueryV1(
+      final org.hypertrace.core.documentstore.query.Query query) {
+    org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
+        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
+            collectionName, query);
+    String sqlQuery = queryParser.parse();
+    try {
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
+      ResultSet resultSet = preparedStatement.executeQuery();
+      CloseableIterator closeableIterator =
+          query.getSelections().size() > 0
+              ? new PostgresResultIteratorWithMetaData(resultSet)
+              : new PostgresResultIterator(resultSet);
+      return closeableIterator;
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
+      throw new RuntimeException(e);
+    }
+  }
+
+  private boolean isValidType(Object v) {
+    Set<Class<?>> validClassez =
+        new HashSet<>() {
+          {
+            add(Double.class);
+            add(Float.class);
+            add(Integer.class);
+            add(Long.class);
+            add(String.class);
+            add(Boolean.class);
+            add(Number.class);
+          }
+        };
+    return validClassez.contains(v.getClass());
+  }
+
+  @VisibleForTesting
+  private String getJsonSubDocPath(String subDocPath) {
+    return "{" + subDocPath.replaceAll(DOC_PATH_SEPARATOR, ",") + "}";
+  }
+
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
     try (PreparedStatement preparedStatement =
         client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
@@ -834,48 +882,6 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  @Override
-  public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
-      throws IOException {
-    String query = null;
-    try {
-      String collect =
-          documents.keySet().stream()
-              .map(val -> "'" + val.toString() + "'")
-              .collect(Collectors.joining(", "));
-
-      String space = " ";
-      query =
-          new StringBuilder("SELECT * FROM")
-              .append(space)
-              .append(collectionName)
-              .append(" WHERE ")
-              .append(ID)
-              .append(" IN ")
-              .append("(")
-              .append(collect)
-              .append(")")
-              .toString();
-
-      PreparedStatement preparedStatement = client.prepareStatement(query);
-      ResultSet resultSet = preparedStatement.executeQuery();
-
-      // Now go ahead and bulk upsert the documents.
-      int[] updateCounts = bulkUpsertImpl(documents);
-      if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
-      }
-
-      return new PostgresResultIterator(resultSet);
-    } catch (IOException e) {
-      LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
-    } catch (SQLException e) {
-      LOGGER.error("SQLException querying documents. query: {}", query, e);
-    }
-
-    throw new IOException("Could not bulk upsert the documents.");
-  }
-
   private String prepareDocument(Key key, Document document) throws IOException {
     String jsonString = document.toJson();
 
@@ -901,16 +907,6 @@ public class PostgresCollection implements Collection {
         "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = "
             + "?::jsonb ",
         collectionName, ID, DOCUMENT, ID, DOCUMENT);
-  }
-
-  @Override
-  public void drop() {
-    String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
-    try (PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL)) {
-      preparedStatement.executeUpdate();
-    } catch (SQLException e) {
-      LOGGER.error("Exception deleting table name: {}", collectionName);
-    }
   }
 
   static class PostgresResultIterator implements CloseableIterator {
