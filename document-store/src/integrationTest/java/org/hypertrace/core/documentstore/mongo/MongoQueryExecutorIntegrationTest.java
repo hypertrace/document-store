@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo;
 
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
@@ -51,6 +52,7 @@ import org.hypertrace.core.documentstore.query.Selection;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.Sort;
 import org.hypertrace.core.documentstore.query.SortingSpec;
+import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -165,46 +167,6 @@ public class MongoQueryExecutorIntegrationTest {
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsEqual(resultDocs, "mongo/simple_filter_response.json");
     assertSizeEqual(query, "mongo/simple_filter_response.json");
-  }
-
-  @Test
-  public void testFindWithSortingAndPagination() throws IOException {
-    List<SelectionSpec> selectionSpecs =
-        List.of(
-            SelectionSpec.of(IdentifierExpression.of("item")),
-            SelectionSpec.of(IdentifierExpression.of("price")),
-            SelectionSpec.of(IdentifierExpression.of("quantity")),
-            SelectionSpec.of(IdentifierExpression.of("date")));
-    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
-
-    Filter filter =
-        Filter.builder()
-            .expression(
-                RelationalExpression.of(
-                    IdentifierExpression.of("item"),
-                    IN,
-                    ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
-            .build();
-
-    Sort sort =
-        Sort.builder()
-            .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
-            .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
-            .build();
-
-    Pagination pagination = Pagination.builder().offset(1).limit(3).build();
-
-    Query query =
-        Query.builder()
-            .setSelection(selection)
-            .setFilter(filter)
-            .setSort(sort)
-            .setPagination(pagination)
-            .build();
-
-    Iterator<Document> resultDocs = collection.find(query);
-    assertDocsEqual(resultDocs, "mongo/filter_with_sorting_and_pagination_response.json");
-    assertSizeEqual(query, "mongo/filter_with_sorting_and_pagination_response.json");
   }
 
   @Test
@@ -594,6 +556,34 @@ public class MongoQueryExecutorIntegrationTest {
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsEqual(iterator, "mongo/unwind_filter_response.json");
     assertSizeEqual(query, "mongo/unwind_filter_response.json");
+  }
+
+  @Test
+  public void testQueryQ1AggregationFilterAlongWithNonAliasFields() throws IOException {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .setAggregationFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("price"), GT, ConstantExpression.of(5)))
+                    .build())
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    Utils.assertDocsAndSizeEqualWithoutOrder(
+        resultDocs, "mongo/test_aggr_alias_distinct_count_response.json", 4);
   }
 
   private static void assertDocsEqual(Iterator<Document> documents, String filePath)

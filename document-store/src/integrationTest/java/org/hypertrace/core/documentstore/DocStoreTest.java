@@ -15,8 +15,10 @@ import static org.hypertrace.core.documentstore.expression.operators.LogicalOper
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.FAILURE;
 import static org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.SUCCESS;
@@ -61,6 +63,11 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
+import org.hypertrace.core.documentstore.query.Pagination;
+import org.hypertrace.core.documentstore.query.Selection;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
+import org.hypertrace.core.documentstore.query.Sort;
+import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.Operation;
 import org.hypertrace.core.documentstore.utils.Utils;
@@ -2387,12 +2394,22 @@ public class DocStoreTest {
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("props.seller.address.city"),
+                            EQ,
+                            ConstantExpression.of("Kolkata")))
+                    .build())
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    assertSizeAndDocsEqual(dataStoreName, iterator, 6, "mongo/simple_filter_quantity_neq_10.json");
+    assertSizeAndDocsEqual(
+        dataStoreName, iterator, 1, "mongo/test_nest_field_filter_response.json");
   }
 
   @ParameterizedTest
@@ -2608,44 +2625,6 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void testQueryQ1AggregationFilterAlongWithNonAliasFields(String dataStoreName)
-      throws IOException {
-    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
-
-    // add docs
-    boolean result = collection.bulkUpsert(documents);
-    Assertions.assertTrue(result);
-
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
-            .addSelection(
-                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
-                "qty_count")
-            .addSelection(IdentifierExpression.of("item"))
-            .addSelection(IdentifierExpression.of("price"))
-            .addAggregation(IdentifierExpression.of("item"))
-            .addAggregation(IdentifierExpression.of("price"))
-            .setAggregationFilter(
-                LogicalExpression.builder()
-                    .operator(AND)
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("price"), GT, ConstantExpression.of(5)))
-                    .build())
-            .build();
-
-    Iterator<Document> resultDocs = collection.aggregate(query);
-    assertSizeAndDocsEqual(
-        dataStoreName, resultDocs, 4, "mongo/test_aggr_alias_distinct_count_response.json");
-  }
-
-  @ParameterizedTest
-  @MethodSource("databaseContextProvider")
   public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {
     Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -2671,6 +2650,54 @@ public class DocStoreTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqual(resultDocs, "mongo/distinct_count_response.json", 4);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testFindWithSortingAndPagination(String datastoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(datastoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("price")),
+            SelectionSpec.of(IdentifierExpression.of("quantity")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+
+    org.hypertrace.core.documentstore.query.Filter filter =
+        org.hypertrace.core.documentstore.query.Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+            .build();
+
+    Sort sort =
+        Sort.builder()
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("quantity"), DESC))
+            .sortingSpec(SortingSpec.of(IdentifierExpression.of("item"), ASC))
+            .build();
+
+    Pagination pagination = Pagination.builder().offset(1).limit(3).build();
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setSelection(selection)
+            .setFilter(filter)
+            .setSort(sort)
+            .setPagination(pagination)
+            .build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    Utils.assertDocsAndSizeEqual(
+        resultDocs, "mongo/filter_with_sorting_and_pagination_response.json", 3);
   }
 
   @ParameterizedTest

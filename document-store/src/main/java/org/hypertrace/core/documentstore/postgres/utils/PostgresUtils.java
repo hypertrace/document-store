@@ -94,11 +94,8 @@ public class PostgresUtils {
       return String.format(fmt, field, type);
     } else if (type.equals(Type.BOOLEAN)) {
       return String.format(fmt, field, type);
-    } else {
-      // default is string
-      // Note: As we are using field accessor pattern, we are casting String too.
-      // See more details on method : prepareParsedNonCompositeFilter
-      return String.format(fmt, field, type);
+    } else /* default is string */ {
+      return field;
     }
   }
 
@@ -117,7 +114,7 @@ public class PostgresUtils {
 
   public static String parseNonCompositeFilter(
       String fieldName, String op, Object value, Builder paramsBuilder) {
-    String fullFieldName = prepareCast(prepareFieldAccessorExpr(fieldName).toString(), value);
+    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName), value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
     Boolean isMultiValued = false;
@@ -223,8 +220,8 @@ public class PostgresUtils {
    * part of the below method, we are only using field accessor pattern. This method will be used in
    * Having / Where clause perperation.
    *
-   * <p>See the corresponding test at {@link
-   * PostgresQueryParserTest.testAggregationFilterAlongWithNonAliasFields} In the above example,
+   * <p>See the corresponding test at
+   * PostgresQueryParserTest.testAggregationFilterAlongWithNonAliasFields. In the above example,
    * check how the price is accessed using -> instead of ->>.
    */
   public static String prepareParsedNonCompositeFilter(

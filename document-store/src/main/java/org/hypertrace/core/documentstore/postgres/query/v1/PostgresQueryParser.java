@@ -6,6 +6,7 @@ import java.util.Optional;
 import lombok.Getter;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresAggregationFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresGroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelectTypeExpressionVisitor;
@@ -14,7 +15,6 @@ import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 
 public class PostgresQueryParser {
-  private static String NOT_YET_SUPPORTED = "Not yet supported %s";
   private final String collection;
 
   @Getter private final Builder paramsBuilder = Params.newBuilder();
@@ -89,7 +89,7 @@ public class PostgresQueryParser {
   }
 
   private Optional<String> parseHaving() {
-    return PostgresFilterTypeExpressionVisitor.getAggregationFilterClause(this);
+    return PostgresAggregationFilterTypeExpressionVisitor.getAggregationFilterClause(this);
   }
 
   private Optional<String> parseOrderBy() {
@@ -99,8 +99,9 @@ public class PostgresQueryParser {
   private Optional<String> parsePagination() {
     Optional<Pagination> pagination = this.query.getPagination();
     if (pagination.isPresent()) {
-      throw new UnsupportedOperationException(
-          String.format(NOT_YET_SUPPORTED, "pagination clause"));
+      this.paramsBuilder.addObjectParam(pagination.get().getOffset());
+      this.paramsBuilder.addObjectParam(pagination.get().getLimit());
+      return Optional.of("OFFSET ? LIMIT ?");
     }
     return Optional.empty();
   }
