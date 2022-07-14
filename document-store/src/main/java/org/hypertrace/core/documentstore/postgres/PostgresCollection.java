@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
-import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
@@ -270,18 +269,21 @@ public class PostgresCollection implements Collection {
   @Override
   public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request)
       throws Exception {
-    Operation operation = request.getOperation();
-    switch (operation) {
-        // todo: All of these implementations do a GET -> in memory update -> UPSERT which is not
-        // optimal. Changes this logic to use a single query using jsob_set and json_insert
+    Set<JsonNode> subDocs = new HashSet<>();
+    for (Document subDoc : request.getSubDocuments()) {
+      subDocs.add(getDocAsJSON(subDoc));
+    }
+    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
+    CloseableIterator<Document> docs = searchDocsForKeys(request.getKeys());
+    switch (request.getOperation()) {
       case ADD:
-        return bulkAddOnArrayValue(request);
+        return bulkAddOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
       case SET:
-        return bulkSetOnArrayValue(request);
+        return bulkSetOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
       case REMOVE:
-        return bulkRemoveOnArrayValue(request);
+        return bulkRemoveOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
       default:
-        throw new UnsupportedOperationException("Unsupported operation: " + operation);
+        throw new UnsupportedOperationException("Unsupported operation: " + request.getOperation());
     }
   }
 
@@ -591,19 +593,17 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private BulkUpdateResult bulkRemoveOnArrayValue(BulkArrayValueUpdateRequest request)
+  private BulkUpdateResult bulkRemoveOnArrayValue(
+      String subDocPath,
+      Map<String, String> idToTenantIdMap,
+      Set<JsonNode> subDocs,
+      Iterator<Document> docs)
       throws IOException {
     Map<Key, Document> upsertMap = new HashMap<>();
-    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
-    HashSet<JsonNode> subDocs = new HashSet<>();
-    for (Document subDoc : request.getSubDocuments()) {
-      subDocs.add(getDocAsJSON(subDoc));
-    }
-    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
     while (docs.hasNext()) {
       JsonNode docRoot = getDocAsJSON(docs.next());
       JsonNode currNode;
-      currNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, false);
+      currNode = getJsonNodeAtPath(subDocPath, docRoot, false);
       if (currNode == null) {
         LOGGER.warn(
             "Removal path does not exist for {}, continuing with other documents",
@@ -629,26 +629,19 @@ public class PostgresCollection implements Collection {
                 key -> key.toString().split(":")[1], key -> key.toString().split(":")[0]));
   }
 
-  private BulkUpdateResult bulkAddOnArrayValue(BulkArrayValueUpdateRequest request)
+  private BulkUpdateResult bulkAddOnArrayValue(
+      String subDocPath,
+      Map<String, String> idToTenantIdMap,
+      Set<JsonNode> subDocs,
+      Iterator<Document> docs)
       throws IOException {
     Map<Key, Document> upsertMap = new HashMap<>();
-    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
-    Set<JsonNode> subDocs = new HashSet<>();
-    for (Document subDoc : request.getSubDocuments()) {
-      subDocs.add(getDocAsJSON(subDoc));
-    }
-    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
     while (docs.hasNext()) {
       JsonNode docRoot = getDocAsJSON(docs.next());
       // create path if missing
-      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, true);
-      ArrayNode candidateArray = (ArrayNode) arrayNode;
-      assert candidateArray != null;
-      Iterator<JsonNode> iterator = candidateArray.iterator();
+      ArrayNode candidateArray = (ArrayNode) getJsonNodeAtPath(subDocPath, docRoot, true);
       Set<JsonNode> existingElems = new HashSet<>();
-      while (iterator.hasNext()) {
-        existingElems.add(iterator.next());
-      }
+      candidateArray.forEach(existingElems::add);
       existingElems.addAll(subDocs);
       candidateArray.removeAll();
       candidateArray.addAll(existingElems);
@@ -690,21 +683,17 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private BulkUpdateResult bulkSetOnArrayValue(BulkArrayValueUpdateRequest request)
+  private BulkUpdateResult bulkSetOnArrayValue(
+      String subDocPath,
+      Map<String, String> idToTenantIdMap,
+      Set<JsonNode> subDocs,
+      Iterator<Document> docs)
       throws IOException {
     Map<Key, Document> upsertMap = new HashMap<>();
-    Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
-    Set<JsonNode> subDocs = new HashSet<>();
-    for (Document subDoc : request.getSubDocuments()) {
-      subDocs.add(getDocAsJSON(subDoc));
-    }
-    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
     while (docs.hasNext()) {
       JsonNode docRoot = getDocAsJSON(docs.next());
       // create path if missing
-      JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), docRoot, true);
-      assert arrayNode != null;
-      ArrayNode candidateArray = (ArrayNode) arrayNode;
+      ArrayNode candidateArray = (ArrayNode) getJsonNodeAtPath(subDocPath, docRoot, true);
       candidateArray.removeAll();
       candidateArray.addAll(subDocs);
       String id = docRoot.findValue(ID).asText();

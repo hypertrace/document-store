@@ -1113,16 +1113,9 @@ public class DocStoreTest {
     BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
         new BulkArrayValueUpdateRequest(
             Set.of(key1), "attributes.labels.valueList.values", SET, subDocuments);
-    // candidate under test
-    try {
-      collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
-      throw new AssertionError("Expected exception not thrown!");
-    } catch (JsonParseException e) {
-      // success
-    } catch (Exception e) {
-      throw new AssertionError("Unexpected exception!");
-    }
-
+    assertThrows(
+        JsonParseException.class,
+        () -> collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest));
     // get all documents
     Query query = new Query();
     Iterator<Document> results = collection.search(query);
@@ -1397,14 +1390,9 @@ public class DocStoreTest {
     BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
         new BulkArrayValueUpdateRequest(
             Set.of(key1), "attributes.labels.valueList.values", ADD, subDocuments);
-    // candidate under test
-    try {
-      collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
-      throw new AssertionError("Expected exception not thrown!");
-    } catch (Exception e) {
-      //
-    }
-
+    assertThrows(
+        JsonParseException.class,
+        () -> collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest));
     // get all documents
     Query query = new Query();
     Iterator<Document> results = collection.search(query);
@@ -1580,7 +1568,6 @@ public class DocStoreTest {
             subDocuments);
     BulkUpdateResult bulkUpdateResult =
         collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
-    assertEquals(3, bulkUpdateResult.getUpdatedCount());
 
     // get all documents
     Query query = new Query();
@@ -1658,14 +1645,9 @@ public class DocStoreTest {
     BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
         new BulkArrayValueUpdateRequest(
             Set.of(key1), "attributes.labels.valueList.values", REMOVE, subDocuments);
-    // candidate under test
-    try {
-      collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
-      throw new AssertionError("Expected exception not thrown!");
-    } catch (Exception e) {
-      //
-    }
-
+    assertThrows(
+        JsonParseException.class,
+        () -> collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest));
     // get all documents
     Query query = new Query();
     Iterator<Document> results = collection.search(query);
