@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.parser.FromTypeExpressionVisitor;
@@ -16,41 +17,42 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
 
   private PostgresQueryParser postgresQueryParser;
   private PostgresFieldIdentifierExpressionVisitor postgresFieldIdentifierExpressionVisitor;
+  @Getter private Boolean preserveNullAndEmptyArrays;
 
   public PostgresFromTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
     this.postgresQueryParser = postgresQueryParser;
     this.postgresFieldIdentifierExpressionVisitor =
         new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser);
+    this.preserveNullAndEmptyArrays = null;
   }
 
   @Override
   public String visit(UnnestExpression unnestExpression) {
-    if (postgresQueryParser.getPreserveNullAndEmptyArrays() == null) {
-      postgresQueryParser.setPreserveNullAndEmptyArrays(
-          unnestExpression.isPreserveNullAndEmptyArrays());
+    if (preserveNullAndEmptyArrays == null) {
+      preserveNullAndEmptyArrays = unnestExpression.isPreserveNullAndEmptyArrays();
     }
 
-    if (!postgresQueryParser
-        .getPreserveNullAndEmptyArrays()
-        .equals(unnestExpression.isPreserveNullAndEmptyArrays())) {
+    if (!preserveNullAndEmptyArrays.equals(unnestExpression.isPreserveNullAndEmptyArrays())) {
       throw new UnsupportedOperationException(
           "Mixed boolean value for preserveNullAndEmptyArrays with "
               + "multiple unnest expressions is not supported");
     }
 
-    String baseFieldName = unnestExpression.getIdentifierExpression().getName();
-    String columnName = PostgresUtils.encodeAliasForNestedField(baseFieldName);
+    String orgFieldName = unnestExpression.getIdentifierExpression().getName();
+    String pgColumnName = PostgresUtils.encodeAliasForNestedField(orgFieldName);
 
-    String fieldName =
+    String transformedFieldName =
         unnestExpression.getIdentifierExpression().accept(postgresFieldIdentifierExpressionVisitor);
 
-    postgresQueryParser.getPgColumnNames().put(baseFieldName, columnName);
+    postgresQueryParser.getPgColumnNames().put(orgFieldName, pgColumnName);
     int lastIndex = postgresQueryParser.getPgColumnNames().size();
 
-    return String.format("jsonb_array_elements(%s) p%s(%s)", fieldName, lastIndex, columnName);
+    return String.format(
+        "jsonb_array_elements(%s) p%s(%s)", transformedFieldName, lastIndex, pgColumnName);
   }
 
   public static Optional<String> getFromClause(PostgresQueryParser postgresQueryParser) {
+
     PostgresFromTypeExpressionVisitor postgresFromTypeExpressionVisitor =
         new PostgresFromTypeExpressionVisitor(postgresQueryParser);
     String childList =
@@ -63,7 +65,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
       return Optional.empty();
     }
 
-    if (!postgresQueryParser.getPreserveNullAndEmptyArrays()) {
+    if (!postgresFromTypeExpressionVisitor.getPreserveNullAndEmptyArrays()) {
       postgresQueryParser.setFinalTableName("table2");
       String table1Query = prepareTable1Query(postgresQueryParser);
       String table2Query = prepareTable2Query(childList);

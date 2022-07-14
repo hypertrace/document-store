@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumnTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresAggregationFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFromTypeExpressionVisitor;
@@ -18,24 +19,24 @@ import org.hypertrace.core.documentstore.query.Query;
 
 public class PostgresQueryParser {
   @Getter private final String collection;
-
-  @Getter private final Builder paramsBuilder = Params.newBuilder();
-
   @Getter private final Query query;
 
+  @Setter String finalTableName;
+  @Getter private final Builder paramsBuilder = Params.newBuilder();
+
   // map of alias name to parsed expression
-  // e.g qty : COUNT(DISTINCT CAST(document->>'quantity' AS NUMERIC))
+  // e.g qty_count : COUNT(DISTINCT CAST(document->>'quantity' AS NUMERIC))
   @Getter private final Map<String, String> pgSelections = new HashMap<>();
 
-  // vars for supporting unnest expression
-  @Getter @Setter private Boolean preserveNullAndEmptyArrays;
+  // map of original field name to pgColumnName
   @Getter private final Map<String, String> pgColumnNames = new HashMap<>();
-  @Setter String finalTableName;
+  @Getter private final FieldToPgColumnTransformer toPgColumnTransformer;
 
   public PostgresQueryParser(String collection, Query query) {
     this.collection = collection;
     this.query = query;
     this.finalTableName = collection;
+    toPgColumnTransformer = new FieldToPgColumnTransformer(this);
   }
 
   public String parse() {
