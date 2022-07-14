@@ -1579,7 +1579,7 @@ public class DocStoreTest {
             subDocuments);
     BulkUpdateResult bulkUpdateResult =
         collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
-    assertEquals(4, bulkUpdateResult.getUpdatedCount());
+    assertEquals(3, bulkUpdateResult.getUpdatedCount());
 
     // get all documents
     Query query = new Query();
