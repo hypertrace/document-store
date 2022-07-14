@@ -368,7 +368,8 @@ public class PostgresCollection implements Collection {
       try {
         subDocs.add(MAPPER.readTree(subDoc.toJson()));
       } catch (Exception e) {
-        LOGGER.error("Malformed subDoc");
+        LOGGER.error("Malformed subdoc passed");
+        throw e;
       }
     }
     Iterator<Document> docs = searchDocuments(keys);
@@ -390,17 +391,19 @@ public class PostgresCollection implements Collection {
         arrayElems.add(iterator.next());
       }
       arrayElems.addAll(subDocs);
-      upsertMap.put(new SingleValueKey(rootNode.get(DOCUMENT_ID).toString()),
+      candidateArray.removeAll();
+      candidateArray.addAll(arrayElems);
+      upsertMap.put(new SingleValueKey("default", rootNode.get(ID).toString()),
           new JSONDocument(rootNode));
     }
     return upsertDocs(upsertMap);
   }
 
   private CloseableIterator<Document> searchDocuments(List<Key> keys) {
-    List<String> keysAsStr = keys.stream().map(a -> a.toString()).collect(Collectors.toList());
-    Query query1 = new Query().withSelection("*")
-        .withFilter(new Filter(Filter.Op.IN, "id", keysAsStr));
-    return search(query1);
+    List<String> keysAsStr = keys.stream().map(Key::toString).collect(Collectors.toList());
+    Query query = new Query().withSelection("*")
+        .withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
+    return search(query);
   }
 
   private JsonNode getSubDocAsJSON(Key key, Document subDoc) throws IOException {
@@ -774,8 +777,7 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  @VisibleForTesting
-  JsonNode createPathInDoc(String path, JsonNode rootNode) {
+  private JsonNode createPathInDoc(String path, JsonNode rootNode) {
     String[] pathTokens = path.split("\\.");
     // create path if missing
     // attributes.labels.valueList.values
@@ -997,7 +999,7 @@ public class PostgresCollection implements Collection {
     protected Document prepareDocument() throws SQLException, IOException {
       String documentString = resultSet.getString(DOCUMENT);
       ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
-//      jsonNode.remove(DOCUMENT_ID);
+      jsonNode.remove(DOCUMENT_ID);
       // Add Timestamps to Document
       Timestamp createdAt = resultSet.getTimestamp(CREATED_AT);
       Timestamp updatedAt = resultSet.getTimestamp(UPDATED_AT);

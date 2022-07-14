@@ -12,12 +12,6 @@ public class SingleValueKey implements Key {
     this.value = value;
   }
 
-  public SingleValueKey(String csvValue) {
-    String[] split = csvValue.split(":");
-    this.tenantId = split[0];
-    this.value = split[1];
-  }
-
   public String getTenantId() {
     return tenantId;
   }
