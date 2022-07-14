@@ -161,7 +161,7 @@ public class DocStoreTest {
 
   @MethodSource
   private static Stream<Arguments> databaseContextProvider() {
-    return Stream.of(Arguments.of(POSTGRES_STORE));
+    return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
   }
 
   @ParameterizedTest
@@ -1302,6 +1302,7 @@ public class DocStoreTest {
                                 ImmutablePair.of("value", Map.of("string", "Label3"))))))));
     collection.upsert(key4, key4InsertedDocument);
 
+    // no document exists with this key
     Key key5 = new SingleValueKey("default", "testKey5");
 
     Document label2Document =

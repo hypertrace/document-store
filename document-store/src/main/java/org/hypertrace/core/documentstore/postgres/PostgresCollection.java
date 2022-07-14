@@ -1,7 +1,6 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -294,16 +293,9 @@ public class PostgresCollection implements Collection {
     for (Document subDoc : request.getSubDocuments()) {
       subDocs.add(getDocAsJSON(subDoc));
     }
-    Iterator<Document> docs = searchDocuments(request.getKeys());
+    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
     while (docs.hasNext()) {
-      JsonNode rootNode;
-      Document doc = docs.next();
-      try {
-        rootNode = MAPPER.readTree(doc.toJson());
-      } catch (JsonProcessingException e) {
-        LOGGER.warn("Malformed doc for id, continuing for remaining keys");
-        continue;
-      }
+      JsonNode rootNode = getDocAsJSON(docs.next());
       JsonNode currNode;
       currNode = getJsonNodeAtPath(request.getSubDocPath(), rootNode, false);
       if (currNode == null) {
@@ -327,7 +319,8 @@ public class PostgresCollection implements Collection {
   private Map<String, String> getDocIdToTenantIdMap(BulkArrayValueUpdateRequest request) {
     return request.getKeys().stream()
         .collect(
-            Collectors.toMap(a -> a.toString().split(":")[1], a -> a.toString().split(":")[0]));
+            Collectors.toMap(
+                key -> key.toString().split(":")[1], key -> key.toString().split(":")[0]));
   }
 
   private BulkUpdateResult bulkAddOnArrayValue(BulkArrayValueUpdateRequest request)
@@ -338,19 +331,13 @@ public class PostgresCollection implements Collection {
     for (Document subDoc : request.getSubDocuments()) {
       subDocs.add(getDocAsJSON(subDoc));
     }
-    Iterator<Document> docs = searchDocuments(request.getKeys());
+    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
     while (docs.hasNext()) {
-      JsonNode rootNode;
-      Document doc = docs.next();
-      try {
-        rootNode = MAPPER.readTree(doc.toJson());
-      } catch (JsonProcessingException e) {
-        LOGGER.warn("Malformed doc for id, continuing for remaining keys");
-        continue;
-      }
+      JsonNode rootNode = getDocAsJSON(docs.next());
       // create path if missing
       JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), rootNode, true);
       ArrayNode candidateArray = (ArrayNode) arrayNode;
+      assert candidateArray != null;
       Iterator<JsonNode> iterator = candidateArray.iterator();
       Set<JsonNode> arrayElems = new HashSet<>();
       while (iterator.hasNext()) {
@@ -365,7 +352,7 @@ public class PostgresCollection implements Collection {
     return upsertDocs(upsertMap);
   }
 
-  private CloseableIterator<Document> searchDocuments(Set<Key> keys) {
+  private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
     List<String> keysAsStr = keys.stream().map(Key::toString).collect(Collectors.toList());
     Query query =
         new Query().withSelection("*").withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
@@ -405,18 +392,12 @@ public class PostgresCollection implements Collection {
     for (Document subDoc : request.getSubDocuments()) {
       subDocs.add(getDocAsJSON(subDoc));
     }
-    Iterator<Document> docs = searchDocuments(request.getKeys());
+    Iterator<Document> docs = searchDocsForKeys(request.getKeys());
     while (docs.hasNext()) {
-      JsonNode rootNode;
-      Document doc = docs.next();
-      try {
-        rootNode = MAPPER.readTree(doc.toJson());
-      } catch (JsonProcessingException e) {
-        LOGGER.warn("Malformed doc for id, continuing for remaining keys");
-        continue;
-      }
+      JsonNode rootNode = getDocAsJSON(docs.next());
       // create path if missing
       JsonNode arrayNode = getJsonNodeAtPath(request.getSubDocPath(), rootNode, true);
+      assert arrayNode != null;
       ArrayNode candidateArray = (ArrayNode) arrayNode;
       candidateArray.removeAll();
       candidateArray.addAll(subDocs);
@@ -742,26 +723,25 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private JsonNode getJsonNodeAtPath(String path, JsonNode rootNode, boolean createIfMissing) {
+  private JsonNode getJsonNodeAtPath(String path, JsonNode rootNode, boolean createPathIfMissing) {
     String[] pathTokens = path.split("\\.");
     // create path if missing
     // attributes.labels.valueList.values
     JsonNode currNode = rootNode;
     for (int i = 0; i < pathTokens.length; i++) {
-      JsonNode pathNode = currNode.path(pathTokens[i]);
-      if (pathNode.isMissingNode()) {
-        if (createIfMissing) {
+      if (currNode.path(pathTokens[i]).isMissingNode()) {
+        if (createPathIfMissing) {
           if (i == pathTokens.length - 1) {
             ((ObjectNode) currNode).set(pathTokens[i], MAPPER.createArrayNode());
           } else {
             ((ObjectNode) currNode).set(pathTokens[i], MAPPER.createObjectNode());
           }
-          currNode = pathNode;
+          currNode = currNode.path(pathTokens[i]);
         } else {
           return null;
         }
       } else {
-        currNode = pathNode;
+        currNode = currNode.path(pathTokens[i]);
       }
     }
     return currNode;
