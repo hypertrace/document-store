@@ -393,7 +393,7 @@ public class PostgresCollection implements Collection {
       arrayElems.addAll(subDocs);
       candidateArray.removeAll();
       candidateArray.addAll(arrayElems);
-      upsertMap.put(new SingleValueKey("default", rootNode.get(ID).toString()),
+      upsertMap.put(new SingleValueKey("default", rootNode.findValue(ID).asText()),
           new JSONDocument(rootNode));
     }
     return upsertDocs(upsertMap);
