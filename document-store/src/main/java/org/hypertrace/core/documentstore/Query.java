@@ -61,6 +61,41 @@ public class Query {
     this.limit = limit;
   }
 
+  public Query withLimit(Integer limit) {
+    this.limit = limit;
+    return this;
+  }
+
+  public Query withOffset(Integer offset) {
+    this.offset = offset;
+    return this;
+  }
+
+  public Query withSelections(List<String> selections) {
+    this.selections.addAll(selections);
+    return this;
+  }
+
+  public Query withSelection(String selection) {
+    this.selections.add(selection);
+    return this;
+  }
+
+  public Query withFilter(Filter filter) {
+    this.filter = filter;
+    return this;
+  }
+
+  public Query withOrderBys(List<OrderBy> orderBys) {
+    this.orderBys.addAll(orderBys);
+    return this;
+  }
+
+  public Query withOrderBy(OrderBy orderBy) {
+    this.orderBys.add(orderBy);
+    return this;
+  }
+
   @Override
   public String toString() {
     return "Query{"

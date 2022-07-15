@@ -1,5 +1,8 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.ADD;
+import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.REMOVE;
+import static org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest.Operation.SET;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
@@ -29,6 +32,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -41,7 +46,9 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.apache.commons.lang3.RandomUtils;
@@ -879,6 +886,835 @@ public class DocStoreTest {
         Assertions.assertTrue(jsonNode.findValue("lastUpdatedTime").asLong(0) >= now);
       }
     }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_setOperation(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Key key2 = new SingleValueKey("default", "testKey2");
+    Document key2InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label2"))))))));
+    Document key2ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key2, key2InsertedDocument);
+
+    Key key3 = new SingleValueKey("default", "testKey3");
+    Document key3InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("attributes", Map.of("name", "testKey3")));
+    Document key3ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey3",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key3, key3InsertedDocument);
+
+    Key key4 = new SingleValueKey("default", "testKey4");
+    Document key4InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    Document key4ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key4, key4InsertedDocument);
+
+    // we don't insert any doc with this key, to test for a missing doc path
+    Key key5 = new SingleValueKey("default", "testKey5");
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1, key2, key3, key4, key5),
+            "attributes.labels.valueList.values",
+            SET,
+            subDocuments);
+    // candidate under test
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+    assertEquals(4, bulkUpdateResult.getUpdatedCount());
+
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+
+    assertEquals(4, documents.size());
+
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs =
+        convertToMap(
+            List.of(
+                key1ExpectedDocument,
+                key2ExpectedDocument,
+                key3ExpectedDocument,
+                key4ExpectedDocument),
+            "id");
+
+    // Verify that the documents returned are as expected
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
+  /**
+   * When malformed docs are supplied, then a {@link JsonParseException} is thrown and the original
+   * document remains untouched (even if other documents are valid JSONs)
+   */
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_setOperation_malformedDocs(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    // if any subdoc is malformed, then the document should not be touched
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    // valid doc
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    // malformed doc
+    Document label3Document = () -> "malformedJson";
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", SET, subDocuments);
+    assertThrows(
+        JsonParseException.class,
+        () -> collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest));
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+
+    assertEquals(1, documents.size());
+
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs = convertToMap(List.of(key1ExpectedDocument), "id");
+
+    // Verify that the documents returned are as expected
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_setOperation_missingDoc(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", SET, subDocuments);
+    // candidate under test
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+    assertEquals(0, bulkUpdateResult.getUpdatedCount());
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_addOperation(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Key key2 = new SingleValueKey("default", "testKey2");
+    Document key2InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label2"))))))));
+    Document key2ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key2, key2InsertedDocument);
+
+    Key key3 = new SingleValueKey("default", "testKey3");
+    Document key3InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("attributes", Map.of("name", "testKey3")));
+    Document key3ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey3",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key3, key3InsertedDocument);
+
+    Key key4 = new SingleValueKey("default", "testKey4");
+    Document key4InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    Document key4ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key4, key4InsertedDocument);
+
+    // no document exists with this key
+    Key key5 = new SingleValueKey("default", "testKey5");
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1, key2, key3, key4, key5),
+            "attributes.labels.valueList.values",
+            ADD,
+            subDocuments);
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+    assertEquals(4, bulkUpdateResult.getUpdatedCount());
+
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+
+    assertEquals(4, documents.size());
+
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs =
+        convertToMap(
+            List.of(
+                key1ExpectedDocument,
+                key2ExpectedDocument,
+                key3ExpectedDocument,
+                key4ExpectedDocument),
+            "id");
+
+    // Verify that the documents returned are as expected
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_addOperation_malformedDocs(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    // if any subdoc is malformed, then the document should not be touched
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Document label2Document = () -> "malformedJson";
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", ADD, subDocuments);
+    assertThrows(
+        JsonParseException.class,
+        () -> collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest));
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+
+    assertEquals(1, documents.size());
+
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs = convertToMap(List.of(key1ExpectedDocument), "id");
+
+    // Verify that the documents returned are as expected
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_addOperation_missingDoc(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", ADD, subDocuments);
+    // candidate under test
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+    assertEquals(0, bulkUpdateResult.getUpdatedCount());
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_removeOperation(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Key key2 = new SingleValueKey("default", "testKey2");
+    Document key2InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2"))))))));
+    Document key2ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key2, key2InsertedDocument);
+
+    Key key3 = new SingleValueKey("default", "testKey3");
+    Document key3InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("attributes", Map.of("name", "testKey3")));
+    Document key3ExpectedDocument = key3InsertedDocument;
+    collection.upsert(key3, key3InsertedDocument);
+
+    Key key4 = new SingleValueKey("default", "testKey4");
+    Document key4InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    Document key4ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key4, key4InsertedDocument);
+
+    Key key5 = new SingleValueKey("default", "testKey5");
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1, key2, key3, key4, key5),
+            "attributes.labels.valueList.values",
+            REMOVE,
+            subDocuments);
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+
+    assertEquals(4, documents.size());
+
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs =
+        convertToMap(
+            List.of(
+                key1ExpectedDocument,
+                key2ExpectedDocument,
+                key3ExpectedDocument,
+                key4ExpectedDocument),
+            "id");
+
+    // Verify that the documents returned are as expected
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_removeOperation_malformedDocs(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    // if any subdoc is malformed, then the document should not be touched
+    Document key1ExpectedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Document label2Document = () -> "malformedJson";
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", REMOVE, subDocuments);
+    assertThrows(
+        JsonParseException.class,
+        () -> collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest));
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+
+    assertEquals(1, documents.size());
+
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs = convertToMap(List.of(key1ExpectedDocument), "id");
+
+    // Verify that the documents returned are as expected
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_bulkOperationOnArrayValue_removeOperation_missingDoc(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+
+    Document label2Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label2")));
+    Document label3Document =
+        Utils.createDocument(ImmutablePair.of("value", Map.of("string", "Label3")));
+    List<Document> subDocuments = List.of(label2Document, label3Document);
+
+    BulkArrayValueUpdateRequest bulkArrayValueUpdateRequest =
+        new BulkArrayValueUpdateRequest(
+            Set.of(key1), "attributes.labels.valueList.values", REMOVE, subDocuments);
+    // candidate under test
+    BulkUpdateResult bulkUpdateResult =
+        collection.bulkOperationOnArrayValue(bulkArrayValueUpdateRequest);
+    assertEquals(0, bulkUpdateResult.getUpdatedCount());
+  }
+
+  private Map<String, JsonNode> convertToMap(java.util.Collection<Document> docs, String key) {
+    return docs.stream()
+        .map(
+            d -> {
+              try {
+                return OBJECT_MAPPER.reader().readTree(d.toJson());
+              } catch (JsonProcessingException e) {
+                e.printStackTrace();
+              }
+              return null;
+            })
+        .filter(Objects::nonNull)
+        .collect(Collectors.toMap(d -> d.get(key).asText(), d -> d));
   }
 
   @ParameterizedTest
