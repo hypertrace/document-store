@@ -51,7 +51,7 @@ public class PostgresAggregationFilterTypeExpressionVisitor
         postgresQueryParser.getQuery().getAggregationFilter(), postgresQueryParser);
   }
 
-  private static Optional<String> prepareFilterClause(
+  public static Optional<String> prepareFilterClause(
       Optional<FilterTypeExpression> filterTypeExpression,
       PostgresQueryParser postgresQueryParser) {
     return filterTypeExpression.map(

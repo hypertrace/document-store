@@ -607,4 +607,48 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     Assertions.assertEquals(0, params.getObjectParams().size());
   }
+
+  @Test
+  void testUnnestWithoutPreserveNullAndEmptyArraysWithFilters() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(false)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.city"),
+                            EQ,
+                            ConstantExpression.of("delhi")))
+                    .build())
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "With \n"
+            + "table1 as (SELECT * from testCollection WHERE document->'quantity' IS NULL OR "
+            + "CAST (document->>'quantity' AS NUMERIC) != ?), \n"
+            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),"
+            + "jsonb_array_elements(sales->'medium') p2(sales_dot_medium)) \n"
+            + "SELECT document->'item' AS item, "
+            + "sales->'city' AS sales_dot_city, "
+            + "sales_dot_medium->'type' AS sales_dot_medium_dot_type "
+            + "FROM table2 WHERE sales->>'city' = ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(2, params.getObjectParams().size());
+    Assertions.assertEquals(10, params.getObjectParams().get(1));
+    Assertions.assertEquals("delhi", params.getObjectParams().get(2));
+  }
 }

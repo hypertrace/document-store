@@ -2647,7 +2647,45 @@ public class DocStoreTest {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertSizeAndDocsEqual(
-        dataStoreName, resultDocs, 11, "mongo/unwind_not_preserving_selection_reponse.json");
+        dataStoreName, resultDocs, 11, "mongo/unwind_not_preserving_selection_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUnnestWithoutPreserveNullAndEmptyArraysWithFilters(String dataStoreName)
+      throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(false)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.city"),
+                            EQ,
+                            ConstantExpression.of("delhi")))
+                    .build())
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 3, "mongo/unwind_not_preserving_filter_response.json");
   }
 
   @ParameterizedTest

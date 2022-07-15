@@ -14,6 +14,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFromT
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresGroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSortTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresUnnestFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 
@@ -50,12 +51,10 @@ public class PostgresQueryParser {
       sqlBuilder.append(fromClause.get());
     }
 
-    // handle where clause if it was not handled in from clause preparation
-    if (fromClause.isEmpty()) {
-      Optional<String> whereFilter = parseFilter();
-      if (whereFilter.isPresent()) {
-        sqlBuilder.append(String.format(" WHERE %s", whereFilter.get()));
-      }
+    // handle where clause
+    Optional<String> whereFilter = fromClause.isPresent() ? parseUnnestFilter() : parseFilter();
+    if (whereFilter.isPresent()) {
+      sqlBuilder.append(String.format(" WHERE %s", whereFilter.get()));
     }
 
     // selection clause
@@ -101,6 +100,10 @@ public class PostgresQueryParser {
 
   private Optional<String> parseFilter() {
     return PostgresFilterTypeExpressionVisitor.getFilterClause(this);
+  }
+
+  private Optional<String> parseUnnestFilter() {
+    return PostgresUnnestFilterTypeExpressionVisitor.getFilterClause(this);
   }
 
   private Optional<String> parseFromClause() {

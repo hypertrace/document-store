@@ -82,8 +82,13 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
 
   private static String prepareTable1Query(PostgresQueryParser postgresQueryParser) {
     String queryFmt = "table1 as (SELECT * from %s)";
-    // TODO : handle original where clause here
-    return String.format(queryFmt, postgresQueryParser.getCollection());
+    String queryFmtWithWhere = "table1 as (SELECT * from %s WHERE %s)";
+    Optional<String> whereFilter =
+        PostgresFilterTypeExpressionVisitor.getFilterClause(postgresQueryParser);
+
+    return whereFilter.isPresent()
+        ? String.format(queryFmtWithWhere, postgresQueryParser.getCollection(), whereFilter.get())
+        : String.format(queryFmt, postgresQueryParser.getCollection());
   }
 
   private static String prepareTable2Query(String unwindJsonArrayElementsStr) {

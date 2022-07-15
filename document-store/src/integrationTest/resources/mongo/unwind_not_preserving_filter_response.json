@@ -1,0 +1,29 @@
+[
+  {
+    "item":"Soap",
+    "sales":{
+      "city":"delhi",
+      "medium":{
+        "type":"distributionChannel"
+      }
+    }
+  },
+  {
+    "item":"Soap",
+    "sales":{
+      "city":"delhi",
+      "medium":{
+        "type":"retail"
+      }
+    }
+  },
+  {
+    "item":"Soap",
+    "sales":{
+      "city":"delhi",
+      "medium":{
+        "type":"online"
+      }
+    }
+  }
+]
