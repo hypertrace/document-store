@@ -460,26 +460,6 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
-  public void testUnnestAndAggregate() throws IOException {
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
-            .addSelection(IdentifierExpression.of("sales.medium.type"))
-            .addAggregation(IdentifierExpression.of("sales.medium.type"))
-            .addSelection(
-                AggregateExpression.of(SUM, IdentifierExpression.of("sales.medium.volume")),
-                "totalSales")
-            // we don't want to consider entries where sales data is missing
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
-            .addSort(IdentifierExpression.of("totalSales"), DESC)
-            .build();
-
-    Iterator<Document> iterator = collection.aggregate(query);
-    assertDocsEqual(iterator, "mongo/aggregate_on_nested_array_reponse.json");
-    assertSizeEqual(query, "mongo/aggregate_on_nested_array_reponse.json");
-  }
-
-  @Test
   public void testUnnestAndAggregate_preserveEmptyTrue() throws IOException {
     // include all documents in the result irrespective of `sales` field
     org.hypertrace.core.documentstore.query.Query query =

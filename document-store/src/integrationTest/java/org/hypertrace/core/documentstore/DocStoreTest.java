@@ -2715,6 +2715,35 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
+  public void testUnnestAndAggregate(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addAggregation(IdentifierExpression.of("sales.medium.type"))
+            .addSelection(
+                AggregateExpression.of(SUM, IdentifierExpression.of("sales.medium.volume")),
+                "totalsales")
+            // we don't want to consider entries where sales data is missing
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
+            .addSort(IdentifierExpression.of("totalsales"), DESC)
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, iterator, 3, "mongo/aggregate_on_nested_array_reponse.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
   public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {
     Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -2970,8 +2999,10 @@ public class DocStoreTest {
       actualSize++;
     }
 
-    long count =
-        expectedDocs.stream().filter(expectedDoc -> actualDocs.contains(expectedDoc)).count();
+    long count = expectedDocs.stream()
+        .filter(expectedDoc -> actualDocs.contains(expectedDoc))
+        .count();
+
     assertEquals(expectedSize, actualSize);
     assertEquals(expectedSize, count);
   }
