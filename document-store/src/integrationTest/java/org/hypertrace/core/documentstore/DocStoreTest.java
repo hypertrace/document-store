@@ -2637,12 +2637,41 @@ public class DocStoreTest {
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    assertSizeEqual(resultDocs, 11);
+    assertSizeAndDocsEqual(dataStoreName, resultDocs, 11, "mongo/unwind_not_preserving_selection_reponse.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUnnestWithPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeEqual(resultDocs, 17);
   }
 
   @ParameterizedTest

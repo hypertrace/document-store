@@ -92,7 +92,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
   }
 
   private static String prepareTable3Query(PostgresQueryParser postgresQueryParser) {
-    String queryFmt = "table3 as (SELECT %s, %s from %s m " + "LEFT JOIN table2 d on(m.id = d.id)";
+    String queryFmt = "table3 as (SELECT %s, %s from %s m " + "LEFT JOIN table2 d on(m.id = d.id))";
 
     List<String> orderedSet =
         Stream.concat(

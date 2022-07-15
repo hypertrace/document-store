@@ -562,8 +562,13 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals(
         "With \n"
             + "table1 as (SELECT * from testCollection), \n"
-            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),jsonb_array_elements(sales->'medium') p2(sales_dot_medium)) \n"
-            + "SELECT * FROM table2",
+            + "table2 as (SELECT * FROM table1, "
+            + "jsonb_array_elements(document->'sales') p1(sales),"
+            + "jsonb_array_elements(sales->'medium') p2(sales_dot_medium)) \n"
+            + "SELECT document->'item' AS item, document->'price' AS price, "
+            + "sales->'city' AS sales_dot_city, "
+            + "sales_dot_medium->'type' AS sales_dot_medium_dot_type "
+            + "FROM table2",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -574,6 +579,10 @@ public class PostgresQueryParserTest {
   void testUnnestWithPreserveNullAndEmptyArrays() {
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
             .build();
@@ -584,9 +593,15 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals(
         "With \n"
             + "table1 as (SELECT * from testCollection), \n"
-            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),jsonb_array_elements(sales->'medium') p2(sales_dot_medium)), \n"
-            + "table3 as (SELECT m.created_at,m.id,m.updated_at,m.document, d.sales_dot_medium,d.sales from testCollection m LEFT JOIN table2 d on(m.id = d.id) \n"
-            + "SELECT * FROM table3",
+            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),"
+            + "jsonb_array_elements(sales->'medium') p2(sales_dot_medium)), \n"
+            + "table3 as (SELECT m.created_at,m.id,m.updated_at,m.document, d.sales_dot_medium,d.sales "
+            + "from testCollection m LEFT JOIN table2 d on(m.id = d.id)) \n"
+            + "SELECT document->'item' AS item, "
+            + "document->'price' AS price, "
+            + "sales->'city' AS sales_dot_city, "
+            + "sales_dot_medium->'type' AS sales_dot_medium_dot_type "
+            + "FROM table3",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
