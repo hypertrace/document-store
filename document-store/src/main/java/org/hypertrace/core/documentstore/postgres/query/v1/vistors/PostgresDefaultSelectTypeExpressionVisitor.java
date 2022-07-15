@@ -36,7 +36,6 @@ public class PostgresDefaultSelectTypeExpressionVisitor
 
   @Override
   public PostgresQueryParser getPostgresQueryParser() {
-    /* this will eventually throw null pointer exception */
     return postgresQueryParser;
   }
 }

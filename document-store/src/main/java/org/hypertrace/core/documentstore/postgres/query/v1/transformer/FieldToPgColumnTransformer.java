@@ -1,10 +1,12 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
 import java.util.Optional;
+import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class FieldToPgColumnTransformer {
+  private static final String DOT = ".";
 
   private PostgresQueryParser postgresQueryParser;
 
@@ -33,7 +35,7 @@ public class FieldToPgColumnTransformer {
       return new FieldToPgColumn(orgFieldName, pgColumn);
     }
 
-    String childField = orgFieldName.replace(parentField.get() + ".", "");
+    String childField = StringUtils.removeStart(orgFieldName, parentField.get() + DOT);
     return new FieldToPgColumn(childField, pgColumn);
   }
 }

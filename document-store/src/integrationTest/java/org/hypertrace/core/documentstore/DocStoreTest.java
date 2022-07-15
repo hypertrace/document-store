@@ -2999,9 +2999,8 @@ public class DocStoreTest {
       actualSize++;
     }
 
-    long count = expectedDocs.stream()
-        .filter(expectedDoc -> actualDocs.contains(expectedDoc))
-        .count();
+    long count =
+        expectedDocs.stream().filter(expectedDoc -> actualDocs.contains(expectedDoc)).count();
 
     assertEquals(expectedSize, actualSize);
     assertEquals(expectedSize, count);

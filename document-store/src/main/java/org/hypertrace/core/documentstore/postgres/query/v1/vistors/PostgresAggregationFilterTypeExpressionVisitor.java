@@ -47,13 +47,8 @@ public class PostgresAggregationFilterTypeExpressionVisitor
 
   public static Optional<String> getAggregationFilterClause(
       PostgresQueryParser postgresQueryParser) {
-    return prepareFilterClause(
-        postgresQueryParser.getQuery().getAggregationFilter(), postgresQueryParser);
-  }
-
-  public static Optional<String> prepareFilterClause(
-      Optional<FilterTypeExpression> filterTypeExpression,
-      PostgresQueryParser postgresQueryParser) {
+    Optional<FilterTypeExpression> filterTypeExpression =
+        postgresQueryParser.getQuery().getAggregationFilter();
     return filterTypeExpression.map(
         expression ->
             expression.accept(

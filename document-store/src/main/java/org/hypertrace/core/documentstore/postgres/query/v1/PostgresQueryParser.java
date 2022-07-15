@@ -29,7 +29,11 @@ public class PostgresQueryParser {
   // e.g qty_count : COUNT(DISTINCT CAST(document->>'quantity' AS NUMERIC))
   @Getter private final Map<String, String> pgSelections = new HashMap<>();
 
-  // map of original field name to pgColumnName
+  // map of the original field name to pgColumnName for unnest expression
+  // e.g if sales and sales.medium are array fields,
+  // unwind sales data will be available in the X column,
+  // unwind sales.medium data will be available in the Y column.
+  // The below map will maintain that mapping.
   @Getter private final Map<String, String> pgColumnNames = new HashMap<>();
   @Getter private final FieldToPgColumnTransformer toPgColumnTransformer;
 
