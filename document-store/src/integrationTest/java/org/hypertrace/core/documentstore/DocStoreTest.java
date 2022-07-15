@@ -2646,7 +2646,8 @@ public class DocStoreTest {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    assertSizeAndDocsEqual(dataStoreName, resultDocs, 11, "mongo/unwind_not_preserving_selection_reponse.json");
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 11, "mongo/unwind_not_preserving_selection_reponse.json");
   }
 
   @ParameterizedTest
