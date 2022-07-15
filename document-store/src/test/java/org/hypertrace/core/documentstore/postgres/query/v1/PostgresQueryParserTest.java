@@ -548,6 +548,10 @@ public class PostgresQueryParserTest {
   void testUnnestWithoutPreserveNullAndEmptyArrays() {
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
             .build();
