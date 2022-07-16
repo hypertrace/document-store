@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
+import java.util.Comparator;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
@@ -18,12 +19,7 @@ public class FieldToPgColumnTransformer {
     Optional<String> parentField =
         postgresQueryParser.getPgColumnNames().keySet().stream()
             .filter(f -> orgFieldName.startsWith(f))
-            .max(
-                (a, b) -> {
-                  if (a.length() > b.length()) return 1;
-                  else if (a.length() < b.length()) return -1;
-                  else return 0;
-                });
+            .max(Comparator.comparingInt(String::length));
 
     if (parentField.isEmpty()) {
       return new FieldToPgColumn(orgFieldName, PostgresUtils.DOCUMENT_COLUMN);
