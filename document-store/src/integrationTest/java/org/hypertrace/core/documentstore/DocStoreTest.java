@@ -2691,7 +2691,7 @@ public class DocStoreTest {
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
   public void testUnnestWithPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
-    Map<Key, Document> documents = createDocumentsFromResource("mongo/new_collection.json");
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
