@@ -561,11 +561,11 @@ public class PostgresQueryParserTest {
 
     Assertions.assertEquals(
         "With \n"
-            + "table1 as (SELECT * from testCollection), \n"
-            + "table2 as (SELECT * FROM table1, "
-            + "jsonb_array_elements(document->'sales') p1(sales),"
-            + "jsonb_array_elements(sales->'medium') p2(sales_dot_medium)) \n"
-            + "SELECT document->'item' AS item, document->'price' AS price, "
+            + "table0 as (SELECT * from testCollection),\n"
+            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales)),\n"
+            + "table2 as (SELECT * from table1 t1, jsonb_array_elements(sales->'medium') p2(sales_dot_medium))\n"
+            + "SELECT document->'item' AS item, "
+            + "document->'price' AS price, "
             + "sales->'city' AS sales_dot_city, "
             + "sales_dot_medium->'type' AS sales_dot_medium_dot_type "
             + "FROM table2",
@@ -592,16 +592,14 @@ public class PostgresQueryParserTest {
 
     Assertions.assertEquals(
         "With \n"
-            + "table1 as (SELECT * from testCollection), \n"
-            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),"
-            + "jsonb_array_elements(sales->'medium') p2(sales_dot_medium)), \n"
-            + "table3 as (SELECT m.created_at,m.id,m.updated_at,m.document, d.sales_dot_medium,d.sales "
-            + "from testCollection m LEFT JOIN table2 d on(m.id = d.id)) \n"
+            + "table0 as (SELECT * from testCollection),\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
             + "SELECT document->'item' AS item, "
             + "document->'price' AS price, "
             + "sales->'city' AS sales_dot_city, "
             + "sales_dot_medium->'type' AS sales_dot_medium_dot_type "
-            + "FROM table3",
+            + "FROM table2",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -636,10 +634,10 @@ public class PostgresQueryParserTest {
 
     Assertions.assertEquals(
         "With \n"
-            + "table1 as (SELECT * from testCollection WHERE document->'quantity' IS NULL OR "
-            + "CAST (document->>'quantity' AS NUMERIC) != ?), \n"
-            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),"
-            + "jsonb_array_elements(sales->'medium') p2(sales_dot_medium)) \n"
+            + "table1 as (SELECT * from testCollection "
+            + "WHERE document->'quantity' IS NULL OR CAST (document->>'quantity' AS NUMERIC) != ?),\n"
+            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales)),\n"
+            + "table2 as (SELECT * from table1 t1, jsonb_array_elements(sales->'medium') p2(sales_dot_medium))\n"
             + "SELECT document->'item' AS item, "
             + "sales->'city' AS sales_dot_city, "
             + "sales_dot_medium->'type' AS sales_dot_medium_dot_type "
