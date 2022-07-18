@@ -2710,7 +2710,8 @@ public class DocStoreTest {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    assertSizeEqual(resultDocs, 17);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 17, "mongo/unwind_preserving_selection_response.json");
   }
 
   @ParameterizedTest
@@ -2730,16 +2731,129 @@ public class DocStoreTest {
             .addAggregation(IdentifierExpression.of("sales.medium.type"))
             .addSelection(
                 AggregateExpression.of(SUM, IdentifierExpression.of("sales.medium.volume")),
-                "totalsales")
+                "totalSales")
             // we don't want to consider entries where sales data is missing
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
-            .addSort(IdentifierExpression.of("totalsales"), DESC)
+            .addSort(IdentifierExpression.of("totalSales"), DESC)
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertSizeAndDocsEqual(
         dataStoreName, iterator, 3, "mongo/aggregate_on_nested_array_reponse.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUnnestAndAggregate_preserveEmptyTrue(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // include all documents in the result irrespective of `sales` field
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, iterator, 1, "mongo/unwind_preserving_empty_array_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUnnest(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .addSort(IdentifierExpression.of("sales.city"), DESC)
+            .addSort(IdentifierExpression.of("sales.medium.volume"), DESC)
+            .addSort(IdentifierExpression.of("sales.medium.type"), DESC)
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertSizeAndDocsEqual(dataStoreName, iterator, 17, "mongo/unwind_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUnnestAndAggregate_preserveEmptyFalse(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    // consider only those documents where sales field is missing
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, iterator, 1, "mongo/unwind_not_preserving_empty_array_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testFilterAndUnnest(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    RelationalExpression relationalExpression =
+        RelationalExpression.of(
+            IdentifierExpression.of("sales.city"), EQ, ConstantExpression.of("delhi"));
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium"))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(true)
+                    .filterTypeExpression(relationalExpression)
+                    .build())
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .addSort(IdentifierExpression.of("sales.city"), DESC)
+            .addSort(IdentifierExpression.of("sales.medium.volume"), DESC)
+            .addSort(IdentifierExpression.of("sales.medium.type"), DESC)
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertSizeAndDocsEqual(dataStoreName, iterator, 7, "mongo/unwind_filter_response.json");
   }
 
   @ParameterizedTest

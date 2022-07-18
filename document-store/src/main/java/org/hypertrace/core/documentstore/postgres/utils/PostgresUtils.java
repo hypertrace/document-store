@@ -313,4 +313,8 @@ public class PostgresUtils {
   public static String decodeAliasForNestedField(String nestedFieldName) {
     return StringUtils.replace(nestedFieldName, DOT_STR, DOT);
   }
+
+  public static String wrapAliasWithDoubleQuotes(String fieldName) {
+    return "\"" + fieldName + "\"";
+  }
 }

@@ -9,6 +9,7 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
 public class PostgresSortTypeExpressionVisitor implements SortTypeExpressionVisitor {
@@ -46,7 +47,7 @@ public class PostgresSortTypeExpressionVisitor implements SortTypeExpressionVisi
     String fieldName = identifierExpressionVisitor.visit(expression);
 
     return postgresQueryParser.getPgSelections().containsKey(fieldName)
-        ? fieldName
+        ? PostgresUtils.wrapAliasWithDoubleQuotes(fieldName)
         : fieldIdentifierExpressionVisitor.visit(expression);
   }
 

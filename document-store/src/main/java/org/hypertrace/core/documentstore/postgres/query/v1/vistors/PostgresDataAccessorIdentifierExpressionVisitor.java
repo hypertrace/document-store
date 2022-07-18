@@ -43,6 +43,7 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
   public String visit(final IdentifierExpression expression) {
     FieldToPgColumn fieldToPgColumn =
         getPostgresQueryParser().getToPgColumnTransformer().transform(expression.getName());
+    if (fieldToPgColumn.getTransformedField() == null) return fieldToPgColumn.getPgColumn();
     String dataAccessor =
         PostgresUtils.prepareFieldDataAccessorExpr(
             fieldToPgColumn.getTransformedField(), fieldToPgColumn.getPgColumn());

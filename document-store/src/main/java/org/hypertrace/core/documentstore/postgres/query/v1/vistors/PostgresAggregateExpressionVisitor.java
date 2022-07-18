@@ -1,19 +1,41 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+import java.util.Set;
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
 @NoArgsConstructor
 public class PostgresAggregateExpressionVisitor extends PostgresSelectTypeExpressionVisitor {
 
+  private PostgresSelectTypeExpressionVisitor stringTypeDataAccessorVisitor;
+  private PostgresSelectTypeExpressionVisitor numericTypeDataAccessorVisitor;
+
+  private static Set<AggregationOperator> COUNT_OPERATOR =
+      Set.of(AggregationOperator.COUNT, AggregationOperator.DISTINCT_COUNT);
+
   public PostgresAggregateExpressionVisitor(PostgresSelectTypeExpressionVisitor baseVisitor) {
     super(baseVisitor);
+    intiSelectTypeExpressionVisitor();
   }
 
   public PostgresAggregateExpressionVisitor(PostgresQueryParser postgresQueryParser) {
     super(postgresQueryParser);
+    intiSelectTypeExpressionVisitor();
+  }
+
+  private void intiSelectTypeExpressionVisitor() {
+    stringTypeDataAccessorVisitor =
+        new PostgresFunctionExpressionVisitor(
+            new PostgresDataAccessorIdentifierExpressionVisitor(
+                new PostgresConstantExpressionVisitor(this), Type.STRING));
+
+    numericTypeDataAccessorVisitor =
+        new PostgresFunctionExpressionVisitor(
+            new PostgresDataAccessorIdentifierExpressionVisitor(
+                new PostgresConstantExpressionVisitor(this), Type.NUMERIC));
   }
 
   @Override
@@ -24,10 +46,11 @@ public class PostgresAggregateExpressionVisitor extends PostgresSelectTypeExpres
   @Override
   public String visit(final AggregateExpression expression) {
     AggregationOperator operator = expression.getAggregator();
+
     PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor =
-        new PostgresFunctionExpressionVisitor(
-            new PostgresDataAccessorIdentifierExpressionVisitor(
-                new PostgresConstantExpressionVisitor(this)));
+        COUNT_OPERATOR.contains(expression.getAggregator())
+            ? stringTypeDataAccessorVisitor
+            : numericTypeDataAccessorVisitor;
 
     String value = expression.getExpression().accept(selectTypeExpressionVisitor);
     return value != null ? convertToAggregationFunction(operator, value) : null;
