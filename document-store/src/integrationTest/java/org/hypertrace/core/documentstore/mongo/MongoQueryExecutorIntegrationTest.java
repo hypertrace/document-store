@@ -460,50 +460,6 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
-  public void testUnnestAndAggregate_preserveEmptyFalse() throws IOException {
-    // consider only those documents where sales field is missing
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
-            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
-            .build();
-
-    Iterator<Document> iterator = collection.aggregate(query);
-    assertDocsEqual(iterator, "mongo/unwind_not_preserving_empty_array_response.json");
-    assertSizeEqual(query, "mongo/unwind_not_preserving_empty_array_response.json");
-  }
-
-  @Test
-  public void testFilterAndUnnest() throws IOException {
-    RelationalExpression relationalExpression =
-        RelationalExpression.of(
-            IdentifierExpression.of("sales.city"), EQ, ConstantExpression.of("delhi"));
-
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
-            .addSelection(IdentifierExpression.of("item"))
-            .addSelection(IdentifierExpression.of("sales.city"))
-            .addSelection(IdentifierExpression.of("sales.medium"))
-            .addFromClause(
-                UnnestExpression.builder()
-                    .identifierExpression(IdentifierExpression.of("sales"))
-                    .preserveNullAndEmptyArrays(true)
-                    .filterTypeExpression(relationalExpression)
-                    .build())
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
-            .addSort(IdentifierExpression.of("item"), DESC)
-            .addSort(IdentifierExpression.of("sales.city"), DESC)
-            .addSort(IdentifierExpression.of("sales.medium.volume"), DESC)
-            .addSort(IdentifierExpression.of("sales.medium.type"), DESC)
-            .build();
-
-    Iterator<Document> iterator = collection.aggregate(query);
-    assertDocsEqual(iterator, "mongo/unwind_filter_response.json");
-    assertSizeEqual(query, "mongo/unwind_filter_response.json");
-  }
-
-  @Test
   public void testQueryQ1AggregationFilterAlongWithNonAliasFields() throws IOException {
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()

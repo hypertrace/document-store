@@ -310,12 +310,13 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals(
         "SELECT document->'item' AS item, "
             + "AVG( CAST (document->>'quantity' AS NUMERIC) ) AS qty_avg, "
-            + "COUNT( CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
-            + "COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_distinct_count, "
+            + "COUNT( document->>'quantity' ) AS qty_count, "
+            + "COUNT(DISTINCT document->>'quantity' ) AS qty_distinct_count, "
             + "SUM( CAST (document->>'quantity' AS NUMERIC) ) AS qty_sum, "
             + "MIN( CAST (document->>'quantity' AS NUMERIC) ) AS qty_min, "
             + "MAX( CAST (document->>'quantity' AS NUMERIC) ) AS qty_max "
-            + "FROM testCollection WHERE CAST (document->>'price' AS NUMERIC) = ? "
+            + "FROM testCollection "
+            + "WHERE CAST (document->>'price' AS NUMERIC) = ? "
             + "GROUP BY document->'item'",
         sql);
 
@@ -359,10 +360,11 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
-        "SELECT COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS qty_count, "
             + "document->'item' AS item "
-            + "FROM testCollection GROUP BY document->'item' "
-            + "HAVING COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) <= ?",
+            + "FROM testCollection "
+            + "GROUP BY document->'item' "
+            + "HAVING COUNT(DISTINCT document->>'quantity' ) <= ?",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -390,11 +392,12 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
-        "SELECT COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
-            + "document->'item' AS item FROM testCollection "
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS qty_count, "
+            + "document->'item' AS item "
+            + "FROM testCollection "
             + "WHERE CAST (document->>'price' AS NUMERIC) <= ? "
             + "GROUP BY document->'item' "
-            + "HAVING COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) <= ?",
+            + "HAVING COUNT(DISTINCT document->>'quantity' ) <= ?",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -472,11 +475,11 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
-        "SELECT COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) AS qty_count, "
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS qty_count, "
             + "document->'item' AS item "
             + "FROM testCollection "
             + "GROUP BY document->'item' "
-            + "HAVING COUNT(DISTINCT CAST (document->>'quantity' AS NUMERIC) ) <= ? "
+            + "HAVING COUNT(DISTINCT document->>'quantity' ) <= ? "
             + "ORDER BY qty_count DESC,document->'item' DESC",
         sql);
 
