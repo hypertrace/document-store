@@ -2713,7 +2713,6 @@ public class DocStoreTest {
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertSizeAndDocsEqual(
         dataStoreName, resultDocs, 17, "mongo/unwind_preserving_selection_response.json");
-
   }
 
   @ParameterizedTest

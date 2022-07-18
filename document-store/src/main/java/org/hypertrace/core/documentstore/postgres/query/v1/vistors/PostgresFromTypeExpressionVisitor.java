@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.Getter;
@@ -37,12 +38,12 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
 
   @Override
   public String visit(UnnestExpression unnestExpression) {
-
     String orgFieldName = unnestExpression.getIdentifierExpression().getName();
     String pgColumnName = PostgresUtils.encodeAliasForNestedField(orgFieldName);
 
     String transformedFieldName =
         unnestExpression.getIdentifierExpression().accept(postgresFieldIdentifierExpressionVisitor);
+
     postgresQueryParser.getPgColumnNames().put(orgFieldName, pgColumnName);
     int nextIndex = postgresQueryParser.getPgColumnNames().size();
     int preIndex = nextIndex - 1;
