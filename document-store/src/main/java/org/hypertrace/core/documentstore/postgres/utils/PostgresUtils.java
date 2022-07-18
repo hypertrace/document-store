@@ -10,6 +10,7 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDA
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.postgres.Params;
@@ -22,7 +23,9 @@ public class PostgresUtils {
   private static final String DOT_STR = "_dot_";
   private static final String DOT = ".";
 
-  private static final Set<String> OUTER_COLUMNS = Set.of(CREATED_AT, ID, UPDATED_AT);
+  public static final Set<String> OUTER_COLUMNS =
+      new TreeSet<>(List.of(ID, CREATED_AT, UPDATED_AT));
+  public static final String DOCUMENT_COLUMN = DOCUMENT;
 
   public enum Type {
     STRING,
@@ -30,10 +33,10 @@ public class PostgresUtils {
     NUMERIC,
   }
 
-  public static StringBuilder prepareFieldAccessorExpr(String fieldName) {
+  public static StringBuilder prepareFieldAccessorExpr(String fieldName, String columnName) {
     // Generate json field accessor statement
     if (!OUTER_COLUMNS.contains(fieldName)) {
-      StringBuilder filterString = new StringBuilder(DOCUMENT);
+      StringBuilder filterString = new StringBuilder(columnName);
       String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
       for (String nestedField : nestedFields) {
         filterString.append(JSON_FIELD_ACCESSOR).append("'").append(nestedField).append("'");
@@ -49,10 +52,10 @@ public class PostgresUtils {
    * keys. Note: It doesn't handle array elements in json document. e.g SELECT * FROM TABLE where
    * document ->> 'first' = 'name' and document -> 'address' ->> 'pin' = "00000"
    */
-  public static String prepareFieldDataAccessorExpr(String fieldName) {
+  public static String prepareFieldDataAccessorExpr(String fieldName, String columnName) {
     StringBuilder fieldPrefix = new StringBuilder(fieldName);
     if (!OUTER_COLUMNS.contains(fieldName)) {
-      fieldPrefix = new StringBuilder(DOCUMENT);
+      fieldPrefix = new StringBuilder(columnName);
       String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
       for (int i = 0; i < nestedFields.length - 1; i++) {
         fieldPrefix.append(JSON_FIELD_ACCESSOR).append("'").append(nestedFields[i]).append("'");
@@ -113,8 +116,8 @@ public class PostgresUtils {
   }
 
   public static String parseNonCompositeFilter(
-      String fieldName, String op, Object value, Builder paramsBuilder) {
-    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName), value);
+      String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
+    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
     Boolean isMultiValued = false;
@@ -148,7 +151,7 @@ public class PostgresUtils {
         //    Ref in context of NEQ -
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520Other
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
-        StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName);
+        StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName, columnName);
         if (notInFilterString != null) {
           filterString = notInFilterString.append(" IS NULL OR ").append(fullFieldName);
         }
@@ -167,7 +170,7 @@ public class PostgresUtils {
         sqlOperator = " IS NULL ";
         value = null;
         // For fields inside jsonb
-        StringBuilder notExists = prepareFieldAccessorExpr(fieldName);
+        StringBuilder notExists = prepareFieldAccessorExpr(fieldName, columnName);
         if (notExists != null) {
           filterString = notExists;
         }
@@ -176,7 +179,7 @@ public class PostgresUtils {
         sqlOperator = " IS NOT NULL ";
         value = null;
         // For fields inside jsonb
-        StringBuilder exists = prepareFieldAccessorExpr(fieldName);
+        StringBuilder exists = prepareFieldAccessorExpr(fieldName, columnName);
         if (exists != null) {
           filterString = exists;
         }
@@ -190,7 +193,7 @@ public class PostgresUtils {
         // Semantics for handling if key not exists and if it exists, its value
         // doesn't equal to the filter for Jsonb document will be done as:
         // "document->key IS NULL OR document->key->> != value"
-        StringBuilder notEquals = prepareFieldAccessorExpr(fieldName);
+        StringBuilder notEquals = prepareFieldAccessorExpr(fieldName, columnName);
         // For fields inside jsonb
         if (notEquals != null) {
           filterString = notEquals.append(" IS NULL OR ").append(fullFieldName);

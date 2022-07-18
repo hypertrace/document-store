@@ -5,7 +5,7 @@
         "type": "online"
       }
     },
-    "totalSales": 9000
+    "totalsales": 9000
   },
   {
     "sales": {
@@ -13,7 +13,7 @@
         "type": "distributionChannel"
       }
     },
-    "totalSales": 5000
+    "totalsales": 5000
   },
   {
     "sales": {
@@ -21,6 +21,6 @@
         "type": "retail"
       }
     },
-    "totalSales": 1500
+    "totalsales": 1500
   }
 ]

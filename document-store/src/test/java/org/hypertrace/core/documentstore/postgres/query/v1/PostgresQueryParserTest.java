@@ -26,6 +26,7 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -541,5 +542,113 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals("Bottle", params.getObjectParams().get(4));
     Assertions.assertEquals(1, params.getObjectParams().get(5));
     Assertions.assertEquals(3, params.getObjectParams().get(6));
+  }
+
+  @Test
+  void testUnnestWithoutPreserveNullAndEmptyArrays() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "With \n"
+            + "table1 as (SELECT * from testCollection), \n"
+            + "table2 as (SELECT * FROM table1, "
+            + "jsonb_array_elements(document->'sales') p1(sales),"
+            + "jsonb_array_elements(sales->'medium') p2(sales_dot_medium)) \n"
+            + "SELECT document->'item' AS item, document->'price' AS price, "
+            + "sales->'city' AS sales_dot_city, "
+            + "sales_dot_medium->'type' AS sales_dot_medium_dot_type "
+            + "FROM table2",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(0, params.getObjectParams().size());
+  }
+
+  @Test
+  void testUnnestWithPreserveNullAndEmptyArrays() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "With \n"
+            + "table1 as (SELECT * from testCollection), \n"
+            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),"
+            + "jsonb_array_elements(sales->'medium') p2(sales_dot_medium)), \n"
+            + "table3 as (SELECT m.created_at,m.id,m.updated_at,m.document, d.sales_dot_medium,d.sales "
+            + "from testCollection m LEFT JOIN table2 d on(m.id = d.id)) \n"
+            + "SELECT document->'item' AS item, "
+            + "document->'price' AS price, "
+            + "sales->'city' AS sales_dot_city, "
+            + "sales_dot_medium->'type' AS sales_dot_medium_dot_type "
+            + "FROM table3",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(0, params.getObjectParams().size());
+  }
+
+  @Test
+  void testUnnestWithoutPreserveNullAndEmptyArraysWithFilters() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(false)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.city"),
+                            EQ,
+                            ConstantExpression.of("delhi")))
+                    .build())
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "With \n"
+            + "table1 as (SELECT * from testCollection WHERE document->'quantity' IS NULL OR "
+            + "CAST (document->>'quantity' AS NUMERIC) != ?), \n"
+            + "table2 as (SELECT * FROM table1, jsonb_array_elements(document->'sales') p1(sales),"
+            + "jsonb_array_elements(sales->'medium') p2(sales_dot_medium)) \n"
+            + "SELECT document->'item' AS item, "
+            + "sales->'city' AS sales_dot_city, "
+            + "sales_dot_medium->'type' AS sales_dot_medium_dot_type "
+            + "FROM table2 WHERE sales->>'city' = ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(2, params.getObjectParams().size());
+    Assertions.assertEquals(10, params.getObjectParams().get(1));
+    Assertions.assertEquals("delhi", params.getObjectParams().get(2));
   }
 }

@@ -61,6 +61,7 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -2625,6 +2626,124 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
+  public void testUnnestWithoutPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 11, "mongo/unwind_not_preserving_selection_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUnnestWithoutPreserveNullAndEmptyArraysWithFilters(String dataStoreName)
+      throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(false)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.city"),
+                            EQ,
+                            ConstantExpression.of("delhi")))
+                    .build())
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, resultDocs, 3, "mongo/unwind_not_preserving_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUnnestWithPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertSizeEqual(resultDocs, 17);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUnnestAndAggregate(String dataStoreName) throws IOException {
+    Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // add docs
+    boolean result = collection.bulkUpsert(documents);
+    Assertions.assertTrue(result);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addAggregation(IdentifierExpression.of("sales.medium.type"))
+            .addSelection(
+                AggregateExpression.of(SUM, IdentifierExpression.of("sales.medium.volume")),
+                "totalsales")
+            // we don't want to consider entries where sales data is missing
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
+            .addSort(IdentifierExpression.of("totalsales"), DESC)
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertSizeAndDocsEqual(
+        dataStoreName, iterator, 3, "mongo/aggregate_on_nested_array_reponse.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
   public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {
     Map<Key, Document> documents = createDocumentsFromResource("mongo/collection_data.json");
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -2882,8 +3001,18 @@ public class DocStoreTest {
 
     long count =
         expectedDocs.stream().filter(expectedDoc -> actualDocs.contains(expectedDoc)).count();
+
     assertEquals(expectedSize, actualSize);
     assertEquals(expectedSize, count);
+  }
+
+  private static void assertSizeEqual(Iterator<Document> documents, int expectedSize) {
+    int actualSize = 0;
+    while (documents.hasNext()) {
+      documents.next();
+      actualSize++;
+    }
+    assertEquals(expectedSize, actualSize);
   }
 
   private static void removesDateRelatedFields(String dataStoreName, Map<String, Object> document) {

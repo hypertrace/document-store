@@ -17,14 +17,25 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
 public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeExpressionVisitor {
 
   protected final PostgresSelectTypeExpressionVisitor baseVisitor;
+  protected final PostgresQueryParser postgresQueryParser;
 
   protected PostgresSelectTypeExpressionVisitor() {
-    this(PostgresDefaultSelectTypeExpressionVisitor.INSTANCE);
+    this(PostgresDefaultSelectTypeExpressionVisitor.INSTANCE, null);
   }
 
   protected PostgresSelectTypeExpressionVisitor(
       final PostgresSelectTypeExpressionVisitor baseVisitor) {
+    this(baseVisitor, null);
+  }
+
+  public PostgresSelectTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
+    this(PostgresDefaultSelectTypeExpressionVisitor.INSTANCE, postgresQueryParser);
+  }
+
+  public PostgresSelectTypeExpressionVisitor(
+      PostgresSelectTypeExpressionVisitor baseVisitor, PostgresQueryParser postgresQueryParser) {
     this.baseVisitor = baseVisitor;
+    this.postgresQueryParser = postgresQueryParser;
   }
 
   @Override
@@ -47,6 +58,8 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
     return baseVisitor.visit(expression);
   }
 
+  public abstract PostgresQueryParser getPostgresQueryParser();
+
   @AllArgsConstructor
   static class PgSelection {
     String fieldName;
@@ -58,7 +71,8 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
 
     PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor =
         new PostgresAggregateExpressionVisitor(
-            new PostgresFieldIdentifierExpressionVisitor(new PostgresFunctionExpressionVisitor()));
+            new PostgresFieldIdentifierExpressionVisitor(
+                new PostgresFunctionExpressionVisitor(postgresQueryParser)));
 
     // used for if alias is missing
     PostgresIdentifierExpressionVisitor identifierExpressionVisitor =
