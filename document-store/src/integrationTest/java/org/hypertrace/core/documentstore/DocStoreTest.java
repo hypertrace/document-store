@@ -76,7 +76,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -2816,7 +2815,8 @@ public class DocStoreTest {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    assertSizeAndDocsEqual(dataStoreName, iterator, 1, "mongo/unwind_not_preserving_empty_array_response.json");
+    assertSizeAndDocsEqual(
+        dataStoreName, iterator, 1, "mongo/unwind_not_preserving_empty_array_response.json");
   }
 
   @ParameterizedTest
