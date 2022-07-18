@@ -217,8 +217,9 @@ public class PostgresQueryParserTest {
     PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
     String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
-        "SELECT document->'item' AS item, CAST (document->>'price' AS NUMERIC) "
-            + "* CAST (document->>'quantity' AS NUMERIC) AS total FROM testCollection",
+        "SELECT document->'item' AS item, "
+            + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS \"total\" "
+            + "FROM testCollection",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -243,9 +244,10 @@ public class PostgresQueryParserTest {
     PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
     String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
-        "SELECT document->'item' AS item, document->'props'->'brand' AS props_dot_brand, "
+        "SELECT document->'item' AS item, "
+            + "document->'props'->'brand' AS props_dot_brand, "
             + "document->'props'->'seller'->'name' AS props_dot_seller_dot_name, "
-            + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS total "
+            + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS \"total\" "
             + "FROM testCollection",
         sql);
 
@@ -271,9 +273,10 @@ public class PostgresQueryParserTest {
     PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
     String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
-        "SELECT document->'item' AS item, document->'props'->'brand' AS props_band, "
-            + "document->'props'->'seller'->'name' AS props_seller_name, "
-            + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS total "
+        "SELECT document->'item' AS item, "
+            + "document->'props'->'brand' AS \"props_band\", "
+            + "document->'props'->'seller'->'name' AS \"props_seller_name\", "
+            + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS \"total\" "
             + "FROM testCollection",
         sql);
 
@@ -309,14 +312,13 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     Assertions.assertEquals(
         "SELECT document->'item' AS item, "
-            + "AVG( CAST (document->>'quantity' AS NUMERIC) ) AS qty_avg, "
-            + "COUNT( document->>'quantity' ) AS qty_count, "
-            + "COUNT(DISTINCT document->>'quantity' ) AS qty_distinct_count, "
-            + "SUM( CAST (document->>'quantity' AS NUMERIC) ) AS qty_sum, "
-            + "MIN( CAST (document->>'quantity' AS NUMERIC) ) AS qty_min, "
-            + "MAX( CAST (document->>'quantity' AS NUMERIC) ) AS qty_max "
-            + "FROM testCollection "
-            + "WHERE CAST (document->>'price' AS NUMERIC) = ? "
+            + "AVG( CAST (document->>'quantity' AS NUMERIC) ) AS \"qty_avg\", "
+            + "COUNT( document->>'quantity' ) AS \"qty_count\", "
+            + "COUNT(DISTINCT document->>'quantity' ) AS \"qty_distinct_count\", "
+            + "SUM( CAST (document->>'quantity' AS NUMERIC) ) AS \"qty_sum\", "
+            + "MIN( CAST (document->>'quantity' AS NUMERIC) ) AS \"qty_min\", "
+            + "MAX( CAST (document->>'quantity' AS NUMERIC) ) AS \"qty_max\" "
+            + "FROM testCollection WHERE CAST (document->>'price' AS NUMERIC) = ? "
             + "GROUP BY document->'item'",
         sql);
 
@@ -360,7 +362,7 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
-        "SELECT COUNT(DISTINCT document->>'quantity' ) AS qty_count, "
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS item "
             + "FROM testCollection "
             + "GROUP BY document->'item' "
@@ -392,7 +394,7 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
-        "SELECT COUNT(DISTINCT document->>'quantity' ) AS qty_count, "
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS item "
             + "FROM testCollection "
             + "WHERE CAST (document->>'price' AS NUMERIC) <= ? "
@@ -475,12 +477,12 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
-        "SELECT COUNT(DISTINCT document->>'quantity' ) AS qty_count, "
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS item "
             + "FROM testCollection "
             + "GROUP BY document->'item' "
             + "HAVING COUNT(DISTINCT document->>'quantity' ) <= ? "
-            + "ORDER BY qty_count DESC,document->'item' DESC",
+            + "ORDER BY \"qty_count\" DESC,document->'item' DESC",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();

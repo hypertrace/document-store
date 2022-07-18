@@ -2731,11 +2731,11 @@ public class DocStoreTest {
             .addAggregation(IdentifierExpression.of("sales.medium.type"))
             .addSelection(
                 AggregateExpression.of(SUM, IdentifierExpression.of("sales.medium.volume")),
-                "totalsales")
+                "totalSales")
             // we don't want to consider entries where sales data is missing
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), false))
-            .addSort(IdentifierExpression.of("totalsales"), DESC)
+            .addSort(IdentifierExpression.of("totalSales"), DESC)
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);

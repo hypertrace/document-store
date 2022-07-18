@@ -107,7 +107,7 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
       SelectionSpec selectionSpec,
       PostgresIdentifierExpressionVisitor identifierExpressionVisitor) {
     return !StringUtils.isEmpty(selectionSpec.getAlias())
-        ? selectionSpec.getAlias()
+        ? PostgresUtils.enhancedWithDoubleQuotes(selectionSpec.getAlias())
         : PostgresUtils.encodeAliasForNestedField(
             selectionSpec.getExpression().accept(identifierExpressionVisitor));
   }
