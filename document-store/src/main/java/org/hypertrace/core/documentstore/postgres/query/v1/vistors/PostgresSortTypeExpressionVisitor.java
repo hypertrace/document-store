@@ -47,7 +47,7 @@ public class PostgresSortTypeExpressionVisitor implements SortTypeExpressionVisi
     String fieldName = identifierExpressionVisitor.visit(expression);
 
     return postgresQueryParser.getPgSelections().containsKey(fieldName)
-        ? PostgresUtils.enhancedWithDoubleQuotes(fieldName)
+        ? PostgresUtils.wrapAliasWithDoubleQuotes(fieldName)
         : fieldIdentifierExpressionVisitor.visit(expression);
   }
 

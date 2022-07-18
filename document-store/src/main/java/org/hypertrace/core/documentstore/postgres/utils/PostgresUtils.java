@@ -314,7 +314,7 @@ public class PostgresUtils {
     return StringUtils.replace(nestedFieldName, DOT_STR, DOT);
   }
 
-  public static String enhancedWithDoubleQuotes(String fieldName) {
+  public static String wrapAliasWithDoubleQuotes(String fieldName) {
     return "\"" + fieldName + "\"";
   }
 }
