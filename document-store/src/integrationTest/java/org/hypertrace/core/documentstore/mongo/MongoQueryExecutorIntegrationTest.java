@@ -460,21 +460,6 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
-  public void testUnnestAndAggregate_preserveEmptyTrue() throws IOException {
-    // include all documents in the result irrespective of `sales` field
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
-            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
-            .build();
-
-    Iterator<Document> iterator = collection.aggregate(query);
-    assertDocsEqual(iterator, "mongo/unwind_preserving_empty_array_response.json");
-    assertSizeEqual(query, "mongo/unwind_preserving_empty_array_response.json");
-  }
-
-  @Test
   public void testUnnestAndAggregate_preserveEmptyFalse() throws IOException {
     // consider only those documents where sales field is missing
     org.hypertrace.core.documentstore.query.Query query =
