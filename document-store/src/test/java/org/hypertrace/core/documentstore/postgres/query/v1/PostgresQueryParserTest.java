@@ -634,7 +634,7 @@ public class PostgresQueryParserTest {
 
     Assertions.assertEquals(
         "With \n"
-            + "table1 as (SELECT * from testCollection "
+            + "table0 as (SELECT * from testCollection "
             + "WHERE document->'quantity' IS NULL OR CAST (document->>'quantity' AS NUMERIC) != ?),\n"
             + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales)),\n"
             + "table2 as (SELECT * from table1 t1, jsonb_array_elements(sales->'medium') p2(sales_dot_medium))\n"

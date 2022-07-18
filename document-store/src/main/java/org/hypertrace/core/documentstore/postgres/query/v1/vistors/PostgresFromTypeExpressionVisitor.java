@@ -1,6 +1,5 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
-
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.Getter;
