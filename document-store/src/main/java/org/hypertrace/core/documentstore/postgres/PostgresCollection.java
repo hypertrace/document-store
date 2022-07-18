@@ -345,7 +345,13 @@ public class PostgresCollection implements Collection {
 
   @Override
   public long count(org.hypertrace.core.documentstore.query.Query query) {
-    throw new UnsupportedOperationException();
+    long count = 0;
+    try (CloseableIterator<Document> iterator = aggregate(query)) {
+      while (iterator.hasNext()) count++;
+    } catch (IOException exception) {
+      LOGGER.error("SQLException with count API for query: {}", query, exception);
+    }
+    return count;
   }
 
   @Override
