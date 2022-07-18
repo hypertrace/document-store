@@ -26,6 +26,7 @@ public class PostgresFieldIdentifierExpressionVisitor extends PostgresSelectType
   public String visit(final IdentifierExpression expression) {
     FieldToPgColumn fieldToPgColumn =
         getPostgresQueryParser().getToPgColumnTransformer().transform(expression.getName());
+    if (fieldToPgColumn.getTransformedField() == null) return fieldToPgColumn.getPgColumn();
     return PostgresUtils.prepareFieldAccessorExpr(
             fieldToPgColumn.getTransformedField(), fieldToPgColumn.getPgColumn())
         .toString();

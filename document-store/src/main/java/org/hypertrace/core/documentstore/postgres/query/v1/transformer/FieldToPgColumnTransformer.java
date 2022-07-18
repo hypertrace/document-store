@@ -28,7 +28,7 @@ public class FieldToPgColumnTransformer {
     String pgColumn = postgresQueryParser.getPgColumnNames().get(parentField.get());
 
     if (parentField.get().equals(orgFieldName)) {
-      return new FieldToPgColumn(orgFieldName, pgColumn);
+      return new FieldToPgColumn(null, pgColumn);
     }
 
     String childField = StringUtils.removeStart(orgFieldName, parentField.get() + DOT);

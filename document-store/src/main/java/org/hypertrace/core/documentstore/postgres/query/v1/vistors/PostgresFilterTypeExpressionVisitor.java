@@ -52,6 +52,9 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     FieldToPgColumn fieldToPgColumn =
         postgresQueryParser.getToPgColumnTransformer().transform(fieldName);
 
+    if (fieldToPgColumn.getTransformedField() == null)
+      throw new UnsupportedOperationException("jsonb types in where clause is not yet supported");
+
     return PostgresUtils.parseNonCompositeFilter(
         fieldToPgColumn.getTransformedField(),
         fieldToPgColumn.getPgColumn(),

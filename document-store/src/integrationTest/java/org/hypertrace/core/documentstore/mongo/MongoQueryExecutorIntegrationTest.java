@@ -475,26 +475,6 @@ public class MongoQueryExecutorIntegrationTest {
   }
 
   @Test
-  public void testUnnest() throws IOException {
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
-            .addSelection(IdentifierExpression.of("item"))
-            .addSelection(IdentifierExpression.of("sales.city"))
-            .addSelection(IdentifierExpression.of("sales.medium"))
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
-            .addSort(IdentifierExpression.of("item"), DESC)
-            .addSort(IdentifierExpression.of("sales.city"), DESC)
-            .addSort(IdentifierExpression.of("sales.medium.volume"), DESC)
-            .addSort(IdentifierExpression.of("sales.medium.type"), DESC)
-            .build();
-
-    Iterator<Document> iterator = collection.aggregate(query);
-    assertDocsEqual(iterator, "mongo/unwind_response.json");
-    assertSizeEqual(query, "mongo/unwind_response.json");
-  }
-
-  @Test
   public void testFilterAndUnnest() throws IOException {
     RelationalExpression relationalExpression =
         RelationalExpression.of(
