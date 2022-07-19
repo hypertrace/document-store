@@ -133,7 +133,7 @@ public class DocStoreQueryV1Test {
   }
 
   @MethodSource
-  private static Stream<Arguments> databaseContextProvider() {
+  private static Stream<Arguments> databaseContextBoth() {
     return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
   }
 
@@ -148,7 +148,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testFindAll(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -161,7 +161,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testHasNext(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -175,7 +175,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testFindSimple(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -206,7 +206,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testFindWithDuplicateSelections(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -238,7 +238,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testFindWithDuplicateSortingAndPagination(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -327,7 +327,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testAggregateEmpty(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -339,7 +339,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testAggregateSimple(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -355,7 +355,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testOptionalFieldCount(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -373,7 +373,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithDuplicateSelections(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -390,7 +390,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithFiltersAndOrdering(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -431,7 +431,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithFiltersAndDuplicateOrderingAndDuplicateAggregations(
       String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -498,7 +498,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithoutAggregationAlias(String dataStoreName) {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -516,7 +516,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithUnsupportedExpressionNesting(String dataStoreName) {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -607,7 +607,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testQueryV1ForSimpleWhereClause(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -625,7 +625,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testQueryV1FilterWithNestedFiled(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -653,7 +653,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testQueryV1ForFilterWithLogicalExpressionAndOr(String dataStoreName)
       throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -691,7 +691,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testQueryV1ForSelectionExpression(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -720,7 +720,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testQueryV1FunctionalSelectionExpressionWithNestedFieldWithAlias(String dataStoreName)
       throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -753,7 +753,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testQueryV1AggregationExpression(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -786,7 +786,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testQueryV1AggregationFilter(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -809,7 +809,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testQueryV1AggregationFilterWithWhereClause(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -835,7 +835,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testUnnestWithoutPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -856,7 +856,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testUnnestWithoutPreserveNullAndEmptyArraysWithFilters(String dataStoreName)
       throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -889,7 +889,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testUnnestWithPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -910,7 +910,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testUnnestAndAggregate(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -934,7 +934,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testUnnestAndAggregate_preserveEmptyTrue(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -953,7 +953,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testUnnest(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -977,7 +977,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testUnnestAndAggregate_preserveEmptyFalse(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -996,7 +996,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testFilterAndUnnest(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -1029,7 +1029,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -1053,7 +1053,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextBoth")
   public void testFindWithSortingAndPagination(String datastoreName) throws IOException {
     Datastore datastore = datastoreMap.get(datastoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);

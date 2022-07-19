@@ -347,7 +347,10 @@ public class PostgresCollection implements Collection {
   public long count(org.hypertrace.core.documentstore.query.Query query) {
     long count = 0;
     try (CloseableIterator<Document> iterator = aggregate(query)) {
-      while (iterator.hasNext()) count++;
+      while (iterator.hasNext()) {
+        iterator.next();
+        count++;
+      }
     } catch (IOException exception) {
       LOGGER.error("SQLException with count API for query: {}", query, exception);
     }
