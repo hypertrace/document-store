@@ -151,6 +151,19 @@ public class Utils {
     assertEquals(expectedSize, count);
   }
 
+  public static void assertSizeEqual(Iterator<Document> documents, String filePath)
+      throws IOException {
+    String fileContent = readFileFromResource(filePath).orElseThrow();
+    int expected = convertJsonToMap(fileContent).size();
+    int actual;
+
+    for (actual = 0; documents.hasNext(); actual++) {
+      documents.next();
+    }
+
+    assertEquals(expected, actual);
+  }
+
   private static void removesDateRelatedFields(String dataStoreName, Map<String, Object> document) {
     if (isMongo(dataStoreName)) {
       document.remove(MONGO_CREATED_TIME_KEY);

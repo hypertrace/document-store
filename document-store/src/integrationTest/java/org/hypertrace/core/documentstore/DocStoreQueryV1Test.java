@@ -148,21 +148,20 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextMongo")
   public void testFindAll(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
     Query query = Query.builder().build();
     Iterator<Document> resultDocs = collection.find(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 0, "mongo/collection_data.json");
+    Utils.assertSizeEqual(resultDocs, "mongo/collection_data.json");
 
     testCountApi(dataStoreName, query, "mongo/collection_data.json");
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextMongo")
   public void testHasNext(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -170,8 +169,7 @@ public class DocStoreQueryV1Test {
     Query query = Query.builder().build();
     Iterator<Document> resultDocs = collection.find(query);
 
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 8, "mongo/collection_data.json");
+    Utils.assertSizeEqual(resultDocs, "mongo/collection_data.json");
     // hasNext should not throw error even after cursor is closed
     assertFalse(resultDocs.hasNext());
   }
@@ -329,15 +327,14 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextMongo")
   public void testAggregateEmpty(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     Query query = Query.builder().build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 0, "mongo/collection_data.json");
+    Utils.assertSizeEqual(resultDocs, "mongo/collection_data.json");
     testCountApi(dataStoreName, query, "mongo/collection_data.json");
   }
 
