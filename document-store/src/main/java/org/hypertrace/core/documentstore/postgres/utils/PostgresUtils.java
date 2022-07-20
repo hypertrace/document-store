@@ -303,7 +303,7 @@ public class PostgresUtils {
   }
 
   public static boolean isEncodedNestedField(String fieldName) {
-    return fieldName.contains(DOT_STR) ? true : false;
+    return fieldName.contains(DOT_STR) || fieldName.contains(DOT) ? true : false;
   }
 
   public static String encodeAliasForNestedField(String nestedFieldName) {

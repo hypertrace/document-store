@@ -285,7 +285,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testFindWithNestedFields(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -475,7 +475,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithNestedFields(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -492,9 +492,21 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 3, "mongo/aggregate_on_nested_fields_response.json");
-    testCountApi(dataStoreName, query, "mongo/aggregate_on_nested_fields_response.json");
+
+    if (dataStoreName.equals(POSTGRES_STORE)) {
+      Utils.assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultDocs, 3, "mongo/pg_aggregate_on_nested_fields_response.json");
+      testCountApi(dataStoreName, query, "mongo/pg_aggregate_on_nested_fields_response.json");
+    } else {
+      // NOTE that as part of this query, mongo impl returns a null field in the response. However,
+      // in the rest of the other queries, it's not returning. So, we need to fix this inconsistency
+      // in mongo impl. we should always return the null field or not. In Postgres, for
+      // compatibility with the rest
+      // of the mongo response, it is excluded in {@link PostgresResultIteratorWithMetaData}
+      Utils.assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultDocs, 3, "mongo/aggregate_on_nested_fields_response.json");
+      testCountApi(dataStoreName, query, "mongo/aggregate_on_nested_fields_response.json");
+    }
   }
 
   @ParameterizedTest
