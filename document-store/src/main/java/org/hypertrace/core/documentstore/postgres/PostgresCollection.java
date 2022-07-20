@@ -779,7 +779,11 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private JsonNode getJsonNodeAtPath(String path, JsonNode rootNode, boolean createPathIfMissing) {
+  @VisibleForTesting
+  JsonNode getJsonNodeAtPath(String path, JsonNode rootNode, boolean createPathIfMissing) {
+    if (StringUtils.isEmpty(path)) {
+      return rootNode;
+    }
     String[] pathTokens = path.split("\\.");
     // create path if missing
     // attributes.labels.valueList.values
