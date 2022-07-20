@@ -26,6 +26,22 @@ import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 public class Utils {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+  public static final String MONGO_STORE = "Mongo";
+  public static final String POSTGRES_STORE = "Postgres";
+
+  /*
+   * These 3 fields should be automatically created when upserting a doc.
+   * There are downstream services that depends on this. The test should verify that
+   * the string is not changed.
+   */
+  public static final String MONGO_LAST_UPDATE_TIME_KEY = "_lastUpdateTime";
+  public static final String MONGO_LAST_UPDATED_TIME_KEY = "lastUpdatedTime";
+  public static final String MONGO_CREATED_TIME_KEY = "createdTime";
+  /** Postgres related time fields */
+  public static final String POSTGRES_UPDATED_AT = "updated_at";
+
+  public static final String POSTGRES_CREATED_AT = "created_at";
+
   public static Document createDocument(ImmutablePair<String, Object>... pairs) {
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
     for (int i = 0; i < pairs.length; i++) {
@@ -56,22 +72,6 @@ public class Utils {
       objectNode.put(keys[i], keys[i + 1]);
     }
     return new JSONDocument(objectNode);
-  }
-
-  public static Map<Key, Document> createDocumentsFromResource(String resourcePath)
-      throws IOException {
-    Optional<String> contentOptional = readFileFromResource(resourcePath);
-    String json = contentOptional.orElseThrow();
-    List<Map<String, Object>> maps = OBJECT_MAPPER.readValue(json, new TypeReference<>() {});
-
-    Map<Key, Document> documentMap = new HashMap<>();
-    for (Map<String, Object> map : maps) {
-      Key key = new SingleValueKey("default", map.get(MongoCollection.ID_KEY).toString());
-      Document value = new JSONDocument(map);
-      documentMap.put(key, value);
-    }
-
-    return documentMap;
   }
 
   public static Optional<String> readFileFromResource(String filePath) throws IOException {
@@ -113,8 +113,25 @@ public class Utils {
     assertEquals(expectedSize, actualSize);
   }
 
+  public static Map<Key, Document> createDocumentsFromResource(String resourcePath)
+      throws IOException {
+    Optional<String> contentOptional = readFileFromResource(resourcePath);
+    String json = contentOptional.orElseThrow();
+    List<Map<String, Object>> maps = OBJECT_MAPPER.readValue(json, new TypeReference<>() {});
+
+    Map<Key, Document> documentMap = new HashMap<>();
+    for (Map<String, Object> map : maps) {
+      Key key = new SingleValueKey("default", map.get(MongoCollection.ID_KEY).toString());
+      Document value = new JSONDocument(map);
+      documentMap.put(key, value);
+    }
+
+    return documentMap;
+  }
+
   public static void assertDocsAndSizeEqualWithoutOrder(
-      Iterator<Document> documents, String filePath, int expectedSize) throws IOException {
+      String dataStoreName, Iterator<Document> documents, int expectedSize, String filePath)
+      throws IOException {
     String fileContent = readFileFromResource(filePath).orElseThrow();
     List<Map<String, Object>> expectedDocs = convertJsonToMap(fileContent);
 
@@ -122,13 +139,47 @@ public class Utils {
     int actualSize = 0;
     while (documents.hasNext()) {
       Map<String, Object> doc = convertDocumentToMap(documents.next());
+      removesDateRelatedFields(dataStoreName, doc);
       actualDocs.add(doc);
       actualSize++;
     }
 
     long count =
         expectedDocs.stream().filter(expectedDoc -> actualDocs.contains(expectedDoc)).count();
+
     assertEquals(expectedSize, actualSize);
     assertEquals(expectedSize, count);
+  }
+
+  public static void assertSizeEqual(Iterator<Document> documents, String filePath)
+      throws IOException {
+    String fileContent = readFileFromResource(filePath).orElseThrow();
+    int expected = convertJsonToMap(fileContent).size();
+    int actual;
+
+    for (actual = 0; documents.hasNext(); actual++) {
+      documents.next();
+    }
+
+    assertEquals(expected, actual);
+  }
+
+  private static void removesDateRelatedFields(String dataStoreName, Map<String, Object> document) {
+    if (isMongo(dataStoreName)) {
+      document.remove(MONGO_CREATED_TIME_KEY);
+      document.remove(MONGO_LAST_UPDATED_TIME_KEY);
+      document.remove(MONGO_LAST_UPDATE_TIME_KEY);
+    } else if (isPostgress(dataStoreName)) {
+      document.remove(POSTGRES_CREATED_AT);
+      document.remove(POSTGRES_UPDATED_AT);
+    }
+  }
+
+  private static boolean isMongo(String dataStoreName) {
+    return MONGO_STORE.equals(dataStoreName);
+  }
+
+  private static boolean isPostgress(String dataStoreName) {
+    return POSTGRES_STORE.equals(dataStoreName);
   }
 }
