@@ -11,8 +11,15 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 public class PostgresAggregationFilterTypeExpressionVisitor
     extends PostgresFilterTypeExpressionVisitor {
 
+  private PostgresSelectTypeExpressionVisitor lhsFieldVisitor;
+  private PostgresSelectTypeExpressionVisitor lhsVisitor;
+  private PostgresSelectTypeExpressionVisitor rhsVisitor;
+
   public PostgresAggregationFilterTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
     super(postgresQueryParser);
+    lhsFieldVisitor = new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser);
+    lhsVisitor = new PostgresIdentifierExpressionVisitor();
+    rhsVisitor = new PostgresConstantExpressionVisitor();
   }
 
   @Override
@@ -22,27 +29,22 @@ public class PostgresAggregationFilterTypeExpressionVisitor
     SelectTypeExpression rhs = expression.getRhs();
 
     // Only an identifier LHS and a constant RHS is supported as of now.
-    PostgresSelectTypeExpressionVisitor lhsVisitor = new PostgresIdentifierExpressionVisitor();
-    PostgresSelectTypeExpressionVisitor rhsVisitor = new PostgresConstantExpressionVisitor();
-
     String key = lhs.accept(lhsVisitor);
     Object value = rhs.accept(rhsVisitor);
 
-    // In SQL, the alias is not supported in the Filter and Having clause.
-    // As of now, where is clause is first parsed and it is not using any alias expression.
-    // However, having clause is parsed after group by, and currently, it is only
-    // supported with alias expression.
-
-    if (!postgresQueryParser.getPgSelections().containsKey(key)) {
-      throw new UnsupportedOperationException(
-          "Having clause is only supported with alias expression"
-              + "for aggregation and functional expression");
+    if (postgresQueryParser.getPgSelections().containsKey(key)) {
+      return PostgresUtils.prepareParsedNonCompositeFilter(
+          postgresQueryParser.getPgSelections().get(key),
+          operator.toString(),
+          value,
+          postgresQueryParser.getParamsBuilder());
     }
+
     return PostgresUtils.prepareParsedNonCompositeFilter(
-        postgresQueryParser.getPgSelections().get(key),
+        PostgresUtils.prepareCastForFieldAccessor(lhs.accept(lhsFieldVisitor), value),
         operator.toString(),
-        value,
-        this.postgresQueryParser.getParamsBuilder());
+        PostgresUtils.preProcessedStringForFieldAccessor(value),
+        postgresQueryParser.getParamsBuilder());
   }
 
   public static Optional<String> getAggregationFilterClause(

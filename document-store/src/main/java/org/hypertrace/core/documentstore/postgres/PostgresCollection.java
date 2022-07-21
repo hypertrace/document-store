@@ -345,16 +345,22 @@ public class PostgresCollection implements Collection {
 
   @Override
   public long count(org.hypertrace.core.documentstore.query.Query query) {
-    long count = 0;
-    try (CloseableIterator<Document> iterator = aggregate(query)) {
-      while (iterator.hasNext()) {
-        iterator.next();
-        count++;
-      }
-    } catch (IOException exception) {
-      LOGGER.error("SQLException with count API for query: {}", query, exception);
+    org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
+        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
+            collectionName, query);
+    String subQuery = queryParser.parse();
+    String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(count)", subQuery);
+    try {
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
+      ResultSet resultSet = preparedStatement.executeQuery();
+      resultSet.next();
+      return resultSet.getLong(1);
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
+      throw new RuntimeException(e);
     }
-    return count;
   }
 
   @Override

@@ -31,6 +31,7 @@ public class PostgresUtils {
     STRING,
     BOOLEAN,
     NUMERIC,
+    STRING_ARRAY,
   }
 
   public static StringBuilder prepareFieldAccessorExpr(String fieldName, String columnName) {
@@ -69,7 +70,8 @@ public class PostgresUtils {
     return fieldPrefix.toString();
   }
 
-  public static String prepareCast(String field, Object value) {
+  public static Type getType(Object value) {
+    boolean isArrayType = false;
     Type type = Type.STRING;
 
     // handle the case if the value type is collection for filter operator - `IN`
@@ -80,15 +82,21 @@ public class PostgresUtils {
     if (value instanceof List<?> && ((List<Object>) value).size() > 0) {
       List<Object> listValue = (List<Object>) value;
       value = listValue.get(0);
+      isArrayType = true;
     }
 
     if (value instanceof Number) {
       type = Type.NUMERIC;
     } else if (value instanceof Boolean) {
-      type = Type.NUMERIC;
+      type = Type.BOOLEAN;
+    } else if (isArrayType) {
+      type = Type.STRING_ARRAY;
     }
+    return type;
+  }
 
-    return prepareCast(field, type);
+  public static String prepareCast(String field, Object value) {
+    return prepareCast(field, getType(value));
   }
 
   public static String prepareCast(String field, Type type) {
@@ -100,6 +108,28 @@ public class PostgresUtils {
     } else /* default is string */ {
       return field;
     }
+  }
+
+  public static String prepareCastForFieldAccessor(String field, Object value) {
+    String fmt = "CAST (%s AS %s)";
+    Type type = getType(value);
+    if (type.equals(Type.STRING) || type.equals(Type.STRING_ARRAY))
+      return String.format(fmt, field, "TEXT");
+    return prepareCast(field, type);
+  }
+
+  public static Object preProcessedStringForFieldAccessor(Object value) {
+    Type type = getType(value);
+    if (type.equals(Type.STRING)) {
+      return PostgresUtils.wrapAliasWithDoubleQuotes((String) value);
+    } else if (type.equals(Type.STRING_ARRAY)) {
+      return ((List<Object>) value)
+          .stream()
+              .map(Object::toString)
+              .map(strValue -> PostgresUtils.wrapAliasWithDoubleQuotes(strValue))
+              .collect(Collectors.toUnmodifiableList());
+    }
+    return value;
   }
 
   private static String prepareParameterizedStringForList(

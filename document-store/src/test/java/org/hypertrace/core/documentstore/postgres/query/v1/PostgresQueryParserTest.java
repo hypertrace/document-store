@@ -431,7 +431,21 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
-    Assertions.assertThrows(UnsupportedOperationException.class, () -> postgresQueryParser.parse());
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
+            + "document->'item' AS item, "
+            + "document->'price' AS price "
+            + "FROM testCollection "
+            + "GROUP BY document->'item',document->'price' "
+            + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND (CAST (document->'price' AS NUMERIC) > ?)",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(2, params.getObjectParams().size());
+    Assertions.assertEquals(10, params.getObjectParams().get(1));
+    Assertions.assertEquals(5, params.getObjectParams().get(2));
   }
 
   @Test
