@@ -652,6 +652,44 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
+  public void testQueryQ1AggregationFilterWithStringInFilterAlongWithNonAliasFields(
+      String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .setAggregationFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"),
+                            IN,
+                            ConstantExpression.ofStrings(
+                                List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+                    .build())
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    Utils.assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName,
+        resultDocs,
+        3,
+        "mongo/test_string_in_filter_aggr_alias_distinct_count_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
   public void testQueryV1ForSimpleWhereClause(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);

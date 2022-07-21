@@ -668,4 +668,88 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals(10, params.getObjectParams().get(1));
     Assertions.assertEquals("delhi", params.getObjectParams().get(2));
   }
+
+  @Test
+  void testQueryQ1AggregationFilterWithStringAlongWithNonAliasFields() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .setAggregationFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
+            + "document->'item' AS item, document->'price' AS price "
+            + "FROM testCollection GROUP BY document->'item',document->'price' "
+            + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND (CAST (document->'item' AS TEXT) = ?)",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(2, params.getObjectParams().size());
+    Assertions.assertEquals(10, params.getObjectParams().get(1));
+    Assertions.assertEquals("\"Soap\"", params.getObjectParams().get(2));
+  }
+
+  @Test
+  void testQueryQ1AggregationFilterWithStringInFilterAlongWithNonAliasFields() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .setAggregationFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"),
+                            IN,
+                            ConstantExpression.ofStrings(
+                                List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
+            + "document->'item' AS item, document->'price' AS price "
+            + "FROM testCollection GROUP BY document->'item',document->'price' "
+            + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND (CAST (document->'item' AS TEXT) IN (?, ?, ?, ?))",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(5, params.getObjectParams().size());
+    Assertions.assertEquals(10, params.getObjectParams().get(1));
+    Assertions.assertEquals("\"Mirror\"", params.getObjectParams().get(2));
+    Assertions.assertEquals("\"Comb\"", params.getObjectParams().get(3));
+    Assertions.assertEquals("\"Shampoo\"", params.getObjectParams().get(4));
+    Assertions.assertEquals("\"Bottle\"", params.getObjectParams().get(5));
+  }
 }
