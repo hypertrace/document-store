@@ -14,6 +14,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 @NoArgsConstructor
 public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpressionVisitor {
 
+  private static final int ARRAY_DIMENSION = 1;
   private PostgresIdentifierExpressionVisitor identifierExpressionVisitor;
   private PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor;
 
@@ -50,7 +51,7 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
     if (numArgs == 1) {
       String parsedExpression = getParsedExpression(expression.getOperands().get(0));
       return expression.getOperator().equals(FunctionOperator.LENGTH)
-          ? String.format("ARRAY_LENGTH( %s, 1 )", parsedExpression)
+          ? String.format("ARRAY_LENGTH( %s, %s )", parsedExpression, ARRAY_DIMENSION)
           : String.format("%s( %s )", expression.getOperator(), parsedExpression);
     }
 

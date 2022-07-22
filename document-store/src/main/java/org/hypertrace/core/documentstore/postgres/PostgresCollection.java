@@ -987,7 +987,8 @@ public class PostgresCollection implements Collection {
         String columnName = resultSetMetaData.getColumnName(i);
         int columnType = resultSetMetaData.getColumnType(i);
         String columnValue =
-            columnType == 2003
+            columnType == 2003 /* 2003 refers to sql array types,
+                                  todo: see if we can replace with string name */
                 ? MAPPER.writeValueAsString(resultSet.getArray(i).getArray())
                 : resultSet.getString(i);
         if (StringUtils.isNotEmpty(columnValue)) {
