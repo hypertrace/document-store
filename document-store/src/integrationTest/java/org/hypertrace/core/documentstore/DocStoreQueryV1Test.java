@@ -285,7 +285,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testFindWithNestedFields(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -475,7 +475,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithNestedFields(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -492,9 +492,21 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 3, "mongo/aggregate_on_nested_fields_response.json");
-    testCountApi(dataStoreName, query, "mongo/aggregate_on_nested_fields_response.json");
+
+    if (dataStoreName.equals(POSTGRES_STORE)) {
+      Utils.assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultDocs, 3, "mongo/pg_aggregate_on_nested_fields_response.json");
+      testCountApi(dataStoreName, query, "mongo/pg_aggregate_on_nested_fields_response.json");
+    } else {
+      // NOTE that as part of this query, mongo impl returns a null field in the response. However,
+      // in the rest of the other queries, it's not returning. So, we need to fix this inconsistency
+      // in mongo impl. we should always return the null field or not. In Postgres, for
+      // compatibility with the rest
+      // of the mongo response, it is excluded in {@link PostgresResultIteratorWithMetaData}
+      Utils.assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultDocs, 3, "mongo/aggregate_on_nested_fields_response.json");
+      testCountApi(dataStoreName, query, "mongo/aggregate_on_nested_fields_response.json");
+    }
   }
 
   @ParameterizedTest
@@ -575,7 +587,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testQueryQ1AggregationFilterAlongWithNonAliasFields(String dataStoreName)
       throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -604,6 +616,76 @@ public class DocStoreQueryV1Test {
     Iterator<Document> resultDocs = collection.aggregate(query);
     Utils.assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 4, "mongo/test_aggr_alias_distinct_count_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
+  public void testQueryQ1AggregationFilterWithStringAlongWithNonAliasFields(String dataStoreName)
+      throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .setAggregationFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                    .build())
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    Utils.assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, 2, "mongo/test_string_aggr_alias_distinct_count_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
+  public void testQueryQ1AggregationFilterWithStringInFilterAlongWithNonAliasFields(
+      String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .setAggregationFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("qty_count"), LTE, ConstantExpression.of(10)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"),
+                            IN,
+                            ConstantExpression.ofStrings(
+                                List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+                    .build())
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    Utils.assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName,
+        resultDocs,
+        3,
+        "mongo/test_string_in_filter_aggr_alias_distinct_count_response.json");
   }
 
   @ParameterizedTest

@@ -52,7 +52,7 @@ public class PostgresAggregateExpressionVisitor extends PostgresSelectTypeExpres
             ? stringTypeDataAccessorVisitor
             : numericTypeDataAccessorVisitor;
 
-    String value = expression.getExpression().accept(selectTypeExpressionVisitor);
+    String value = expression.getExpression().accept(selectTypeExpressionVisitor).toString();
     return value != null ? convertToAggregationFunction(operator, value) : null;
   }
 

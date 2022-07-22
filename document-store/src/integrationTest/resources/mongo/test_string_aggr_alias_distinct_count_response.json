@@ -1,0 +1,12 @@
+[
+  {
+    "item":"Soap",
+    "qty_count":2,
+    "price":10
+  },
+  {
+    "item":"Soap",
+    "qty_count":1,
+    "price":20
+  }
+]
