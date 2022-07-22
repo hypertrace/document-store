@@ -556,7 +556,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextPostgres")
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithMultipleGroupingLevels(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
