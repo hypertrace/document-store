@@ -7,6 +7,7 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
@@ -27,6 +28,7 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -337,11 +339,65 @@ public class PostgresQueryParserTest {
             .addSelection(
                 AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")),
                 "qty_distinct")
+            .addSelection(
+                FunctionExpression.builder()
+                    .operator(FunctionOperator.LENGTH)
+                    .operand(IdentifierExpression.of("qty_distinct"))
+                    .build(),
+                "qty_distinct_length")
             .addAggregation(IdentifierExpression.of("item"))
             .build();
 
     PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
-    Assertions.assertThrows(UnsupportedOperationException.class, () -> postgresQueryParser.parse());
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "SELECT ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)) AS \"qty_distinct\", "
+            + "ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ) AS \"qty_distinct_length\" "
+            + "FROM testCollection WHERE CAST (document->>'price' AS NUMERIC) = ? "
+            + "GROUP BY document->'item'",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(10, params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testAggregateWithMultipleGroupingLevels() {
+    Query query =
+        Query.builder()
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(
+                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
+            .addSelection(
+                FunctionExpression.builder()
+                    .operator(LENGTH)
+                    .operand(IdentifierExpression.of("quantities"))
+                    .build(),
+                "num_quantities")
+            .setAggregationFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("num_quantities"), EQ, ConstantExpression.of(1)))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "SELECT document->'item' AS item, document->'price' AS price, "
+            + "ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)) AS \"quantities\", "
+            + "ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ) AS \"num_quantities\" "
+            + "FROM testCollection GROUP BY document->'item',document->'price' "
+            + "HAVING ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ) = ? "
+            + "ORDER BY document->'item' DESC",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(1, params.getObjectParams().get(1));
   }
 
   @Test

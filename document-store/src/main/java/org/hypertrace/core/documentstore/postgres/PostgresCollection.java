@@ -985,7 +985,11 @@ public class PostgresCollection implements Collection {
       Map<String, Object> jsonNode = new HashMap();
       for (int i = 1; i <= columnCount; i++) {
         String columnName = resultSetMetaData.getColumnName(i);
-        String columnValue = resultSet.getString(i);
+        int columnType = resultSetMetaData.getColumnType(i);
+        String columnValue =
+            columnType == 2003
+                ? MAPPER.writeValueAsString(resultSet.getArray(i).getArray())
+                : resultSet.getString(i);
         if (StringUtils.isNotEmpty(columnValue)) {
           JsonNode leafNodeValue = MAPPER.readTree(columnValue);
           if (PostgresUtils.isEncodedNestedField(columnName)) {
