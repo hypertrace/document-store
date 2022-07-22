@@ -556,7 +556,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithMultipleGroupingLevels(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -567,13 +567,13 @@ public class DocStoreQueryV1Test {
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("price"))
             .addSelection(
+                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
+            .addSelection(
                 FunctionExpression.builder()
                     .operator(LENGTH)
                     .operand(IdentifierExpression.of("quantities"))
                     .build(),
                 "num_quantities")
-            .addSelection(
-                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
             .setAggregationFilter(
                 RelationalExpression.of(
                     IdentifierExpression.of("num_quantities"), EQ, ConstantExpression.of(1)))
