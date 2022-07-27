@@ -1,5 +1,9 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
@@ -106,6 +110,59 @@ public class PostgresDocStoreTest {
         collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
 
     Assertions.assertEquals(document.toJson(), resultDocument.toJson());
+  }
+
+  @Test
+  public void test_getJsonNodeAtPath() throws Exception {
+    ObjectMapper objectMapper = new ObjectMapper();
+    ObjectNode labelNode = objectMapper.createObjectNode();
+    labelNode.put("string", "Label2");
+
+    ObjectNode valueNode = objectMapper.createObjectNode();
+    valueNode.set("value", labelNode);
+
+    ArrayNode valuesNode = objectMapper.createArrayNode();
+    valuesNode.add(valueNode);
+
+    ObjectNode valueListNode = objectMapper.createObjectNode();
+    valueListNode.set("values", valuesNode);
+
+    ObjectNode labelsNode = objectMapper.createObjectNode();
+    labelsNode.set("valueList", valueListNode);
+
+    ObjectNode attributesNode = objectMapper.createObjectNode();
+    attributesNode.put("name", "testKey2");
+    attributesNode.set("labels", labelsNode);
+
+    ObjectNode rootNode = objectMapper.createObjectNode();
+    rootNode.put("id", "testKey2");
+    rootNode.set("attributes", attributesNode);
+    rootNode.put("created_at", "2022-07-12 17:46:03.750437");
+    rootNode.put("updated_at", "2022-07-12 17:46:03.750437");
+
+    String path1 = "attributes.labels.valueList.values";
+    String outputNode1 = valuesNode.toString();
+    JsonNode expectedRootNode1 = objectMapper.readTree(outputNode1);
+
+    String path2 = "attributes.labels.attrNotPresent.values";
+    String outputNode2 = "[]";
+    JsonNode expectedRootNode2 = objectMapper.readTree(outputNode2);
+    PostgresCollection collection = (PostgresCollection) datastore.getCollection(COLLECTION_NAME);
+    try {
+      Assertions.assertEquals(
+          collection.getJsonNodeAtPath(path1, rootNode, true), expectedRootNode1);
+      Assertions.assertEquals(
+          collection.getJsonNodeAtPath(path2, rootNode, true), expectedRootNode2);
+      Assertions.assertEquals(collection.getJsonNodeAtPath(null, rootNode, true), rootNode);
+      Assertions.assertEquals(
+          collection.getJsonNodeAtPath(path1, rootNode, false), expectedRootNode1);
+      Assertions.assertEquals(
+          collection.getJsonNodeAtPath(path2, rootNode, false), expectedRootNode2);
+      Assertions.assertEquals(collection.getJsonNodeAtPath(null, rootNode, false), rootNode);
+    } catch (Exception e) {
+      System.out.println("Created path is not right");
+      Assertions.fail();
+    }
   }
 
   @Test
