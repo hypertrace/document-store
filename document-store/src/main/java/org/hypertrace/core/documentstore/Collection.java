@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /** Interface spec for common operations on a collection of documents */
@@ -79,6 +80,18 @@ public interface Collection {
    * @return {@link CloseableIterator} of matching documents
    */
   CloseableIterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query);
+
+  /**
+   * Reads the first document matching the filter and sorting criteria given in the {@param query},
+   * updates the sub-documents as specified in {@param subDocUpdates} and returns the document (if
+   * exists) including the fields selected in the {@param query}
+   *
+   * @return The document before sub-document updates if exists, otherwise an empty optional
+   * @throws IOException if there was any error in updating/fetching the document
+   */
+  Optional<Document> atomicReadAndUpdateSubDocs(
+      final org.hypertrace.core.documentstore.query.Query query, final Document updateDocument)
+      throws IOException;
 
   /**
    * Delete the document with the given key.

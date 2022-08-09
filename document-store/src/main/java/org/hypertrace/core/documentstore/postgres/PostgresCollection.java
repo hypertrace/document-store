@@ -379,6 +379,14 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
+  public Optional<Document> atomicReadAndUpdateSubDocs(
+      final org.hypertrace.core.documentstore.query.Query query, final Document updateDocument)
+      throws IOException {
+    // TODO: Implement
+    throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+  }
+
+  @Override
   public long count(org.hypertrace.core.documentstore.query.Query query) {
     org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(

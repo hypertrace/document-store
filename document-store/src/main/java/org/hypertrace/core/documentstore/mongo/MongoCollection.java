@@ -1,5 +1,9 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectTypeExpressionParser.getSelections;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoSortTypeExpressionParser.getOrders;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,6 +35,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -128,7 +133,7 @@ public class MongoCollection implements Collection {
           collection.updateOne(
               this.selectionCriteriaForKey(key), this.prepareUpsert(key, document), options);
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: " + writeResult.toString());
+        LOGGER.debug("Write result: " + writeResult);
       }
 
       return (writeResult.getUpsertedId() != null || writeResult.getModifiedCount() > 0);
@@ -197,7 +202,7 @@ public class MongoCollection implements Collection {
       UpdateResult writeResult =
           collection.updateOne(conditionObject, this.prepareUpsert(key, document), options);
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Update result: " + writeResult.toString());
+        LOGGER.debug("Update result: " + writeResult);
       }
       return new org.hypertrace.core.documentstore.UpdateResult(writeResult.getModifiedCount());
     } catch (Exception e) {
@@ -213,7 +218,7 @@ public class MongoCollection implements Collection {
       BasicDBObject basicDBObject = this.prepareInsert(key, document);
       InsertOneResult insertOneResult = collection.insertOne(basicDBObject);
       if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Create result: " + insertOneResult.toString());
+        LOGGER.debug("Create result: " + insertOneResult);
       }
       return new CreateResult(insertOneResult.getInsertedId() != null);
     } catch (Exception e) {
@@ -261,7 +266,7 @@ public class MongoCollection implements Collection {
 
   private BasicDBObject prepareDocument(Key key, Document document, long now)
       throws JsonProcessingException {
-    BasicDBObject basicDBObject = getSanitizedObject(document);
+    BasicDBObject basicDBObject = getSanitizedBasicDBObject(document);
     basicDBObject.put(ID_KEY, key.toString());
     basicDBObject.put(LAST_UPDATED_TIME, now);
     return basicDBObject;
@@ -271,7 +276,8 @@ public class MongoCollection implements Collection {
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
     try {
-      BasicDBObject dbObject = new BasicDBObject(subDocPath, getSanitizedObject(subDocument));
+      BasicDBObject dbObject =
+          new BasicDBObject(subDocPath, getSanitizedBasicDBObject(subDocument));
       dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
       BasicDBObject setObject = new BasicDBObject("$set", dbObject);
 
@@ -299,14 +305,7 @@ public class MongoCollection implements Collection {
       for (String subDocPath : subDocuments.keySet()) {
         Document subDocument = subDocuments.get(subDocPath);
         try {
-          /* Wrapping the subDocument with $literal to be able to provide empty object "{}" as value
-           *  Throws error otherwise if empty object is provided as value.
-           *  https://jira.mongodb.org/browse/SERVER-54046 */
-          BasicDBObject literalObject =
-              new BasicDBObject("$literal", getSanitizedObject(subDocument));
-          BasicDBObject dbObject = new BasicDBObject(subDocPath, literalObject);
-          dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
-          BasicDBObject setObject = new BasicDBObject("$set", dbObject);
+          BasicDBObject setObject = getSubDocumentUpdateObject(subDocPath, subDocument);
           updateOperations.add(setObject);
         } catch (Exception e) {
           LOGGER.error("Exception updating document. key: {} content:{}", key, subDocument);
@@ -332,7 +331,7 @@ public class MongoCollection implements Collection {
     List<BasicDBObject> basicDBObjects = new ArrayList<>();
     try {
       for (Document subDocument : request.getSubDocuments()) {
-        basicDBObjects.add(getSanitizedObject(subDocument));
+        basicDBObjects.add(getSanitizedBasicDBObject(subDocument));
       }
     } catch (Exception e) {
       LOGGER.error(
@@ -367,6 +366,22 @@ public class MongoCollection implements Collection {
     return new BulkUpdateResult(writeResult.getModifiedCount());
   }
 
+  private BasicDBObject getSubDocumentUpdateObject(
+      final String subDocPath, final Document subDocument) {
+    try {
+      /* Wrapping the subDocument with $literal to be able to provide empty object "{}" as value
+       *  Throws error otherwise if empty object is provided as value.
+       *  https://jira.mongodb.org/browse/SERVER-54046 */
+      BasicDBObject literalObject =
+          new BasicDBObject("$literal", getSanitizedBasicDBObject(subDocument));
+      BasicDBObject dbObject = new BasicDBObject(subDocPath, literalObject);
+      dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
+      return new BasicDBObject("$set", dbObject);
+    } catch (final JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   private BasicDBObject getAddOperationObject(
       String subDocPath, List<BasicDBObject> basicDBObjects) {
     BasicDBObject eachObject = new BasicDBObject("$each", basicDBObjects);
@@ -389,7 +404,8 @@ public class MongoCollection implements Collection {
     return new BasicDBObject("$set", subDocPathObject);
   }
 
-  private BasicDBObject getSanitizedObject(Document document) throws JsonProcessingException {
+  private BasicDBObject getSanitizedBasicDBObject(Document document)
+      throws JsonProcessingException {
     String jsonString = document.toJson();
     JsonNode jsonNode = MAPPER.readTree(jsonString);
     // escape "." and "$" in field names since Mongo DB does not like them
@@ -473,6 +489,37 @@ public class MongoCollection implements Collection {
   public CloseableIterator<Document> aggregate(
       final org.hypertrace.core.documentstore.query.Query query) {
     return convertToDocumentIterator(queryExecutor.aggregate(query));
+  }
+
+  @Override
+  public Optional<Document> atomicReadAndUpdateSubDocs(
+      final org.hypertrace.core.documentstore.query.Query query, final Document updateDocument)
+      throws IOException {
+    try {
+      final BasicDBObject selections = getSelections(query);
+      final BasicDBObject sorts = getOrders(query);
+      final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
+
+      if (!selections.isEmpty()) {
+        options.projection(selections);
+      }
+
+      if (!sorts.isEmpty()) {
+        options.sort(sorts);
+      }
+
+      final BasicDBObject filter =
+          getFilter(query, org.hypertrace.core.documentstore.query.Query::getFilter);
+
+      final BasicDBObject updateObject = getSanitizedBasicDBObject(updateDocument);
+      updateObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
+      final BasicDBObject setObject = new BasicDBObject("$set", updateObject);
+
+      return Optional.ofNullable(collection.findOneAndUpdate(filter, setObject, options))
+          .map(this::dbObjectToDocument);
+    } catch (final Exception e) {
+      throw new IOException(e);
+    }
   }
 
   @Override

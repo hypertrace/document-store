@@ -110,11 +110,11 @@ public class Utils {
       actualSize++;
     }
 
-    assertEquals(expected, actual);
     assertEquals(expectedSize, actualSize);
+    assertEquals(expected, actual);
   }
 
-  public static Map<Key, Document> createDocumentsFromResource(String resourcePath)
+  public static Map<Key, Document> buildDocumentsFromResource(String resourcePath)
       throws IOException {
     Optional<String> contentOptional = readFileFromResource(resourcePath);
     String json = contentOptional.orElseThrow();
