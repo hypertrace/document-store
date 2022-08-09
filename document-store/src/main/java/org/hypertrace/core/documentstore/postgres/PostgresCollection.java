@@ -750,7 +750,7 @@ public class PostgresCollection implements Collection {
   private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
     List<String> keysAsStr = keys.stream().map(Key::toString).collect(Collectors.toList());
     Query query =
-        new Query().withSelection("*").withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
+        new Query().withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
     return search(query);
   }
 
