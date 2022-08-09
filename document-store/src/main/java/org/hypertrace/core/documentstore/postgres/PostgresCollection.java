@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.tuple.Pair;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
@@ -44,6 +43,7 @@ import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -204,13 +204,15 @@ public class PostgresCollection implements Collection {
    */
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
+    long updatedCount = -1;
     boolean result = updateSubDocInternal(key, subDocPath, subDocument);
     if (result) {
-      long updatedCount = updateLastModifiedTime(Set.of(key));
-      if (updatedCount == 1) return true;
-      LOGGER.error("Failed in modifying lastUpdatedTime for key:{}", key);
+      updatedCount = updateLastModifiedTime(Set.of(key));
+      if (updatedCount < 1) {
+        LOGGER.error("Failed in modifying lastUpdatedTime for key:{}", key);
+      }
     }
-    return false;
+    return updatedCount == 1;
   }
 
   private boolean updateSubDocInternal(Key key, String subDocPath, Document subDocument) {
@@ -247,13 +249,12 @@ public class PostgresCollection implements Collection {
   @Override
   public BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents)
       throws Exception {
-    Pair<Set<Key>, Long> updated = bulkUpdateSubDocsInternal(documents);
-    Set<Key> updatedDocs = updated.getLeft();
-    long partiallyUpdated = updated.getRight();
-    long fullyUpdated = updateLastModifiedTime(updatedDocs);
+    BulkUpdateSubDocsInternalResult updated = bulkUpdateSubDocsInternal(documents);
+    long partiallyUpdated = updated.getTotalUpdateCount();
+    long fullyUpdated = updateLastModifiedTime(updated.getUpdatedDocuments());
     if (fullyUpdated != partiallyUpdated) {
       LOGGER.error(
-          "Not all documents fully updated, documents fullyUpdated:{}, patiallyUpdated:{}, expected:{}",
+          "Not all documents fully updated, documents fullyUpdated:{}, partiallyUpdated:{}, expected:{}",
           fullyUpdated,
           partiallyUpdated,
           documents.size());
@@ -261,8 +262,8 @@ public class PostgresCollection implements Collection {
     return new BulkUpdateResult(fullyUpdated);
   }
 
-  private Pair<Set<Key>, Long> bulkUpdateSubDocsInternal(Map<Key, Map<String, Document>> documents)
-      throws Exception {
+  private BulkUpdateSubDocsInternalResult bulkUpdateSubDocsInternal(
+      Map<Key, Map<String, Document>> documents) throws Exception {
     List<Key> orderList = new ArrayList<>();
     String updateSubDocSQL =
         String.format(
@@ -270,10 +271,8 @@ public class PostgresCollection implements Collection {
             collectionName, DOCUMENT, DOCUMENT, ID);
     try {
       PreparedStatement preparedStatement = client.prepareStatement(updateSubDocSQL);
-      int index = 0;
       for (Key key : documents.keySet()) {
-        orderList.add(index, key);
-        index++;
+        orderList.add(key);
         Map<String, Document> subDocuments = documents.get(key);
         for (String subDocPath : subDocuments.keySet()) {
           Document subDocument = subDocuments.get(subDocPath);
@@ -289,10 +288,12 @@ public class PostgresCollection implements Collection {
       Set<Key> updatedDocs = new HashSet<>();
       long totalUpdateCount = 0;
       for (int i = 0; i < updateCounts.length; i++) {
-        if (updateCounts[i] > 0) updatedDocs.add(orderList.get(i));
+        if (updateCounts[i] > 0) {
+          updatedDocs.add(orderList.get(i));
+        }
         totalUpdateCount += updateCounts[i];
       }
-      return Pair.of(updatedDocs, totalUpdateCount);
+      return new BulkUpdateSubDocsInternalResult(updatedDocs, totalUpdateCount);
     } catch (SQLException e) {
       LOGGER.error("SQLException updating sub document.", e);
       throw e;
@@ -963,7 +964,7 @@ public class PostgresCollection implements Collection {
       PreparedStatement preparedStatement =
           client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS);
       for (Key key : keys) {
-        preparedStatement.setString(1, "" + now);
+        preparedStatement.setString(1, String.valueOf(now));
         preparedStatement.setString(2, key.toString());
         preparedStatement.addBatch();
       }
