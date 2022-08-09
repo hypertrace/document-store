@@ -15,8 +15,11 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PostgresUtils {
+  private static final Logger LOGGER = LoggerFactory.getLogger(PostgresUtils.class);
   private static final String QUESTION_MARK = "?";
   private static final String JSON_FIELD_ACCESSOR = "->";
   private static final String JSON_DATA_ACCESSOR = "->>";
@@ -45,6 +48,7 @@ public class PostgresUtils {
       return filterString;
     }
     // Field accessor is only applicable to jsonb fields, return null otherwise
+    LOGGER.warn("Returning null string for field name {} and column name {}", fieldName, columnName);
     return null;
   }
 
