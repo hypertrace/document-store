@@ -325,7 +325,9 @@ public class PostgresCollection implements Collection {
   @Override
   public CloseableIterator<Document> search(Query query) {
     String filters = null;
-    StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ").append(collectionName);
+    String selection = prepareSelections(query);
+    StringBuilder sqlBuilder =
+        new StringBuilder(String.format("SELECT %s FROM ", selection)).append(collectionName);
     Params.Builder paramsBuilder = Params.newBuilder();
 
     // If there is a filter in the query, parse it fully.
@@ -364,6 +366,14 @@ public class PostgresCollection implements Collection {
     }
 
     return EMPTY_ITERATOR;
+  }
+
+  private String prepareSelections(Query query) {
+    List<String> selections = query.getSelections();
+    if (selections.isEmpty()) return "*";
+    return selections.stream()
+        .map(selection -> PostgresUtils.prepareFieldAccessorExpr(selection, "document"))
+        .collect(Collectors.joining(","));
   }
 
   @Override
