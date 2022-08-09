@@ -178,10 +178,10 @@ public class DocStoreTest {
     assertEquals(createdTime, newCreatedTime);
     Object newLastUpdatedTime = getLastUpdatedTime(persistedDocument, dataStoreName);
     Assertions.assertNotEquals(lastUpdatedTime, newLastUpdatedTime);
-//    if (isMongo(dataStoreName)) {
-//      // todo: for postgres lastUpdated time is same as previous
-//      Assertions.assertNotEquals(lastUpdatedTime, newLastUpdatedTime);
-//    }
+    //    if (isMongo(dataStoreName)) {
+    //      // todo: for postgres lastUpdated time is same as previous
+    //      Assertions.assertNotEquals(lastUpdatedTime, newLastUpdatedTime);
+    //    }
   }
 
   @ParameterizedTest
@@ -346,7 +346,7 @@ public class DocStoreTest {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextProvider")
+  @MethodSource("databaseContextPostgres")
   public void testNotEquals(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     datastore.createCollection(COLLECTION_NAME, null);
@@ -2467,23 +2467,23 @@ public class DocStoreTest {
   static Object getCreatedTime(String doc, String dataStoreName) throws Exception {
     JsonNode node = OBJECT_MAPPER.readTree(doc);
     return node.findValue(DocStoreConstants.CREATED_TIME).asLong();
-//    if (isMongo(dataStoreName)) {
-//      return node.findValue(MONGO_CREATED_TIME_KEY).asLong();
-//    } else if (isPostgress(dataStoreName)) {
-//      return node.findValue(POSTGRES_CREATED_AT).asText();
-//    }
-//    return "";
+    //    if (isMongo(dataStoreName)) {
+    //      return node.findValue(MONGO_CREATED_TIME_KEY).asLong();
+    //    } else if (isPostgress(dataStoreName)) {
+    //      return node.findValue(POSTGRES_CREATED_AT).asText();
+    //    }
+    //    return "";
   }
 
   static Object getLastUpdatedTime(String doc, String dataStoreName) throws Exception {
     JsonNode node = OBJECT_MAPPER.readTree(doc);
     return node.findValue(DocStoreConstants.LAST_UPDATED_TIME).asLong();
-//    if (isMongo(dataStoreName)) {
-//      return node.findValue(MONGO_LAST_UPDATE_TIME_KEY).findValue("$date").asText();
-//    } else if (isPostgress(dataStoreName)) {
-//      return node.findValue(POSTGRES_UPDATED_AT).asText();
-//    }
-//    return "";
+    //    if (isMongo(dataStoreName)) {
+    //      return node.findValue(MONGO_LAST_UPDATE_TIME_KEY).findValue("$date").asText();
+    //    } else if (isPostgress(dataStoreName)) {
+    //      return node.findValue(POSTGRES_UPDATED_AT).asText();
+    //    }
+    //    return "";
   }
 
   static String getId(String dataStoreName) {
