@@ -730,7 +730,9 @@ public class PostgresCollection implements Collection {
     CloseableIterator<Document> iterator = searchDocsForKeys(Set.of(key));
     if (iterator.hasNext()) {
       JsonNode existingDocument = getDocAsJSON(iterator.next());
-      return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+      if (existingDocument.has(DocStoreConstants.CREATED_TIME)) {
+        return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+      }
     }
     return Optional.empty();
   }
