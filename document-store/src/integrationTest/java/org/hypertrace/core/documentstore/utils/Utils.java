@@ -20,6 +20,7 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.SingleValueKey;
+import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.mongo.MongoCollection;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
@@ -172,6 +173,8 @@ public class Utils {
     } else if (isPostgress(dataStoreName)) {
       document.remove(POSTGRES_CREATED_AT);
       document.remove(POSTGRES_UPDATED_AT);
+      document.remove(DocStoreConstants.CREATED_TIME);
+      document.remove(DocStoreConstants.LAST_UPDATED_TIME);
     }
   }
 

@@ -40,6 +40,7 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
+import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
@@ -128,6 +129,16 @@ public class DocStoreTest {
     return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
   }
 
+  @MethodSource
+  private static Stream<Arguments> databaseContextPostgres() {
+    return Stream.of(Arguments.of(POSTGRES_STORE));
+  }
+
+  @MethodSource
+  private static Stream<Arguments> databaseContextMongo() {
+    return Stream.of(Arguments.of(MONGO_STORE));
+  }
+
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
   public void testUpsert(String dataStoreName) throws Exception {
@@ -166,10 +177,7 @@ public class DocStoreTest {
     Object newCreatedTime = getCreatedTime(persistedDocument, dataStoreName);
     assertEquals(createdTime, newCreatedTime);
     Object newLastUpdatedTime = getLastUpdatedTime(persistedDocument, dataStoreName);
-    if (isMongo(dataStoreName)) {
-      // todo: for postgres lastUpdated time is same as previous
-      Assertions.assertNotEquals(lastUpdatedTime, newLastUpdatedTime);
-    }
+    Assertions.assertNotEquals(lastUpdatedTime, newLastUpdatedTime);
   }
 
   @ParameterizedTest
@@ -672,6 +680,8 @@ public class DocStoreTest {
     } else if (isPostgress(dataStoreName)) {
       jsonNode.remove(POSTGRES_CREATED_AT);
       jsonNode.remove(POSTGRES_UPDATED_AT);
+      jsonNode.remove(DocStoreConstants.CREATED_TIME);
+      jsonNode.remove(DocStoreConstants.LAST_UPDATED_TIME);
     }
     Assertions.assertEquals(expected, OBJECT_MAPPER.writeValueAsString(jsonNode));
   }
@@ -2452,22 +2462,12 @@ public class DocStoreTest {
 
   static Object getCreatedTime(String doc, String dataStoreName) throws Exception {
     JsonNode node = OBJECT_MAPPER.readTree(doc);
-    if (isMongo(dataStoreName)) {
-      return node.findValue(MONGO_CREATED_TIME_KEY).asLong();
-    } else if (isPostgress(dataStoreName)) {
-      return node.findValue(POSTGRES_CREATED_AT).asText();
-    }
-    return "";
+    return node.findValue(DocStoreConstants.CREATED_TIME).asLong();
   }
 
   static Object getLastUpdatedTime(String doc, String dataStoreName) throws Exception {
     JsonNode node = OBJECT_MAPPER.readTree(doc);
-    if (isMongo(dataStoreName)) {
-      return node.findValue(MONGO_LAST_UPDATE_TIME_KEY).findValue("$date").asText();
-    } else if (isPostgress(dataStoreName)) {
-      return node.findValue(POSTGRES_UPDATED_AT).asText();
-    }
-    return "";
+    return node.findValue(DocStoreConstants.LAST_UPDATED_TIME).asLong();
   }
 
   static String getId(String dataStoreName) {

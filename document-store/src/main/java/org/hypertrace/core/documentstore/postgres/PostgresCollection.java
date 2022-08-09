@@ -15,6 +15,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -22,6 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
@@ -40,6 +42,8 @@ import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -200,6 +204,18 @@ public class PostgresCollection implements Collection {
    */
   @Override
   public boolean updateSubDoc(Key key, String subDocPath, Document subDocument) {
+    long updatedCount = -1;
+    boolean result = updateSubDocInternal(key, subDocPath, subDocument);
+    if (result) {
+      updatedCount = updateLastModifiedTime(Set.of(key));
+      if (updatedCount < 1) {
+        LOGGER.error("Failed in modifying lastUpdatedTime for key:{}", key);
+      }
+    }
+    return updatedCount == 1;
+  }
+
+  private boolean updateSubDocInternal(Key key, String subDocPath, Document subDocument) {
     String updateSubDocSQL =
         String.format(
             "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
@@ -233,6 +249,22 @@ public class PostgresCollection implements Collection {
   @Override
   public BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents)
       throws Exception {
+    BulkUpdateSubDocsInternalResult updated = bulkUpdateSubDocsInternal(documents);
+    long partiallyUpdated = updated.getTotalUpdateCount();
+    long fullyUpdated = updateLastModifiedTime(updated.getUpdatedDocuments());
+    if (fullyUpdated != partiallyUpdated) {
+      LOGGER.error(
+          "Not all documents fully updated, documents fullyUpdated:{}, partiallyUpdated:{}, expected:{}",
+          fullyUpdated,
+          partiallyUpdated,
+          documents.size());
+    }
+    return new BulkUpdateResult(fullyUpdated);
+  }
+
+  private BulkUpdateSubDocsInternalResult bulkUpdateSubDocsInternal(
+      Map<Key, Map<String, Document>> documents) throws Exception {
+    List<Key> orderList = new ArrayList<>();
     String updateSubDocSQL =
         String.format(
             "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s = ?",
@@ -240,6 +272,7 @@ public class PostgresCollection implements Collection {
     try {
       PreparedStatement preparedStatement = client.prepareStatement(updateSubDocSQL);
       for (Key key : documents.keySet()) {
+        orderList.add(key);
         Map<String, Document> subDocuments = documents.get(key);
         for (String subDocPath : subDocuments.keySet()) {
           Document subDocument = subDocuments.get(subDocPath);
@@ -252,14 +285,15 @@ public class PostgresCollection implements Collection {
         }
       }
       int[] updateCounts = preparedStatement.executeBatch();
-      if (LOGGER.isDebugEnabled()) {
-        LOGGER.debug("Write result: {}", updateCounts);
+      Set<Key> updatedDocs = new HashSet<>();
+      long totalUpdateCount = 0;
+      for (int i = 0; i < updateCounts.length; i++) {
+        if (updateCounts[i] > 0) {
+          updatedDocs.add(orderList.get(i));
+        }
+        totalUpdateCount += updateCounts[i];
       }
-      int totalUpdateCount = 0;
-      for (int update : updateCounts) {
-        totalUpdateCount += update;
-      }
-      return new BulkUpdateResult(totalUpdateCount);
+      return new BulkUpdateSubDocsInternalResult(updatedDocs, totalUpdateCount);
     } catch (SQLException e) {
       LOGGER.error("SQLException updating sub document.", e);
       throw e;
@@ -608,6 +642,35 @@ public class PostgresCollection implements Collection {
     }
   }
 
+  private Map<String, String> getDocIdToTenantIdMap(BulkArrayValueUpdateRequest request) {
+    return request.getKeys().stream()
+        .collect(
+            Collectors.toMap(
+                key -> key.toString().split(":")[1], key -> key.toString().split(":")[0]));
+  }
+
+  private BulkUpdateResult bulkSetOnArrayValue(
+      String subDocPath,
+      Map<String, String> idToTenantIdMap,
+      Set<JsonNode> subDocs,
+      Iterator<Document> docs)
+      throws IOException {
+    Map<Key, Document> upsertMap = new HashMap<>();
+    while (docs.hasNext()) {
+      JsonNode docRoot = getDocAsJSON(docs.next());
+      // create path if missing
+      ArrayNode candidateArray = (ArrayNode) getJsonNodeAtPath(subDocPath, docRoot, true);
+      candidateArray.removeAll();
+      candidateArray.addAll(subDocs);
+      String id = docRoot.findValue(ID).asText();
+      if (docRoot.isObject()) {
+        ((ObjectNode) docRoot).put(DocStoreConstants.LAST_UPDATED_TIME, System.currentTimeMillis());
+      }
+      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
+    }
+    return upsertDocs(upsertMap);
+  }
+
   private BulkUpdateResult bulkRemoveOnArrayValue(
       String subDocPath,
       Map<String, String> idToTenantIdMap,
@@ -637,13 +700,6 @@ public class PostgresCollection implements Collection {
     return upsertDocs(upsertMap);
   }
 
-  private Map<String, String> getDocIdToTenantIdMap(BulkArrayValueUpdateRequest request) {
-    return request.getKeys().stream()
-        .collect(
-            Collectors.toMap(
-                key -> key.toString().split(":")[1], key -> key.toString().split(":")[0]));
-  }
-
   private BulkUpdateResult bulkAddOnArrayValue(
       String subDocPath,
       Map<String, String> idToTenantIdMap,
@@ -661,9 +717,21 @@ public class PostgresCollection implements Collection {
       candidateArray.removeAll();
       candidateArray.addAll(existingElems);
       String id = docRoot.findValue(ID).asText();
+      if (docRoot.isObject()) {
+        ((ObjectNode) docRoot).put(DocStoreConstants.LAST_UPDATED_TIME, System.currentTimeMillis());
+      }
       upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
     }
     return upsertDocs(upsertMap);
+  }
+
+  private Optional<Long> getCreatedTime(Key key) throws IOException {
+    CloseableIterator<Document> iterator = searchDocsForKeys(Set.of(key));
+    if (iterator.hasNext()) {
+      JsonNode existingDocument = getDocAsJSON(iterator.next());
+      return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+    }
+    return Optional.empty();
   }
 
   private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
@@ -696,25 +764,6 @@ public class PostgresCollection implements Collection {
           e);
       throw new IOException(e);
     }
-  }
-
-  private BulkUpdateResult bulkSetOnArrayValue(
-      String subDocPath,
-      Map<String, String> idToTenantIdMap,
-      Set<JsonNode> subDocs,
-      Iterator<Document> docs)
-      throws IOException {
-    Map<Key, Document> upsertMap = new HashMap<>();
-    while (docs.hasNext()) {
-      JsonNode docRoot = getDocAsJSON(docs.next());
-      // create path if missing
-      ArrayNode candidateArray = (ArrayNode) getJsonNodeAtPath(subDocPath, docRoot, true);
-      candidateArray.removeAll();
-      candidateArray.addAll(subDocs);
-      String id = docRoot.findValue(ID).asText();
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
-    }
-    return upsertDocs(upsertMap);
   }
 
   private CloseableIterator<Document> executeQueryV1(
@@ -896,7 +945,41 @@ public class PostgresCollection implements Collection {
     ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(jsonString);
     jsonNode.put(DOCUMENT_ID, key.toString());
 
+    // update time fields
+    long now = System.currentTimeMillis();
+    Optional<Long> existingCreatedTime = getCreatedTime(key);
+    jsonNode.put(DocStoreConstants.CREATED_TIME, existingCreatedTime.orElse(now));
+    jsonNode.put(DocStoreConstants.LAST_UPDATED_TIME, now);
+
     return MAPPER.writeValueAsString(jsonNode);
+  }
+
+  private long updateLastModifiedTime(Set<Key> keys) {
+    String updateSubDocSQL =
+        String.format(
+            "UPDATE %s SET %s=jsonb_set(%s, '{lastUpdatedTime}'::text[], ?::jsonb) WHERE %s=?",
+            collectionName, DOCUMENT, DOCUMENT, ID);
+    long now = System.currentTimeMillis();
+    try {
+      PreparedStatement preparedStatement =
+          client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS);
+      for (Key key : keys) {
+        preparedStatement.setString(1, String.valueOf(now));
+        preparedStatement.setString(2, key.toString());
+        preparedStatement.addBatch();
+      }
+
+      int[] updateCounts = preparedStatement.executeBatch();
+      int totalUpdateCount = 0;
+      for (int update : updateCounts) {
+        totalUpdateCount += update;
+      }
+      return totalUpdateCount;
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException updating sub document. keys: {} subDocPath: {lastUpdatedTime}", keys, e);
+    }
+    return -1;
   }
 
   private String getInsertSQL() {
