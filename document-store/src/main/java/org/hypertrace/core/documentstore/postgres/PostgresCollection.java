@@ -359,8 +359,13 @@ public class PostgresCollection implements Collection {
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
+      LOGGER.warn("Executing search query:{}", preparedStatement.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
-      return new PostgresResultIterator(resultSet);
+      CloseableIterator closeableIterator =
+          query.getSelections().size() > 0
+              ? new PostgresResultIteratorWithMetaData(resultSet)
+              : new PostgresResultIterator(resultSet);
+      return closeableIterator;
     } catch (SQLException e) {
       LOGGER.error("SQLException querying documents. query: {}", query, e);
     }
@@ -372,7 +377,11 @@ public class PostgresCollection implements Collection {
     List<String> selections = query.getSelections();
     if (selections.isEmpty()) return "*";
     return selections.stream()
-        .map(selection -> PostgresUtils.prepareFieldAccessorExpr(selection, "document"))
+        .map(
+            selection ->
+                String.format(
+                    "%s AS \"%s\"",
+                    PostgresUtils.prepareFieldAccessorExpr(selection, "document"), selection))
         .collect(Collectors.joining(","));
   }
 
@@ -749,8 +758,7 @@ public class PostgresCollection implements Collection {
 
   private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
     List<String> keysAsStr = keys.stream().map(Key::toString).collect(Collectors.toList());
-    Query query =
-        new Query().withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
+    Query query = new Query().withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
     return search(query);
   }
 
@@ -788,6 +796,7 @@ public class PostgresCollection implements Collection {
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
+      LOGGER.warn("Executing executeQueryV1 query:{}", preparedStatement.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
