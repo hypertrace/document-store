@@ -40,6 +40,7 @@ import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -895,6 +896,13 @@ public class PostgresCollection implements Collection {
 
     ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(jsonString);
     jsonNode.put(DOCUMENT_ID, key.toString());
+
+    // update time fields
+    long now = System.currentTimeMillis();
+    JsonNode createdTime = jsonNode.get(DocStoreConstants.CREATED_TIME);
+    if (createdTime == null)
+      jsonNode.put(DocStoreConstants.CREATED_TIME, System.currentTimeMillis());
+    jsonNode.put(DocStoreConstants.LAST_UPDATED_TIME, now);
 
     return MAPPER.writeValueAsString(jsonNode);
   }

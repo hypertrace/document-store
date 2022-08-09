@@ -40,6 +40,7 @@ import org.apache.commons.lang3.RandomUtils;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
+import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
@@ -672,6 +673,8 @@ public class DocStoreTest {
     } else if (isPostgress(dataStoreName)) {
       jsonNode.remove(POSTGRES_CREATED_AT);
       jsonNode.remove(POSTGRES_UPDATED_AT);
+      jsonNode.remove(DocStoreConstants.CREATED_TIME);
+      jsonNode.remove(DocStoreConstants.LAST_UPDATED_TIME);
     }
     Assertions.assertEquals(expected, OBJECT_MAPPER.writeValueAsString(jsonNode));
   }
