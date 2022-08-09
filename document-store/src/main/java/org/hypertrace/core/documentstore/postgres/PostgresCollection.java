@@ -208,7 +208,7 @@ public class PostgresCollection implements Collection {
     if (result) {
       long updatedCount = updateLastModifiedTime(Set.of(key));
       if (updatedCount == 1) return true;
-      LOGGER.error("Failed in modifying last updated time for key:{}", key);
+      LOGGER.error("Failed in modifying lastUpdatedTime for key:{}", key);
     }
     return false;
   }

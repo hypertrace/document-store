@@ -178,10 +178,6 @@ public class DocStoreTest {
     assertEquals(createdTime, newCreatedTime);
     Object newLastUpdatedTime = getLastUpdatedTime(persistedDocument, dataStoreName);
     Assertions.assertNotEquals(lastUpdatedTime, newLastUpdatedTime);
-    //    if (isMongo(dataStoreName)) {
-    //      // todo: for postgres lastUpdated time is same as previous
-    //      Assertions.assertNotEquals(lastUpdatedTime, newLastUpdatedTime);
-    //    }
   }
 
   @ParameterizedTest
