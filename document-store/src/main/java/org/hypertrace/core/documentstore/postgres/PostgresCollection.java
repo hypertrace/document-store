@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
@@ -667,6 +668,14 @@ public class PostgresCollection implements Collection {
     return upsertDocs(upsertMap);
   }
 
+  private Optional<Long> getCreatedTime(Key key) throws IOException {
+    CloseableIterator<Document> iterator = searchDocsForKeys(Set.of(key));
+    if(iterator.hasNext()) {
+      JsonNode existingDocument = getDocAsJSON(iterator.next());
+      return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+    }
+    return Optional.empty();
+  }
   private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
     List<String> keysAsStr = keys.stream().map(Key::toString).collect(Collectors.toList());
     Query query =
@@ -899,9 +908,8 @@ public class PostgresCollection implements Collection {
 
     // update time fields
     long now = System.currentTimeMillis();
-    JsonNode createdTime = jsonNode.get(DocStoreConstants.CREATED_TIME);
-    if (createdTime == null)
-      jsonNode.put(DocStoreConstants.CREATED_TIME, System.currentTimeMillis());
+    Optional<Long> existingCreatedTime = getCreatedTime(key);
+    jsonNode.put(DocStoreConstants.CREATED_TIME, existingCreatedTime.orElse(now));
     jsonNode.put(DocStoreConstants.LAST_UPDATED_TIME, now);
 
     return MAPPER.writeValueAsString(jsonNode);
