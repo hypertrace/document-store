@@ -48,7 +48,8 @@ public class PostgresUtils {
       return filterString;
     }
     // Field accessor is only applicable to jsonb fields, return null otherwise
-    LOGGER.warn("Returning null string for field name {} and column name {}", fieldName, columnName);
+    LOGGER.warn(
+        "Returning null string for field name {} and column name {}", fieldName, columnName);
     return null;
   }
 
