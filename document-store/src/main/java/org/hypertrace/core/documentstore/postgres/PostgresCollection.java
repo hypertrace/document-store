@@ -963,7 +963,7 @@ public class PostgresCollection implements Collection {
       PreparedStatement preparedStatement =
           client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS);
       for (Key key : keys) {
-        preparedStatement.setLong(1, now);
+        preparedStatement.setString(1, "" + now);
         preparedStatement.setString(2, key.toString());
         preparedStatement.addBatch();
       }
