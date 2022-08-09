@@ -15,6 +15,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -1074,8 +1075,7 @@ public class PostgresCollection implements Collection {
         String columnName = resultSetMetaData.getColumnName(i);
         int columnType = resultSetMetaData.getColumnType(i);
         String columnValue =
-            columnType == 2003 /* 2003 refers to sql array types,
-                                  todo: see if we can replace with string name */
+            columnType == Types.ARRAY
                 ? MAPPER.writeValueAsString(resultSet.getArray(i).getArray())
                 : resultSet.getString(i);
         if (StringUtils.isNotEmpty(columnValue)) {
