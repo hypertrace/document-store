@@ -47,10 +47,8 @@ public class PostgresUtils {
       }
       return filterString;
     }
-    // Field accessor is only applicable to jsonb fields, return null otherwise
-    LOGGER.warn(
-        "Returning null string for field name {} and column name {}", fieldName, columnName);
-    return null;
+    // There is no need of field accessor in case of outer column.
+    return new StringBuilder(fieldName);
   }
 
   /**
@@ -187,7 +185,7 @@ public class PostgresUtils {
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520Other
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
         StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName, columnName);
-        if (notInFilterString != null) {
+        if (notInFilterString != null && !OUTER_COLUMNS.contains(fieldName)) {
           filterString = notInFilterString.append(" IS NULL OR ").append(fullFieldName);
         }
         sqlOperator = " NOT IN ";
@@ -206,7 +204,7 @@ public class PostgresUtils {
         value = null;
         // For fields inside jsonb
         StringBuilder notExists = prepareFieldAccessorExpr(fieldName, columnName);
-        if (notExists != null) {
+        if (notExists != null && !OUTER_COLUMNS.contains(fieldName)) {
           filterString = notExists;
         }
         break;
@@ -215,7 +213,7 @@ public class PostgresUtils {
         value = null;
         // For fields inside jsonb
         StringBuilder exists = prepareFieldAccessorExpr(fieldName, columnName);
-        if (exists != null) {
+        if (exists != null && !OUTER_COLUMNS.contains(fieldName)) {
           filterString = exists;
         }
         break;
@@ -230,7 +228,7 @@ public class PostgresUtils {
         // "document->key IS NULL OR document->key->> != value"
         StringBuilder notEquals = prepareFieldAccessorExpr(fieldName, columnName);
         // For fields inside jsonb
-        if (notEquals != null) {
+        if (notEquals != null && !OUTER_COLUMNS.contains(fieldName)) {
           filterString = notEquals.append(" IS NULL OR ").append(fullFieldName);
         }
         break;

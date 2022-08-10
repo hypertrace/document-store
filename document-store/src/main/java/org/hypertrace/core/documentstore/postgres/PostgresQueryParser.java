@@ -2,8 +2,6 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static org.hypertrace.core.documentstore.Collection.UNSUPPORTED_QUERY_OPERATION;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.CREATED_AT;
-import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCUMENT;
-import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_PATH_SEPARATOR;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
@@ -16,6 +14,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 class PostgresQueryParser {
 
@@ -45,7 +44,10 @@ class PostgresQueryParser {
     Filter.Op op = filter.getOp();
     Object value = filter.getValue();
     String fieldName = filter.getFieldName();
-    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName), value);
+    String fullFieldName =
+        prepareCast(
+            PostgresUtils.prepareFieldDataAccessorExpr(fieldName, PostgresUtils.DOCUMENT_COLUMN),
+            value);
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
     Boolean isMultiValued = false;
@@ -79,8 +81,9 @@ class PostgresQueryParser {
         //    Ref in context of NEQ -
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520Other
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
-        StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName);
-        if (notInFilterString != null) {
+        StringBuilder notInFilterString =
+            PostgresUtils.prepareFieldAccessorExpr(fieldName, PostgresUtils.DOCUMENT_COLUMN);
+        if (notInFilterString != null && !OUTER_COLUMNS.contains(fieldName)) {
           filterString = notInFilterString.append(" IS NULL OR ").append(fullFieldName);
         }
         sqlOperator = " NOT IN ";
@@ -98,8 +101,9 @@ class PostgresQueryParser {
         sqlOperator = " IS NULL ";
         value = null;
         // For fields inside jsonb
-        StringBuilder notExists = prepareFieldAccessorExpr(fieldName);
-        if (notExists != null) {
+        StringBuilder notExists =
+            PostgresUtils.prepareFieldAccessorExpr(fieldName, PostgresUtils.DOCUMENT_COLUMN);
+        if (notExists != null && !OUTER_COLUMNS.contains(fieldName)) {
           filterString = notExists;
         }
         break;
@@ -107,8 +111,9 @@ class PostgresQueryParser {
         sqlOperator = " IS NOT NULL ";
         value = null;
         // For fields inside jsonb
-        StringBuilder exists = prepareFieldAccessorExpr(fieldName);
-        if (exists != null) {
+        StringBuilder exists =
+            PostgresUtils.prepareFieldAccessorExpr(fieldName, PostgresUtils.DOCUMENT_COLUMN);
+        if (exists != null && !OUTER_COLUMNS.contains(fieldName)) {
           filterString = exists;
         }
         break;
@@ -121,9 +126,10 @@ class PostgresQueryParser {
         // Semantics for handling if key not exists and if it exists, its value
         // doesn't equal to the filter for Jsonb document will be done as:
         // "document->key IS NULL OR document->key->> != value"
-        StringBuilder notEquals = prepareFieldAccessorExpr(fieldName);
+        StringBuilder notEquals =
+            PostgresUtils.prepareFieldAccessorExpr(fieldName, PostgresUtils.DOCUMENT_COLUMN);
         // For fields inside jsonb
-        if (notEquals != null) {
+        if (notEquals != null && !OUTER_COLUMNS.contains(fieldName)) {
           filterString = notEquals.append(" IS NULL OR ").append(fullFieldName);
         }
         break;
@@ -179,7 +185,8 @@ class PostgresQueryParser {
     return orderBys.stream()
         .map(
             orderBy ->
-                prepareFieldDataAccessorExpr(orderBy.getField())
+                PostgresUtils.prepareFieldDataAccessorExpr(
+                        orderBy.getField(), PostgresUtils.DOCUMENT_COLUMN)
                     + " "
                     + (orderBy.isAsc() ? "ASC" : "DESC"))
         .filter(str -> !StringUtils.isEmpty(str))
@@ -197,42 +204,6 @@ class PostgresQueryParser {
                 })
             .collect(Collectors.joining(", "));
     return "(" + collect + ")";
-  }
-
-  private static StringBuilder prepareFieldAccessorExpr(String fieldName) {
-    // Generate json field accessor statement
-    if (!OUTER_COLUMNS.contains(fieldName)) {
-      StringBuilder filterString = new StringBuilder(DOCUMENT);
-      String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
-      for (String nestedField : nestedFields) {
-        filterString.append(JSON_FIELD_ACCESSOR).append("'").append(nestedField).append("'");
-      }
-      return filterString;
-    }
-    // Field accessor is only applicable to jsonb fields, return null otherwise
-    return null;
-  }
-
-  /**
-   * Add field prefix for searching into json document based on postgres syntax, handles nested
-   * keys. Note: It doesn't handle array elements in json document. e.g SELECT * FROM TABLE where
-   * document ->> 'first' = 'name' and document -> 'address' ->> 'pin' = "00000"
-   */
-  private static String prepareFieldDataAccessorExpr(String fieldName) {
-    StringBuilder fieldPrefix = new StringBuilder(fieldName);
-    if (!OUTER_COLUMNS.contains(fieldName)) {
-      fieldPrefix = new StringBuilder(DOCUMENT);
-      String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
-      for (int i = 0; i < nestedFields.length - 1; i++) {
-        fieldPrefix.append(JSON_FIELD_ACCESSOR).append("'").append(nestedFields[i]).append("'");
-      }
-      fieldPrefix
-          .append(JSON_DATA_ACCESSOR)
-          .append("'")
-          .append(nestedFields[nestedFields.length - 1])
-          .append("'");
-    }
-    return fieldPrefix.toString();
   }
 
   private static String prepareCast(String field, Object value) {
