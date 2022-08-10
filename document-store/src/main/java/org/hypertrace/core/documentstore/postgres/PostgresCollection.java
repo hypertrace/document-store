@@ -324,18 +324,17 @@ public class PostgresCollection implements Collection {
 
   @Override
   public CloseableIterator<Document> search(Query query) {
-    String filters = null;
-    String selection = prepareSelections(query);
+    String selection = PostgresQueryParser.parseSelections(query.getSelections());
     StringBuilder sqlBuilder =
         new StringBuilder(String.format("SELECT %s FROM ", selection)).append(collectionName);
+
+    String filters = null;
     Params.Builder paramsBuilder = Params.newBuilder();
 
     // If there is a filter in the query, parse it fully.
     if (query.getFilter() != null) {
       filters = PostgresQueryParser.parseFilter(query.getFilter(), paramsBuilder);
     }
-
-    LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
 
     if (filters != null) {
       sqlBuilder.append(" WHERE ").append(filters);
@@ -356,10 +355,11 @@ public class PostgresCollection implements Collection {
       sqlBuilder.append(" OFFSET ").append(offset);
     }
 
+    String pgSqlQuery = sqlBuilder.toString();
     try {
       PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
-      LOGGER.warn("Executing search query:{}", preparedStatement.toString());
+          buildPreparedStatement(pgSqlQuery, paramsBuilder.build());
+      LOGGER.warn("Executing search query to PostgresSQL:{}", preparedStatement.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
@@ -367,22 +367,11 @@ public class PostgresCollection implements Collection {
               : new PostgresResultIterator(resultSet);
       return closeableIterator;
     } catch (SQLException e) {
-      LOGGER.error("SQLException querying documents. query: {}", query, e);
+      LOGGER.error(
+          "SQLException in querying documents - query: {}, sqlQuery:{}", query, pgSqlQuery, e);
     }
 
     return EMPTY_ITERATOR;
-  }
-
-  private String prepareSelections(Query query) {
-    List<String> selections = query.getSelections();
-    if (selections.isEmpty()) return "*";
-    return selections.stream()
-        .map(
-            selection ->
-                String.format(
-                    "%s AS \"%s\"",
-                    PostgresUtils.prepareFieldAccessorExpr(selection, "document"), selection))
-        .collect(Collectors.joining(","));
   }
 
   @Override
