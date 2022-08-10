@@ -785,7 +785,7 @@ public class PostgresCollection implements Collection {
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
-      LOGGER.warn("Executing executeQueryV1 query:{}", preparedStatement.toString());
+      LOGGER.warn("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
