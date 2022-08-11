@@ -8,6 +8,7 @@ plugins {
 
 dependencies {
   api("com.typesafe:config:1.4.2")
+  implementation("org.projectlombok:lombok:1.18.18")
   annotationProcessor("org.projectlombok:lombok:1.18.22")
   compileOnly("org.projectlombok:lombok:1.18.22")
   implementation("org.apache.commons:commons-collections4:4.4")

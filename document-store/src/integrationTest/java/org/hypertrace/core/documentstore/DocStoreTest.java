@@ -32,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -56,6 +57,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.shaded.com.google.common.collect.Maps;
+import org.testcontainers.shaded.org.apache.commons.lang.StringEscapeUtils;
 import org.testcontainers.utility.DockerImageName;
 
 public class DocStoreTest {
@@ -85,22 +87,25 @@ public class DocStoreTest {
     Datastore mongoDatastore = DatastoreProvider.getDatastore("Mongo", config);
     System.out.println(mongoDatastore.listCollections());
 
-    postgres =
-        new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
-            .withEnv("POSTGRES_PASSWORD", "postgres")
-            .withEnv("POSTGRES_USER", "postgres")
-            .withExposedPorts(5432)
-            .waitingFor(Wait.forListeningPort());
-    postgres.start();
+//    postgres =
+//        new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
+//            .withEnv("POSTGRES_PASSWORD", "postgres")
+//            .withEnv("POSTGRES_USER", "postgres")
+//            .withExposedPorts(5432)
+//            .waitingFor(Wait.forListeningPort());
+//    postgres.start();
+
+//    String postgresConnectionUrl =
+//        String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
 
     String postgresConnectionUrl =
-        String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
+        String.format("jdbc:postgresql://localhost:%s/", "5432");
     DatastoreProvider.register("POSTGRES", PostgresDatastore.class);
 
     Map<String, String> postgresConfig = new HashMap<>();
     postgresConfig.putIfAbsent("url", postgresConnectionUrl);
-    postgresConfig.putIfAbsent("user", "postgres");
-    postgresConfig.putIfAbsent("password", "postgres");
+    postgresConfig.putIfAbsent("user", "keycloak");
+    postgresConfig.putIfAbsent("password", "keycloak");
     Datastore postgresDatastore =
         DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(postgresConfig));
     System.out.println(postgresDatastore.listCollections());
@@ -137,6 +142,47 @@ public class DocStoreTest {
   @MethodSource
   private static Stream<Arguments> databaseContextMongo() {
     return Stream.of(Arguments.of(MONGO_STORE));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextPostgres")
+  public void debugSearch(String dataStoreName) throws Exception {
+    /*
+      SELECT document->'identifyingAttributes' AS "identifyingAttributes",
+      document->'tenantId' AS "tenantId",
+      document->'type' AS "type",id AS "id",
+      document->'attributes' AS "attributes"
+      FROM insights WHERE ((document->>'tenantId' = '14d8d0d8-c1a9-4100-83a4-97edfeb85606') AND (document->>'type' = 'API'))
+      AND (document->'identifyingAttributes'->>'api_id' = '5e6f57d7-313d-34e1-a37e-a338c448c271')
+    */
+
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection("insights");
+
+    Query query = new Query();
+    query.addSelection("identifyingAttributes");
+    query.addSelection("tenantId");
+    query.addSelection("id");
+    query.addSelection("attributes");
+    query.addSelection("type");
+
+    Filter f1 = Filter.eq("tenantId", "14d8d0d8-c1a9-4100-83a4-97edfeb85606");
+    Filter f2 = f1.and(Filter.eq("type", "API"));
+    Filter f3 = f2.and(Filter.eq("identifyingAttributes.api_id", "5e6f57d7-313d-34e1-a37e-a338c448c271"));
+    query.setFilter(f3);
+
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      Document document = results.next();
+      String insightDocumentJson = document.toJson();
+      String processed = StringEscapeUtils.unescapeJava(insightDocumentJson);
+      documents.add(document);
+      Optional<InsightDto> mayBeInsightDto =
+          Optional.ofNullable(OBJECT_MAPPER.readValue(processed, InsightDto.class));
+      Assertions.assertNotNull(mayBeInsightDto.get());
+    }
+    Assertions.assertFalse(documents.isEmpty());
   }
 
   @ParameterizedTest
