@@ -296,6 +296,15 @@ class PostgresQueryParserTest {
         PostgresQueryParser.parseOrderBys(orderBys));
   }
 
+  @Test
+  void testSelectionClause() {
+    List<String> selections =
+        List.of("id", "identifyingAttributes", "tenantId", "attributes", "type");
+    Assertions.assertEquals(
+        "id AS \"id\",document->'identifyingAttributes' AS \"identifyingAttributes\",document->'tenantId' AS \"tenantId\",document->'attributes' AS \"attributes\",document->'type' AS \"type\"",
+        PostgresQueryParser.parseSelections(selections));
+  }
+
   private Params.Builder initParams() {
     return Params.newBuilder();
   }
