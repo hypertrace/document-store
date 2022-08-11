@@ -360,7 +360,7 @@ public class PostgresCollection implements Collection {
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(pgSqlQuery, paramsBuilder.build());
-      LOGGER.warn("Executing search query to PostgresSQL:{}", preparedStatement.toString());
+      LOGGER.debug("Executing search query to PostgresSQL:{}", preparedStatement.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
@@ -786,7 +786,7 @@ public class PostgresCollection implements Collection {
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
-      LOGGER.warn("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
+      LOGGER.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
