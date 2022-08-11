@@ -22,6 +22,7 @@ public class PostgresUtils {
   private static final String JSON_DATA_ACCESSOR = "->>";
   private static final String DOT_STR = "_dot_";
   private static final String DOT = ".";
+  public static final String ID_COLUMN = ID;
 
   public static final Set<String> OUTER_COLUMNS =
       new TreeSet<>(List.of(ID, CREATED_AT, UPDATED_AT));
