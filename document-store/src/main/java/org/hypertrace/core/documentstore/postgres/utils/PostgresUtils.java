@@ -25,6 +25,8 @@ public class PostgresUtils {
 
   public static final Set<String> OUTER_COLUMNS =
       new TreeSet<>(List.of(ID, CREATED_AT, UPDATED_AT));
+  public static final String ID_COLUMN = ID;
+
   public static final String DOCUMENT_COLUMN = DOCUMENT;
 
   public enum Type {

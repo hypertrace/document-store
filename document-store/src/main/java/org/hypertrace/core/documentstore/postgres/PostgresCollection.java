@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -1083,11 +1084,7 @@ public class PostgresCollection implements Collection {
       Map<String, Object> jsonNode = new HashMap();
       for (int i = 1; i <= columnCount; i++) {
         String columnName = resultSetMetaData.getColumnName(i);
-        int columnType = resultSetMetaData.getColumnType(i);
-        String columnValue =
-            columnType == Types.ARRAY
-                ? MAPPER.writeValueAsString(resultSet.getArray(i).getArray())
-                : resultSet.getString(i);
+        String columnValue = getColumnValue(resultSetMetaData, columnName, i);
         if (StringUtils.isNotEmpty(columnValue)) {
           JsonNode leafNodeValue = MAPPER.readTree(columnValue);
           if (PostgresUtils.isEncodedNestedField(columnName)) {
@@ -1099,6 +1096,23 @@ public class PostgresCollection implements Collection {
         }
       }
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+    }
+
+    private String getColumnValue(ResultSetMetaData resultSetMetaData, String columnName, int columnIndex)
+        throws SQLException, JsonProcessingException {
+      int columnType = resultSetMetaData.getColumnType(columnIndex);
+      // check for array
+      if (columnType == Types.ARRAY) {
+        return MAPPER.writeValueAsString(resultSet.getArray(columnIndex).getArray());
+      }
+
+      // check for ID column
+      if (PostgresUtils.OUTER_COLUMNS.contains(columnName) && columnName.equals(PostgresUtils.ID_COLUMN)) {
+        return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
+      }
+
+      // rest of the columns
+      return resultSet.getString(columnIndex);
     }
 
     private void handleNestedField(
