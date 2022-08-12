@@ -1108,8 +1108,7 @@ public class PostgresCollection implements Collection {
       }
 
       // check for ID column
-      if (PostgresUtils.OUTER_COLUMNS.contains(columnName)
-          && columnName.equals(PostgresUtils.ID_COLUMN)) {
+      if (columnName.equals(ID)) {
         return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
       }
 
