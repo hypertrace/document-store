@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -324,16 +325,17 @@ public class PostgresCollection implements Collection {
 
   @Override
   public CloseableIterator<Document> search(Query query) {
+    String selection = PostgresQueryParser.parseSelections(query.getSelections());
+    StringBuilder sqlBuilder =
+        new StringBuilder(String.format("SELECT %s FROM ", selection)).append(collectionName);
+
     String filters = null;
-    StringBuilder sqlBuilder = new StringBuilder("SELECT * FROM ").append(collectionName);
     Params.Builder paramsBuilder = Params.newBuilder();
 
     // If there is a filter in the query, parse it fully.
     if (query.getFilter() != null) {
       filters = PostgresQueryParser.parseFilter(query.getFilter(), paramsBuilder);
     }
-
-    LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
 
     if (filters != null) {
       sqlBuilder.append(" WHERE ").append(filters);
@@ -354,13 +356,20 @@ public class PostgresCollection implements Collection {
       sqlBuilder.append(" OFFSET ").append(offset);
     }
 
+    String pgSqlQuery = sqlBuilder.toString();
     try {
       PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
+          buildPreparedStatement(pgSqlQuery, paramsBuilder.build());
+      LOGGER.debug("Executing search query to PostgresSQL:{}", preparedStatement.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
-      return new PostgresResultIterator(resultSet);
+      CloseableIterator closeableIterator =
+          query.getSelections().size() > 0
+              ? new PostgresResultIteratorWithMetaData(resultSet)
+              : new PostgresResultIterator(resultSet);
+      return closeableIterator;
     } catch (SQLException e) {
-      LOGGER.error("SQLException querying documents. query: {}", query, e);
+      LOGGER.error(
+          "SQLException in querying documents - query: {}, sqlQuery:{}", query, pgSqlQuery, e);
     }
 
     return EMPTY_ITERATOR;
@@ -739,8 +748,7 @@ public class PostgresCollection implements Collection {
 
   private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
     List<String> keysAsStr = keys.stream().map(Key::toString).collect(Collectors.toList());
-    Query query =
-        new Query().withSelection("*").withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
+    Query query = new Query().withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
     return search(query);
   }
 
@@ -778,6 +786,7 @@ public class PostgresCollection implements Collection {
     try {
       PreparedStatement preparedStatement =
           buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
+      LOGGER.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
@@ -1075,11 +1084,7 @@ public class PostgresCollection implements Collection {
       Map<String, Object> jsonNode = new HashMap();
       for (int i = 1; i <= columnCount; i++) {
         String columnName = resultSetMetaData.getColumnName(i);
-        int columnType = resultSetMetaData.getColumnType(i);
-        String columnValue =
-            columnType == Types.ARRAY
-                ? MAPPER.writeValueAsString(resultSet.getArray(i).getArray())
-                : resultSet.getString(i);
+        String columnValue = getColumnValue(resultSetMetaData, columnName, i);
         if (StringUtils.isNotEmpty(columnValue)) {
           JsonNode leafNodeValue = MAPPER.readTree(columnValue);
           if (PostgresUtils.isEncodedNestedField(columnName)) {
@@ -1091,6 +1096,24 @@ public class PostgresCollection implements Collection {
         }
       }
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+    }
+
+    private String getColumnValue(
+        ResultSetMetaData resultSetMetaData, String columnName, int columnIndex)
+        throws SQLException, JsonProcessingException {
+      int columnType = resultSetMetaData.getColumnType(columnIndex);
+      // check for array
+      if (columnType == Types.ARRAY) {
+        return MAPPER.writeValueAsString(resultSet.getArray(columnIndex).getArray());
+      }
+
+      // check for ID column
+      if (columnName.equals(ID)) {
+        return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
+      }
+
+      // rest of the columns
+      return resultSet.getString(columnIndex);
     }
 
     private void handleNestedField(

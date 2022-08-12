@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -2098,6 +2099,25 @@ public class DocStoreTest {
         expected = "Un-supported object types in filter";
         assertTrue(exception.getMessage().contains(expected));
       }
+    }
+
+    // test for selections
+    {
+      Query query = new Query();
+      query.addSelection("entityId");
+      query.addSelection("entityType");
+      query.setFilter(new Filter(Filter.Op.EQ, "_id", key1.toString()));
+      Iterator<Document> results = collection.search(query);
+      List<Document> documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(1, documents.size());
+      Map<String, String> result =
+          OBJECT_MAPPER.readValue(documents.get(0).toJson(), new TypeReference<>() {});
+      Assertions.assertEquals(2, result.size());
+      Assertions.assertEquals("SERVICE", result.get("entityType"));
+      Assertions.assertEquals("e3ffc6f0-fc92-3a9c-9fa0-26269184d1aa", result.get("entityId"));
     }
   }
 

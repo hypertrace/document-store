@@ -10,6 +10,7 @@ import java.util.List;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.OrderBy;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
@@ -19,49 +20,97 @@ class PostgresQueryParserTest {
   void testParseNonCompositeFilter() {
     {
       Filter filter = new Filter(Filter.Op.EQ, ID, "val1");
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query =
+          PostgresUtils.parseNonCompositeFilter(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              initParams());
       Assertions.assertEquals(ID + " = ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.NEQ, ID, "val1");
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query =
+          PostgresUtils.parseNonCompositeFilter(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              initParams());
       Assertions.assertEquals(ID + " != ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GT, ID, 5);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query =
+          PostgresUtils.parseNonCompositeFilter(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              initParams());
       Assertions.assertEquals("CAST (" + ID + " AS NUMERIC) > ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GTE, ID, 5);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query =
+          PostgresUtils.parseNonCompositeFilter(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              initParams());
       Assertions.assertEquals("CAST (" + ID + " AS NUMERIC) >= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LT, ID, 5);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query =
+          PostgresUtils.parseNonCompositeFilter(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              initParams());
       Assertions.assertEquals("CAST (" + ID + " AS NUMERIC) < ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LTE, ID, 5);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query =
+          PostgresUtils.parseNonCompositeFilter(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              initParams());
       Assertions.assertEquals("CAST (" + ID + " AS NUMERIC) <= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LIKE, ID, "abc");
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query =
+          PostgresUtils.parseNonCompositeFilter(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              initParams());
       Assertions.assertEquals(ID + " ILIKE ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.IN, ID, List.of("abc", "xyz"));
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query =
+          PostgresUtils.parseNonCompositeFilter(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              initParams());
       Assertions.assertEquals(ID + " IN (?, ?)", query);
     }
   }
@@ -70,74 +119,74 @@ class PostgresQueryParserTest {
   void testParseNonCompositeFilterForJsonField() {
     {
       Filter filter = new Filter(Filter.Op.EQ, "key1", "val1");
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("document->>'key1' = ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.NEQ, "key1", "val1");
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("document->'key1' IS NULL OR document->>'key1' != ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GT, "key1", 5);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("CAST (document->>'key1' AS NUMERIC) > ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.GTE, "key1", 5);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("CAST (document->>'key1' AS NUMERIC) >= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LT, "key1", 5);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("CAST (document->>'key1' AS NUMERIC) < ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LTE, "key1", 5);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("CAST (document->>'key1' AS NUMERIC) <= ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.LIKE, "key1", "abc");
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("document->>'key1' ILIKE ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.IN, "key1", List.of("abc", "xyz"));
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("document->>'key1' IN (?, ?)", query);
     }
 
     {
       Filter filter = new Filter(Op.NOT_IN, "key1", List.of("abc", "xyz"));
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("document->'key1' IS NULL OR document->>'key1' NOT IN (?, ?)", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.EQ, DOCUMENT_ID, "k1:k2");
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("document->>'_id' = ?", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.EXISTS, "key1.key2", null);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       System.err.println(query);
       Assertions.assertEquals("document->'key1'->'key2' IS NOT NULL ", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.NOT_EXISTS, "key1", null);
-      String query = PostgresQueryParser.parseNonCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("document->'key1' IS NULL ", query);
     }
   }
@@ -151,7 +200,7 @@ class PostgresQueryParserTest {
       Exception exception =
           assertThrows(
               UnsupportedOperationException.class,
-              () -> PostgresQueryParser.parseNonCompositeFilter(filter, initParams()));
+              () -> PostgresQueryParser.parseFilter(filter, initParams()));
       String actualMessage = exception.getMessage();
       Assertions.assertTrue(actualMessage.contains(expected));
     }
@@ -174,7 +223,7 @@ class PostgresQueryParserTest {
     {
       Filter filter =
           new Filter(Filter.Op.EQ, ID, "val1").and(new Filter(Filter.Op.EQ, CREATED_AT, "val2"));
-      String query = PostgresQueryParser.parseCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals(String.format("(%s = ?) AND (%s = ?)", ID, CREATED_AT), query);
     }
 
@@ -182,7 +231,7 @@ class PostgresQueryParserTest {
       Filter filter =
           new Filter(Filter.Op.EQ, ID, "val1").or(new Filter(Filter.Op.EQ, CREATED_AT, "val2"));
 
-      String query = PostgresQueryParser.parseCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals(String.format("(%s = ?) OR (%s = ?)", ID, CREATED_AT), query);
     }
   }
@@ -192,7 +241,7 @@ class PostgresQueryParserTest {
     {
       Filter filter =
           new Filter(Filter.Op.EQ, "key1", "val1").and(new Filter(Filter.Op.EQ, "key2", "val2"));
-      String query = PostgresQueryParser.parseCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("(document->>'key1' = ?) AND (document->>'key2' = ?)", query);
     }
 
@@ -200,7 +249,7 @@ class PostgresQueryParserTest {
       Filter filter =
           new Filter(Filter.Op.EQ, "key1", "val1").or(new Filter(Filter.Op.EQ, "key2", "val2"));
 
-      String query = PostgresQueryParser.parseCompositeFilter(filter, initParams());
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("(document->>'key1' = ?) OR (document->>'key2' = ?)", query);
     }
   }
@@ -245,6 +294,15 @@ class PostgresQueryParserTest {
     Assertions.assertEquals(
         "document->>'key1' ASC , document->>'key2' DESC , document->>'key3' ASC",
         PostgresQueryParser.parseOrderBys(orderBys));
+  }
+
+  @Test
+  void testSelectionClause() {
+    List<String> selections =
+        List.of("id", "identifyingAttributes", "tenantId", "attributes", "type");
+    Assertions.assertEquals(
+        "id AS \"id\",document->'identifyingAttributes' AS \"identifyingAttributes\",document->'tenantId' AS \"tenantId\",document->'attributes' AS \"attributes\",document->'type' AS \"type\"",
+        PostgresQueryParser.parseSelections(selections));
   }
 
   private Params.Builder initParams() {
