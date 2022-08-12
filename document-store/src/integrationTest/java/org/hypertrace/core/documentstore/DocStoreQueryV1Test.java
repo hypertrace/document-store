@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
@@ -32,10 +33,20 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
@@ -73,9 +84,19 @@ public class DocStoreQueryV1Test {
 
   private static GenericContainer<?> mongo;
   private static GenericContainer<?> postgres;
+  private static String postgresConnectionUrl;
 
   @BeforeAll
   public static void init() throws IOException {
+    postgres =
+        new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
+            .withEnv("POSTGRES_PASSWORD", "postgres")
+            .withEnv("POSTGRES_USER", "postgres")
+            .withExposedPorts(5432)
+            .waitingFor(Wait.forListeningPort());
+    postgres.start();
+    postgresConnectionUrl =
+        String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
     datastoreMap = Maps.newHashMap();
     mongo =
         new GenericContainer<>(DockerImageName.parse("mongo:4.4.0"))
@@ -92,17 +113,6 @@ public class DocStoreQueryV1Test {
 
     Datastore mongoDatastore = DatastoreProvider.getDatastore("Mongo", config);
     System.out.println(mongoDatastore.listCollections());
-
-    postgres =
-        new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
-            .withEnv("POSTGRES_PASSWORD", "postgres")
-            .withEnv("POSTGRES_USER", "postgres")
-            .withExposedPorts(5432)
-            .waitingFor(Wait.forListeningPort());
-    postgres.start();
-
-    String postgresConnectionUrl =
-        String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
     DatastoreProvider.register("POSTGRES", PostgresDatastore.class);
 
     Map<String, String> postgresConfig = new HashMap<>();
@@ -130,6 +140,95 @@ public class DocStoreQueryV1Test {
   public static void shutdown() {
     mongo.stop();
     postgres.stop();
+  }
+
+  private void createPostgresDB(Connection connection) {
+    try {
+      Statement statement = connection.createStatement();
+      String query =
+          "CREATE TABLE IF NOT EXISTS job "
+              + "(id INT PRIMARY KEY     NOT NULL,"
+              + " status           TEXT, "
+              + " lastUpdatedTime        INT, "
+              + " createdTime         INT)";
+      statement.executeUpdate(query);
+      query =
+          "INSERT INTO job (id, status, lastUpdatedTime, createdTime) "
+              + "VALUES (1, 'SCHEDULED', 1660119, 1660000);";
+      statement.executeUpdate(query);
+      query =
+          "INSERT INTO job (id, status, lastUpdatedTime, createdTime) "
+              + "VALUES (2, 'SCHEDULED', 1660120, 1660001);";
+      statement.executeUpdate(query);
+      query =
+          "INSERT INTO job (id, status, lastUpdatedTime, createdTime) "
+              + "VALUES (3, 'SCHEDULED', 1660122, 1660002);";
+      statement.executeUpdate(query);
+
+      statement.close();
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private int queryDB() {
+    try {
+      Class.forName("org.postgresql.Driver");
+      Connection connection =
+          DriverManager.getConnection(postgresConnectionUrl, "postgres", "postgres");
+      connection.setAutoCommit(false);
+      Statement statement = connection.createStatement();
+      String query = "BEGIN";
+      statement.execute(query);
+      query =
+          "SELECT * FROM job where status = 'SCHEDULED' ORDER BY createdTime ASC LIMIT 1 FOR UPDATE";
+      ResultSet resultSet = statement.executeQuery(query);
+      int id = -1;
+      while (resultSet.next()) {
+        id = resultSet.getInt("id");
+      }
+      MILLISECONDS.sleep(1000);
+      if (id != -1) {
+        query = "UPDATE job SET status = 'IN_PROGRESS' WHERE status = 'SCHEDULED' AND id = " + id;
+        int status = statement.executeUpdate(query);
+        System.out.println(status);
+        query = "COMMIT";
+        statement.execute(query);
+        statement.close();
+        return (status == 0 ? -1 : id);
+      }
+      statement.close();
+      connection.close();
+    } catch (SQLException | InterruptedException | ClassNotFoundException e) {
+      throw new RuntimeException(e);
+    }
+    return -1;
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextPostgres")
+  void testPostgresParallelAtomicity() {
+    String query = null;
+    try {
+      Class.forName("org.postgresql.Driver");
+      Connection connection =
+          DriverManager.getConnection(postgresConnectionUrl, "postgres", "postgres");
+      System.out.println("Opened database successfully");
+      createPostgresDB(connection);
+      connection.close();
+      final Callable<Integer> callable = () -> queryDB();
+      final ExecutorService executor = Executors.newFixedThreadPool(2);
+      final Future<Integer> future1 = executor.submit(callable);
+      final Future<Integer> future2 = executor.submit(callable);
+
+      final int id1 = future1.get();
+      final int id2 = future2.get();
+      System.out.println(id1 + " " + id2);
+    } catch (SQLException e) {
+      throw new RuntimeException(e);
+    } catch (ClassNotFoundException | InterruptedException | ExecutionException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @MethodSource
