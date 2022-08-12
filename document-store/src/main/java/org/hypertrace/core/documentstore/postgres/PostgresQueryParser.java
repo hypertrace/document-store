@@ -23,7 +23,7 @@ class PostgresQueryParser {
                                 selection, PostgresUtils.DOCUMENT_COLUMN),
                             selection))
                 .collect(Collectors.joining(",")))
-        .filter(str -> StringUtils.isNotBlank(str))
+        .filter(StringUtils::isNotBlank)
         .orElse("*");
   }
 
