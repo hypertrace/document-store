@@ -3,7 +3,8 @@
     "date": "2022-08-09T18:53:17Z",
     "item": "Soap",
     "price": 10,
-    "quantity": 1000
+    "quantity": 1000,
+    "brand": "Dettol"
   },
   {
     "date": "2014-03-01T09:00:00Z",
@@ -15,7 +16,8 @@
     "date": "2014-03-15T09:00:00Z",
     "item": "Shampoo",
     "price": 5,
-    "quantity": 10
+    "quantity": 10,
+    "brand": "Sunsilk"
   },
   {
     "date": "2014-04-04T11:21:39.736Z",
@@ -27,7 +29,8 @@
     "date": "2014-04-04T21:23:13.331Z",
     "item": "Soap",
     "price": 20,
-    "quantity": 5
+    "quantity": 5,
+    "brand": "Lifebuoy"
   },
   {
     "date": "2015-06-04T05:08:13Z",
@@ -45,6 +48,7 @@
     "date": "2022-08-09T18:53:17Z",
     "item": "Soap",
     "price": 10,
-    "quantity": 1000
+    "quantity": 1000,
+    "brand": "Dettol"
   }
 ]

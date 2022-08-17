@@ -27,6 +27,7 @@ import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -79,6 +80,7 @@ public class MongoCollection implements Collection {
 
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
   private final MongoQueryExecutor queryExecutor;
+  private final Clock clock;
 
   /**
    * The current MongoDB servers we use have a known issue - https://jira.mongodb
@@ -110,6 +112,7 @@ public class MongoCollection implements Collection {
   MongoCollection(com.mongodb.client.MongoCollection<BasicDBObject> collection) {
     this.collection = collection;
     this.queryExecutor = new MongoQueryExecutor(collection);
+    this.clock = Clock.systemUTC();
   }
 
   /**
@@ -492,7 +495,7 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public Optional<Document> atomicReadAndUpdateSubDocs(
+  public Optional<Document> atomicReadAndUpdateDocument(
       final org.hypertrace.core.documentstore.query.Query query, final Document updateDocument)
       throws IOException {
     try {
@@ -512,7 +515,7 @@ public class MongoCollection implements Collection {
           getFilter(query, org.hypertrace.core.documentstore.query.Query::getFilter);
 
       final BasicDBObject updateObject = getSanitizedBasicDBObject(updateDocument);
-      updateObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
+      updateObject.append(LAST_UPDATED_TIME, clock.millis());
       final BasicDBObject setObject = new BasicDBObject("$set", updateObject);
 
       return Optional.ofNullable(collection.findOneAndUpdate(filter, setObject, options))

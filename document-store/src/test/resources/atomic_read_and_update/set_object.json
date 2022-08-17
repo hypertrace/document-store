@@ -1,0 +1,10 @@
+{
+  "$set": {
+    "date": "2022-08-09T18:53:17Z",
+    "quantity": 1000,
+    "props": {
+      "brand": "Dettol"
+    },
+    "lastUpdatedTime": 1660721309000
+  }
+}

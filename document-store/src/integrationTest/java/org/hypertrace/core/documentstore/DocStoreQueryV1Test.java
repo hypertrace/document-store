@@ -1160,7 +1160,7 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextMongo")
-  public void testAtomicReadAndUpdateSubDocs(final String datastoreName)
+  public void testAtomicReadAndUpdateDocument(final String datastoreName)
       throws IOException, ExecutionException, InterruptedException {
     final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
     createCollectionData("mongo/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
@@ -1187,12 +1187,13 @@ public class DocStoreQueryV1Test {
             .addSelection(IdentifierExpression.of("props"))
             .build();
     final Document document =
-        new JSONDocument("{\"date\": \"2022-08-09T18:53:17Z\", \"quantity\": 1000}");
+        new JSONDocument(
+            "{\"date\": \"2022-08-09T18:53:17Z\", \"quantity\": 1000, \"props\": {\"brand\": \"Dettol\"}}");
 
     final Callable<Optional<Document>> callable =
         () -> {
           MILLISECONDS.sleep(new Random().nextInt(1000));
-          return collection.atomicReadAndUpdateSubDocs(query, document);
+          return collection.atomicReadAndUpdateDocument(query, document);
         };
 
     final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -1216,9 +1217,10 @@ public class DocStoreQueryV1Test {
                 .addSelection(IdentifierExpression.of("price"))
                 .addSelection(IdentifierExpression.of("quantity"))
                 .addSelection(IdentifierExpression.of("date"))
+                .addSelection(IdentifierExpression.of("props.brand"), "brand")
                 .addSort(IdentifierExpression.of("_id"), ASC)
                 .build()),
-        "mongo/atomic_read_and_update_sub_docs_updated_collection_data.json",
+        "mongo/atomic_read_and_update_collection_data.json",
         8);
   }
 

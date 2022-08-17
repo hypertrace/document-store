@@ -83,13 +83,19 @@ public interface Collection {
 
   /**
    * Reads the first document matching the filter and sorting criteria given in the {@param query},
-   * updates the sub-documents as specified in {@param subDocUpdates} and returns the document (if
+   * updates the document as specified in {@param updateDocument} and returns the document (if
    * exists) including the fields selected in the {@param query}
    *
-   * @return The document before sub-document updates if exists, otherwise an empty optional
+   * @return The document before updating if exists, otherwise an empty optional
    * @throws IOException if there was any error in updating/fetching the document
+   * @implSpec The definition of an update here is
+   *     <ol>
+   *       <li>The existing fields/sub-documents will be updated
+   *       <li>New fields/sub-documents will be created if they do not exist
+   *       <li>None of the existing fields/sub-documents will be removed
+   *     </ol>
    */
-  Optional<Document> atomicReadAndUpdateSubDocs(
+  Optional<Document> atomicReadAndUpdateDocument(
       final org.hypertrace.core.documentstore.query.Query query, final Document updateDocument)
       throws IOException;
 

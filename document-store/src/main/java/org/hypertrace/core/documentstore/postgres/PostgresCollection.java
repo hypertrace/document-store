@@ -379,7 +379,7 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public Optional<Document> atomicReadAndUpdateSubDocs(
+  public Optional<Document> atomicReadAndUpdateDocument(
       final org.hypertrace.core.documentstore.query.Query query, final Document updateDocument)
       throws IOException {
     // TODO: Implement
