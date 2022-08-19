@@ -93,7 +93,7 @@ public class PostgresDocStoreTest {
     datastore.init(config);
 
     try {
-      DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();
+      DatabaseMetaData metaData = datastore.getPostgresClient().getConnection().getMetaData();
       Assertions.assertEquals(metaData.getURL(), connectionUrl + database);
       Assertions.assertEquals(metaData.getUserName(), user);
     } catch (SQLException e) {
