@@ -36,7 +36,7 @@ public class PostgresClient {
     poolableConnectionFactory.setValidationQuery("SELECT 1");
     poolableConnectionFactory.setValidationQueryTimeout(5);
     poolableConnectionFactory.setDefaultReadOnly(false);
-    poolableConnectionFactory.setDefaultAutoCommit(false);
+    poolableConnectionFactory.setDefaultAutoCommit(true);
     poolableConnectionFactory.setDefaultTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
     poolableConnectionFactory.setPoolStatements(false);
     return new PoolingDataSource<>(connectionPool);

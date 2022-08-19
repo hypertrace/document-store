@@ -29,6 +29,7 @@ dependencies {
   integrationTestImplementation("com.github.java-json-tools:json-patch:1.13")
   integrationTestImplementation("org.testcontainers:testcontainers:1.15.2")
   integrationTestImplementation("org.testcontainers:junit-jupiter:1.15.2")
+  integrationTestImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.17.1")
 }
 
 tasks.test {
