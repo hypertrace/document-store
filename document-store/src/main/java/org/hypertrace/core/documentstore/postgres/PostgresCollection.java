@@ -1046,9 +1046,11 @@ public class PostgresCollection implements Collection {
     @Override
     public Document next() {
       currDocumentIndex++;
-      if (currDocumentIndex >= documents.size()) {
+      if (currDocumentIndex > documents.size()) {
         throw new NoSuchElementException();
       }
+      // need to pick document at index - currDocumentIndex - 1
+      // as list index starts from 0 while currDocumentIndex will start from 1
       return documents.get(currDocumentIndex - 1);
     }
 
