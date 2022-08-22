@@ -362,11 +362,13 @@ public class PostgresCollection implements Collection {
     }
 
     String pgSqlQuery = sqlBuilder.toString();
+    Connection connection = null;
+    PreparedStatement preparedStatement = null;
+    ResultSet resultSet = null;
     try {
-      Connection connection = client.getConnection();
-      PreparedStatement preparedStatement =
-          buildPreparedStatement(connection, pgSqlQuery, paramsBuilder.build());
-      ResultSet resultSet = preparedStatement.executeQuery();
+      connection = client.getConnection();
+      preparedStatement = buildPreparedStatement(connection, pgSqlQuery, paramsBuilder.build());
+      resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
               ? new PostgresResultIteratorWithMetaData(connection, preparedStatement, resultSet)
@@ -375,6 +377,7 @@ public class PostgresCollection implements Collection {
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException in querying documents - query: {}, sqlQuery:{}", query, pgSqlQuery, e);
+      close(connection, preparedStatement, resultSet);
     }
 
     return EMPTY_ITERATOR;
@@ -606,9 +609,13 @@ public class PostgresCollection implements Collection {
             .append(")")
             .toString();
 
-    try (Connection connection = client.getConnection();
-        PreparedStatement preparedStatement = connection.prepareStatement(query);
-        ResultSet resultSet = preparedStatement.executeQuery()) {
+    Connection connection = null;
+    PreparedStatement preparedStatement = null;
+    ResultSet resultSet = null;
+    try {
+      connection = client.getConnection();
+      preparedStatement = connection.prepareStatement(query);
+      resultSet = preparedStatement.executeQuery();
 
       // Now go ahead and bulk upsert the documents.
       int[] updateCounts = bulkUpsertImpl(documents);
@@ -619,8 +626,10 @@ public class PostgresCollection implements Collection {
       return new PostgresResultIterator(connection, preparedStatement, resultSet);
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
+      close(connection, preparedStatement, resultSet);
     } catch (SQLException e) {
       LOGGER.error("SQLException querying documents. query: {}", query, e);
+      close(connection, preparedStatement, resultSet);
     }
 
     throw new IOException("Could not bulk upsert the documents.");
@@ -795,12 +804,16 @@ public class PostgresCollection implements Collection {
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
             collectionName, query);
     String sqlQuery = queryParser.parse();
+
+    Connection connection = null;
+    PreparedStatement preparedStatement = null;
+    ResultSet resultSet = null;
     try {
-      Connection connection = client.getConnection();
-      PreparedStatement preparedStatement =
+      connection = client.getConnection();
+      preparedStatement =
           buildPreparedStatement(connection, sqlQuery, queryParser.getParamsBuilder().build());
       LOGGER.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
-      ResultSet resultSet = preparedStatement.executeQuery();
+      resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
               ? new PostgresResultIteratorWithMetaData(connection, preparedStatement, resultSet)
@@ -809,6 +822,7 @@ public class PostgresCollection implements Collection {
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
+      close(connection, preparedStatement, resultSet);
       throw new RuntimeException(e);
     }
   }
@@ -1023,6 +1037,31 @@ public class PostgresCollection implements Collection {
         "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = "
             + "?::jsonb ",
         collectionName, ID, DOCUMENT, ID, DOCUMENT);
+  }
+
+  private void close(
+      Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) {
+    if (resultSet != null) {
+      try {
+        resultSet.close();
+      } catch (SQLException ex) {
+        LOGGER.error("Error closing result set", ex);
+      }
+    }
+    if (preparedStatement != null) {
+      try {
+        preparedStatement.close();
+      } catch (SQLException ex) {
+        LOGGER.error("Error closing prepared statement", ex);
+      }
+    }
+    if (connection != null) {
+      try {
+        connection.close();
+      } catch (SQLException ex) {
+        LOGGER.error("Error closing connection", ex);
+      }
+    }
   }
 
   static class PostgresResultIterator implements CloseableIterator {
