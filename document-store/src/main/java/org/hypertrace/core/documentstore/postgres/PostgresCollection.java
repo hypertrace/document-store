@@ -315,16 +315,18 @@ public class PostgresCollection implements Collection {
       subDocs.add(getDocAsJSON(subDoc));
     }
     Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
-    CloseableIterator<Document> docs = searchDocsForKeys(request.getKeys());
-    switch (request.getOperation()) {
-      case ADD:
-        return bulkAddOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
-      case SET:
-        return bulkSetOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
-      case REMOVE:
-        return bulkRemoveOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
-      default:
-        throw new UnsupportedOperationException("Unsupported operation: " + request.getOperation());
+    try (CloseableIterator<Document> docs = searchDocsForKeys(request.getKeys())) {
+      switch (request.getOperation()) {
+        case ADD:
+          return bulkAddOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
+        case SET:
+          return bulkSetOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
+        case REMOVE:
+          return bulkRemoveOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported operation: " + request.getOperation());
+      }
     }
   }
 
@@ -748,11 +750,12 @@ public class PostgresCollection implements Collection {
   }
 
   private Optional<Long> getCreatedTime(Key key) throws IOException {
-    CloseableIterator<Document> iterator = searchDocsForKeys(Set.of(key));
-    if (iterator.hasNext()) {
-      JsonNode existingDocument = getDocAsJSON(iterator.next());
-      if (existingDocument.has(DocStoreConstants.CREATED_TIME)) {
-        return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+    try (CloseableIterator<Document> iterator = searchDocsForKeys(Set.of(key))) {
+      if (iterator.hasNext()) {
+        JsonNode existingDocument = getDocAsJSON(iterator.next());
+        if (existingDocument.has(DocStoreConstants.CREATED_TIME)) {
+          return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+        }
       }
     }
     return Optional.empty();
