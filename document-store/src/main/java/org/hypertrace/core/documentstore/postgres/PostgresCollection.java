@@ -28,7 +28,6 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -315,16 +314,18 @@ public class PostgresCollection implements Collection {
       subDocs.add(getDocAsJSON(subDoc));
     }
     Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
-    CloseableIterator<Document> docs = searchDocsForKeys(request.getKeys());
-    switch (request.getOperation()) {
-      case ADD:
-        return bulkAddOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
-      case SET:
-        return bulkSetOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
-      case REMOVE:
-        return bulkRemoveOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
-      default:
-        throw new UnsupportedOperationException("Unsupported operation: " + request.getOperation());
+    try (CloseableIterator<Document> docs = searchDocsForKeys(request.getKeys())) {
+      switch (request.getOperation()) {
+        case ADD:
+          return bulkAddOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
+        case SET:
+          return bulkSetOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
+        case REMOVE:
+          return bulkRemoveOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported operation: " + request.getOperation());
+      }
     }
   }
 
@@ -377,7 +378,7 @@ public class PostgresCollection implements Collection {
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException in querying documents - query: {}, sqlQuery:{}", query, pgSqlQuery, e);
-      close(connection, preparedStatement, resultSet);
+      closeAll(connection, preparedStatement, resultSet);
     }
 
     return EMPTY_ITERATOR;
@@ -591,28 +592,27 @@ public class PostgresCollection implements Collection {
   public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
     String query = null;
-    String collect =
-        documents.keySet().stream()
-            .map(val -> "'" + val.toString() + "'")
-            .collect(Collectors.joining(", "));
-
-    String space = " ";
-    query =
-        new StringBuilder("SELECT * FROM")
-            .append(space)
-            .append(collectionName)
-            .append(" WHERE ")
-            .append(ID)
-            .append(" IN ")
-            .append("(")
-            .append(collect)
-            .append(")")
-            .toString();
-
     Connection connection = null;
     PreparedStatement preparedStatement = null;
     ResultSet resultSet = null;
     try {
+      String collect =
+          documents.keySet().stream()
+              .map(val -> "'" + val.toString() + "'")
+              .collect(Collectors.joining(", "));
+
+      String space = " ";
+      query =
+          new StringBuilder("SELECT * FROM")
+              .append(space)
+              .append(collectionName)
+              .append(" WHERE ")
+              .append(ID)
+              .append(" IN ")
+              .append("(")
+              .append(collect)
+              .append(")")
+              .toString();
       connection = client.getConnection();
       preparedStatement = connection.prepareStatement(query);
       resultSet = preparedStatement.executeQuery();
@@ -626,10 +626,10 @@ public class PostgresCollection implements Collection {
       return new PostgresResultIterator(connection, preparedStatement, resultSet);
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
-      close(connection, preparedStatement, resultSet);
+      closeAll(connection, preparedStatement, resultSet);
     } catch (SQLException e) {
       LOGGER.error("SQLException querying documents. query: {}", query, e);
-      close(connection, preparedStatement, resultSet);
+      closeAll(connection, preparedStatement, resultSet);
     }
 
     throw new IOException("Could not bulk upsert the documents.");
@@ -757,11 +757,12 @@ public class PostgresCollection implements Collection {
   }
 
   private Optional<Long> getCreatedTime(Key key) throws IOException {
-    CloseableIterator<Document> iterator = searchDocsForKeys(Set.of(key));
-    if (iterator.hasNext()) {
-      JsonNode existingDocument = getDocAsJSON(iterator.next());
-      if (existingDocument.has(DocStoreConstants.CREATED_TIME)) {
-        return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+    try (CloseableIterator<Document> iterator = searchDocsForKeys(Set.of(key))) {
+      if (iterator.hasNext()) {
+        JsonNode existingDocument = getDocAsJSON(iterator.next());
+        if (existingDocument.has(DocStoreConstants.CREATED_TIME)) {
+          return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+        }
       }
     }
     return Optional.empty();
@@ -822,7 +823,7 @@ public class PostgresCollection implements Collection {
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
-      close(connection, preparedStatement, resultSet);
+      closeAll(connection, preparedStatement, resultSet);
       throw new RuntimeException(e);
     }
   }
@@ -1039,27 +1040,27 @@ public class PostgresCollection implements Collection {
         collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
-  private void close(
+  private static void closeAll(
       Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) {
     if (resultSet != null) {
       try {
         resultSet.close();
       } catch (SQLException ex) {
-        LOGGER.error("Error closing result set", ex);
+        LOGGER.warn("Error closing result set", ex);
       }
     }
     if (preparedStatement != null) {
       try {
         preparedStatement.close();
       } catch (SQLException ex) {
-        LOGGER.error("Error closing prepared statement", ex);
+        LOGGER.warn("Error closing prepared statement", ex);
       }
     }
     if (connection != null) {
       try {
         connection.close();
       } catch (SQLException ex) {
-        LOGGER.error("Error closing connection", ex);
+        LOGGER.warn("Error closing connection", ex);
       }
     }
   }
@@ -1121,12 +1122,9 @@ public class PostgresCollection implements Collection {
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
     }
 
-    @SneakyThrows
     @Override
     public void close() {
-      resultSet.close();
-      preparedStatement.close();
-      connection.close();
+      closeAll(connection, preparedStatement, resultSet);
     }
   }
 
