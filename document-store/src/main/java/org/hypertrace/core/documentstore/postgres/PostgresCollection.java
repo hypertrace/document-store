@@ -19,7 +19,6 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -29,6 +28,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -362,16 +362,17 @@ public class PostgresCollection implements Collection {
     }
 
     String pgSqlQuery = sqlBuilder.toString();
-    try (Connection connection = client.getConnection();
-        PreparedStatement preparedStatement =
-            buildPreparedStatement(connection, pgSqlQuery, paramsBuilder.build());
-        ResultSet resultSet = preparedStatement.executeQuery()) {
+    try {
+      Connection connection = client.getConnection();
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(connection, pgSqlQuery, paramsBuilder.build());
+      ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
-              ? new PostgresResultIteratorWithMetaData(resultSet)
-              : new PostgresResultIterator(resultSet);
+              ? new PostgresResultIteratorWithMetaData(connection, preparedStatement, resultSet)
+              : new PostgresResultIterator(connection, preparedStatement, resultSet);
       return closeableIterator;
-    } catch (SQLException | IOException e) {
+    } catch (SQLException e) {
       LOGGER.error(
           "SQLException in querying documents - query: {}, sqlQuery:{}", query, pgSqlQuery, e);
     }
@@ -615,7 +616,7 @@ public class PostgresCollection implements Collection {
         LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
       }
 
-      return new PostgresResultIterator(resultSet);
+      return new PostgresResultIterator(connection, preparedStatement, resultSet);
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
     } catch (SQLException e) {
@@ -794,16 +795,18 @@ public class PostgresCollection implements Collection {
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
             collectionName, query);
     String sqlQuery = queryParser.parse();
-    try (Connection connection = client.getConnection();
-        PreparedStatement preparedStatement =
-            buildPreparedStatement(connection, sqlQuery, queryParser.getParamsBuilder().build());
-        ResultSet resultSet = preparedStatement.executeQuery()) {
+    try {
+      Connection connection = client.getConnection();
+      PreparedStatement preparedStatement =
+          buildPreparedStatement(connection, sqlQuery, queryParser.getParamsBuilder().build());
+      LOGGER.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
+      ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
-              ? new PostgresResultIteratorWithMetaData(resultSet)
-              : new PostgresResultIterator(resultSet);
+              ? new PostgresResultIteratorWithMetaData(connection, preparedStatement, resultSet)
+              : new PostgresResultIterator(connection, preparedStatement, resultSet);
       return closeableIterator;
-    } catch (SQLException | IOException e) {
+    } catch (SQLException e) {
       LOGGER.error(
           "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
       throw new RuntimeException(e);
@@ -1025,36 +1028,48 @@ public class PostgresCollection implements Collection {
   static class PostgresResultIterator implements CloseableIterator {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
-    protected List<Document> documents;
-    protected int currDocumentIndex = 0;
+    private final Connection connection;
+    private final PreparedStatement preparedStatement;
+    protected ResultSet resultSet;
+    protected boolean cursorMovedForward = false;
+    protected boolean hasNext = false;
 
-    public PostgresResultIterator(ResultSet resultSet) throws SQLException, IOException {
-      List<Document> resultSetDocments = new ArrayList<>();
-      // convert resultset to documents and store
-      // this is required as resultset will be closed as part of connection closure
-      while (resultSet.next()) {
-        resultSetDocments.add(prepareDocument(resultSet));
-      }
-      documents = Collections.unmodifiableList(resultSetDocments);
+    public PostgresResultIterator(
+        Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) {
+      this.connection = connection;
+      this.preparedStatement = preparedStatement;
+      this.resultSet = resultSet;
     }
 
     @Override
     public boolean hasNext() {
-      return currDocumentIndex < documents.size();
+      try {
+        if (!cursorMovedForward) {
+          hasNext = resultSet.next();
+          cursorMovedForward = true;
+        }
+        return hasNext;
+      } catch (SQLException e) {
+        LOGGER.error("SQLException iterating documents.", e);
+      }
+      return false;
     }
 
     @Override
     public Document next() {
-      currDocumentIndex++;
-      if (currDocumentIndex > documents.size()) {
-        throw new NoSuchElementException();
+      try {
+        if (!cursorMovedForward) {
+          resultSet.next();
+        }
+        // reset the cursorMovedForward state, if it was forwarded in hasNext.
+        cursorMovedForward = false;
+        return prepareDocument();
+      } catch (IOException | SQLException e) {
+        return JSONDocument.errorDocument(e.getMessage());
       }
-      // need to pick document at index - currDocumentIndex - 1
-      // as list index starts from 0 while currDocumentIndex will start from 1
-      return documents.get(currDocumentIndex - 1);
     }
 
-    protected Document prepareDocument(ResultSet resultSet) throws SQLException, IOException {
+    protected Document prepareDocument() throws SQLException, IOException {
       String documentString = resultSet.getString(DOCUMENT);
       ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
       jsonNode.remove(DOCUMENT_ID);
@@ -1067,27 +1082,30 @@ public class PostgresCollection implements Collection {
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
     }
 
+    @SneakyThrows
     @Override
     public void close() {
-      // nothing to do here
+      resultSet.close();
+      preparedStatement.close();
+      connection.close();
     }
   }
 
   static class PostgresResultIteratorWithMetaData extends PostgresResultIterator {
 
-    public PostgresResultIteratorWithMetaData(ResultSet resultSet)
-        throws SQLException, IOException {
-      super(resultSet);
+    public PostgresResultIteratorWithMetaData(
+        Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) {
+      super(connection, preparedStatement, resultSet);
     }
 
     @Override
-    protected Document prepareDocument(ResultSet resultSet) throws SQLException, IOException {
+    protected Document prepareDocument() throws SQLException, IOException {
       ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
       int columnCount = resultSetMetaData.getColumnCount();
       Map<String, Object> jsonNode = new HashMap();
       for (int i = 1; i <= columnCount; i++) {
         String columnName = resultSetMetaData.getColumnName(i);
-        String columnValue = getColumnValue(resultSet, columnName, i);
+        String columnValue = getColumnValue(resultSetMetaData, columnName, i);
         if (StringUtils.isNotEmpty(columnValue)) {
           JsonNode leafNodeValue = MAPPER.readTree(columnValue);
           if (PostgresUtils.isEncodedNestedField(columnName)) {
@@ -1101,9 +1119,9 @@ public class PostgresCollection implements Collection {
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
     }
 
-    private String getColumnValue(ResultSet resultSet, String columnName, int columnIndex)
+    private String getColumnValue(
+        ResultSetMetaData resultSetMetaData, String columnName, int columnIndex)
         throws SQLException, JsonProcessingException {
-      ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
       int columnType = resultSetMetaData.getColumnType(columnIndex);
       // check for array
       if (columnType == Types.ARRAY) {
