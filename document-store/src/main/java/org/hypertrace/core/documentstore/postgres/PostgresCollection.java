@@ -588,27 +588,27 @@ public class PostgresCollection implements Collection {
   public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
     String query = null;
-    String collect =
-        documents.keySet().stream()
-            .map(val -> "'" + val.toString() + "'")
-            .collect(Collectors.joining(", "));
+    try {
+      String collect =
+          documents.keySet().stream()
+              .map(val -> "'" + val.toString() + "'")
+              .collect(Collectors.joining(", "));
 
-    String space = " ";
-    query =
-        new StringBuilder("SELECT * FROM")
-            .append(space)
-            .append(collectionName)
-            .append(" WHERE ")
-            .append(ID)
-            .append(" IN ")
-            .append("(")
-            .append(collect)
-            .append(")")
-            .toString();
-
-    try (Connection connection = client.getConnection();
-        PreparedStatement preparedStatement = connection.prepareStatement(query);
-        ResultSet resultSet = preparedStatement.executeQuery()) {
+      String space = " ";
+      query =
+          new StringBuilder("SELECT * FROM")
+              .append(space)
+              .append(collectionName)
+              .append(" WHERE ")
+              .append(ID)
+              .append(" IN ")
+              .append("(")
+              .append(collect)
+              .append(")")
+              .toString();
+      Connection connection = client.getConnection();
+      PreparedStatement preparedStatement = connection.prepareStatement(query);
+      ResultSet resultSet = preparedStatement.executeQuery();
 
       // Now go ahead and bulk upsert the documents.
       int[] updateCounts = bulkUpsertImpl(documents);
