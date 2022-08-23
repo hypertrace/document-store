@@ -151,6 +151,7 @@ public class PostgresUtils {
     return parseNonCompositeFilter(fieldName, fullFieldName, columnName, op, value, paramsBuilder);
   }
 
+  @SuppressWarnings("unchecked")
   public static String parseNonCompositeFilter(
       String fieldName,
       String fullFieldName,
@@ -160,7 +161,7 @@ public class PostgresUtils {
       Builder paramsBuilder) {
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
-    Boolean isMultiValued = false;
+    boolean isMultiValued = false;
     switch (op) {
       case "EQ":
         sqlOperator = " = ";
@@ -192,7 +193,7 @@ public class PostgresUtils {
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520Other
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
         StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName, columnName);
-        if (notInFilterString != null && !OUTER_COLUMNS.contains(fieldName)) {
+        if (!OUTER_COLUMNS.contains(fieldName)) {
           filterString = notInFilterString.append(" IS NULL OR ").append(fullFieldName);
         }
         sqlOperator = " NOT IN ";
@@ -211,7 +212,7 @@ public class PostgresUtils {
         value = null;
         // For fields inside jsonb
         StringBuilder notExists = prepareFieldAccessorExpr(fieldName, columnName);
-        if (notExists != null && !OUTER_COLUMNS.contains(fieldName)) {
+        if (!OUTER_COLUMNS.contains(fieldName)) {
           filterString = notExists;
         }
         break;
@@ -220,7 +221,7 @@ public class PostgresUtils {
         value = null;
         // For fields inside jsonb
         StringBuilder exists = prepareFieldAccessorExpr(fieldName, columnName);
-        if (exists != null && !OUTER_COLUMNS.contains(fieldName)) {
+        if (!OUTER_COLUMNS.contains(fieldName)) {
           filterString = exists;
         }
         break;
@@ -235,7 +236,7 @@ public class PostgresUtils {
         // "document->key IS NULL OR document->key->> != value"
         StringBuilder notEquals = prepareFieldAccessorExpr(fieldName, columnName);
         // For fields inside jsonb
-        if (notEquals != null && !OUTER_COLUMNS.contains(fieldName)) {
+        if (!OUTER_COLUMNS.contains(fieldName)) {
           filterString = notEquals.append(" IS NULL OR ").append(fullFieldName);
         }
         break;
@@ -254,8 +255,7 @@ public class PostgresUtils {
         paramsBuilder.addObjectParam(value);
       }
     }
-    String filters = filterString.toString();
-    return filters;
+    return filterString.toString();
   }
 
   /**
