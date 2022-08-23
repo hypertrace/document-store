@@ -30,7 +30,7 @@ public class PostgresDatastore implements Datastore {
   private static final String DEFAULT_PASSWORD = "postgres";
   private static final String DEFAULT_DB_NAME = "postgres";
   private static final int DEFAULT_MAX_CONNECTIONS = 16;
-  private static final int DEFAULT_MAX_WAIT_MILLIS = 10000;
+  private static final Duration DEFAULT_MAX_WAIT_TIME = Duration.ofSeconds(10);
   private static final Duration DEFAULT_REMOVE_ABANDONED_TIMEOUT = Duration.ofSeconds(60);
 
   private PostgresClient client;
@@ -58,10 +58,8 @@ public class PostgresDatastore implements Datastore {
           config.hasPath("maxConnections")
               ? config.getInt("maxConnections")
               : DEFAULT_MAX_CONNECTIONS;
-      int maxWaitMillis =
-          config.hasPath("maxWaitMillis")
-              ? config.getInt("maxWaitMillis")
-              : DEFAULT_MAX_WAIT_MILLIS;
+      Duration maxWaitTime =
+          config.hasPath("maxWaitTime") ? config.getDuration("maxWaitTime") : DEFAULT_MAX_WAIT_TIME;
       Duration removeAbandonedTimeout =
           config.hasPath("removeAbandonedTimeout")
               ? config.getDuration("removeAbandonedTimeout")
@@ -70,7 +68,7 @@ public class PostgresDatastore implements Datastore {
       String finalUrl = url + this.database;
       client =
           new PostgresClient(
-              finalUrl, user, password, maxConnections, maxWaitMillis, removeAbandonedTimeout);
+              finalUrl, user, password, maxConnections, maxWaitTime, removeAbandonedTimeout);
 
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(

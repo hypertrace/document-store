@@ -21,11 +21,11 @@ class PostgresClient {
       String user,
       String password,
       int maxConnections,
-      int maxWaitMillis,
+      Duration maxWaitTime,
       Duration removeAbandonedTimeout) {
     this.dataSource =
         createPooledDataSource(
-            url, user, password, maxConnections, maxWaitMillis, removeAbandonedTimeout);
+            url, user, password, maxConnections, maxWaitTime, removeAbandonedTimeout);
   }
 
   private DataSource createPooledDataSource(
@@ -33,7 +33,7 @@ class PostgresClient {
       String user,
       String password,
       int maxConnections,
-      int maxWaitMillis,
+      Duration maxWaitTime,
       Duration removeAbandonedTimeout) {
     ConnectionFactory connectionFactory = new DriverManagerConnectionFactory(url, user, password);
     PoolableConnectionFactory poolableConnectionFactory =
@@ -46,7 +46,7 @@ class PostgresClient {
     // min idle connections are 10% of max connections
     connectionPool.setMinIdle(getPercentOf(maxConnections, 10));
     connectionPool.setBlockWhenExhausted(true);
-    connectionPool.setMaxWaitMillis(maxWaitMillis);
+    connectionPool.setMaxWaitMillis(maxWaitTime.toMillis());
 
     // set the abandoned config for connection pool
     AbandonedConfig abandonedConfig = new AbandonedConfig();
