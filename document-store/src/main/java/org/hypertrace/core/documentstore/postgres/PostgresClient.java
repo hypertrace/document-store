@@ -2,24 +2,39 @@ package org.hypertrace.core.documentstore.postgres;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.Duration;
 import javax.sql.DataSource;
 import org.apache.commons.dbcp2.ConnectionFactory;
 import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
 import org.apache.commons.dbcp2.PoolableConnection;
 import org.apache.commons.dbcp2.PoolableConnectionFactory;
 import org.apache.commons.dbcp2.PoolingDataSource;
+import org.apache.commons.pool2.impl.AbandonedConfig;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 
-public class PostgresClient {
+class PostgresClient {
 
   private final DataSource dataSource;
 
-  PostgresClient(String url, String user, String password, int maxConnections) {
-    this.dataSource = createPooledDataSource(url, user, password, maxConnections);
+  PostgresClient(
+      String url,
+      String user,
+      String password,
+      int maxConnections,
+      int maxWaitMillis,
+      Duration removeAbandonedTimeout) {
+    this.dataSource =
+        createPooledDataSource(
+            url, user, password, maxConnections, maxWaitMillis, removeAbandonedTimeout);
   }
 
   private DataSource createPooledDataSource(
-      String url, String user, String password, int maxConnections) {
+      String url,
+      String user,
+      String password,
+      int maxConnections,
+      int maxWaitMillis,
+      Duration removeAbandonedTimeout) {
     ConnectionFactory connectionFactory = new DriverManagerConnectionFactory(url, user, password);
     PoolableConnectionFactory poolableConnectionFactory =
         new PoolableConnectionFactory(connectionFactory, null);
@@ -31,7 +46,16 @@ public class PostgresClient {
     // min idle connections are 10% of max connections
     connectionPool.setMinIdle(getPercentOf(maxConnections, 10));
     connectionPool.setBlockWhenExhausted(true);
-    connectionPool.setMaxWaitMillis(5000);
+    connectionPool.setMaxWaitMillis(maxWaitMillis);
+
+    // set the abandoned config for connection pool
+    AbandonedConfig abandonedConfig = new AbandonedConfig();
+    abandonedConfig.setLogAbandoned(true);
+    abandonedConfig.setRemoveAbandonedOnBorrow(true);
+    abandonedConfig.setRequireFullStackTrace(true);
+    abandonedConfig.setRemoveAbandonedTimeout(removeAbandonedTimeout);
+    connectionPool.setAbandonedConfig(abandonedConfig);
+
     poolableConnectionFactory.setPool(connectionPool);
     poolableConnectionFactory.setValidationQuery("SELECT 1");
     poolableConnectionFactory.setValidationQueryTimeout(5);

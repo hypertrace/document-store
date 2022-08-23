@@ -12,6 +12,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -28,7 +29,9 @@ public class PostgresDatastore implements Datastore {
   private static final String DEFAULT_USER = "postgres";
   private static final String DEFAULT_PASSWORD = "postgres";
   private static final String DEFAULT_DB_NAME = "postgres";
-  private static final int DEFAULT_MAX_CONNECTIONS = 5;
+  private static final int DEFAULT_MAX_CONNECTIONS = 16;
+  private static final int DEFAULT_MAX_WAIT_MILLIS = 10000;
+  private static final Duration DEFAULT_REMOVE_ABANDONED_TIMEOUT = Duration.ofSeconds(60);
 
   private PostgresClient client;
   private String database;
@@ -55,9 +58,19 @@ public class PostgresDatastore implements Datastore {
           config.hasPath("maxConnections")
               ? config.getInt("maxConnections")
               : DEFAULT_MAX_CONNECTIONS;
+      int maxWaitMillis =
+          config.hasPath("maxWaitMillis")
+              ? config.getInt("maxWaitMillis")
+              : DEFAULT_MAX_WAIT_MILLIS;
+      Duration removeAbandonedTimeout =
+          config.hasPath("removeAbandonedTimeout")
+              ? config.getDuration("removeAbandonedTimeout")
+              : DEFAULT_REMOVE_ABANDONED_TIMEOUT;
 
       String finalUrl = url + this.database;
-      client = new PostgresClient(finalUrl, user, password, maxConnections);
+      client =
+          new PostgresClient(
+              finalUrl, user, password, maxConnections, maxWaitMillis, removeAbandonedTimeout);
 
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
