@@ -12,6 +12,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -28,8 +29,11 @@ public class PostgresDatastore implements Datastore {
   private static final String DEFAULT_USER = "postgres";
   private static final String DEFAULT_PASSWORD = "postgres";
   private static final String DEFAULT_DB_NAME = "postgres";
+  private static final int DEFAULT_MAX_CONNECTIONS = 16;
+  private static final Duration DEFAULT_MAX_WAIT_TIME = Duration.ofSeconds(10);
+  private static final Duration DEFAULT_REMOVE_ABANDONED_TIMEOUT = Duration.ofSeconds(60);
 
-  private Connection client;
+  private PostgresClient client;
   private String database;
 
   @Override
@@ -47,13 +51,24 @@ public class PostgresDatastore implements Datastore {
         url = String.format("jdbc:postgresql://%s:%s/", hostName, port);
       }
 
-      String DEFAULT_USER = "postgres";
       String user = config.hasPath("user") ? config.getString("user") : DEFAULT_USER;
       String password =
           config.hasPath("password") ? config.getString("password") : DEFAULT_PASSWORD;
+      int maxConnections =
+          config.hasPath("maxConnections")
+              ? config.getInt("maxConnections")
+              : DEFAULT_MAX_CONNECTIONS;
+      Duration maxWaitTime =
+          config.hasPath("maxWaitTime") ? config.getDuration("maxWaitTime") : DEFAULT_MAX_WAIT_TIME;
+      Duration removeAbandonedTimeout =
+          config.hasPath("removeAbandonedTimeout")
+              ? config.getDuration("removeAbandonedTimeout")
+              : DEFAULT_REMOVE_ABANDONED_TIMEOUT;
 
       String finalUrl = url + this.database;
-      client = DriverManager.getConnection(finalUrl, user, password);
+      client =
+          new PostgresClient(
+              finalUrl, user, password, maxConnections, maxWaitTime, removeAbandonedTimeout);
 
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
@@ -68,8 +83,8 @@ public class PostgresDatastore implements Datastore {
   @Override
   public Set<String> listCollections() {
     Set<String> collections = new HashSet<>();
-    try {
-      DatabaseMetaData metaData = client.getMetaData();
+    try (Connection connection = client.getConnection()) {
+      DatabaseMetaData metaData = connection.getMetaData();
       ResultSet tables = metaData.getTables(null, null, "%", new String[] {"TABLE"});
       while (tables.next()) {
         collections.add(database + "." + tables.getString("TABLE_NAME"));
@@ -91,7 +106,8 @@ public class PostgresDatastore implements Datastore {
                 + "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()"
                 + ");",
             collectionName, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
-    try (PreparedStatement preparedStatement = client.prepareStatement(createTableSQL)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(createTableSQL)) {
       preparedStatement.executeUpdate();
     } catch (SQLException e) {
       LOGGER.error("Exception creating table name: {}", collectionName);
@@ -103,7 +119,8 @@ public class PostgresDatastore implements Datastore {
   @Override
   public boolean deleteCollection(String collectionName) {
     String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
-    try (PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(dropTableSQL)) {
       int result = preparedStatement.executeUpdate();
       return result >= 0;
     } catch (SQLException e) {
@@ -124,7 +141,8 @@ public class PostgresDatastore implements Datastore {
   @Override
   public boolean healthCheck() {
     String healtchCheckSQL = "SELECT 1;";
-    try (PreparedStatement preparedStatement = client.prepareStatement(healtchCheckSQL)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(healtchCheckSQL)) {
       return preparedStatement.execute();
     } catch (SQLException e) {
       LOGGER.error("Exception executing health check");
@@ -132,7 +150,7 @@ public class PostgresDatastore implements Datastore {
     return false;
   }
 
-  public Connection getPostgresClient() {
+  public PostgresClient getPostgresClient() {
     return client;
   }
 }

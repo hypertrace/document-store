@@ -28,7 +28,6 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -63,18 +62,19 @@ public class PostgresCollection implements Collection {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final CloseableIterator<Document> EMPTY_ITERATOR = createEmptyIterator();
 
-  private final Connection client;
+  private final PostgresClient client;
   private final String collectionName;
 
-  public PostgresCollection(Connection client, String collectionName) {
+  public PostgresCollection(PostgresClient client, String collectionName) {
     this.client = client;
     this.collectionName = collectionName;
   }
 
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
-    try (PreparedStatement preparedStatement =
-        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            connection.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       String jsonString = prepareDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
@@ -110,8 +110,10 @@ public class PostgresCollection implements Collection {
       }
     }
 
-    try (PreparedStatement preparedStatement =
-        buildPreparedStatement(upsertQueryBuilder.toString(), paramsBuilder.build())) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            buildPreparedStatement(
+                connection, upsertQueryBuilder.toString(), paramsBuilder.build())) {
       int result = preparedStatement.executeUpdate();
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: {}", result);
@@ -126,8 +128,9 @@ public class PostgresCollection implements Collection {
   /** create a new document if one doesn't exists with key */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
-    try (PreparedStatement preparedStatement =
-        client.prepareStatement(getInsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            connection.prepareStatement(getInsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       String jsonString = prepareDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
@@ -225,8 +228,9 @@ public class PostgresCollection implements Collection {
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
     String jsonString = subDocument.toJson();
 
-    try (PreparedStatement preparedStatement =
-        client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            connection.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, key.toString());
@@ -271,8 +275,8 @@ public class PostgresCollection implements Collection {
         String.format(
             "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s = ?",
             collectionName, DOCUMENT, DOCUMENT, ID);
-    try {
-      PreparedStatement preparedStatement = client.prepareStatement(updateSubDocSQL);
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(updateSubDocSQL)) {
       for (Key key : documents.keySet()) {
         orderList.add(key);
         Map<String, Document> subDocuments = documents.get(key);
@@ -310,16 +314,18 @@ public class PostgresCollection implements Collection {
       subDocs.add(getDocAsJSON(subDoc));
     }
     Map<String, String> idToTenantIdMap = getDocIdToTenantIdMap(request);
-    CloseableIterator<Document> docs = searchDocsForKeys(request.getKeys());
-    switch (request.getOperation()) {
-      case ADD:
-        return bulkAddOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
-      case SET:
-        return bulkSetOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
-      case REMOVE:
-        return bulkRemoveOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
-      default:
-        throw new UnsupportedOperationException("Unsupported operation: " + request.getOperation());
+    try (CloseableIterator<Document> docs = searchDocsForKeys(request.getKeys())) {
+      switch (request.getOperation()) {
+        case ADD:
+          return bulkAddOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
+        case SET:
+          return bulkSetOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
+        case REMOVE:
+          return bulkRemoveOnArrayValue(request.getSubDocPath(), idToTenantIdMap, subDocs, docs);
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported operation: " + request.getOperation());
+      }
     }
   }
 
@@ -357,19 +363,22 @@ public class PostgresCollection implements Collection {
     }
 
     String pgSqlQuery = sqlBuilder.toString();
+    Connection connection = null;
+    PreparedStatement preparedStatement = null;
+    ResultSet resultSet = null;
     try {
-      PreparedStatement preparedStatement =
-          buildPreparedStatement(pgSqlQuery, paramsBuilder.build());
-      LOGGER.debug("Executing search query to PostgresSQL:{}", preparedStatement.toString());
-      ResultSet resultSet = preparedStatement.executeQuery();
+      connection = client.getConnection();
+      preparedStatement = buildPreparedStatement(connection, pgSqlQuery, paramsBuilder.build());
+      resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
-              ? new PostgresResultIteratorWithMetaData(resultSet)
-              : new PostgresResultIterator(resultSet);
+              ? new PostgresResultIteratorWithMetaData(connection, preparedStatement, resultSet)
+              : new PostgresResultIterator(connection, preparedStatement, resultSet);
       return closeableIterator;
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException in querying documents - query: {}, sqlQuery:{}", query, pgSqlQuery, e);
+      closeAll(connection, preparedStatement, resultSet);
     }
 
     return EMPTY_ITERATOR;
@@ -394,15 +403,15 @@ public class PostgresCollection implements Collection {
             collectionName, query);
     String subQuery = queryParser.parse();
     String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(count)", subQuery);
-    try {
-      PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
-      ResultSet resultSet = preparedStatement.executeQuery();
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            buildPreparedStatement(connection, sqlQuery, queryParser.getParamsBuilder().build());
+        ResultSet resultSet = preparedStatement.executeQuery()) {
       resultSet.next();
       return resultSet.getLong(1);
     } catch (SQLException e) {
       LOGGER.error(
-          "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
+          "SQLException querying documents. original query: {}, sql query: {}", query, sqlQuery, e);
       throw new RuntimeException(e);
     }
   }
@@ -410,7 +419,8 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean delete(Key key) {
     String deleteSQL = String.format("DELETE FROM %s WHERE %s = ?", collectionName, ID);
-    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(deleteSQL)) {
       preparedStatement.setString(1, key.toString());
       preparedStatement.executeUpdate();
       return true;
@@ -433,9 +443,9 @@ public class PostgresCollection implements Collection {
       throw new UnsupportedOperationException("Parsed filter is invalid");
     }
     sqlBuilder.append(" WHERE ").append(filters);
-    try {
-      PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            buildPreparedStatement(connection, sqlBuilder.toString(), paramsBuilder.build())) {
       int deletedCount = preparedStatement.executeUpdate();
       return deletedCount > 0;
     } catch (SQLException e) {
@@ -460,7 +470,8 @@ public class PostgresCollection implements Collection {
             .append(ids)
             .append(")")
             .toString();
-    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(deleteSQL)) {
       int deletedCount = preparedStatement.executeUpdate();
       return new BulkDeleteResult(deletedCount);
     } catch (SQLException e) {
@@ -476,8 +487,9 @@ public class PostgresCollection implements Collection {
             "UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?", collectionName, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
 
-    try (PreparedStatement preparedStatement =
-        client.prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            connection.prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, key.toString());
       int resultSet = preparedStatement.executeUpdate();
@@ -497,7 +509,8 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean deleteAll() {
     String deleteSQL = String.format("DELETE FROM %s", collectionName);
-    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(deleteSQL)) {
       preparedStatement.executeUpdate();
       return true;
     } catch (SQLException e) {
@@ -510,8 +523,9 @@ public class PostgresCollection implements Collection {
   public long count() {
     String countSQL = String.format("SELECT COUNT(*) FROM %s", collectionName);
     long count = -1;
-    try (PreparedStatement preparedStatement = client.prepareStatement(countSQL)) {
-      ResultSet resultSet = preparedStatement.executeQuery();
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(countSQL);
+        ResultSet resultSet = preparedStatement.executeQuery()) {
       while (resultSet.next()) {
         count = resultSet.getLong(1);
       }
@@ -536,9 +550,10 @@ public class PostgresCollection implements Collection {
       }
     }
 
-    try (PreparedStatement preparedStatement =
-        buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build())) {
-      ResultSet resultSet = preparedStatement.executeQuery();
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            buildPreparedStatement(connection, totalSQLBuilder.toString(), paramsBuilder.build());
+        ResultSet resultSet = preparedStatement.executeQuery()) {
       while (resultSet.next()) {
         count = resultSet.getLong(1);
       }
@@ -577,6 +592,9 @@ public class PostgresCollection implements Collection {
   public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
     String query = null;
+    Connection connection = null;
+    PreparedStatement preparedStatement = null;
+    ResultSet resultSet = null;
     try {
       String collect =
           documents.keySet().stream()
@@ -595,9 +613,9 @@ public class PostgresCollection implements Collection {
               .append(collect)
               .append(")")
               .toString();
-
-      PreparedStatement preparedStatement = client.prepareStatement(query);
-      ResultSet resultSet = preparedStatement.executeQuery();
+      connection = client.getConnection();
+      preparedStatement = connection.prepareStatement(query);
+      resultSet = preparedStatement.executeQuery();
 
       // Now go ahead and bulk upsert the documents.
       int[] updateCounts = bulkUpsertImpl(documents);
@@ -605,20 +623,22 @@ public class PostgresCollection implements Collection {
         LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
       }
 
-      return new PostgresResultIterator(resultSet);
+      return new PostgresResultIterator(connection, preparedStatement, resultSet);
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
+      closeAll(connection, preparedStatement, resultSet);
     } catch (SQLException e) {
       LOGGER.error("SQLException querying documents. query: {}", query, e);
+      closeAll(connection, preparedStatement, resultSet);
     }
 
     throw new IOException("Could not bulk upsert the documents.");
   }
 
   @VisibleForTesting
-  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
-      throws SQLException, RuntimeException {
-    PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
+  protected PreparedStatement buildPreparedStatement(
+      Connection connection, String sqlQuery, Params params) throws SQLException, RuntimeException {
+    PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery);
     enrichPreparedStatementWithParams(preparedStatement, params);
     return preparedStatement;
   }
@@ -645,7 +665,8 @@ public class PostgresCollection implements Collection {
   @Override
   public void drop() {
     String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
-    try (PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement = connection.prepareStatement(dropTableSQL)) {
       preparedStatement.executeUpdate();
     } catch (SQLException e) {
       LOGGER.error("Exception deleting table name: {}", collectionName);
@@ -736,11 +757,12 @@ public class PostgresCollection implements Collection {
   }
 
   private Optional<Long> getCreatedTime(Key key) throws IOException {
-    CloseableIterator<Document> iterator = searchDocsForKeys(Set.of(key));
-    if (iterator.hasNext()) {
-      JsonNode existingDocument = getDocAsJSON(iterator.next());
-      if (existingDocument.has(DocStoreConstants.CREATED_TIME)) {
-        return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+    try (CloseableIterator<Document> iterator = searchDocsForKeys(Set.of(key))) {
+      if (iterator.hasNext()) {
+        JsonNode existingDocument = getDocAsJSON(iterator.next());
+        if (existingDocument.has(DocStoreConstants.CREATED_TIME)) {
+          return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
+        }
       }
     }
     return Optional.empty();
@@ -783,19 +805,25 @@ public class PostgresCollection implements Collection {
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
             collectionName, query);
     String sqlQuery = queryParser.parse();
+
+    Connection connection = null;
+    PreparedStatement preparedStatement = null;
+    ResultSet resultSet = null;
     try {
-      PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
+      connection = client.getConnection();
+      preparedStatement =
+          buildPreparedStatement(connection, sqlQuery, queryParser.getParamsBuilder().build());
       LOGGER.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
-      ResultSet resultSet = preparedStatement.executeQuery();
+      resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
-              ? new PostgresResultIteratorWithMetaData(resultSet)
-              : new PostgresResultIterator(resultSet);
+              ? new PostgresResultIteratorWithMetaData(connection, preparedStatement, resultSet)
+              : new PostgresResultIterator(connection, preparedStatement, resultSet);
       return closeableIterator;
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
+      closeAll(connection, preparedStatement, resultSet);
       throw new RuntimeException(e);
     }
   }
@@ -822,8 +850,9 @@ public class PostgresCollection implements Collection {
   }
 
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
-    try (PreparedStatement preparedStatement =
-        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            connection.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
 
         Key key = entry.getKey();
@@ -900,9 +929,8 @@ public class PostgresCollection implements Collection {
       throws IOException {
     // We can batch all requests here since the query is the same.
     long totalRowsUpdated = 0;
-    try {
-
-      PreparedStatement ps = client.prepareStatement(getUpdateSQL());
+    try (Connection connection = client.getConnection();
+        PreparedStatement ps = connection.prepareStatement(getUpdateSQL())) {
 
       for (BulkUpdateRequest req : requestsWithoutFilter) {
         Key key = req.getKey();
@@ -972,9 +1000,9 @@ public class PostgresCollection implements Collection {
             "UPDATE %s SET %s=jsonb_set(%s, '{lastUpdatedTime}'::text[], ?::jsonb) WHERE %s=?",
             collectionName, DOCUMENT, DOCUMENT, ID);
     long now = System.currentTimeMillis();
-    try {
-      PreparedStatement preparedStatement =
-          client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS);
+    try (Connection connection = client.getConnection();
+        PreparedStatement preparedStatement =
+            connection.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       for (Key key : keys) {
         preparedStatement.setString(1, String.valueOf(now));
         preparedStatement.setString(2, key.toString());
@@ -1012,14 +1040,44 @@ public class PostgresCollection implements Collection {
         collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
+  private static void closeAll(
+      Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) {
+    if (resultSet != null) {
+      try {
+        resultSet.close();
+      } catch (SQLException ex) {
+        LOGGER.warn("Error closing result set", ex);
+      }
+    }
+    if (preparedStatement != null) {
+      try {
+        preparedStatement.close();
+      } catch (SQLException ex) {
+        LOGGER.warn("Error closing prepared statement", ex);
+      }
+    }
+    if (connection != null) {
+      try {
+        connection.close();
+      } catch (SQLException ex) {
+        LOGGER.warn("Error closing connection", ex);
+      }
+    }
+  }
+
   static class PostgresResultIterator implements CloseableIterator {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
+    private final Connection connection;
+    private final PreparedStatement preparedStatement;
     protected ResultSet resultSet;
     protected boolean cursorMovedForward = false;
     protected boolean hasNext = false;
 
-    public PostgresResultIterator(ResultSet resultSet) {
+    public PostgresResultIterator(
+        Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) {
+      this.connection = connection;
+      this.preparedStatement = preparedStatement;
       this.resultSet = resultSet;
     }
 
@@ -1064,17 +1122,17 @@ public class PostgresCollection implements Collection {
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
     }
 
-    @SneakyThrows
     @Override
     public void close() {
-      resultSet.close();
+      closeAll(connection, preparedStatement, resultSet);
     }
   }
 
   static class PostgresResultIteratorWithMetaData extends PostgresResultIterator {
 
-    public PostgresResultIteratorWithMetaData(ResultSet resultSet) {
-      super(resultSet);
+    public PostgresResultIteratorWithMetaData(
+        Connection connection, PreparedStatement preparedStatement, ResultSet resultSet) {
+      super(connection, preparedStatement, resultSet);
     }
 
     @Override
