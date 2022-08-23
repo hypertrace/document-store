@@ -152,7 +152,6 @@ public class DocStoreTest {
     Query query = new Query();
     query.setFilter(Filter.eq("_id", "default:testKey"));
     List<Document> documents = getDocuments(collection, query);
-    CloseableIterator<Document> results;
     Assertions.assertFalse(documents.isEmpty());
     String persistedDocument = documents.get(0).toJson();
     verifyTimeRelatedFieldsPresent(persistedDocument, dataStoreName);
@@ -162,10 +161,11 @@ public class DocStoreTest {
     // Upsert again and verify that created time does not change, while updated time
     // has changed
     collection.upsert(new SingleValueKey("default", "testKey"), document);
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
+    try (CloseableIterator<Document> results = collection.search(query)) {
+      documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
     }
 
     Assertions.assertFalse(documents.isEmpty());
@@ -307,30 +307,31 @@ public class DocStoreTest {
     Filter filter = new Filter(Op.GT, "size", -30);
     queryNumericField.setFilter(filter);
     List<Document> documents = getDocuments(collection, queryNumericField);
-    CloseableIterator<Document> results;
     Assertions.assertEquals(4, documents.size());
 
     // query field having boolean field
     Query queryBooleanField = new Query();
     filter = new Filter(Op.GT, "isCostly", false);
     queryBooleanField.setFilter(filter);
-    results = collection.search(queryBooleanField);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
+    try (CloseableIterator<Document> results = collection.search(queryBooleanField)) {
+      documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(2, documents.size());
     }
-    Assertions.assertEquals(2, documents.size());
 
     // query string field
     Query queryStringField = new Query();
     filter = new Filter(Op.GT, "name", "abc1");
     queryStringField.setFilter(filter);
-    results = collection.search(queryBooleanField);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
+    try (CloseableIterator<Document> results = collection.search(queryBooleanField)) {
+      documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
+      Assertions.assertEquals(2, documents.size());
     }
-    Assertions.assertEquals(2, documents.size());
 
     datastore.deleteCollection(COLLECTION_NAME);
   }
@@ -511,7 +512,6 @@ public class DocStoreTest {
     Query query = new Query();
     query.setFilter(new Filter(Filter.Op.NOT_IN, "name", names));
     List<Document> documents = getDocuments(collection, query);
-    CloseableIterator<Document> results;
     Assertions.assertEquals(3, documents.size());
     documents.forEach(
         document -> {
@@ -535,10 +535,11 @@ public class DocStoreTest {
     f.setOp(Op.OR);
     f.setChildFilters(filters);
     query.setFilter(f);
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
+    try (CloseableIterator<Document> results = collection.search(query)) {
+      documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
     }
     Assertions.assertEquals(4, documents.size());
     documents.forEach(
@@ -558,10 +559,11 @@ public class DocStoreTest {
 
     query = new Query();
     query.setFilter(new Filter(Filter.Op.NOT_IN, "size", sizes));
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
+    try (CloseableIterator<Document> results = collection.search(query)) {
+      documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
     }
     Assertions.assertEquals(2, documents.size());
     documents.forEach(
@@ -584,10 +586,11 @@ public class DocStoreTest {
     f.setOp(Op.OR);
     f.setChildFilters(filters);
     query.setFilter(f);
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
+    try (CloseableIterator<Document> results = collection.search(query)) {
+      documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
     }
     Assertions.assertEquals(3, documents.size());
     documents.forEach(
@@ -606,10 +609,11 @@ public class DocStoreTest {
 
     query = new Query();
     query.setFilter(new Filter(Op.NOT_IN, "subdoc.nestedkey1", subDocs));
-    results = collection.search(query);
-    documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
+    try (CloseableIterator<Document> results = collection.search(query)) {
+      documents = new ArrayList<>();
+      while (results.hasNext()) {
+        documents.add(results.next());
+      }
     }
     assertEquals(3, documents.size());
     documents.forEach(
@@ -740,40 +744,41 @@ public class DocStoreTest {
 
     Query query = new Query();
     query.setFilter(new Filter(Op.EQ, "_id", key1.toString()));
-    CloseableIterator<Document> it = collection.search(query);
-    JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
-    String nestedTimestamp = root.findValue("subDocPath1").toString();
-    assertEquals("{\"nested1\":\"100\"}", nestedTimestamp);
+    try (CloseableIterator<Document> it = collection.search(query)) {
+      JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
+      String nestedTimestamp = root.findValue("subDocPath1").toString();
+      assertEquals("{\"nested1\":\"100\"}", nestedTimestamp);
+    }
 
     query = new Query();
     query.setFilter(new Filter(Op.EQ, "_id", key3.toString()));
-    it = collection.search(query);
-    root = OBJECT_MAPPER.readTree(it.next().toJson());
-    nestedTimestamp = root.findValue("foo3").toString();
-    assertEquals("{\"nested3\":\"100\"}", nestedTimestamp);
-    it.close();
+    try (CloseableIterator<Document> it = collection.search(query)) {
+      JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
+      String nestedTimestamp = root.findValue("foo3").toString();
+      assertEquals("{\"nested3\":\"100\"}", nestedTimestamp);
+    }
 
     query = new Query();
     query.setFilter(new Filter(Op.EQ, "_id", key4.toString()));
-    it = collection.search(query);
-    root = OBJECT_MAPPER.readTree(it.next().toJson());
-    String nestedValue = root.findValue("foo4").toString();
-    assertEquals("{\"nested4\":{\"someKey\":{}}}", nestedValue);
-    it.close();
+    try (CloseableIterator<Document> it = collection.search(query)) {
+      JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
+      String nestedValue = root.findValue("foo4").toString();
+      assertEquals("{\"nested4\":{\"someKey\":{}}}", nestedValue);
+    }
 
     query = new Query();
     query.setFilter(new Filter(Op.EQ, "_id", key5.toString()));
-    it = collection.search(query);
-    root = OBJECT_MAPPER.readTree(it.next().toJson());
-    nestedValue = root.findValue("foo5").toString();
-    assertEquals("{\"nested5\":[]}", nestedValue);
-    it.close();
+    try (CloseableIterator<Document> it = collection.search(query)) {
+      JsonNode root = OBJECT_MAPPER.readTree(it.next().toJson());
+      String nestedValue = root.findValue("foo5").toString();
+      assertEquals("{\"nested5\":[]}", nestedValue);
+    }
 
     query = new Query();
     query.setFilter(new Filter(Op.EQ, "_id", key2.toString()));
-    it = collection.search(query);
-    assertFalse(it.hasNext());
-    it.close();
+    try (CloseableIterator<Document> it = collection.search(query)) {
+      assertFalse(it.hasNext());
+    }
   }
 
   @ParameterizedTest
@@ -2221,15 +2226,16 @@ public class DocStoreTest {
     {
       Query query = new Query();
       query.setFilter(new Filter(Filter.Op.EQ, "_id", key1.toString()));
-      CloseableIterator<Document> results = collection.search(query);
-      List<Document> documents = new ArrayList<>();
-      while (true) {
-        documents.add(results.next());
-        if (!results.hasNext()) {
-          break;
+      try (CloseableIterator<Document> results = collection.search(query)) {
+        List<Document> documents = new ArrayList<>();
+        while (true) {
+          documents.add(results.next());
+          if (!results.hasNext()) {
+            break;
+          }
         }
+        Assertions.assertEquals(1, documents.size());
       }
-      Assertions.assertEquals(1, documents.size());
     }
   }
 
@@ -2261,9 +2267,9 @@ public class DocStoreTest {
     Query query = new Query();
     query.setFilter(
         new Filter(Op.EQ, "_id", new SingleValueKey("tenant-1", "testKey1").toString()));
-    CloseableIterator<Document> it = collection.search(query);
-    assertFalse(it.hasNext());
-    it.close();
+    try (CloseableIterator<Document> it = collection.search(query)) {
+      assertFalse(it.hasNext());
+    }
   }
 
   @ParameterizedTest
