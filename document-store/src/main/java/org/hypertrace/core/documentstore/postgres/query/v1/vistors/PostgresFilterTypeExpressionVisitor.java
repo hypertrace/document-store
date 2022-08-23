@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getType;
+
 import java.util.Optional;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -43,19 +45,23 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     SelectTypeExpression rhs = expression.getRhs();
 
     // Only an identifier LHS and a constant RHS is supported as of now.
-    PostgresSelectTypeExpressionVisitor lhsVisitor = new PostgresIdentifierExpressionVisitor();
     PostgresSelectTypeExpressionVisitor rhsVisitor = new PostgresConstantExpressionVisitor();
-
-    String fieldName = lhs.accept(lhsVisitor);
     Object value = rhs.accept(rhsVisitor);
+    PostgresIdentifierExpressionVisitor identifierVisitor =
+        new PostgresIdentifierExpressionVisitor();
+    PostgresSelectTypeExpressionVisitor lhsVisitor =
+        new PostgresDataAccessorIdentifierExpressionVisitor(postgresQueryParser, getType(value));
+
+    String lhsExpression = lhs.accept(lhsVisitor);
 
     FieldToPgColumn fieldToPgColumn =
-        postgresQueryParser.getToPgColumnTransformer().transform(fieldName);
+        postgresQueryParser.getToPgColumnTransformer().transform(lhsExpression);
 
     if (fieldToPgColumn.getTransformedField() == null)
       throw new UnsupportedOperationException("jsonb types in where clause is not yet supported");
 
     return PostgresUtils.parseNonCompositeFilter(
+        lhs.accept(identifierVisitor),
         fieldToPgColumn.getTransformedField(),
         fieldToPgColumn.getPgColumn(),
         operator.toString(),

@@ -145,9 +145,19 @@ public class PostgresUtils {
     return "(" + collect + ")";
   }
 
-  public static String parseNonCompositeFilter(
+  public static String parseNonCompositeFilterWithCasting(
       String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
     String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
+    return parseNonCompositeFilter(fieldName, fullFieldName, columnName, op, value, paramsBuilder);
+  }
+
+  public static String parseNonCompositeFilter(
+      String fieldName,
+      String fullFieldName,
+      String columnName,
+      String op,
+      Object value,
+      Builder paramsBuilder) {
     StringBuilder filterString = new StringBuilder(fullFieldName);
     String sqlOperator;
     Boolean isMultiValued = false;
