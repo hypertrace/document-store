@@ -11,10 +11,10 @@ import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
@@ -93,7 +93,7 @@ public class PostgresDocStoreTest {
     datastore.init(config);
 
     try {
-      DatabaseMetaData metaData = datastore.getPostgresClient().getConnection().getMetaData();
+      DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();
       Assertions.assertEquals(metaData.getURL(), connectionUrl + database);
       Assertions.assertEquals(metaData.getUserName(), user);
     } catch (SQLException e) {
@@ -178,21 +178,17 @@ public class PostgresDocStoreTest {
         new SingleValueKey("default", "testKey6"),
         Utils.createDocument("email", "bob@example.com"));
 
-    try (CloseableIterator<Document> iterator =
-        collection.bulkUpsertAndReturnOlderDocuments(bulkMap)) {
-      // Initially there shouldn't be any documents.
-      Assertions.assertFalse(iterator.hasNext());
-    }
+    Iterator<Document> iterator = collection.bulkUpsertAndReturnOlderDocuments(bulkMap);
+    // Initially there shouldn't be any documents.
+    Assertions.assertFalse(iterator.hasNext());
 
     // The operation should be idempotent, so go ahead and try again.
-    try (CloseableIterator<Document> iterator =
-        collection.bulkUpsertAndReturnOlderDocuments(bulkMap)) {
-      List<Document> documents = new ArrayList<>();
-      while (iterator.hasNext()) {
-        documents.add(iterator.next());
-      }
-      Assertions.assertEquals(6, documents.size());
+    iterator = collection.bulkUpsertAndReturnOlderDocuments(bulkMap);
+    List<Document> documents = new ArrayList<>();
+    while (iterator.hasNext()) {
+      documents.add(iterator.next());
     }
+    Assertions.assertEquals(6, documents.size());
 
     {
       // empty query returns all the documents
