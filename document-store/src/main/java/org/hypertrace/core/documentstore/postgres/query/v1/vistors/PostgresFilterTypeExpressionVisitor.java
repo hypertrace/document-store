@@ -53,7 +53,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
         new PostgresDataAccessorIdentifierExpressionVisitor(postgresQueryParser, getType(value));
 
     final String fieldName = lhs.accept(identifierVisitor);
-    final String lhsExpression = lhs.accept(lhsVisitor);
+    final String parsedLhsExpression = lhs.accept(lhsVisitor);
 
     FieldToPgColumn fieldToPgColumn =
         postgresQueryParser.getToPgColumnTransformer().transform(fieldName);
@@ -63,7 +63,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
 
     return PostgresUtils.parseNonCompositeFilter(
         fieldToPgColumn.getTransformedField(),
-        lhsExpression,
+        parsedLhsExpression,
         fieldToPgColumn.getPgColumn(),
         operator.toString(),
         value,

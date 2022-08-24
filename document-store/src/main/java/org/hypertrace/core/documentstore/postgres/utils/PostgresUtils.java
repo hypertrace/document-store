@@ -147,19 +147,21 @@ public class PostgresUtils {
 
   public static String parseNonCompositeFilterWithCasting(
       String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
-    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
-    return parseNonCompositeFilter(fieldName, fullFieldName, columnName, op, value, paramsBuilder);
+    String parsedExpression =
+        prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
+    return parseNonCompositeFilter(
+        fieldName, parsedExpression, columnName, op, value, paramsBuilder);
   }
 
   @SuppressWarnings("unchecked")
   public static String parseNonCompositeFilter(
       String fieldName,
-      String fullFieldName,
+      String parsedExpression,
       String columnName,
       String op,
       Object value,
       Builder paramsBuilder) {
-    StringBuilder filterString = new StringBuilder(fullFieldName);
+    StringBuilder filterString = new StringBuilder(parsedExpression);
     String sqlOperator;
     boolean isMultiValued = false;
     switch (op) {
@@ -194,7 +196,7 @@ public class PostgresUtils {
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
         StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName, columnName);
         if (!OUTER_COLUMNS.contains(fieldName)) {
-          filterString = notInFilterString.append(" IS NULL OR ").append(fullFieldName);
+          filterString = notInFilterString.append(" IS NULL OR ").append(parsedExpression);
         }
         sqlOperator = " NOT IN ";
         isMultiValued = true;
@@ -237,7 +239,7 @@ public class PostgresUtils {
         StringBuilder notEquals = prepareFieldAccessorExpr(fieldName, columnName);
         // For fields inside jsonb
         if (!OUTER_COLUMNS.contains(fieldName)) {
-          filterString = notEquals.append(" IS NULL OR ").append(fullFieldName);
+          filterString = notEquals.append(" IS NULL OR ").append(parsedExpression);
         }
         break;
       case "CONTAINS":
