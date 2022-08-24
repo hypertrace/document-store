@@ -31,7 +31,7 @@ class PostgresQueryParser {
     if (filter.isComposite()) {
       return parseCompositeFilter(filter, paramsBuilder);
     } else {
-      return PostgresUtils.parseNonCompositeFilter(
+      return PostgresUtils.parseNonCompositeFilterWithCasting(
           filter.getFieldName(),
           PostgresUtils.DOCUMENT_COLUMN,
           filter.getOp().toString(),

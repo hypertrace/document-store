@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getType;
+
 import java.util.Optional;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -43,11 +45,15 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     SelectTypeExpression rhs = expression.getRhs();
 
     // Only an identifier LHS and a constant RHS is supported as of now.
-    PostgresSelectTypeExpressionVisitor lhsVisitor = new PostgresIdentifierExpressionVisitor();
     PostgresSelectTypeExpressionVisitor rhsVisitor = new PostgresConstantExpressionVisitor();
-
-    String fieldName = lhs.accept(lhsVisitor);
     Object value = rhs.accept(rhsVisitor);
+    PostgresIdentifierExpressionVisitor identifierVisitor =
+        new PostgresIdentifierExpressionVisitor();
+    PostgresSelectTypeExpressionVisitor lhsVisitor =
+        new PostgresDataAccessorIdentifierExpressionVisitor(postgresQueryParser, getType(value));
+
+    final String fieldName = lhs.accept(identifierVisitor);
+    final String parsedLhsExpression = lhs.accept(lhsVisitor);
 
     FieldToPgColumn fieldToPgColumn =
         postgresQueryParser.getToPgColumnTransformer().transform(fieldName);
@@ -57,6 +63,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
 
     return PostgresUtils.parseNonCompositeFilter(
         fieldToPgColumn.getTransformedField(),
+        parsedLhsExpression,
         fieldToPgColumn.getPgColumn(),
         operator.toString(),
         value,
