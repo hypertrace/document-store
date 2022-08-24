@@ -44,7 +44,9 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
+import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
+import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -54,7 +56,9 @@ import org.hypertrace.core.documentstore.query.Sort;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -698,6 +702,43 @@ public class DocStoreQueryV1Test {
                                 List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
                     .build())
             .build();
+
+    try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
+      Utils.assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName,
+          resultDocs,
+          3,
+          "mongo/test_string_in_filter_aggr_alias_distinct_count_response.json");
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
+  void testQueryQ1DistinctCountAggregationWithOnlyFilter(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"),
+                            IN,
+                            ConstantExpression.ofStrings(
+                                List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+                    .build())
+            .build();
+
 
     try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
       Utils.assertDocsAndSizeEqualWithoutOrder(

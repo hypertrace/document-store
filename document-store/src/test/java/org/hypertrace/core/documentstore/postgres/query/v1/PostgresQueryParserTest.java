@@ -808,4 +808,47 @@ public class PostgresQueryParserTest {
     Assertions.assertEquals("\"Shampoo\"", params.getObjectParams().get(4));
     Assertions.assertEquals("\"Bottle\"", params.getObjectParams().get(5));
   }
+
+  @Test
+  void testQueryQ1DistinctCountAggregationWithOnlyFilter() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"),
+                            IN,
+                            ConstantExpression.ofStrings(
+                                List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    String sql = postgresQueryParser.parse();
+
+    Assertions.assertEquals(
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
+            + "document->'item' AS item, document->'price' AS price "
+            + "FROM testCollection "
+            + "WHERE (CAST (document->>'price' AS NUMERIC) <= ?) AND (document->>'item' IN (?, ?, ?, ?))",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Assertions.assertEquals(5, params.getObjectParams().size());
+    Assertions.assertEquals(10, params.getObjectParams().get(1));
+    Assertions.assertEquals("Mirror", params.getObjectParams().get(2));
+    Assertions.assertEquals("Comb", params.getObjectParams().get(3));
+    Assertions.assertEquals("Shampoo", params.getObjectParams().get(4));
+    Assertions.assertEquals("Bottle", params.getObjectParams().get(5));
+  }
 }
