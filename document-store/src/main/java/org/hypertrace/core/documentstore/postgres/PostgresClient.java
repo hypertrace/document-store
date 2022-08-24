@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.postgres;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
@@ -35,7 +36,7 @@ class PostgresClient {
     this.connectionRetryBackoff = connectionRetryBackoff;
   }
 
-  public Connection getConnection() {
+  public synchronized Connection getConnection() {
     try {
       if (connection == null) {
         newConnection();
@@ -50,10 +51,9 @@ class PostgresClient {
     return connection;
   }
 
-  public boolean isConnectionValid(Connection connection) {
-    try {
-      PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1");
-      preparedStatement.executeQuery();
+  private synchronized boolean isConnectionValid(Connection connection) {
+    try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1");
+        ResultSet resultSet = preparedStatement.executeQuery()) {
       return true;
     } catch (SQLException sqle) {
       log.debug("Unable to check if the underlying connection is valid", sqle);
@@ -61,7 +61,7 @@ class PostgresClient {
     }
   }
 
-  private void newConnection() throws SQLException {
+  private synchronized void newConnection() throws SQLException {
     int attempts = 0;
     while (attempts < maxConnectionAttempts) {
       try {
@@ -90,7 +90,7 @@ class PostgresClient {
     }
   }
 
-  public void close() {
+  private synchronized void close() {
     if (connection != null) {
       try {
         log.info("Closing connection #{} to {}", count, url);
