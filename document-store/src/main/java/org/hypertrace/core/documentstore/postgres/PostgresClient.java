@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 class PostgresClient {
 
   private static final Logger log = LoggerFactory.getLogger(PostgresClient.class);
+  private static final int VALIDATION_QUERY_TIMEOUT_SECONDS = 5;
 
   private final String url;
   private final String user;
@@ -52,9 +53,15 @@ class PostgresClient {
   }
 
   private synchronized boolean isConnectionValid(Connection connection) {
-    try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1");
-        ResultSet resultSet = preparedStatement.executeQuery()) {
-      return true;
+    try {
+      if (connection.getMetaData().getJDBCMajorVersion() >= 4) {
+        return connection.isValid(VALIDATION_QUERY_TIMEOUT_SECONDS);
+      } else {
+        try (PreparedStatement preparedStatement = connection.prepareStatement("SELECT 1");
+            ResultSet resultSet = preparedStatement.executeQuery()) {
+          return true;
+        }
+      }
     } catch (SQLException sqle) {
       log.debug("Unable to check if the underlying connection is valid", sqle);
       return false;
