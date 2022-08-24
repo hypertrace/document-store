@@ -52,17 +52,18 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     PostgresSelectTypeExpressionVisitor lhsVisitor =
         new PostgresDataAccessorIdentifierExpressionVisitor(postgresQueryParser, getType(value));
 
-    String lhsExpression = lhs.accept(lhsVisitor);
+    final String fieldName = lhs.accept(identifierVisitor);
+    final String lhsExpression = lhs.accept(lhsVisitor);
 
     FieldToPgColumn fieldToPgColumn =
-        postgresQueryParser.getToPgColumnTransformer().transform(lhsExpression);
+        postgresQueryParser.getToPgColumnTransformer().transform(fieldName);
 
     if (fieldToPgColumn.getTransformedField() == null)
       throw new UnsupportedOperationException("jsonb types in where clause is not yet supported");
 
     return PostgresUtils.parseNonCompositeFilter(
-        lhs.accept(identifierVisitor),
         fieldToPgColumn.getTransformedField(),
+        lhsExpression,
         fieldToPgColumn.getPgColumn(),
         operator.toString(),
         value,
