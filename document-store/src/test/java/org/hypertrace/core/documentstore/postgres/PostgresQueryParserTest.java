@@ -21,7 +21,7 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.EQ, ID, "val1");
       String query =
-          PostgresUtils.parseNonCompositeFilter(
+          PostgresUtils.parseNonCompositeFilterWithCasting(
               filter.getFieldName(),
               PostgresUtils.DOCUMENT_COLUMN,
               filter.getOp().toString(),
@@ -33,7 +33,7 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.NEQ, ID, "val1");
       String query =
-          PostgresUtils.parseNonCompositeFilter(
+          PostgresUtils.parseNonCompositeFilterWithCasting(
               filter.getFieldName(),
               PostgresUtils.DOCUMENT_COLUMN,
               filter.getOp().toString(),
@@ -45,7 +45,7 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.GT, ID, 5);
       String query =
-          PostgresUtils.parseNonCompositeFilter(
+          PostgresUtils.parseNonCompositeFilterWithCasting(
               filter.getFieldName(),
               PostgresUtils.DOCUMENT_COLUMN,
               filter.getOp().toString(),
@@ -57,7 +57,7 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.GTE, ID, 5);
       String query =
-          PostgresUtils.parseNonCompositeFilter(
+          PostgresUtils.parseNonCompositeFilterWithCasting(
               filter.getFieldName(),
               PostgresUtils.DOCUMENT_COLUMN,
               filter.getOp().toString(),
@@ -69,7 +69,7 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.LT, ID, 5);
       String query =
-          PostgresUtils.parseNonCompositeFilter(
+          PostgresUtils.parseNonCompositeFilterWithCasting(
               filter.getFieldName(),
               PostgresUtils.DOCUMENT_COLUMN,
               filter.getOp().toString(),
@@ -81,7 +81,7 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.LTE, ID, 5);
       String query =
-          PostgresUtils.parseNonCompositeFilter(
+          PostgresUtils.parseNonCompositeFilterWithCasting(
               filter.getFieldName(),
               PostgresUtils.DOCUMENT_COLUMN,
               filter.getOp().toString(),
@@ -93,7 +93,7 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.LIKE, ID, "abc");
       String query =
-          PostgresUtils.parseNonCompositeFilter(
+          PostgresUtils.parseNonCompositeFilterWithCasting(
               filter.getFieldName(),
               PostgresUtils.DOCUMENT_COLUMN,
               filter.getOp().toString(),
@@ -105,7 +105,7 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.IN, ID, List.of("abc", "xyz"));
       String query =
-          PostgresUtils.parseNonCompositeFilter(
+          PostgresUtils.parseNonCompositeFilterWithCasting(
               filter.getFieldName(),
               PostgresUtils.DOCUMENT_COLUMN,
               filter.getOp().toString(),

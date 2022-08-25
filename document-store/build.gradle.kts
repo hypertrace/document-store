@@ -19,8 +19,6 @@ dependencies {
   implementation("org.apache.commons:commons-lang3:3.10")
   implementation("net.jodah:failsafe:2.4.0")
   implementation("com.google.guava:guava:31.1-jre")
-  implementation("org.apache.commons:commons-dbcp2:2.9.0")
-
   testImplementation("org.junit.jupiter:junit-jupiter:5.8.2")
   testImplementation("org.mockito:mockito-core:4.4.0")
   testImplementation("org.mockito:mockito-junit-jupiter:4.4.0")
@@ -29,7 +27,6 @@ dependencies {
   integrationTestImplementation("com.github.java-json-tools:json-patch:1.13")
   integrationTestImplementation("org.testcontainers:testcontainers:1.15.2")
   integrationTestImplementation("org.testcontainers:junit-jupiter:1.15.2")
-  integrationTestImplementation("org.apache.logging.log4j:log4j-slf4j-impl:2.17.1")
 }
 
 tasks.test {
