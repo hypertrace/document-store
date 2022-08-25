@@ -697,28 +697,58 @@ public class DocStoreQueryV1Test {
   void testQueryQ1DistinctCountAggregationWithOnlyFilter(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
+//    org.hypertrace.core.documentstore.query.Query query =
+//        org.hypertrace.core.documentstore.query.Query.builder()
+//            .addSelection(
+//                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+//                "qty_count")
+//            .addSelection(IdentifierExpression.of("item"))
+//            .addSelection(IdentifierExpression.of("price"))
+//            .setFilter(
+//                LogicalExpression.builder()
+//                    .operator(AND)
+//                    .operand(
+//                        RelationalExpression.of(
+//                            IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
+//                    .operand(
+//                        RelationalExpression.of(
+//                            IdentifierExpression.of("item"),
+//                            IN,
+//                            ConstantExpression.ofStrings(
+//                                List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+//                    .build())
+//            .build();
+
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .addSelection(
-                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
-                "qty_count")
-            .addSelection(IdentifierExpression.of("item"))
-            .addSelection(IdentifierExpression.of("price"))
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("attributes.service_id")),
+                "SERVICE_ID_DISTINCTCOUNT")
+            .addSelection(
+                AggregateExpression.of(SUM, IdentifierExpression.of("attributes.is_external")),
+                "SERVICE_IS_EXTERNAL")
+            .addSelection(IdentifierExpression.of("attributes.entity_id"))
+            .addSelection(IdentifierExpression.of("attributes.service_id"))
             .setFilter(
                 LogicalExpression.builder()
                     .operator(AND)
                     .operand(
                         RelationalExpression.of(
-                            IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("item"),
-                            IN,
-                            ConstantExpression.ofStrings(
-                                List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+                            IdentifierExpression.of("attributes.is_external"), EQ, ConstantExpression.of(true)))
+                    .operand(LogicalExpression.builder()
+                        .operator(AND)
+                        .operand(RelationalExpression.of(
+                            IdentifierExpression.of("attributes.environment"), EQ, ConstantExpression.of("cluster001")))
+                        .operand(LogicalExpression.builder()
+                            .operator(AND)
+                            .operand(RelationalExpression.of(
+                                IdentifierExpression.of("tenantId"), EQ, ConstantExpression.of("14d8d0d8-c1a9-4100-83a4-97edfeb85606")))
+                            .operand(RelationalExpression.of(
+                                IdentifierExpression.of("type"), EQ, ConstantExpression.of("VULNERABILITY")))
+                            .build())
+                        .build())
                     .build())
             .build();
-
 
     try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
       Utils.assertDocsAndSizeEqualWithoutOrder(
