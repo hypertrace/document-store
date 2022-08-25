@@ -69,18 +69,20 @@ class PostgresClient {
   }
 
   private synchronized void newConnection() throws SQLException {
+    ++count;
     int attempts = 0;
     while (attempts < maxConnectionAttempts) {
       try {
-        ++count;
-        log.info("Attempting to open connection #{} to {}", count, url);
+        ++attempts;
+        log.info("Attempting(attempt #{}) to open connection #{} to {}", attempts, count, url);
         connection = DriverManager.getConnection(url, user, password);
         return;
       } catch (SQLException sqle) {
         attempts++;
         if (attempts < maxConnectionAttempts) {
           log.info(
-              "Unable to connect to database on attempt {}/{}. Will retry in {} ms.",
+              "Unable to connect(#{}) to database on attempt {}/{}. Will retry in {} ms.",
+              count,
               attempts,
               maxConnectionAttempts,
               connectionRetryBackoff,
