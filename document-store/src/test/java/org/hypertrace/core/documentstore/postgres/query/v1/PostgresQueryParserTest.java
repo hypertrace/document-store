@@ -30,6 +30,7 @@ import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.postgres.Params;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -833,7 +834,9 @@ public class PostgresQueryParserTest {
                     .build())
             .build();
 
-    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, query);
+    Query transformedQuery = PostgresQueryTransformer.transform(query);
+    PostgresQueryParser postgresQueryParser = new PostgresQueryParser(TEST_COLLECTION, transformedQuery);
+
     String sql = postgresQueryParser.parse();
 
     Assertions.assertEquals(
@@ -853,22 +856,23 @@ public class PostgresQueryParserTest {
   }
 
   /*
-  * SELECT COUNT(DISTINCT document->'attributes'->>'service_id' ) AS "SERVICE_ID_DISTINCTCOUNT",
-document->'attributes'->'entity_id' AS "VULNERABILITY_FIELD_ENTITY_ID",
-document->'attributes'->'service_id' AS "VULNERABILITY_FIELD_SERVICE_ID"
-FROM insights
-WHERE ((CAST (document->'attributes'->>'is_external' AS BOOLEAN) = 'TRUE')
-       AND (document->'attributes'->>'environment' = 'cluster001'))
-       AND (document->>'tenantId' = '14d8d0d8-c1a9-4100-83a4-97edfeb85606')
-       AND (document->>'type' = 'VULNERABILITY')
-OFFSET 0 LIMIT 50
-  * */
+    * SELECT COUNT(DISTINCT document->'attributes'->>'service_id' ) AS "SERVICE_ID_DISTINCTCOUNT",
+  document->'attributes'->'entity_id' AS "VULNERABILITY_FIELD_ENTITY_ID",
+  document->'attributes'->'service_id' AS "VULNERABILITY_FIELD_SERVICE_ID"
+  FROM insights
+  WHERE ((CAST (document->'attributes'->>'is_external' AS BOOLEAN) = 'TRUE')
+         AND (document->'attributes'->>'environment' = 'cluster001'))
+         AND (document->>'tenantId' = '14d8d0d8-c1a9-4100-83a4-97edfeb85606')
+         AND (document->>'type' = 'VULNERABILITY')
+  OFFSET 0 LIMIT 50
+    * */
   @Test
   void testQueryQ1DistinctCountAggregationWithOnlyFilterInshigts() {
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .addSelection(
-                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("attributes.service_id")),
+                AggregateExpression.of(
+                    DISTINCT_COUNT, IdentifierExpression.of("attributes.service_id")),
                 "SERVICE_ID_DISTINCTCOUNT")
             .addSelection(IdentifierExpression.of("attributes.entity_id"))
             .addSelection(IdentifierExpression.of("attributes.service_id"))
@@ -877,19 +881,33 @@ OFFSET 0 LIMIT 50
                     .operator(AND)
                     .operand(
                         RelationalExpression.of(
-                            IdentifierExpression.of("attributes.is_external"), EQ, ConstantExpression.of(true)))
-                    .operand(LogicalExpression.builder()
-                        .operator(AND)
-                        .operand(RelationalExpression.of(
-                            IdentifierExpression.of("attributes.environment"), EQ, ConstantExpression.of("cluster001")))
-                        .operand(LogicalExpression.builder()
+                            IdentifierExpression.of("attributes.is_external"),
+                            EQ,
+                            ConstantExpression.of(true)))
+                    .operand(
+                        LogicalExpression.builder()
                             .operator(AND)
-                            .operand(RelationalExpression.of(
-                                IdentifierExpression.of("tenantId"), EQ, ConstantExpression.of("14d8d0d8-c1a9-4100-83a4-97edfeb85606")))
-                            .operand(RelationalExpression.of(
-                                IdentifierExpression.of("type"), EQ, ConstantExpression.of("VULNERABILITY")))
+                            .operand(
+                                RelationalExpression.of(
+                                    IdentifierExpression.of("attributes.environment"),
+                                    EQ,
+                                    ConstantExpression.of("cluster001")))
+                            .operand(
+                                LogicalExpression.builder()
+                                    .operator(AND)
+                                    .operand(
+                                        RelationalExpression.of(
+                                            IdentifierExpression.of("tenantId"),
+                                            EQ,
+                                            ConstantExpression.of(
+                                                "14d8d0d8-c1a9-4100-83a4-97edfeb85606")))
+                                    .operand(
+                                        RelationalExpression.of(
+                                            IdentifierExpression.of("type"),
+                                            EQ,
+                                            ConstantExpression.of("VULNERABILITY")))
+                                    .build())
                             .build())
-                        .build())
                     .build())
             .build();
 
