@@ -52,7 +52,7 @@ class PostgresClient {
     return connection;
   }
 
-  private synchronized boolean isConnectionValid(Connection connection) {
+  private boolean isConnectionValid(Connection connection) {
     try {
       if (connection.getMetaData().getJDBCMajorVersion() >= 4) {
         return connection.isValid(VALIDATION_QUERY_TIMEOUT_SECONDS);
@@ -68,7 +68,7 @@ class PostgresClient {
     }
   }
 
-  private synchronized void newConnection() throws SQLException {
+  private void newConnection() throws SQLException {
     ++count;
     int attempts = 0;
     while (attempts < maxConnectionAttempts) {
@@ -99,7 +99,7 @@ class PostgresClient {
     }
   }
 
-  private synchronized void close() {
+  private void close() {
     if (connection != null) {
       try {
         log.info("Closing connection #{} to {}", count, url);
