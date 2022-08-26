@@ -717,10 +717,7 @@ public class DocStoreQueryV1Test {
 
     try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
       Utils.assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName,
-          resultDocs,
-          1,
-          "mongo/test_aggr_only_with_fliter_response.json");
+          dataStoreName, resultDocs, 1, "mongo/test_aggr_only_with_fliter_response.json");
     }
   }
 
