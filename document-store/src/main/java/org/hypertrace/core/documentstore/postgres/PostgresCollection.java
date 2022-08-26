@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.sql.BatchUpdateException;
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -64,10 +63,10 @@ public class PostgresCollection implements Collection {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final CloseableIterator<Document> EMPTY_ITERATOR = createEmptyIterator();
 
-  private final Connection client;
+  private final PostgresClient client;
   private final String collectionName;
 
-  public PostgresCollection(Connection client, String collectionName) {
+  public PostgresCollection(PostgresClient client, String collectionName) {
     this.client = client;
     this.collectionName = collectionName;
   }
@@ -75,7 +74,7 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+        client.getConnection().prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       String jsonString = prepareDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
@@ -128,7 +127,7 @@ public class PostgresCollection implements Collection {
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(getInsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+        client.getConnection().prepareStatement(getInsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       String jsonString = prepareDocument(key, document);
       preparedStatement.setString(1, key.toString());
       preparedStatement.setString(2, jsonString);
@@ -227,7 +226,7 @@ public class PostgresCollection implements Collection {
     String jsonString = subDocument.toJson();
 
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+        client.getConnection().prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, jsonString);
       preparedStatement.setString(3, key.toString());
@@ -273,7 +272,8 @@ public class PostgresCollection implements Collection {
             "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s = ?",
             collectionName, DOCUMENT, DOCUMENT, ID);
     try {
-      PreparedStatement preparedStatement = client.prepareStatement(updateSubDocSQL);
+      PreparedStatement preparedStatement =
+          client.getConnection().prepareStatement(updateSubDocSQL);
       for (Key key : documents.keySet()) {
         orderList.add(key);
         Map<String, Document> subDocuments = documents.get(key);
@@ -411,7 +411,7 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean delete(Key key) {
     String deleteSQL = String.format("DELETE FROM %s WHERE %s = ?", collectionName, ID);
-    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
+    try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
       preparedStatement.setString(1, key.toString());
       preparedStatement.executeUpdate();
       return true;
@@ -461,7 +461,7 @@ public class PostgresCollection implements Collection {
             .append(ids)
             .append(")")
             .toString();
-    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
+    try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
       int deletedCount = preparedStatement.executeUpdate();
       return new BulkDeleteResult(deletedCount);
     } catch (SQLException e) {
@@ -478,7 +478,7 @@ public class PostgresCollection implements Collection {
     String jsonSubDocPath = getJsonSubDocPath(subDocPath);
 
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
+        client.getConnection().prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
       preparedStatement.setString(1, jsonSubDocPath);
       preparedStatement.setString(2, key.toString());
       int resultSet = preparedStatement.executeUpdate();
@@ -498,7 +498,7 @@ public class PostgresCollection implements Collection {
   @Override
   public boolean deleteAll() {
     String deleteSQL = String.format("DELETE FROM %s", collectionName);
-    try (PreparedStatement preparedStatement = client.prepareStatement(deleteSQL)) {
+    try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
       preparedStatement.executeUpdate();
       return true;
     } catch (SQLException e) {
@@ -511,7 +511,7 @@ public class PostgresCollection implements Collection {
   public long count() {
     String countSQL = String.format("SELECT COUNT(*) FROM %s", collectionName);
     long count = -1;
-    try (PreparedStatement preparedStatement = client.prepareStatement(countSQL)) {
+    try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(countSQL)) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
@@ -597,7 +597,7 @@ public class PostgresCollection implements Collection {
               .append(")")
               .toString();
 
-      PreparedStatement preparedStatement = client.prepareStatement(query);
+      PreparedStatement preparedStatement = client.getConnection().prepareStatement(query);
       ResultSet resultSet = preparedStatement.executeQuery();
 
       // Now go ahead and bulk upsert the documents.
@@ -619,7 +619,7 @@ public class PostgresCollection implements Collection {
   @VisibleForTesting
   protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
       throws SQLException, RuntimeException {
-    PreparedStatement preparedStatement = client.prepareStatement(sqlQuery);
+    PreparedStatement preparedStatement = client.getConnection().prepareStatement(sqlQuery);
     enrichPreparedStatementWithParams(preparedStatement, params);
     return preparedStatement;
   }
@@ -646,7 +646,8 @@ public class PostgresCollection implements Collection {
   @Override
   public void drop() {
     String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
-    try (PreparedStatement preparedStatement = client.prepareStatement(dropTableSQL)) {
+    try (PreparedStatement preparedStatement =
+        client.getConnection().prepareStatement(dropTableSQL)) {
       preparedStatement.executeUpdate();
     } catch (SQLException e) {
       LOGGER.error("Exception deleting table name: {}", collectionName);
@@ -832,7 +833,7 @@ public class PostgresCollection implements Collection {
 
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
     try (PreparedStatement preparedStatement =
-        client.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+        client.getConnection().prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
 
         Key key = entry.getKey();
@@ -911,7 +912,7 @@ public class PostgresCollection implements Collection {
     long totalRowsUpdated = 0;
     try {
 
-      PreparedStatement ps = client.prepareStatement(getUpdateSQL());
+      PreparedStatement ps = client.getConnection().prepareStatement(getUpdateSQL());
 
       for (BulkUpdateRequest req : requestsWithoutFilter) {
         Key key = req.getKey();
@@ -983,7 +984,7 @@ public class PostgresCollection implements Collection {
     long now = System.currentTimeMillis();
     try {
       PreparedStatement preparedStatement =
-          client.prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS);
+          client.getConnection().prepareStatement(updateSubDocSQL, Statement.RETURN_GENERATED_KEYS);
       for (Key key : keys) {
         preparedStatement.setString(1, String.valueOf(now));
         preparedStatement.setString(2, key.toString());
