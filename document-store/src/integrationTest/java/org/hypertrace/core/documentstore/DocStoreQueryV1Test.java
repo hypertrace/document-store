@@ -719,8 +719,8 @@ public class DocStoreQueryV1Test {
       Utils.assertDocsAndSizeEqualWithoutOrder(
           dataStoreName,
           resultDocs,
-          3,
-          "mongo/test_string_in_filter_aggr_alias_distinct_count_response.json");
+          1,
+          "mongo/test_aggr_only_with_fliter_response.json");
     }
   }
 

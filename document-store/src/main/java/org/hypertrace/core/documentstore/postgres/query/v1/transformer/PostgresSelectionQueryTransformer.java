@@ -42,7 +42,10 @@ public class PostgresSelectionQueryTransformer
         query.getSelections().stream()
             .filter(selectionSpec -> selectionSpec.getExpression().accept(this))
             .collect(Collectors.toUnmodifiableList());
-    return new TransformedQueryBuilder(query).setSelections(finalSelectionSpecs).build();
+
+    return finalSelectionSpecs.size() > 0
+        ? new TransformedQueryBuilder(query).setSelections(finalSelectionSpecs).build()
+        : query;
   }
 
   @Override

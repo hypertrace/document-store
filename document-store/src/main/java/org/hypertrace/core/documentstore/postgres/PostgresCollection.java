@@ -45,7 +45,6 @@ import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
-import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
@@ -781,10 +780,9 @@ public class PostgresCollection implements Collection {
 
   private CloseableIterator<Document> executeQueryV1(
       final org.hypertrace.core.documentstore.query.Query query) {
-    org.hypertrace.core.documentstore.query.Query transformedQuery = transformAndLog(query);
     org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-            collectionName, query);
+            collectionName, transformAndLog(query));
     String sqlQuery = queryParser.parse();
     try {
       PreparedStatement preparedStatement =
