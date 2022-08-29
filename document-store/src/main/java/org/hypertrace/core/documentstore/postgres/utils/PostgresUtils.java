@@ -186,6 +186,7 @@ public class PostgresUtils {
         sqlOperator = " <= ";
         break;
       case "LIKE":
+      case "~":
         // Case insensitive regex search, Append % at beginning and end of value to do a regex
         // search
         sqlOperator = " ILIKE ";
@@ -304,6 +305,7 @@ public class PostgresUtils {
         sqlOperator = " <= ";
         break;
       case "LIKE":
+      case "~":
         // Case insensitive regex search, Append % at beginning and end of value to do a regex
         // search
         sqlOperator = " ILIKE ";
