@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
+import static java.util.stream.Collectors.joining;
+
 import com.google.common.base.Preconditions;
 import java.util.List;
 import java.util.Objects;
@@ -59,5 +61,12 @@ public class LogicalExpression implements FilterTypeExpression {
       Preconditions.checkArgument(operator != null, "operator is null");
       return new LogicalExpression(operands, operator);
     }
+  }
+
+  @Override
+  public String toString() {
+    return "("
+        + operands.stream().map(String::valueOf).collect(joining(") " + operator + " ("))
+        + ")";
   }
 }

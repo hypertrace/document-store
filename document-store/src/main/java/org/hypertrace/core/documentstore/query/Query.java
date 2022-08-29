@@ -77,6 +77,25 @@ public class Query {
   Pagination pagination; // Missing pagination represents fetching all the records
   FromClause fromClause;
 
+  @Override
+  public String toString() {
+    return "SELECT "
+        + Optional.ofNullable(selection).map(String::valueOf).orElse("*")
+        + " FROM <implicit_collection>"
+        + Optional.ofNullable(fromClause).map(String::valueOf).map(val -> ", " + val).orElse("")
+        + Optional.ofNullable(filter).map(String::valueOf).map(val -> " WHERE " + val).orElse("")
+        + Optional.ofNullable(aggregation)
+            .map(String::valueOf)
+            .map(val -> " GROUP BY " + val)
+            .orElse("")
+        + Optional.ofNullable(aggregationFilter)
+            .map(String::valueOf)
+            .map(val -> " HAVING " + val)
+            .orElse("")
+        + Optional.ofNullable(sort).map(String::valueOf).map(val -> " ORDER BY " + val).orElse("")
+        + Optional.ofNullable(pagination).map(String::valueOf).map(val -> " " + val).orElse("");
+  }
+
   public List<SelectionSpec> getSelections() {
     return selection == null ? emptyList() : unmodifiableList(selection.getSelectionSpecs());
   }

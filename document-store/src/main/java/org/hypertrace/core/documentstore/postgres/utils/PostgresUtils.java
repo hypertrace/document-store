@@ -166,18 +166,23 @@ public class PostgresUtils {
     boolean isMultiValued = false;
     switch (op) {
       case "EQ":
+      case "=":
         sqlOperator = " = ";
         break;
       case "GT":
+      case ">":
         sqlOperator = " > ";
         break;
       case "LT":
+      case "<":
         sqlOperator = " < ";
         break;
       case "GTE":
+      case ">=":
         sqlOperator = " >= ";
         break;
       case "LTE":
+      case "<=":
         sqlOperator = " <= ";
         break;
       case "LIKE":
@@ -228,6 +233,7 @@ public class PostgresUtils {
         }
         break;
       case "NEQ":
+      case "!=":
         sqlOperator = " != ";
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
         // The expected behaviour is to get all documents which either satisfy non equality
@@ -269,26 +275,32 @@ public class PostgresUtils {
    * PostgresQueryParserTest.testAggregationFilterAlongWithNonAliasFields. In the above example,
    * check how the price is accessed using -> instead of ->>.
    */
+  @SuppressWarnings("unchecked")
   public static String prepareParsedNonCompositeFilter(
       String preparedExpression, String op, Object value, Builder paramsBuilder) {
     // TODO : combine this method with parseNonCompositeFilter
     StringBuilder filterString = new StringBuilder(preparedExpression);
     String sqlOperator;
-    Boolean isMultiValued = false;
+    boolean isMultiValued = false;
     switch (op) {
       case "EQ":
+      case "=":
         sqlOperator = " = ";
         break;
       case "GT":
+      case ">":
         sqlOperator = " > ";
         break;
       case "LT":
+      case "<":
         sqlOperator = " < ";
         break;
       case "GTE":
+      case ">=":
         sqlOperator = " >= ";
         break;
       case "LTE":
+      case "<=":
         sqlOperator = " <= ";
         break;
       case "LIKE":
@@ -318,6 +330,7 @@ public class PostgresUtils {
         value = null;
         break;
       case "NEQ":
+      case "!=":
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
         sqlOperator = " != ";
         break;
@@ -336,8 +349,7 @@ public class PostgresUtils {
         paramsBuilder.addObjectParam(value);
       }
     }
-    String filters = filterString.toString();
-    return filters;
+    return filterString.toString();
   }
 
   public static List<String> splitNestedField(String nestedFieldName) {
@@ -345,7 +357,7 @@ public class PostgresUtils {
   }
 
   public static boolean isEncodedNestedField(String fieldName) {
-    return fieldName.contains(DOT_STR) || fieldName.contains(DOT) ? true : false;
+    return fieldName.contains(DOT_STR) || fieldName.contains(DOT);
   }
 
   public static String encodeAliasForNestedField(String nestedFieldName) {

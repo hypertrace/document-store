@@ -42,4 +42,9 @@ public class IdentifierExpression
   public <T> T accept(final SortTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
+
+  @Override
+  public String toString() {
+    return "`" + name + "`";
+  }
 }

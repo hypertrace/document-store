@@ -4,8 +4,7 @@ public enum FunctionOperator {
   // Unary operations
   ABS,
   FLOOR,
-  LENGTH, // This operator returns the length of an array,
-  // use along with DISTINCT of aggregation operator
+  LENGTH, // This operator returns the length of an array
 
   // n-ary operations
   ADD,

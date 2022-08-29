@@ -43,4 +43,9 @@ public class RelationalExpression implements FilterTypeExpression {
   public <T> T accept(final FilterTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
+
+  @Override
+  public String toString() {
+    return lhs + " " + operator + " " + rhs;
+  }
 }

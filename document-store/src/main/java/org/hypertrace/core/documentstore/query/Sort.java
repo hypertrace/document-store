@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.query;
 
+import static java.util.stream.Collectors.joining;
+
 import com.google.common.base.Preconditions;
 import java.util.List;
 import java.util.Objects;
@@ -22,5 +24,10 @@ public class Sort {
           sortingSpecs.stream().noneMatch(Objects::isNull), "One or more sortingSpecs is null");
       return new Sort(sortingSpecs);
     }
+  }
+
+  @Override
+  public String toString() {
+    return sortingSpecs.stream().map(String::valueOf).collect(joining(", "));
   }
 }
