@@ -13,9 +13,9 @@ public enum RelationalOperator {
   IN("IN"),
   CONTAINS("CONTAINS"),
   EXISTS("EXISTS"),
-  NOT_EXISTS("NOT_EXISTS"),
+  NOT_EXISTS("NOT EXISTS"),
   LIKE("~"),
-  NOT_IN("NOT_IN"),
+  NOT_IN("NOT IN"),
   ;
 
   private final String displaySymbol;

@@ -79,21 +79,13 @@ public class Query {
 
   @Override
   public String toString() {
-    return "SELECT "
-        + Optional.ofNullable(selection).map(String::valueOf).orElse("*")
-        + " FROM <implicit_collection>"
-        + Optional.ofNullable(fromClause).map(String::valueOf).map(val -> ", " + val).orElse("")
-        + Optional.ofNullable(filter).map(String::valueOf).map(val -> " WHERE " + val).orElse("")
-        + Optional.ofNullable(aggregation)
-            .map(String::valueOf)
-            .map(val -> " GROUP BY " + val)
-            .orElse("")
-        + Optional.ofNullable(aggregationFilter)
-            .map(String::valueOf)
-            .map(val -> " HAVING " + val)
-            .orElse("")
-        + Optional.ofNullable(sort).map(String::valueOf).map(val -> " ORDER BY " + val).orElse("")
-        + Optional.ofNullable(pagination).map(String::valueOf).map(val -> " " + val).orElse("");
+    return getSelectString()
+        + getFromString()
+        + getFilterStringIfPresent(filter, " WHERE ")
+        + getGroupByStringIfPresent()
+        + getFilterStringIfPresent(aggregationFilter, " HAVING ")
+        + getSortStringIfPresent()
+        + getPaginationStringIfPresent();
   }
 
   public List<SelectionSpec> getSelections() {
@@ -126,6 +118,34 @@ public class Query {
 
   public static QueryBuilder builder() {
     return new QueryBuilder();
+  }
+
+  private String getSelectString() {
+    return "SELECT " + Optional.ofNullable(selection).map(String::valueOf).orElse("*");
+  }
+
+  private String getFromString() {
+    return " FROM <implicit_collection>"
+        + Optional.ofNullable(fromClause).map(String::valueOf).map(val -> ", " + val).orElse("");
+  }
+
+  private String getFilterStringIfPresent(Filter filter, String s) {
+    return Optional.ofNullable(filter).map(String::valueOf).map(val -> s + val).orElse("");
+  }
+
+  private String getGroupByStringIfPresent() {
+    return Optional.ofNullable(aggregation)
+        .map(String::valueOf)
+        .map(val -> " GROUP BY " + val)
+        .orElse("");
+  }
+
+  private String getSortStringIfPresent() {
+    return Optional.ofNullable(sort).map(String::valueOf).map(val -> " ORDER BY " + val).orElse("");
+  }
+
+  private String getPaginationStringIfPresent() {
+    return Optional.ofNullable(pagination).map(String::valueOf).map(val -> " " + val).orElse("");
   }
 
   @NoArgsConstructor

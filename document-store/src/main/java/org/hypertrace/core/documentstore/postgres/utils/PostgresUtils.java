@@ -193,6 +193,7 @@ public class PostgresUtils {
         value = "%" + value + "%";
         break;
       case "NOT_IN":
+      case "NOT IN":
         // NOTE: Below two points
         // 1. both NOT_IN and IN filter currently limited to non-array field
         //    - https://github.com/hypertrace/document-store/issues/32#issuecomment-781411676
@@ -216,6 +217,7 @@ public class PostgresUtils {
         value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
         break;
       case "NOT_EXISTS":
+      case "NOT EXISTS":
         sqlOperator = " IS NULL ";
         value = null;
         // For fields inside jsonb
@@ -312,6 +314,7 @@ public class PostgresUtils {
         value = "%" + value + "%";
         break;
       case "NOT_IN":
+      case "NOT IN":
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
         sqlOperator = " NOT IN ";
         isMultiValued = true;
@@ -324,6 +327,7 @@ public class PostgresUtils {
         value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
         break;
       case "NOT_EXISTS":
+      case "NOT EXISTS":
         sqlOperator = " IS NULL ";
         value = null;
         break;
