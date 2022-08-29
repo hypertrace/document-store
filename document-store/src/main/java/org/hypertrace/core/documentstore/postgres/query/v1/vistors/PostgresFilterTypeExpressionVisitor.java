@@ -50,10 +50,19 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     PostgresIdentifierExpressionVisitor identifierVisitor =
         new PostgresIdentifierExpressionVisitor();
     PostgresSelectTypeExpressionVisitor lhsVisitor =
-        new PostgresDataAccessorIdentifierExpressionVisitor(postgresQueryParser, getType(value));
+        new PostgresFunctionExpressionVisitor(
+            new PostgresDataAccessorIdentifierExpressionVisitor(
+                postgresQueryParser, getType(value)));
 
-    final String fieldName = lhs.accept(identifierVisitor);
     final String parsedLhsExpression = lhs.accept(lhsVisitor);
+    String fieldName;
+
+    try {
+      fieldName = lhs.accept(identifierVisitor);
+    } catch (final UnsupportedOperationException e) {
+      // For unsupported LHS parsers, use the extra field created by the '$addFields' stage
+      fieldName = parsedLhsExpression;
+    }
 
     FieldToPgColumn fieldToPgColumn =
         postgresQueryParser.getToPgColumnTransformer().transform(fieldName);

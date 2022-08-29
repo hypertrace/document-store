@@ -14,6 +14,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
@@ -55,7 +56,14 @@ final class MongoRelationalExpressionParser {
     MongoSelectTypeExpressionParser lhsParser = new MongoIdentifierExpressionParser();
     MongoSelectTypeExpressionParser rhsParser = new MongoConstantExpressionParser();
 
-    String key = lhs.accept(lhsParser);
+    String key;
+    try {
+      key = lhs.accept(lhsParser);
+    } catch (final UnsupportedOperationException e) {
+      // For unsupported LHS parsers, use the extra field created by the '$addFields' stage
+      key = encodeKey(lhs.toString());
+    }
+
     Object value = rhs.accept(rhsParser);
 
     return generateMap(key, value, operator);

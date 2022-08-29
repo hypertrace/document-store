@@ -588,6 +588,34 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
+  public void testQueryWithFunctionalLeftHandSideInFilter(final String dataStoreName)
+      throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    final Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .setFilter(
+                RelationalExpression.of(
+                    FunctionExpression.builder()
+                        .operator(MULTIPLY)
+                        .operand(IdentifierExpression.of("quantity"))
+                        .operand(IdentifierExpression.of("price"))
+                        .build(),
+                    GT,
+                    ConstantExpression.of(50)))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    final Iterator<Document> resultDocs = collection.aggregate(query);
+    Utils.assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, 3, "mongo/test_aggr_functional_lhs_in_filter_response.json");
+    testCountApi(dataStoreName, query, "mongo/test_aggr_functional_lhs_in_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
   public void testQueryQ1AggregationFilterAlongWithNonAliasFields(String dataStoreName)
       throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);

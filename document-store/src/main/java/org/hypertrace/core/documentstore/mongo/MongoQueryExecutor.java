@@ -8,6 +8,7 @@ import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getL
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getSkipClause;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.getCountClause;
+import static org.hypertrace.core.documentstore.mongo.parser.MongoAddFieldsParser.getAddFieldsClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilterClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoGroupTypeExpressionParser.getGroupClause;
@@ -39,6 +40,7 @@ public class MongoQueryExecutor {
   private static final List<Function<Query, Collection<BasicDBObject>>>
       AGGREGATE_PIPELINE_FUNCTIONS =
           List.of(
+              query -> singleton(getAddFieldsClause(query)),
               query -> singleton(getFilterClause(query, Query::getFilter)),
               MongoFromTypeExpressionParser::getFromClauses,
               query -> singleton(getGroupClause(query)),
