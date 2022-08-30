@@ -13,7 +13,7 @@ import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
-public class MongoFilterFieldAddingParser implements FilterTypeExpressionVisitor {
+public class MongoAddFieldsFilterParser implements FilterTypeExpressionVisitor {
 
   @SuppressWarnings("unchecked")
   @Override
@@ -38,7 +38,8 @@ public class MongoFilterFieldAddingParser implements FilterTypeExpressionVisitor
       return emptyMap();
     }
 
-    return Map.of(encodeKey(lhs.toString()), parsedLhs);
+    final String key = encodeKey(lhs.toString());
+    return Map.of(key, parsedLhs);
   }
 
   private Map<String, Object> parse(final FilterTypeExpression operand) {

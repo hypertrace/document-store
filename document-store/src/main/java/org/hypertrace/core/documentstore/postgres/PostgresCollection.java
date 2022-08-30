@@ -45,6 +45,7 @@ import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -782,7 +783,7 @@ public class PostgresCollection implements Collection {
       final org.hypertrace.core.documentstore.query.Query query) {
     org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-            collectionName, query);
+            collectionName, transformAndLog(query));
     String sqlQuery = queryParser.parse();
     try {
       PreparedStatement preparedStatement =
@@ -799,6 +800,14 @@ public class PostgresCollection implements Collection {
           "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
       throw new RuntimeException(e);
     }
+  }
+
+  private org.hypertrace.core.documentstore.query.Query transformAndLog(
+      org.hypertrace.core.documentstore.query.Query query) {
+    LOGGER.debug("Original query before transformation: {}", query);
+    query = PostgresQueryTransformer.transform(query);
+    LOGGER.debug("Query after transformation: {}", query);
+    return query;
   }
 
   private boolean isValidType(Object v) {

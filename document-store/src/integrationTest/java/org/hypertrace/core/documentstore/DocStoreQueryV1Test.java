@@ -718,6 +718,39 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
+  void testQueryQ1DistinctCountAggregationWithOnlyFilter(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"),
+                            IN,
+                            ConstantExpression.ofStrings(
+                                List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
+                    .build())
+            .build();
+
+    try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
+      Utils.assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultDocs, 1, "mongo/test_aggr_only_with_fliter_response.json");
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
   public void testQueryV1ForSimpleWhereClause(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);

@@ -35,8 +35,11 @@ public class MongoAddFieldsParser {
 
   @SuppressWarnings("unchecked")
   private static Map<String, Object> getNewFieldsForFiltering(final Query query) {
-    final MongoFilterFieldAddingParser filterFieldAddingParser = new MongoFilterFieldAddingParser();
+    final MongoAddFieldsFilterParser mongoAddFieldsFilterParser = new MongoAddFieldsFilterParser();
     return (Map<String, Object>)
-        query.getFilter().map(filter -> filter.accept(filterFieldAddingParser)).orElse(emptyMap());
+        query
+            .getFilter()
+            .map(filter -> filter.accept(mongoAddFieldsFilterParser))
+            .orElse(emptyMap());
   }
 }
