@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.PostgresCollection;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumnTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresAggregationFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
@@ -17,8 +18,12 @@ import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSortT
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresUnnestFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PostgresQueryParser {
+  private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
+
   @Getter private final String collection;
   @Getter private final Query query;
 
