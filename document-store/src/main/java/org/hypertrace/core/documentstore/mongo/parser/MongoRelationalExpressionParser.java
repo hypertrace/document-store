@@ -14,7 +14,6 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
-import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import com.mongodb.BasicDBObject;
@@ -48,23 +47,16 @@ final class MongoRelationalExpressionParser {
               });
 
   Map<String, Object> parse(final RelationalExpression expression) {
-    SelectTypeExpression lhs = expression.getLhs();
-    RelationalOperator operator = expression.getOperator();
-    SelectTypeExpression rhs = expression.getRhs();
+    final SelectTypeExpression lhs = expression.getLhs();
+    final RelationalOperator operator = expression.getOperator();
+    final SelectTypeExpression rhs = expression.getRhs();
 
-    // Only an identifier LHS and a constant RHS is supported as of now.
-    MongoSelectTypeExpressionParser lhsParser = new MongoIdentifierExpressionParser();
-    MongoSelectTypeExpressionParser rhsParser = new MongoConstantExpressionParser();
+    // Only a constant RHS is supported as of now
+    final MongoSelectTypeExpressionParser rhsParser = new MongoConstantExpressionParser();
+    final MongoSelectTypeExpressionParser lhsParser = new MongoRelationalLhsExpressionParser();
 
-    String key;
-    try {
-      key = lhs.accept(lhsParser);
-    } catch (final UnsupportedOperationException e) {
-      // For unsupported LHS parsers, use the extra field created by the '$addFields' stage
-      key = encodeKey(lhs.toString());
-    }
-
-    Object value = rhs.accept(rhsParser);
+    final String key = lhs.accept(lhsParser);
+    final Object value = rhs.accept(rhsParser);
 
     return generateMap(key, value, operator);
   }

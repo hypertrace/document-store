@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.hypertrace.core.documentstore.TestUtil.readFileFromResource;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
@@ -26,11 +28,16 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
+import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.List;
+import java.util.Map;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -111,7 +118,7 @@ class MongoQueryExecutorTest {
   }
 
   @Test
-  public void testFindWithSelection() {
+  public void testFindWithSelection() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSelection(IdentifierExpression.of("id"))
@@ -121,7 +128,7 @@ class MongoQueryExecutorTest {
     executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
-    BasicDBObject projection = BasicDBObject.parse("{id: 1, name: \"$fname\"}");
+    BasicDBObject projection = readExpectedBasicDBObject("mongo/projection/projection1.json");
 
     verify(collection).getNamespace();
     verify(collection).find(mongoQuery);
@@ -133,7 +140,7 @@ class MongoQueryExecutorTest {
   }
 
   @Test
-  public void testFindWithFilter() {
+  public void testFindWithFilter() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .setFilter(
@@ -150,18 +157,7 @@ class MongoQueryExecutorTest {
 
     executor.find(query);
 
-    BasicDBObject mongoQuery =
-        BasicDBObject.parse(
-            "{"
-                + "$and: ["
-                + " {"
-                + "   \"percentage\": { $gt: 90 }"
-                + " },"
-                + " {"
-                + "   \"class\": \"XII\""
-                + " }"
-                + "]"
-                + "}");
+    BasicDBObject mongoQuery = readExpectedBasicDBObject("mongo/filter/filter1.json");
     BasicDBObject projection = new BasicDBObject();
 
     verify(collection).getNamespace();
@@ -174,7 +170,7 @@ class MongoQueryExecutorTest {
   }
 
   @Test
-  public void testFindWithSorting() {
+  public void testFindWithSorting() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSort(IdentifierExpression.of("marks"), DESC)
@@ -184,7 +180,7 @@ class MongoQueryExecutorTest {
     executor.find(query);
 
     BasicDBObject mongoQuery = new BasicDBObject();
-    BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
+    BasicDBObject sortQuery = readExpectedBasicDBObject("mongo/sort/sort1.json");
     BasicDBObject projection = new BasicDBObject();
 
     verify(collection).getNamespace();
@@ -216,7 +212,7 @@ class MongoQueryExecutorTest {
   }
 
   @Test
-  public void testFindWithAllClauses() {
+  public void testFindWithAllClauses() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSelection(IdentifierExpression.of("id"))
@@ -238,20 +234,9 @@ class MongoQueryExecutorTest {
 
     executor.find(query);
 
-    BasicDBObject mongoQuery =
-        BasicDBObject.parse(
-            "{"
-                + "$and: ["
-                + " {"
-                + "   \"percentage\": { $gte: 90 }"
-                + " },"
-                + " {"
-                + "   \"class\": { $ne: \"XII\" }"
-                + " }"
-                + "]"
-                + "}");
-    BasicDBObject projection = BasicDBObject.parse("{id: 1, name: \"$fname\"}");
-    BasicDBObject sortQuery = BasicDBObject.parse("{ marks: -1, name: 1}");
+    BasicDBObject mongoQuery = readExpectedBasicDBObject("mongo/filter/filter2.json");
+    BasicDBObject projection = readExpectedBasicDBObject("mongo/projection/projection1.json");
+    BasicDBObject sortQuery = readExpectedBasicDBObject("mongo/sort/sort1.json");
 
     verify(collection).getNamespace();
     verify(collection).find(mongoQuery);
@@ -297,57 +282,26 @@ class MongoQueryExecutorTest {
   }
 
   @Test
-  public void testSimpleAggregate() {
+  public void testSimpleAggregate() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
             .build();
-
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse(
-                "{"
-                    + "\"$group\": "
-                    + "   { "
-                    + "     _id: null, "
-                    + "     total: {"
-                    + "       \"$push\": 1"
-                    + "     }"
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse(
-                "{" + "\"$project\": {" + "    \"total\": {\"$size\": \"$total\"}" + "}" + "}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/simple.json");
   }
 
   @Test
-  public void testFieldCount() {
+  public void testFieldCount() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("path")), "total")
             .build();
 
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse(
-                "{"
-                    + "\"$group\": "
-                    + "   { "
-                    + "     _id: null, "
-                    + "     total: {"
-                    + "       \"$push\": \"$path\""
-                    + "     }"
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse(
-                "{" + "\"$project\": {" + "    \"total\": { \"$size\": \"$total\" }" + "}" + "}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/field_count.json");
   }
 
   @Test
-  public void testAggregateWithProjections() {
+  public void testAggregateWithProjections() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSelections(
@@ -357,32 +311,11 @@ class MongoQueryExecutorTest {
                     SelectionSpec.of(IdentifierExpression.of("name"))))
             .build();
 
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse(
-                "{"
-                    + "\"$group\": "
-                    + "   { "
-                    + "     _id: null, "
-                    + "     total: {"
-                    + "       \"$push\": 1"
-                    + "     }"
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse(
-                "{"
-                    + "\"$project\": "
-                    + "   {"
-                    + "     name: 1,"
-                    + "     total: {\"$size\": \"$total\"}"
-                    + "   }"
-                    + "}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/with_projections.json");
   }
 
   @Test
-  public void testAggregateWithMultiLevelGrouping() {
+  public void testAggregateWithMultiLevelGrouping() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSelection(AggregateExpression.of(MIN, IdentifierExpression.of("rank")), "topper")
@@ -390,29 +323,11 @@ class MongoQueryExecutorTest {
                 List.of(IdentifierExpression.of("name"), IdentifierExpression.of("class")))
             .build();
 
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse(
-                "{"
-                    + "\"$group\": "
-                    + "   { "
-                    + "     _id: {"
-                    + "        name: \"$name\","
-                    + "        class: \"$class\""
-                    + "     }, "
-                    + "     topper: {"
-                    + "       \"$min\": \"$rank\""
-                    + "     }"
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse(
-                "{" + "\"$project\": {" + "   \"topper\": \"$topper\"" + " }" + "}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/multi_level_grouping.json");
   }
 
   @Test
-  public void testAggregateWithFilter() {
+  public void testAggregateWithFilter() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSelection(AggregateExpression.of(SUM, IdentifierExpression.of("marks")), "total")
@@ -423,34 +338,11 @@ class MongoQueryExecutorTest {
                     ConstantExpression.ofStrings(List.of("A", "B", "C"))))
             .build();
 
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse(
-                "{"
-                    + "\"$match\": "
-                    + "   {"
-                    + "      \"section\": {"
-                    + "         \"$in\": [\"A\", \"B\", \"C\"]"
-                    + "       }"
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse(
-                "{"
-                    + "\"$group\": "
-                    + "   { "
-                    + "     _id: null, "
-                    + "     total: {"
-                    + "       \"$sum\": \"$marks\" "
-                    + "     }"
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": \"$total\"" + " }" + "}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/with_filter.json");
   }
 
   @Test
-  public void testAggregateWithGroupingFilter() {
+  public void testAggregateWithGroupingFilter() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSelection(
@@ -470,38 +362,11 @@ class MongoQueryExecutorTest {
                     ConstantExpression.ofNumbers(List.of(100, 200, 500))))
             .build();
 
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse(
-                "{"
-                    + "\"$group\": "
-                    + "   { "
-                    + "     _id: {"
-                    + "        order: \"$order\""
-                    + "     }, "
-                    + "     total: {"
-                    + "       \"$sum\": {"
-                    + "         \"$multiply\": [ \"$price\", \"$quantity\" ]"
-                    + "       }"
-                    + "     }"
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse("{" + "\"$project\": {" + "   \"total\": \"$total\"" + " }" + "}"),
-            BasicDBObject.parse(
-                "{"
-                    + "\"$match\":"
-                    + "   {"
-                    + "     total: { "
-                    + "       $nin: [100, 200, 500] "
-                    + "     }"
-                    + "   }"
-                    + "}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/with_grouping_filter.json");
   }
 
   @Test
-  public void testAggregateWithSorting() {
+  public void testAggregateWithSorting() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addSelection(
@@ -515,66 +380,22 @@ class MongoQueryExecutorTest {
                     SortingSpec.of(IdentifierExpression.of("section"), ASC)))
             .build();
 
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse(
-                "{"
-                    + "\"$group\": "
-                    + "   { "
-                    + "     _id: {"
-                    + "       section: \"$section\""
-                    + "     }, "
-                    + "     averageHighScore: {"
-                    + "       \"$avg\": {"
-                    + "         \"$max\": \"$mark\""
-                    + "       }"
-                    + "     }"
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse(
-                "{"
-                    + "\"$project\": {"
-                    + "     \"averageHighScore\": \"$averageHighScore\""
-                    + " }"
-                    + "}"),
-            BasicDBObject.parse(
-                "{"
-                    + "   \"$sort\": {"
-                    + "       averageHighScore: -1,"
-                    + "       section: 1"
-                    + "   }"
-                    + "}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/with_sorting.json");
   }
 
   @Test
-  public void testAggregateWithPagination() {
+  public void testAggregateWithPagination() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .addAggregation(IdentifierExpression.of("student"))
             .setPagination(Pagination.builder().offset(0).limit(10).build())
             .build();
 
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse(
-                "{"
-                    + "\"$group\": "
-                    + "   { "
-                    + "     _id: {"
-                    + "       student: \"$student\""
-                    + "     } "
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse("{" + "\"$skip\": 0" + "}"),
-            BasicDBObject.parse("{" + "\"$limit\": 10" + "}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/with_pagination.json");
   }
 
   @Test
-  public void testGetDistinctCount() {
+  public void testGetDistinctCount() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .setFilter(
@@ -586,43 +407,11 @@ class MongoQueryExecutorTest {
                 "section_count")
             .build();
 
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse(
-                "{"
-                    + "\"$match\": "
-                    + "{"
-                    + "   \"class\": {"
-                    + "       \"$lte\": 10"
-                    + "    }"
-                    + "}"
-                    + "}"),
-            BasicDBObject.parse(
-                "{"
-                    + "\"$group\": "
-                    + "   { "
-                    + "     _id: {"
-                    + "       class: \"$class\""
-                    + "     },"
-                    + "     section_count: {"
-                    + "       \"$addToSet\": \"$section\""
-                    + "     } "
-                    + "   }"
-                    + "}"),
-            BasicDBObject.parse(
-                "{"
-                    + "\"$project\": {"
-                    + "    section_count: {"
-                    + "       \"$size\": \"$section_count\""
-                    + "    }"
-                    + "}"
-                    + "}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/distinct_count.json");
   }
 
   @Test
-  public void testUnwindAndGroup() {
+  public void testUnwindAndGroup() throws IOException, URISyntaxException {
     Query query =
         Query.builder()
             .setFilter(
@@ -634,23 +423,51 @@ class MongoQueryExecutorTest {
                 UnnestExpression.of(IdentifierExpression.of("class.students.courses"), true))
             .build();
 
-    List<BasicDBObject> pipeline =
-        List.of(
-            BasicDBObject.parse("{\"$match\": {\"class\": {\"$lte\": 10}}}"),
-            BasicDBObject.parse(
-                "{\"$unwind\": {\"path\": \"$class.students\", \"preserveNullAndEmptyArrays\": true}}"),
-            BasicDBObject.parse(
-                "{\"$unwind\": {\"path\": \"$class.students.courses\", \"preserveNullAndEmptyArrays\": true}}"),
-            BasicDBObject.parse(
-                "{\"$group\": {\"_id\": {\"class\\\\u002estudents\\\\u002ecourses\": \"$class.students.courses\"}}}"));
-
-    testAggregation(query, pipeline);
+    testAggregation(query, "mongo/pipeline/unwind_and_group.json");
   }
 
-  private void testAggregation(Query query, List<BasicDBObject> pipeline) {
+  @Test
+  void testQueryWithFunctionalLhsInRelationalFilter() throws IOException, URISyntaxException {
+    final Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .setFilter(
+                RelationalExpression.of(
+                    FunctionExpression.builder()
+                        .operator(MULTIPLY)
+                        .operand(IdentifierExpression.of("quantity"))
+                        .operand(IdentifierExpression.of("price"))
+                        .build(),
+                    GT,
+                    ConstantExpression.of(50)))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    testAggregation(query, "mongo/pipeline/functional_lhs_in_relational_filter.json");
+  }
+
+  private void testAggregation(Query query, final String filePath)
+      throws IOException, URISyntaxException {
+    List<BasicDBObject> pipeline = readExpectedPipeline(filePath);
+
     executor.aggregate(query);
     verify(collection).getNamespace();
     verify(collection).aggregate(pipeline);
     verify(aggIterable).cursor();
+  }
+
+  @SuppressWarnings("Convert2Diamond")
+  private List<BasicDBObject> readExpectedPipeline(final String filePath)
+      throws IOException, URISyntaxException {
+    final List<Map<String, Object>> fileContents =
+        new ObjectMapper()
+            .readValue(
+                readFileFromResource(filePath), new TypeReference<List<Map<String, Object>>>() {});
+    return fileContents.stream().map(BasicDBObject::new).collect(toUnmodifiableList());
+  }
+
+  private BasicDBObject readExpectedBasicDBObject(final String filePath)
+      throws IOException, URISyntaxException {
+    return BasicDBObject.parse(readFileFromResource(filePath));
   }
 }

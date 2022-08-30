@@ -1,0 +1,10 @@
+{
+  "$and": [
+    {
+      "percentage": { "$gt": 90 }
+    },
+    {
+      "class": "XII"
+    }
+  ]
+}

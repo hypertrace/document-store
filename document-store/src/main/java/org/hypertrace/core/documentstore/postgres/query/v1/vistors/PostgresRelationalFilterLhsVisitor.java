@@ -7,12 +7,11 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
-public class PostgresRelationalFilterLhsFieldNameVisitor
-    extends PostgresSelectTypeExpressionVisitor {
+public class PostgresRelationalFilterLhsVisitor extends PostgresSelectTypeExpressionVisitor {
   private final PostgresIdentifierExpressionVisitor identifierValueVisitor;
   private final PostgresSelectTypeExpressionVisitor lhsExpressionVisitor;
 
-  public PostgresRelationalFilterLhsFieldNameVisitor(
+  public PostgresRelationalFilterLhsVisitor(
       final PostgresQueryParser postgresQueryParser, final Type valueType) {
     super(postgresQueryParser);
     identifierValueVisitor = new PostgresIdentifierExpressionVisitor(postgresQueryParser);

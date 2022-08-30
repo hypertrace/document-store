@@ -15,7 +15,7 @@ import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumn;
-import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresRelationalFilterLhsFieldNameVisitor.RelationalFilterLhsParseResult;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresRelationalFilterLhsVisitor.RelationalFilterLhsParseResult;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
@@ -45,12 +45,12 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     RelationalOperator operator = expression.getOperator();
     SelectTypeExpression rhs = expression.getRhs();
 
-    // Only an identifier LHS and a constant RHS is supported as of now.
+    // Only a constant RHS is supported as of now.
     PostgresSelectTypeExpressionVisitor rhsVisitor = new PostgresConstantExpressionVisitor();
     Object value = rhs.accept(rhsVisitor);
 
-    PostgresRelationalFilterLhsFieldNameVisitor lhsVisitor =
-        new PostgresRelationalFilterLhsFieldNameVisitor(postgresQueryParser, getType(value));
+    PostgresRelationalFilterLhsVisitor lhsVisitor =
+        new PostgresRelationalFilterLhsVisitor(postgresQueryParser, getType(value));
 
     final RelationalFilterLhsParseResult parseResult = lhs.accept(lhsVisitor);
     final String fieldName = parseResult.getFieldName();

@@ -590,8 +590,8 @@ public class DocStoreQueryV1Test {
   @MethodSource("databaseContextBoth")
   public void testQueryWithFunctionalLeftHandSideInFilter(final String dataStoreName)
       throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    final Collection collection = datastore.getCollection(COLLECTION_NAME);
 
     final Query query =
         Query.builder()

@@ -1,0 +1,28 @@
+[
+  {
+    "$match": {
+      "class": {
+        "$lte": 10
+      }
+    }
+  },
+  {
+    "$unwind": {
+      "path": "$class.students",
+      "preserveNullAndEmptyArrays": true
+    }
+  },
+  {
+    "$unwind": {
+      "path": "$class.students.courses",
+      "preserveNullAndEmptyArrays": true
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "class\\u002estudents\\u002ecourses": "$class.students.courses"
+      }
+    }
+  }
+]

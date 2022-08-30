@@ -1,0 +1,18 @@
+[
+  {
+    "$group": {
+      "_id": null,
+      "total": {
+        "$push": 1
+      }
+    }
+  },
+  {
+    "$project": {
+      "name": 1,
+      "total": {
+        "$size": "$total"
+      }
+    }
+  }
+]
