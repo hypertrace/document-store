@@ -60,4 +60,9 @@ public class ConstantExpression implements SelectTypeExpression {
   public <T> T accept(final SelectTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
+
+  @Override
+  public String toString() {
+    return value instanceof String ? "'" + value + "'" : String.valueOf(value);
+  }
 }

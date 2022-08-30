@@ -20,4 +20,9 @@ public class Pagination {
       return new Pagination(limit, offset);
     }
   }
+
+  @Override
+  public String toString() {
+    return String.format("LIMIT %s OFFSET %s", limit, offset);
+  }
 }

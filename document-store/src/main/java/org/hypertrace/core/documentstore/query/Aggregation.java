@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.query;
 
+import static java.util.stream.Collectors.joining;
+
 import com.google.common.base.Preconditions;
 import java.util.List;
 import java.util.Objects;
@@ -23,5 +25,10 @@ public class Aggregation {
           expressions.stream().noneMatch(Objects::isNull), "One or more expressions is null");
       return new Aggregation(expressions);
     }
+  }
+
+  @Override
+  public String toString() {
+    return expressions.stream().map(String::valueOf).collect(joining(", "));
   }
 }

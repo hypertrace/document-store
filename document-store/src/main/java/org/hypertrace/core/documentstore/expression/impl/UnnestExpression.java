@@ -42,4 +42,11 @@ public class UnnestExpression implements FromTypeExpression {
   public <T> T accept(FromTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
+
+  @Override
+  public String toString() {
+    return String.format(
+        "UNNEST(%s, %s, %s)",
+        identifierExpression, preserveNullAndEmptyArrays, filterTypeExpression);
+  }
 }

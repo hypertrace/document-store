@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
+import static java.util.stream.Collectors.joining;
+
 import com.google.common.base.Preconditions;
 import java.util.List;
 import java.util.Objects;
@@ -69,5 +71,10 @@ public class FunctionExpression
   @Override
   public <T> T accept(final SortTypeExpressionVisitor visitor) {
     return visitor.visit(this);
+  }
+
+  @Override
+  public String toString() {
+    return operator + "(" + operands.stream().map(String::valueOf).collect(joining(", ")) + ")";
   }
 }

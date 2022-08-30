@@ -27,4 +27,9 @@ public class SelectionSpec {
     Preconditions.checkArgument(expression != null, "expression is null");
     return new SelectionSpec(expression, alias);
   }
+
+  @Override
+  public String toString() {
+    return alias == null ? expression.toString() : expression.toString() + " AS " + alias;
+  }
 }
