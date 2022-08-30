@@ -15,6 +15,7 @@ import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumn;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresRelationalFilterLhsFieldNameVisitor.RelationalFilterLhsParseResult;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
@@ -47,22 +48,12 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     // Only an identifier LHS and a constant RHS is supported as of now.
     PostgresSelectTypeExpressionVisitor rhsVisitor = new PostgresConstantExpressionVisitor();
     Object value = rhs.accept(rhsVisitor);
-    PostgresIdentifierExpressionVisitor identifierVisitor =
-        new PostgresIdentifierExpressionVisitor();
-    PostgresSelectTypeExpressionVisitor lhsVisitor =
-        new PostgresFunctionExpressionVisitor(
-            new PostgresDataAccessorIdentifierExpressionVisitor(
-                postgresQueryParser, getType(value)));
 
-    final String parsedLhsExpression = lhs.accept(lhsVisitor);
-    String fieldName;
+    PostgresRelationalFilterLhsFieldNameVisitor lhsVisitor =
+        new PostgresRelationalFilterLhsFieldNameVisitor(postgresQueryParser, getType(value));
 
-    try {
-      fieldName = lhs.accept(identifierVisitor);
-    } catch (final UnsupportedOperationException e) {
-      // For unsupported LHS parsers, use the extra field created by the '$addFields' stage
-      fieldName = parsedLhsExpression;
-    }
+    final RelationalFilterLhsParseResult parseResult = lhs.accept(lhsVisitor);
+    final String fieldName = parseResult.getFieldName();
 
     FieldToPgColumn fieldToPgColumn =
         postgresQueryParser.getToPgColumnTransformer().transform(fieldName);
@@ -72,7 +63,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
 
     return PostgresUtils.parseNonCompositeFilter(
         fieldToPgColumn.getTransformedField(),
-        parsedLhsExpression,
+        parseResult.getParsedExpression(),
         fieldToPgColumn.getPgColumn(),
         operator.toString(),
         value,
