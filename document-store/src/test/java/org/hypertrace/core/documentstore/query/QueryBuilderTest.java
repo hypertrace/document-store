@@ -48,7 +48,7 @@ class QueryBuilderTest {
   @Test
   public void testQuerySimple() {
     Query query = Query.builder().build();
-    assertEquals("SELECT * FROM <implicit_collection>", query.toString());
+    assertEquals("SELECT * " + "FROM <implicit_collection>", query.toString());
   }
 
   @Test
@@ -58,7 +58,7 @@ class QueryBuilderTest {
             .addSelection(IdentifierExpression.of("id"))
             .addSelection(IdentifierExpression.of("fname"), "name")
             .build();
-    assertEquals("SELECT `id`, `fname` AS name FROM <implicit_collection>", query.toString());
+    assertEquals("SELECT `id`, `fname` AS name " + "FROM <implicit_collection>", query.toString());
   }
 
   @Test
@@ -78,7 +78,9 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT * FROM <implicit_collection> WHERE (`percentage` > 90) AND (`class` = 'XII')",
+        "SELECT * "
+            + "FROM <implicit_collection> "
+            + "WHERE (`percentage` > 90) AND (`class` = 'XII')",
         query.toString());
   }
 
@@ -91,7 +93,8 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT * FROM <implicit_collection> ORDER BY `marks` DESC, `name` ASC", query.toString());
+        "SELECT * " + "FROM <implicit_collection> " + "ORDER BY `marks` DESC, `name` ASC",
+        query.toString());
   }
 
   @Test
@@ -99,7 +102,8 @@ class QueryBuilderTest {
     Query query =
         Query.builder().setPagination(Pagination.builder().limit(10).offset(50).build()).build();
 
-    assertEquals("SELECT * FROM <implicit_collection> LIMIT 10 OFFSET 50", query.toString());
+    assertEquals(
+        "SELECT * " + "FROM <implicit_collection> " + "LIMIT 10 " + "OFFSET 50", query.toString());
   }
 
   @Test
@@ -124,7 +128,12 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT `id`, `fname` AS name FROM <implicit_collection> WHERE (`percentage` >= 90) AND (`class` != 'XII') ORDER BY `marks` DESC, `name` ASC LIMIT 10 OFFSET 50",
+        "SELECT `id`, `fname` AS name "
+            + "FROM <implicit_collection> "
+            + "WHERE (`percentage` >= 90) AND (`class` != 'XII') "
+            + "ORDER BY `marks` DESC, `name` ASC "
+            + "LIMIT 10 "
+            + "OFFSET 50",
         query.toString());
   }
 
@@ -135,7 +144,7 @@ class QueryBuilderTest {
             .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
             .build();
 
-    assertEquals("SELECT COUNT(1) AS total FROM <implicit_collection>", query.toString());
+    assertEquals("SELECT COUNT(1) AS total " + "FROM <implicit_collection>", query.toString());
   }
 
   @Test
@@ -145,7 +154,7 @@ class QueryBuilderTest {
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("path")), "total")
             .build();
 
-    assertEquals("SELECT COUNT(`path`) AS total FROM <implicit_collection>", query.toString());
+    assertEquals("SELECT COUNT(`path`) AS total " + "FROM <implicit_collection>", query.toString());
   }
 
   @Test
@@ -161,7 +170,7 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT COUNT(1) AS total, `name` FROM <implicit_collection> GROUP BY `name`",
+        "SELECT COUNT(1) AS total, `name` " + "FROM <implicit_collection> " + "GROUP BY `name`",
         query.toString());
   }
 
@@ -176,7 +185,9 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT `name`, MIN(`rank`) AS topper FROM <implicit_collection> GROUP BY `name`, `class`",
+        "SELECT `name`, MIN(`rank`) AS topper "
+            + "FROM <implicit_collection> "
+            + "GROUP BY `name`, `class`",
         query.toString());
   }
 
@@ -193,7 +204,9 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT SUM(`marks`) AS total FROM <implicit_collection> WHERE `section` IN [A, B, C]",
+        "SELECT SUM(`marks`) AS total "
+            + "FROM <implicit_collection> "
+            + "WHERE `section` IN [A, B, C]",
         query.toString());
   }
 
@@ -219,7 +232,10 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT SUM(MULTIPLY(`price`, `quantity`)) AS total FROM <implicit_collection> GROUP BY `order` HAVING `total` NOT IN [100, 200, 500]",
+        "SELECT SUM(MULTIPLY(`price`, `quantity`)) AS total "
+            + "FROM <implicit_collection> "
+            + "GROUP BY `order` "
+            + "HAVING `total` NOT IN [100, 200, 500]",
         query.toString());
   }
 
@@ -239,7 +255,10 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT AVG(MAX(`mark`)) AS averageHighScore FROM <implicit_collection> GROUP BY `section` ORDER BY `averageHighScore` DESC, `section` ASC",
+        "SELECT AVG(MAX(`mark`)) AS averageHighScore "
+            + "FROM <implicit_collection> "
+            + "GROUP BY `section` "
+            + "ORDER BY `averageHighScore` DESC, `section` ASC",
         query.toString());
   }
 
@@ -252,7 +271,11 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT * FROM <implicit_collection> GROUP BY `student` LIMIT 10 OFFSET 0",
+        "SELECT * "
+            + "FROM <implicit_collection> "
+            + "GROUP BY `student` "
+            + "LIMIT 10 "
+            + "OFFSET 0",
         query.toString());
   }
 
@@ -270,7 +293,10 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT DISTINCT_COUNT(`section`) AS section_count FROM <implicit_collection> WHERE `class` <= 10 GROUP BY `class`",
+        "SELECT DISTINCT_COUNT(`section`) AS section_count "
+            + "FROM <implicit_collection> "
+            + "WHERE `class` <= 10 "
+            + "GROUP BY `class`",
         query.toString());
   }
 
@@ -288,7 +314,12 @@ class QueryBuilderTest {
             .build();
 
     assertEquals(
-        "SELECT * FROM <implicit_collection>, UNNEST(`class.students`, true, null), UNNEST(`class.students.courses`, true, null) WHERE `class` <= 10 GROUP BY `class.students.courses`",
+        "SELECT * "
+            + "FROM <implicit_collection>, "
+            + "UNNEST(`class.students`, true, null), "
+            + "UNNEST(`class.students.courses`, true, null) "
+            + "WHERE `class` <= 10 "
+            + "GROUP BY `class.students.courses`",
         query.toString());
   }
 
