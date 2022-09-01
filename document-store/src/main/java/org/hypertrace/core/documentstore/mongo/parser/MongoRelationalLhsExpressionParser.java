@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
+
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
@@ -10,7 +12,7 @@ public class MongoRelationalLhsExpressionParser extends MongoSelectTypeExpressio
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final FunctionExpression expression) {
-    return expression.toString();
+    return encodeKey(expression.toString());
   }
 
   @SuppressWarnings("unchecked")

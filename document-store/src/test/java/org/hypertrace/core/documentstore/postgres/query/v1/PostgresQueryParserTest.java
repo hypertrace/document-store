@@ -56,9 +56,7 @@ public class PostgresQueryParserTest {
         new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
-        "SELECT * "
-            + "FROM testCollection "
-            + "WHERE document->'quantity' IS NULL OR CAST (document->>'quantity' AS NUMERIC) != ?",
+        "SELECT * " + "FROM testCollection " + "WHERE CAST (document->>'quantity' AS NUMERIC) != ?",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -743,7 +741,7 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from testCollection "
-            + "WHERE document->'quantity' IS NULL OR CAST (document->>'quantity' AS NUMERIC) != ?),\n"
+            + "WHERE CAST (document->>'quantity' AS NUMERIC) != ?),\n"
             + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales)),\n"
             + "table2 as (SELECT * from table1 t1, jsonb_array_elements(sales->'medium') p2(sales_dot_medium))\n"
             + "SELECT document->'item' AS item, "

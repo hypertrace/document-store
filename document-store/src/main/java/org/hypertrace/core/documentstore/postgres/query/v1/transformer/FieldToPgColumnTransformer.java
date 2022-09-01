@@ -18,7 +18,7 @@ public class FieldToPgColumnTransformer {
   public FieldToPgColumn transform(String orgFieldName) {
     Optional<String> parentField =
         postgresQueryParser.getPgColumnNames().keySet().stream()
-            .filter(f -> orgFieldName.startsWith(f))
+            .filter(orgFieldName::startsWith)
             .max(Comparator.comparingInt(String::length));
 
     if (parentField.isEmpty()) {

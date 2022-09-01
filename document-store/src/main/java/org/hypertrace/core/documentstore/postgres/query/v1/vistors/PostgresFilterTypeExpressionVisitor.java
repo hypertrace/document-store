@@ -14,8 +14,6 @@ import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
-import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumn;
-import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresRelationalFilterLhsVisitor.RelationalFilterLhsParseResult;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
@@ -39,6 +37,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     return !childList.isEmpty() ? childList : null;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public String visit(final RelationalExpression expression) {
     SelectTypeExpression lhs = expression.getLhs();
@@ -49,25 +48,14 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     PostgresSelectTypeExpressionVisitor rhsVisitor = new PostgresConstantExpressionVisitor();
     Object value = rhs.accept(rhsVisitor);
 
-    PostgresRelationalFilterLhsVisitor lhsVisitor =
-        new PostgresRelationalFilterLhsVisitor(postgresQueryParser, getType(value));
+    PostgresSelectTypeExpressionVisitor lhsVisitor =
+        new PostgresFunctionExpressionVisitor(
+            new PostgresDataAccessorIdentifierExpressionVisitor(
+                postgresQueryParser, getType(value)));
 
-    final RelationalFilterLhsParseResult parseResult = lhs.accept(lhsVisitor);
-    final String fieldName = parseResult.getFieldName();
-
-    FieldToPgColumn fieldToPgColumn =
-        postgresQueryParser.getToPgColumnTransformer().transform(fieldName);
-
-    if (fieldToPgColumn.getTransformedField() == null)
-      throw new UnsupportedOperationException("jsonb types in where clause is not yet supported");
-
-    return PostgresUtils.parseNonCompositeFilter(
-        fieldToPgColumn.getTransformedField(),
-        parseResult.getParsedExpression(),
-        fieldToPgColumn.getPgColumn(),
-        operator.toString(),
-        value,
-        postgresQueryParser.getParamsBuilder());
+    final String parseResult = lhs.accept(lhsVisitor);
+    return PostgresUtils.prepareParsedNonCompositeFilter(
+        parseResult, operator.toString(), value, postgresQueryParser.getParamsBuilder());
   }
 
   public static Optional<String> getFilterClause(PostgresQueryParser postgresQueryParser) {
