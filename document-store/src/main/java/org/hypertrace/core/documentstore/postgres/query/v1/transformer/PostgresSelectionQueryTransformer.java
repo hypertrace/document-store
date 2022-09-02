@@ -1,11 +1,14 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
+import com.google.common.base.Strings;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
@@ -29,18 +32,32 @@ import org.hypertrace.core.documentstore.query.transform.TransformedQueryBuilder
  *
  * This is the similar behavior supported in our other document store implementation (e.g Mongo)
  * */
-public class PostgresSelectionQueryTransformer
-    implements QueryTransformer, SelectTypeExpressionVisitor {
+public class PostgresSelectionQueryTransformer implements QueryTransformer {
 
   @Override
   public Query transform(Query query) {
-    // no-op if group by clause exits
-    if (!query.getAggregations().isEmpty()) return query;
+    SelectTypeAggregationExpressionChecker selectTypeAggregationExpressionChecker = new SelectTypeAggregationExpressionChecker();
+    SelectTypeIdentifierExpressionSelector selectTypeIdentifierExpressionSelector = new SelectTypeIdentifierExpressionSelector();
+
+    Boolean hasAggregationFunction = query.getSelections().stream()
+        .filter(selectionSpec -> selectionSpec.getExpression().accept(selectTypeAggregationExpressionChecker))
+        .findAny()
+        .isEmpty();
+
+    if (!hasAggregationFunction) return query;
+
+    // get all identifier of group by clause
+    LocalGroupByExpressionVisitor groupByExpressionVisitor = new LocalGroupByExpressionVisitor();
+    Set<String> groupByExpressions = query.getAggregations().stream()
+        .map(gte -> (String) gte.accept(groupByExpressionVisitor))
+        .filter(s -> !Strings.isNullOrEmpty(s))
+        .collect(Collectors.toUnmodifiableSet());
 
     // check for all selections, remove non-aggregated selections.
     List<SelectionSpec> finalSelectionSpecs =
         query.getSelections().stream()
-            .filter(selectionSpec -> selectionSpec.getExpression().accept(this))
+            .filter(selectionSpec -> (boolean) selectionSpec.getExpression().accept(selectTypeAggregationExpressionChecker)
+                && groupByExpressions.contains((String)selectionSpec.getExpression().accept(selectTypeIdentifierExpressionSelector)))
             .collect(Collectors.toUnmodifiableList());
 
     return finalSelectionSpecs.size() > 0
@@ -48,23 +65,59 @@ public class PostgresSelectionQueryTransformer
         : query;
   }
 
-  @Override
-  public Boolean visit(AggregateExpression expression) {
-    return true;
+  private static class SelectTypeAggregationExpressionChecker implements SelectTypeExpressionVisitor {
+    @Override
+    public Boolean visit(AggregateExpression expression) {
+      return true;
+    }
+
+    @Override
+    public Boolean visit(ConstantExpression expression) {
+      return false;
+    }
+
+    @Override
+    public Boolean visit(FunctionExpression expression) {
+      return false;
+    }
+
+    @Override
+    public Boolean visit(IdentifierExpression expression) {
+      return false;
+    }
   }
 
-  @Override
-  public Boolean visit(ConstantExpression expression) {
-    return false;
+  private static class SelectTypeIdentifierExpressionSelector implements SelectTypeExpressionVisitor {
+    @Override
+    public String visit(AggregateExpression expression) {
+      return null;
+    }
+
+    @Override
+    public String visit(ConstantExpression expression) {
+      return null;
+    }
+
+    @Override
+    public String visit(FunctionExpression expression) {
+      return null;
+    }
+
+    @Override
+    public String visit(IdentifierExpression expression) {
+      return expression.getName();
+    }
   }
 
-  @Override
-  public Boolean visit(FunctionExpression expression) {
-    return false;
-  }
+  private static class LocalGroupByExpressionVisitor implements GroupTypeExpressionVisitor{
+    @Override
+    public String visit(FunctionExpression expression) {
+      return null;
+    }
 
-  @Override
-  public Boolean visit(IdentifierExpression expression) {
-    return false;
+    @Override
+    public String visit(IdentifierExpression expression) {
+      return expression.getName();
+    }
   }
 }
