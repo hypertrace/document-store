@@ -1,0 +1,18 @@
+[
+  {
+    "$group": {
+      "_id": {
+        "name": "$name",
+        "class": "$class"
+      },
+      "topper": {
+        "$min": "$rank"
+      }
+    }
+  },
+  {
+    "$project": {
+      "topper": "$topper"
+    }
+  }
+]

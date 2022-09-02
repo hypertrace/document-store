@@ -47,16 +47,16 @@ final class MongoRelationalExpressionParser {
               });
 
   Map<String, Object> parse(final RelationalExpression expression) {
-    SelectTypeExpression lhs = expression.getLhs();
-    RelationalOperator operator = expression.getOperator();
-    SelectTypeExpression rhs = expression.getRhs();
+    final SelectTypeExpression lhs = expression.getLhs();
+    final RelationalOperator operator = expression.getOperator();
+    final SelectTypeExpression rhs = expression.getRhs();
 
-    // Only an identifier LHS and a constant RHS is supported as of now.
-    MongoSelectTypeExpressionParser lhsParser = new MongoIdentifierExpressionParser();
-    MongoSelectTypeExpressionParser rhsParser = new MongoConstantExpressionParser();
+    // Only a constant RHS is supported as of now
+    final MongoSelectTypeExpressionParser rhsParser = new MongoConstantExpressionParser();
+    final MongoSelectTypeExpressionParser lhsParser = new MongoRelationalLhsExpressionParser();
 
-    String key = lhs.accept(lhsParser);
-    Object value = rhs.accept(rhsParser);
+    final String key = lhs.accept(lhsParser);
+    final Object value = rhs.accept(rhsParser);
 
     return generateMap(key, value, operator);
   }

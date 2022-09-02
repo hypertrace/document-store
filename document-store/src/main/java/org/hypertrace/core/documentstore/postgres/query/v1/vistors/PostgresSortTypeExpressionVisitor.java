@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
+
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -62,10 +64,14 @@ public class PostgresSortTypeExpressionVisitor implements SortTypeExpressionVisi
             .map(
                 sortingSpec -> {
                   String sortingExp = sortingSpec.getExpression().accept(sortTypeExpressionVisitor);
-                  return String.format("%s %s", sortingExp, sortingSpec.getOrder().toString());
+                  return String.format("%s %s", sortingExp, getSortOrder(sortingSpec));
                 })
             .collect(Collectors.joining(","));
 
     return StringUtils.isNotEmpty(childList) ? Optional.of(childList) : Optional.empty();
+  }
+
+  private static String getSortOrder(final SortingSpec sortingSpec) {
+    return sortingSpec.getOrder() == ASC ? "ASC NULLS FIRST" : "DESC NULLS LAST";
   }
 }

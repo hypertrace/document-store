@@ -23,6 +23,7 @@ import static org.hypertrace.core.documentstore.expression.operators.SortOrder.D
 import static org.hypertrace.core.documentstore.utils.Utils.MONGO_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.POSTGRES_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.assertDocsAndSizeEqual;
+import static org.hypertrace.core.documentstore.utils.Utils.assertDocsAndSizeEqualWithoutOrder;
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -137,11 +138,13 @@ public class DocStoreQueryV1Test {
     return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
   }
 
+  @SuppressWarnings("unused")
   @MethodSource
   private static Stream<Arguments> databaseContextMongo() {
     return Stream.of(Arguments.of(MONGO_STORE));
   }
 
+  @SuppressWarnings("unused")
   @MethodSource
   private static Stream<Arguments> databaseContextPostgres() {
     return Stream.of(Arguments.of(POSTGRES_STORE));
@@ -199,7 +202,7 @@ public class DocStoreQueryV1Test {
     Query query = Query.builder().setSelection(selection).setFilter(filter).build();
 
     Iterator<Document> resultDocs = collection.find(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 5, "mongo/simple_filter_response.json");
 
     testCountApi(dataStoreName, query, "mongo/simple_filter_response.json");
@@ -231,7 +234,7 @@ public class DocStoreQueryV1Test {
 
     Query query = Query.builder().setSelection(selection).setFilter(filter).build();
     Iterator<Document> resultDocs = collection.find(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 5, "mongo/simple_filter_response.json");
 
     testCountApi(dataStoreName, query, "mongo/simple_filter_response.json");
@@ -278,8 +281,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.find(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 3, "mongo/filter_with_sorting_and_pagination_response.json");
+    assertDocsAndSizeEqual(resultDocs, "mongo/filter_with_sorting_and_pagination_response.json", 3);
 
     testCountApi(dataStoreName, query, "mongo/filter_with_sorting_and_pagination_response.json");
   }
@@ -320,8 +322,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.find(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 6, "mongo/filter_on_nested_fields_response.json");
+    assertDocsAndSizeEqual(resultDocs, "mongo/filter_on_nested_fields_response.json", 6);
 
     testCountApi(dataStoreName, query, "mongo/filter_on_nested_fields_response.json");
   }
@@ -349,8 +350,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 1, "mongo/count_response.json");
+    assertDocsAndSizeEqualWithoutOrder(dataStoreName, resultDocs, 1, "mongo/count_response.json");
     testCountApi(dataStoreName, query, "mongo/count_response.json");
   }
 
@@ -367,7 +367,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 1, "mongo/optional_field_count_response.json");
     testCountApi(dataStoreName, query, "mongo/optional_field_count_response.json");
   }
@@ -384,8 +384,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 1, "mongo/count_response.json");
+    assertDocsAndSizeEqualWithoutOrder(dataStoreName, resultDocs, 1, "mongo/count_response.json");
     testCountApi(dataStoreName, query, "mongo/count_response.json");
   }
 
@@ -425,8 +424,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 2, "mongo/sum_response.json");
+    assertDocsAndSizeEqual(resultDocs, "mongo/sum_response.json", 2);
     testCountApi(dataStoreName, query, "mongo/sum_response.json");
   }
 
@@ -469,8 +467,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 2, "mongo/sum_response.json");
+    assertDocsAndSizeEqual(resultDocs, "mongo/sum_response.json", 2);
     testCountApi(dataStoreName, query, "mongo/sum_response.json");
   }
 
@@ -494,7 +491,7 @@ public class DocStoreQueryV1Test {
     Iterator<Document> resultDocs = collection.aggregate(query);
 
     if (dataStoreName.equals(POSTGRES_STORE)) {
-      Utils.assertDocsAndSizeEqualWithoutOrder(
+      assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, resultDocs, 3, "mongo/pg_aggregate_on_nested_fields_response.json");
       testCountApi(dataStoreName, query, "mongo/pg_aggregate_on_nested_fields_response.json");
     } else {
@@ -503,8 +500,7 @@ public class DocStoreQueryV1Test {
       // in mongo impl. we should always return the null field or not. In Postgres, for
       // compatibility with the rest
       // of the mongo response, it is excluded in {@link PostgresResultIteratorWithMetaData}
-      Utils.assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, 3, "mongo/aggregate_on_nested_fields_response.json");
+      assertDocsAndSizeEqual(resultDocs, "mongo/aggregate_on_nested_fields_response.json", 3);
       testCountApi(dataStoreName, query, "mongo/aggregate_on_nested_fields_response.json");
     }
   }
@@ -581,9 +577,35 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 2, "mongo/multi_level_grouping_response.json");
+    assertDocsAndSizeEqual(resultDocs, "mongo/multi_level_grouping_response.json", 2);
     testCountApi(dataStoreName, query, "mongo/multi_level_grouping_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
+  public void testQueryWithFunctionalLeftHandSideInFilter(final String dataStoreName)
+      throws IOException {
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    final Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    final Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .setFilter(
+                RelationalExpression.of(
+                    FunctionExpression.builder()
+                        .operator(MULTIPLY)
+                        .operand(IdentifierExpression.of("quantity"))
+                        .operand(IdentifierExpression.of("price"))
+                        .build(),
+                    GT,
+                    ConstantExpression.of(50)))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    final Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsAndSizeEqual(resultDocs, "mongo/test_aggr_functional_lhs_in_filter_response.json", 3);
+    testCountApi(dataStoreName, query, "mongo/test_aggr_functional_lhs_in_filter_response.json");
   }
 
   @ParameterizedTest
@@ -614,7 +636,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 4, "mongo/test_aggr_alias_distinct_count_response.json");
   }
 
@@ -646,7 +668,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 2, "mongo/test_string_aggr_alias_distinct_count_response.json");
   }
 
@@ -681,7 +703,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName,
         resultDocs,
         3,
@@ -716,7 +738,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
-      Utils.assertDocsAndSizeEqualWithoutOrder(
+      assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, resultDocs, 1, "mongo/test_aggr_only_with_fliter_response.json");
     }
   }
@@ -735,7 +757,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, iterator, 6, "mongo/simple_filter_quantity_neq_10.json");
   }
 
@@ -763,7 +785,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, iterator, 1, "mongo/test_nest_field_filter_response.json");
   }
 
@@ -801,7 +823,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 6, "mongo/filter_with_logical_and_or_operator.json");
   }
 
@@ -830,7 +852,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 2, "mongo/test_selection_expression_result.json");
   }
 
@@ -860,7 +882,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName,
         resultDocs,
         2,
@@ -896,7 +918,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 3, "mongo/test_aggregation_expression_result.json");
   }
 
@@ -919,7 +941,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 4, "mongo/distinct_count_response.json");
   }
 
@@ -945,7 +967,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 2, "mongo/test_aggr_filter_and_where_filter_result.json");
   }
 
@@ -966,7 +988,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 11, "mongo/unwind_not_preserving_selection_response.json");
   }
 
@@ -999,7 +1021,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 3, "mongo/unwind_not_preserving_filter_response.json");
   }
 
@@ -1020,7 +1042,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, 17, "mongo/unwind_preserving_selection_response.json");
   }
 
@@ -1044,8 +1066,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, iterator, 3, "mongo/aggregate_on_nested_array_reponse.json");
+    assertDocsAndSizeEqual(iterator, "mongo/aggregate_on_nested_array_response.json", 3);
   }
 
   @ParameterizedTest
@@ -1063,7 +1084,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, iterator, 1, "mongo/unwind_preserving_empty_array_response.json");
   }
 
@@ -1087,8 +1108,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, iterator, 17, "mongo/unwind_response.json");
+    assertDocsAndSizeEqual(iterator, "mongo/unwind_response.json", 17);
   }
 
   @ParameterizedTest
@@ -1106,7 +1126,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
+    assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, iterator, 1, "mongo/unwind_not_preserving_empty_array_response.json");
   }
 
@@ -1139,8 +1159,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
-    Utils.assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, iterator, 7, "mongo/unwind_filter_response.json");
+    assertDocsAndSizeEqual(iterator, "mongo/unwind_filter_response.json", 7);
   }
 
   @ParameterizedTest
@@ -1207,8 +1226,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.find(query);
-    Utils.assertDocsAndSizeEqual(
-        resultDocs, "mongo/filter_with_sorting_and_pagination_response.json", 3);
+    assertDocsAndSizeEqual(resultDocs, "mongo/filter_with_sorting_and_pagination_response.json", 3);
   }
 
   private static void testCountApi(

@@ -1,0 +1,15 @@
+[
+  {
+    "$group": {
+      "_id": {
+        "student": "$student"
+      }
+    }
+  },
+  {
+    "$skip": 0
+  },
+  {
+    "$limit": 10
+  }
+]

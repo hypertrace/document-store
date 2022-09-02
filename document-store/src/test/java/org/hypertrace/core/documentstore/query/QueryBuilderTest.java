@@ -324,6 +324,31 @@ class QueryBuilderTest {
   }
 
   @Test
+  void testQueryWithFunctionalLhsInRelationalFilter() {
+    final Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .setFilter(
+                RelationalExpression.of(
+                    FunctionExpression.builder()
+                        .operator(MULTIPLY)
+                        .operand(IdentifierExpression.of("quantity"))
+                        .operand(IdentifierExpression.of("price"))
+                        .build(),
+                    GT,
+                    ConstantExpression.of(50)))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    assertEquals(
+        "SELECT `item` "
+            + "FROM <implicit_collection> "
+            + "WHERE MULTIPLY(`quantity`, `price`) > 50 "
+            + "ORDER BY `item` DESC",
+        query.toString());
+  }
+
+  @Test
   void testSetAndClearSelections() {
     final Query queryWithSelections =
         queryBuilder.addSelection(ConstantExpression.of("Something")).build();
