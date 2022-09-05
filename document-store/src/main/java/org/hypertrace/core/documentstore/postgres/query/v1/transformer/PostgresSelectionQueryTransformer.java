@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
@@ -62,16 +63,23 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
     List<SelectionSpec> finalSelectionSpecs =
         query.getSelections().stream()
             .filter(
-                selectionSpec -> {
-                  SelectTypeExpression expression = selectionSpec.getExpression();
-                  return !((boolean) expression.accept(identifierExpressionSelector))
-                      || groupByIdentifierExpressions.contains(expression);
-                })
+                getSelectionSpecPredicate(
+                    groupByIdentifierExpressions, identifierExpressionSelector))
             .collect(Collectors.toUnmodifiableList());
 
     return finalSelectionSpecs.size() != query.getSelections().size()
         ? new TransformedQueryBuilder(query).setSelections(finalSelectionSpecs).build()
         : query;
+  }
+
+  private Predicate<SelectionSpec> getSelectionSpecPredicate(
+      Set<GroupTypeExpression> groupByIdentifierExpressions,
+      LocalSelectTypeIdentifierExpressionSelector identifierExpressionSelector) {
+    return selectionSpec -> {
+      SelectTypeExpression expression = selectionSpec.getExpression();
+      return ((boolean) expression.accept(identifierExpressionSelector))
+          || groupByIdentifierExpressions.contains(expression);
+    };
   }
 
   private static class LocalSelectTypeAggregationExpressionSelector
