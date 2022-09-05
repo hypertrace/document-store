@@ -927,7 +927,9 @@ public class PostgresQueryParserTest {
                 "qty_count")
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("price"))
-            .setFilter(RelationalExpression.of(IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
             .addAggregation(IdentifierExpression.of("item"))
             .build();
 
@@ -937,7 +939,7 @@ public class PostgresQueryParserTest {
 
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
-            + "document->'item' AS item, document->'price' AS price "
+            + "document->'item' AS item "
             + "FROM testCollection WHERE CAST (document->>'price' AS NUMERIC) <= ? "
             + "GROUP BY document->'item'",
         sql);

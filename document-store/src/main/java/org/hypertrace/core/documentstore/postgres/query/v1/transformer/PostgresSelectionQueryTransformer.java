@@ -1,6 +1,5 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
-import com.google.common.base.Strings;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -8,6 +7,8 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
@@ -36,36 +37,45 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
 
   @Override
   public Query transform(Query query) {
-    SelectTypeAggregationExpressionChecker selectTypeAggregationExpressionChecker = new SelectTypeAggregationExpressionChecker();
-    SelectTypeIdentifierExpressionSelector selectTypeIdentifierExpressionSelector = new SelectTypeIdentifierExpressionSelector();
-
-    Boolean hasAggregationFunction = query.getSelections().stream()
-        .filter(selectionSpec -> selectionSpec.getExpression().accept(selectTypeAggregationExpressionChecker))
-        .findAny()
-        .isEmpty();
-
-    if (!hasAggregationFunction) return query;
+    LocalSelectTypeAggregationExpressionSelector aggregationExpressionSelector =
+        new LocalSelectTypeAggregationExpressionSelector();
+    Boolean noAggregation =
+        query.getSelections().stream()
+            .filter(
+                selectionSpec ->
+                    selectionSpec.getExpression().accept(aggregationExpressionSelector))
+            .findAny()
+            .isEmpty();
+    if (noAggregation) return query;
 
     // get all identifier of group by clause
-    LocalGroupByExpressionVisitor groupByExpressionVisitor = new LocalGroupByExpressionVisitor();
-    Set<String> groupByExpressions = query.getAggregations().stream()
-        .map(gte -> (String) gte.accept(groupByExpressionVisitor))
-        .filter(s -> !Strings.isNullOrEmpty(s))
-        .collect(Collectors.toUnmodifiableSet());
+    LocalGroupByIdentifierExpressionSelector groupByIdentifierExpressionSelector =
+        new LocalGroupByIdentifierExpressionSelector();
+    Set<GroupTypeExpression> groupByIdentifierExpressions =
+        query.getAggregations().stream()
+            .filter(exp -> exp.accept(groupByIdentifierExpressionSelector))
+            .collect(Collectors.toUnmodifiableSet());
 
-    // check for all selections, remove non-aggregated selections.
+    // keep only matching identifier expression with group by along with rest.
+    LocalSelectTypeIdentifierExpressionSelector identifierExpressionSelector =
+        new LocalSelectTypeIdentifierExpressionSelector();
     List<SelectionSpec> finalSelectionSpecs =
         query.getSelections().stream()
-            .filter(selectionSpec -> (boolean) selectionSpec.getExpression().accept(selectTypeAggregationExpressionChecker)
-                && groupByExpressions.contains((String)selectionSpec.getExpression().accept(selectTypeIdentifierExpressionSelector)))
+            .filter(
+                selectionSpec -> {
+                  SelectTypeExpression expression = selectionSpec.getExpression();
+                  return !((boolean) expression.accept(identifierExpressionSelector))
+                      || groupByIdentifierExpressions.contains(expression);
+                })
             .collect(Collectors.toUnmodifiableList());
 
-    return finalSelectionSpecs.size() > 0
+    return finalSelectionSpecs.size() != query.getSelections().size()
         ? new TransformedQueryBuilder(query).setSelections(finalSelectionSpecs).build()
         : query;
   }
 
-  private static class SelectTypeAggregationExpressionChecker implements SelectTypeExpressionVisitor {
+  private static class LocalSelectTypeAggregationExpressionSelector
+      implements SelectTypeExpressionVisitor {
     @Override
     public Boolean visit(AggregateExpression expression) {
       return true;
@@ -87,37 +97,39 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
     }
   }
 
-  private static class SelectTypeIdentifierExpressionSelector implements SelectTypeExpressionVisitor {
+  private static class LocalSelectTypeIdentifierExpressionSelector
+      implements SelectTypeExpressionVisitor {
     @Override
-    public String visit(AggregateExpression expression) {
-      return null;
+    public Boolean visit(AggregateExpression expression) {
+      return false;
     }
 
     @Override
-    public String visit(ConstantExpression expression) {
-      return null;
+    public Boolean visit(ConstantExpression expression) {
+      return false;
     }
 
     @Override
-    public String visit(FunctionExpression expression) {
-      return null;
+    public Boolean visit(FunctionExpression expression) {
+      return false;
     }
 
     @Override
-    public String visit(IdentifierExpression expression) {
-      return expression.getName();
+    public Boolean visit(IdentifierExpression expression) {
+      return true;
     }
   }
 
-  private static class LocalGroupByExpressionVisitor implements GroupTypeExpressionVisitor{
+  private static class LocalGroupByIdentifierExpressionSelector
+      implements GroupTypeExpressionVisitor {
     @Override
-    public String visit(FunctionExpression expression) {
-      return null;
+    public Boolean visit(FunctionExpression expression) {
+      return false;
     }
 
     @Override
-    public String visit(IdentifierExpression expression) {
-      return expression.getName();
+    public Boolean visit(IdentifierExpression expression) {
+      return true;
     }
   }
 }

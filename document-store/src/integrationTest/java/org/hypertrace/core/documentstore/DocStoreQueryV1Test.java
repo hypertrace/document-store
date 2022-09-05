@@ -745,7 +745,8 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
-  void testQueryQ1DistinctCountAggregationWithMatchingSelectionAndGroupBy(String dataStoreName) throws IOException {
+  void testQueryQ1DistinctCountAggregationWithMatchingSelectionAndGroupBy(String dataStoreName)
+      throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     org.hypertrace.core.documentstore.query.Query query =
@@ -755,12 +756,14 @@ public class DocStoreQueryV1Test {
                 "qty_count")
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("price"))
-            .setFilter(RelationalExpression.of(IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
             .addAggregation(IdentifierExpression.of("item"))
             .build();
     try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
       assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, 1, "mongo/test_aggr_only_with_fliter_response.json");
+          dataStoreName, resultDocs, 3, "mongo/test_aggr_with_match_selection_and_groupby.json");
     }
   }
 
