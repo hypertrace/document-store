@@ -917,4 +917,35 @@ public class PostgresQueryParserTest {
     assertEquals(1, params.getObjectParams().size());
     assertEquals(50, params.getObjectParams().get(1));
   }
+
+  @Test
+  void testQueryQ1DistinctCountAggregationWithMatchingSelectionAndGroupBy() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(DISTINCT_COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
+            .addAggregation(IdentifierExpression.of("item"))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+    String sql = postgresQueryParser.parse();
+
+    assertEquals(
+        "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
+            + "document->'item' AS item "
+            + "FROM testCollection WHERE CAST (document->>'price' AS NUMERIC) <= ? "
+            + "GROUP BY document->'item'",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals(10, params.getObjectParams().get(1));
+  }
 }
