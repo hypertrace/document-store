@@ -77,7 +77,7 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
       LocalSelectTypeIdentifierExpressionSelector identifierExpressionSelector) {
     return selectionSpec -> {
       SelectTypeExpression expression = selectionSpec.getExpression();
-      return ((boolean) expression.accept(identifierExpressionSelector))
+      return (!(boolean) expression.accept(identifierExpressionSelector))
           || groupByIdentifierExpressions.contains(expression);
     };
   }
