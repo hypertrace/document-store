@@ -19,4 +19,9 @@ public class Filter {
       return new Filter(expression);
     }
   }
+
+  @Override
+  public String toString() {
+    return String.valueOf(expression);
+  }
 }

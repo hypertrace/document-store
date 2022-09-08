@@ -1,0 +1,26 @@
+[
+  {
+    "$match": {
+      "section": {
+        "$in": [
+          "A",
+          "B",
+          "C"
+        ]
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": null,
+      "total": {
+        "$sum": "$marks"
+      }
+    }
+  },
+  {
+    "$project": {
+      "total": "$total"
+    }
+  }
+]

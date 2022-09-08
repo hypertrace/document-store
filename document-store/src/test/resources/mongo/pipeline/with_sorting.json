@@ -1,0 +1,25 @@
+[
+  {
+    "$group": {
+      "_id": {
+        "section": "$section"
+      },
+      "averageHighScore": {
+        "$avg": {
+          "$max": "$mark"
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "averageHighScore": "$averageHighScore"
+    }
+  },
+  {
+    "$sort": {
+      "averageHighScore": -1,
+      "section": 1
+    }
+  }
+]

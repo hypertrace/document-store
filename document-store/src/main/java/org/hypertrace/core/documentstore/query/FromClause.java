@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.query;
 
+import static java.util.stream.Collectors.joining;
+
 import com.google.common.base.Preconditions;
 import java.util.List;
 import java.util.Objects;
@@ -24,5 +26,10 @@ public class FromClause {
           "One or more expressions is null");
       return new FromClause(fromTypeExpressions);
     }
+  }
+
+  @Override
+  public String toString() {
+    return fromTypeExpressions.stream().map(String::valueOf).collect(joining(", "));
   }
 }

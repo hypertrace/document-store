@@ -1,0 +1,33 @@
+[
+  {
+    "$group": {
+      "_id": {
+        "order": "$order"
+      },
+      "total": {
+        "$sum": {
+          "$multiply": [
+            "$price",
+            "$quantity"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "$project": {
+      "total": "$total"
+    }
+  },
+  {
+    "$match": {
+      "total": {
+        "$nin": [
+          100,
+          200,
+          500
+        ]
+      }
+    }
+  }
+]

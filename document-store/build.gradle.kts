@@ -19,6 +19,7 @@ dependencies {
   implementation("org.apache.commons:commons-lang3:3.12.0")
   implementation("net.jodah:failsafe:2.4.4")
   implementation("com.google.guava:guava:31.1-jre")
+
   testImplementation("org.junit.jupiter:junit-jupiter:5.8.2")
   testImplementation("org.mockito:mockito-core:4.6.1")
   testImplementation("org.mockito:mockito-inline:4.6.1")

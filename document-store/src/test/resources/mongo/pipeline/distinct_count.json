@@ -1,0 +1,26 @@
+[
+  {
+    "$match": {
+      "class": {
+        "$lte": 10
+      }
+    }
+  },
+  {
+    "$group": {
+      "_id": {
+        "class": "$class"
+      },
+      "section_count": {
+        "$addToSet": "$section"
+      }
+    }
+  },
+  {
+    "$project": {
+      "section_count": {
+        "$size": "$section_count"
+      }
+    }
+  }
+]

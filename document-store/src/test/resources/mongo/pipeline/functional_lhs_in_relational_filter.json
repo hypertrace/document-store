@@ -1,0 +1,29 @@
+[
+  {
+    "$addFields": {
+      "MULTIPLY(`quantity`, `price`)": {
+        "$multiply": [
+          "$quantity",
+          "$price"
+        ]
+      }
+    }
+  },
+  {
+    "$match": {
+      "MULTIPLY(`quantity`, `price`)": {
+        "$gt": 50
+      }
+    }
+  },
+  {
+    "$project": {
+      "item": 1
+    }
+  },
+  {
+    "$sort": {
+      "item": -1
+    }
+  }
+]

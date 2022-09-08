@@ -24,4 +24,9 @@ public class SortingSpec {
     Preconditions.checkArgument(order != null, "order is null");
     return new SortingSpec(expression, order);
   }
+
+  @Override
+  public String toString() {
+    return expression + " " + order;
+  }
 }

@@ -15,11 +15,8 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class PostgresUtils {
-  private static final Logger LOGGER = LoggerFactory.getLogger(PostgresUtils.class);
   private static final String QUESTION_MARK = "?";
   private static final String JSON_FIELD_ACCESSOR = "->";
   private static final String JSON_DATA_ACCESSOR = "->>";
@@ -47,10 +44,8 @@ public class PostgresUtils {
       }
       return filterString;
     }
-    // Field accessor is only applicable to jsonb fields, return null otherwise
-    LOGGER.warn(
-        "Returning null string for field name {} and column name {}", fieldName, columnName);
-    return null;
+    // There is no need of field accessor in case of outer column.
+    return new StringBuilder(fieldName);
   }
 
   /**
@@ -150,35 +145,55 @@ public class PostgresUtils {
     return "(" + collect + ")";
   }
 
-  public static String parseNonCompositeFilter(
+  public static String parseNonCompositeFilterWithCasting(
       String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
-    String fullFieldName = prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
-    StringBuilder filterString = new StringBuilder(fullFieldName);
+    String parsedExpression =
+        prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
+    return parseNonCompositeFilter(
+        fieldName, parsedExpression, columnName, op, value, paramsBuilder);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static String parseNonCompositeFilter(
+      String fieldName,
+      String parsedExpression,
+      String columnName,
+      String op,
+      Object value,
+      Builder paramsBuilder) {
+    StringBuilder filterString = new StringBuilder(parsedExpression);
     String sqlOperator;
-    Boolean isMultiValued = false;
+    boolean isMultiValued = false;
     switch (op) {
       case "EQ":
+      case "=":
         sqlOperator = " = ";
         break;
       case "GT":
+      case ">":
         sqlOperator = " > ";
         break;
       case "LT":
+      case "<":
         sqlOperator = " < ";
         break;
       case "GTE":
+      case ">=":
         sqlOperator = " >= ";
         break;
       case "LTE":
+      case "<=":
         sqlOperator = " <= ";
         break;
       case "LIKE":
+      case "~":
         // Case insensitive regex search, Append % at beginning and end of value to do a regex
         // search
         sqlOperator = " ILIKE ";
         value = "%" + value + "%";
         break;
       case "NOT_IN":
+      case "NOT IN":
         // NOTE: Below two points
         // 1. both NOT_IN and IN filter currently limited to non-array field
         //    - https://github.com/hypertrace/document-store/issues/32#issuecomment-781411676
@@ -187,8 +202,8 @@ public class PostgresUtils {
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520Other
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
         StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName, columnName);
-        if (notInFilterString != null) {
-          filterString = notInFilterString.append(" IS NULL OR ").append(fullFieldName);
+        if (!OUTER_COLUMNS.contains(fieldName)) {
+          filterString = notInFilterString.append(" IS NULL OR ").append(parsedExpression);
         }
         sqlOperator = " NOT IN ";
         isMultiValued = true;
@@ -202,11 +217,12 @@ public class PostgresUtils {
         value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
         break;
       case "NOT_EXISTS":
+      case "NOT EXISTS":
         sqlOperator = " IS NULL ";
         value = null;
         // For fields inside jsonb
         StringBuilder notExists = prepareFieldAccessorExpr(fieldName, columnName);
-        if (notExists != null) {
+        if (!OUTER_COLUMNS.contains(fieldName)) {
           filterString = notExists;
         }
         break;
@@ -215,11 +231,12 @@ public class PostgresUtils {
         value = null;
         // For fields inside jsonb
         StringBuilder exists = prepareFieldAccessorExpr(fieldName, columnName);
-        if (exists != null) {
+        if (!OUTER_COLUMNS.contains(fieldName)) {
           filterString = exists;
         }
         break;
       case "NEQ":
+      case "!=":
         sqlOperator = " != ";
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
         // The expected behaviour is to get all documents which either satisfy non equality
@@ -230,8 +247,8 @@ public class PostgresUtils {
         // "document->key IS NULL OR document->key->> != value"
         StringBuilder notEquals = prepareFieldAccessorExpr(fieldName, columnName);
         // For fields inside jsonb
-        if (notEquals != null) {
-          filterString = notEquals.append(" IS NULL OR ").append(fullFieldName);
+        if (!OUTER_COLUMNS.contains(fieldName)) {
+          filterString = notEquals.append(" IS NULL OR ").append(parsedExpression);
         }
         break;
       case "CONTAINS":
@@ -249,8 +266,7 @@ public class PostgresUtils {
         paramsBuilder.addObjectParam(value);
       }
     }
-    String filters = filterString.toString();
-    return filters;
+    return filterString.toString();
   }
 
   /**
@@ -262,35 +278,43 @@ public class PostgresUtils {
    * PostgresQueryParserTest.testAggregationFilterAlongWithNonAliasFields. In the above example,
    * check how the price is accessed using -> instead of ->>.
    */
+  @SuppressWarnings("unchecked")
   public static String prepareParsedNonCompositeFilter(
       String preparedExpression, String op, Object value, Builder paramsBuilder) {
     // TODO : combine this method with parseNonCompositeFilter
     StringBuilder filterString = new StringBuilder(preparedExpression);
     String sqlOperator;
-    Boolean isMultiValued = false;
+    boolean isMultiValued = false;
     switch (op) {
       case "EQ":
+      case "=":
         sqlOperator = " = ";
         break;
       case "GT":
+      case ">":
         sqlOperator = " > ";
         break;
       case "LT":
+      case "<":
         sqlOperator = " < ";
         break;
       case "GTE":
+      case ">=":
         sqlOperator = " >= ";
         break;
       case "LTE":
+      case "<=":
         sqlOperator = " <= ";
         break;
       case "LIKE":
+      case "~":
         // Case insensitive regex search, Append % at beginning and end of value to do a regex
         // search
         sqlOperator = " ILIKE ";
         value = "%" + value + "%";
         break;
       case "NOT_IN":
+      case "NOT IN":
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
         sqlOperator = " NOT IN ";
         isMultiValued = true;
@@ -303,6 +327,7 @@ public class PostgresUtils {
         value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
         break;
       case "NOT_EXISTS":
+      case "NOT EXISTS":
         sqlOperator = " IS NULL ";
         value = null;
         break;
@@ -311,6 +336,7 @@ public class PostgresUtils {
         value = null;
         break;
       case "NEQ":
+      case "!=":
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
         sqlOperator = " != ";
         break;
@@ -329,8 +355,7 @@ public class PostgresUtils {
         paramsBuilder.addObjectParam(value);
       }
     }
-    String filters = filterString.toString();
-    return filters;
+    return filterString.toString();
   }
 
   public static List<String> splitNestedField(String nestedFieldName) {
@@ -338,7 +363,7 @@ public class PostgresUtils {
   }
 
   public static boolean isEncodedNestedField(String fieldName) {
-    return fieldName.contains(DOT_STR) || fieldName.contains(DOT) ? true : false;
+    return fieldName.contains(DOT_STR) || fieldName.contains(DOT);
   }
 
   public static String encodeAliasForNestedField(String nestedFieldName) {
