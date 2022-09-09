@@ -44,6 +44,7 @@ import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
@@ -389,11 +390,23 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public Optional<Document> atomicReadAndUpdateDocument(
-      final org.hypertrace.core.documentstore.query.Query query, final Document updateDocument)
+  public Optional<Document> update(
+      final org.hypertrace.core.documentstore.query.Query query,
+      final java.util.Collection<SubDocumentUpdate> updates)
       throws IOException {
-    // TODO: Implement
-    throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+    try (final Statement statement = client.getConnection().createStatement()) {
+      statement.execute("BEGIN");
+      org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
+          new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
+              collectionName, query);
+      final String selections = parser.getSelections();
+      final Optional<String> optionalOrderBy = parser.parseOrderBy();
+      final Optional<String> optionalFilter = parser.parseFilter();
+
+      throw new UnsupportedOperationException();
+    } catch (final Exception e) {
+      throw new IOException(e);
+    }
   }
 
   @Override

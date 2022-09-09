@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
@@ -80,24 +81,6 @@ public interface Collection {
    * @return {@link CloseableIterator} of matching documents
    */
   CloseableIterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query);
-
-  /**
-   * Reads the first document matching the filter and sorting criteria given in the {@param query},
-   * updates the document as specified in {@param updateDocument} and returns the document (if
-   * exists) including the fields selected in the {@param query}
-   *
-   * @return The document before updating if exists, otherwise an empty optional
-   * @throws IOException if there was any error in updating/fetching the document
-   * @implSpec The definition of an update here is
-   *     <ol>
-   *       <li>The existing fields/sub-documents will be updated
-   *       <li>New fields/sub-documents will be created if they do not exist
-   *       <li>None of the existing fields/sub-documents will be removed
-   *     </ol>
-   */
-  Optional<Document> atomicReadAndUpdateDocument(
-      final org.hypertrace.core.documentstore.query.Query query, final Document updateDocument)
-      throws IOException;
 
   /**
    * Delete the document with the given key.
@@ -200,6 +183,25 @@ public interface Collection {
    * @return an instance of {@link UpdateResult}
    */
   UpdateResult update(Key key, Document document, Filter condition) throws IOException;
+
+  /**
+   * Atomically (1) reads the first document matching the filter and sorting criteria given in the
+   * {@param query}, (2) updates the document as specified in {@param updateDocument} and (3)
+   * returns the document (if exists) including the fields selected in the {@param query}
+   *
+   * @return The document before updating if exists, otherwise an empty optional
+   * @throws IOException if there was any error in updating/fetching the document
+   * @implSpec The definition of an update here is
+   *     <ol>
+   *       <li>The existing fields/sub-documents will be updated
+   *       <li>New fields/sub-documents will be created if they do not exist
+   *       <li>None of the existing fields/sub-documents will be removed
+   *     </ol>
+   */
+  Optional<Document> update(
+      final org.hypertrace.core.documentstore.query.Query query,
+      final java.util.Collection<SubDocumentUpdate> updates)
+      throws IOException;
 
   String UNSUPPORTED_QUERY_OPERATION = "Query operation is not supported";
 }

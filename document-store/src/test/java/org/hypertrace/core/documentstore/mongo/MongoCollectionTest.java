@@ -36,6 +36,8 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -185,7 +187,7 @@ public class MongoCollectionTest {
   }
 
   @Test
-  void testAtomicReadAndUpdateWithOnlyFilter() throws IOException {
+  void testUpdateAtomicWithoutFilter() throws IOException {
     final org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .setFilter(
@@ -207,8 +209,11 @@ public class MongoCollectionTest {
             .addSelection(IdentifierExpression.of("date"))
             .addSelection(IdentifierExpression.of("props"))
             .build();
-    final Document document =
-        new JSONDocument(readFileFromResource("atomic_read_and_update/update.json").orElseThrow());
+    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+    final SubDocumentUpdate propsUpdate =
+        SubDocumentUpdate.of(
+            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
 
     final BasicDBObject setObject = readBasicDBObject("atomic_read_and_update/set_object.json");
     final BasicDBObject selections = readBasicDBObject("atomic_read_and_update/selection.json");
@@ -223,7 +228,8 @@ public class MongoCollectionTest {
     when(collection.findOneAndUpdate(eq(filter), eq(setObject), options.capture()))
         .thenReturn(response);
 
-    final Optional<Document> result = mongoCollection.atomicReadAndUpdateDocument(query, document);
+    final Optional<Document> result =
+        mongoCollection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
 
     assertTrue(result.isPresent());
     assertJsonEquals(

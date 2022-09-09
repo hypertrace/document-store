@@ -56,6 +56,8 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Filter;
@@ -1235,7 +1237,7 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextMongo")
-  public void testAtomicReadAndUpdateDocument(final String datastoreName)
+  public void testUpdateAtomicWithFilter(final String datastoreName)
       throws IOException, ExecutionException, InterruptedException {
     final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
     createCollectionData("mongo/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
@@ -1261,14 +1263,16 @@ public class DocStoreQueryV1Test {
             .addSelection(IdentifierExpression.of("date"))
             .addSelection(IdentifierExpression.of("props"))
             .build();
-    final Document document =
-        new JSONDocument(
-            "{\"date\": \"2022-08-09T18:53:17Z\", \"quantity\": 1000, \"props\": {\"brand\": \"Dettol\"}}");
+    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+    final SubDocumentUpdate propsUpdate =
+        SubDocumentUpdate.of(
+            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
 
     final Callable<Optional<Document>> callable =
         () -> {
           MILLISECONDS.sleep(new Random().nextInt(1000));
-          return collection.atomicReadAndUpdateDocument(query, document);
+          return collection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
         };
 
     final ExecutorService executor = Executors.newFixedThreadPool(2);

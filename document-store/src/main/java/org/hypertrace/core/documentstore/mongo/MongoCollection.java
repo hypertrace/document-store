@@ -1,14 +1,13 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.dbObjectToDocument;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectTypeExpressionParser.getSelections;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoSortTypeExpressionParser.getOrders;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.MongoCommandException;
@@ -32,19 +31,15 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
 import org.bson.conversions.Bson;
-import org.bson.json.JsonMode;
-import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
@@ -54,9 +49,10 @@ import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
-import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.mongo.subdoc.MongoPrimitiveSubDocumentValueSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -249,7 +245,7 @@ public class MongoCollection implements Collection {
       throw new IOException("Could not upsert the document with key: " + key);
     }
 
-    return this.dbObjectToDocument(upsertResult);
+    return dbObjectToDocument(upsertResult);
   }
 
   private BasicDBObject prepareUpsert(Key key, Document document) throws JsonProcessingException {
@@ -410,31 +406,8 @@ public class MongoCollection implements Collection {
   private BasicDBObject getSanitizedBasicDBObject(Document document)
       throws JsonProcessingException {
     String jsonString = document.toJson();
-    JsonNode jsonNode = MAPPER.readTree(jsonString);
-    // escape "." and "$" in field names since Mongo DB does not like them
-    JsonNode sanitizedJsonNode = recursiveClone(jsonNode, MongoUtils::encodeKey);
-    String sanitizedJsonString = MAPPER.writeValueAsString(sanitizedJsonNode);
+    final String sanitizedJsonString = sanitizeJsonString(jsonString);
     return BasicDBObject.parse(sanitizedJsonString);
-  }
-
-  private JsonNode recursiveClone(JsonNode src, Function<String, String> function) {
-    if (!src.isObject()) {
-      return src;
-    }
-    ObjectNode tgt = JsonNodeFactory.instance.objectNode();
-    Iterator<Entry<String, JsonNode>> fields = src.fields();
-    while (fields.hasNext()) {
-      Entry<String, JsonNode> next = fields.next();
-      String fieldName = next.getKey();
-      String newFieldName = function.apply(fieldName);
-      JsonNode value = next.getValue();
-      JsonNode newValue = value;
-      if (value.isObject()) {
-        newValue = recursiveClone(value, function);
-      }
-      tgt.set(newFieldName, newValue);
-    }
-    return tgt;
   }
 
   @Override
@@ -495,8 +468,9 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public Optional<Document> atomicReadAndUpdateDocument(
-      final org.hypertrace.core.documentstore.query.Query query, final Document updateDocument)
+  public Optional<Document> update(
+      final org.hypertrace.core.documentstore.query.Query query,
+      final java.util.Collection<SubDocumentUpdate> updates)
       throws IOException {
     try {
       final BasicDBObject selections = getSelections(query);
@@ -514,12 +488,18 @@ public class MongoCollection implements Collection {
       final BasicDBObject filter =
           getFilter(query, org.hypertrace.core.documentstore.query.Query::getFilter);
 
-      final BasicDBObject updateObject = getSanitizedBasicDBObject(updateDocument);
-      updateObject.append(LAST_UPDATED_TIME, clock.millis());
-      final BasicDBObject setObject = new BasicDBObject("$set", updateObject);
+      final BasicDBObject updateObject = new BasicDBObject(LAST_UPDATED_TIME, clock.millis());
 
+      for (final SubDocumentUpdate update : updates) {
+        final String path = update.getSubDocument().getPath();
+        final Object value =
+            update.getSubDocumentValue().accept(new MongoPrimitiveSubDocumentValueSanitizer());
+        updateObject.put(path, value);
+      }
+
+      final BasicDBObject setObject = new BasicDBObject("$set", updateObject);
       return Optional.ofNullable(collection.findOneAndUpdate(filter, setObject, options))
-          .map(this::dbObjectToDocument);
+          .map(MongoUtils::dbObjectToDocument);
     } catch (final Exception e) {
       throw new IOException(e);
     }
@@ -700,24 +680,5 @@ public class MongoCollection implements Collection {
         }
       }
     };
-  }
-
-  private Document dbObjectToDocument(BasicDBObject dbObject) {
-    try {
-      // Hack: Remove the _id field since it's an unrecognized field for Proto layer.
-      // TODO: We should rather use separate DAO classes instead of using the
-      //  DB document directly as proto message.
-      dbObject.removeField(ID_KEY);
-      String jsonString;
-      JsonWriterSettings relaxed =
-          JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
-      jsonString = dbObject.toJson(relaxed);
-      JsonNode jsonNode = MAPPER.readTree(jsonString);
-      JsonNode decodedJsonNode = recursiveClone(jsonNode, MongoUtils::decodeKey);
-      return new JSONDocument(decodedJsonNode);
-    } catch (IOException e) {
-      // throwing exception is not very useful here.
-      return JSONDocument.errorDocument(e.getMessage());
-    }
   }
 }
