@@ -1269,9 +1269,10 @@ public class DocStoreQueryV1Test {
         SubDocumentUpdate.of(
             "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
 
+    final Random random = new Random();
     final Callable<Optional<Document>> callable =
         () -> {
-          MILLISECONDS.sleep(new Random().nextInt(1000));
+          MILLISECONDS.sleep(random.nextInt(1000));
           return collection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
         };
 
