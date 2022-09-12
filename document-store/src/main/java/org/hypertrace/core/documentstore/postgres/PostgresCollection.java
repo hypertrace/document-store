@@ -1,7 +1,12 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static java.util.Optional.empty;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.isValidPrimitiveType;
+
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -9,6 +14,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.sql.BatchUpdateException;
+import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -45,8 +51,11 @@ import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
+import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueGetter;
+import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -219,11 +228,8 @@ public class PostgresCollection implements Collection {
   }
 
   private boolean updateSubDocInternal(Key key, String subDocPath, Document subDocument) {
-    String updateSubDocSQL =
-        String.format(
-            "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
-            collectionName, DOCUMENT, DOCUMENT, ID);
-    String jsonSubDocPath = getJsonSubDocPath(subDocPath);
+    String updateSubDocSQL = getSubDocUpdateQuery();
+    String jsonSubDocPath = formatSubDocPath(subDocPath);
     String jsonString = subDocument.toJson();
 
     try (PreparedStatement preparedStatement =
@@ -280,7 +286,7 @@ public class PostgresCollection implements Collection {
         Map<String, Document> subDocuments = documents.get(key);
         for (String subDocPath : subDocuments.keySet()) {
           Document subDocument = subDocuments.get(subDocPath);
-          String jsonSubDocPath = getJsonSubDocPath(subDocPath);
+          String jsonSubDocPath = formatSubDocPath(subDocPath);
           String jsonString = subDocument.toJson();
           preparedStatement.setString(1, jsonSubDocPath);
           preparedStatement.setString(2, jsonString);
@@ -394,16 +400,66 @@ public class PostgresCollection implements Collection {
       final org.hypertrace.core.documentstore.query.Query query,
       final java.util.Collection<SubDocumentUpdate> updates)
       throws IOException {
-    try (final Statement statement = client.getConnection().createStatement()) {
-      statement.execute("BEGIN");
+
+    try (final Connection connection = client.getNewConnection();
+        final Statement statement = connection.createStatement()) {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
               collectionName, query);
-      final String selections = parser.getSelections();
+      final String selections = ID + ", " + parser.getSelections();
       final Optional<String> optionalOrderBy = parser.parseOrderBy();
       final Optional<String> optionalFilter = parser.parseFilter();
 
-      throw new UnsupportedOperationException();
+      final StringBuilder queryBuilder = new StringBuilder();
+      queryBuilder.append("SELECT ").append(selections);
+      queryBuilder.append(" FROM ").append(collectionName);
+      optionalFilter.ifPresent(filter -> queryBuilder.append(" WHERE ").append(filter));
+      optionalOrderBy.ifPresent(orderBy -> queryBuilder.append(" ORDER BY ").append(orderBy));
+      queryBuilder.append(" LIMIT 1");
+      queryBuilder.append(" FOR UPDATE SKIP LOCKED");
+
+      statement.execute("BEGIN");
+
+      try (final PreparedStatement pStmt = connection.prepareStatement(queryBuilder.toString())) {
+        enrichPreparedStatementWithParams(pStmt, parser.getParamsBuilder().build());
+
+        final ResultSet resultSet = pStmt.executeQuery();
+        final CloseableIterator<Document> iterator =
+            new PostgresResultIteratorWithMetaData(resultSet);
+
+        if (!iterator.hasNext()) {
+          return empty();
+        }
+
+        final Document document = iterator.next();
+        iterator.close();
+
+        @SuppressWarnings("Convert2Diamond")
+        final Map<String, Object> map =
+            MAPPER.readValue(document.toJson(), new TypeReference<Map<String, Object>>() {});
+        final String id = String.valueOf(map.get(ID));
+
+        for (final SubDocumentUpdate update : updates) {
+          final String updateQuery = getSubDocUpdateQuery(update.getSubDocumentValue());
+          final String subDocPath = formatSubDocPath(update.getSubDocument().getPath());
+          final Object value =
+              update.getSubDocumentValue().accept(new PostgresSubDocumentValueGetter());
+
+          try (final PreparedStatement pStatement = connection.prepareStatement(updateQuery)) {
+            pStatement.setString(1, subDocPath);
+            pStatement.setObject(2, value);
+            pStatement.setString(3, id);
+
+            pStatement.executeUpdate();
+          }
+        }
+
+        statement.execute("COMMIT");
+        return Optional.of(document);
+      } catch (final Exception e) {
+        statement.execute("ABORT");
+        throw e;
+      }
     } catch (final Exception e) {
       throw new IOException(e);
     }
@@ -496,7 +552,7 @@ public class PostgresCollection implements Collection {
     String deleteSubDocSQL =
         String.format(
             "UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?", collectionName, DOCUMENT, DOCUMENT, ID);
-    String jsonSubDocPath = getJsonSubDocPath(subDocPath);
+    String jsonSubDocPath = formatSubDocPath(subDocPath);
 
     try (PreparedStatement preparedStatement =
         client.getConnection().prepareStatement(deleteSubDocSQL, Statement.RETURN_GENERATED_KEYS)) {
@@ -653,7 +709,7 @@ public class PostgresCollection implements Collection {
         .forEach(
             (k, v) -> {
               try {
-                if (isValidType(v)) {
+                if (isValidPrimitiveType(v)) {
                   preparedStatement.setObject(k, v);
                 } else {
                   throw new UnsupportedOperationException("Un-supported object types in filter");
@@ -766,7 +822,7 @@ public class PostgresCollection implements Collection {
         return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
       }
     }
-    return Optional.empty();
+    return empty();
   }
 
   private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
@@ -829,27 +885,6 @@ public class PostgresCollection implements Collection {
     query = PostgresQueryTransformer.transform(query);
     LOGGER.debug("Query after transformation: {}", query);
     return query;
-  }
-
-  private boolean isValidType(Object v) {
-    Set<Class<?>> validClassez =
-        new HashSet<>() {
-          {
-            add(Double.class);
-            add(Float.class);
-            add(Integer.class);
-            add(Long.class);
-            add(String.class);
-            add(Boolean.class);
-            add(Number.class);
-          }
-        };
-    return validClassez.contains(v.getClass());
-  }
-
-  @VisibleForTesting
-  private String getJsonSubDocPath(String subDocPath) {
-    return "{" + subDocPath.replaceAll(DOC_PATH_SEPARATOR, ",") + "}";
   }
 
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
@@ -1043,7 +1078,23 @@ public class PostgresCollection implements Collection {
         collectionName, ID, DOCUMENT, ID, DOCUMENT);
   }
 
-  static class PostgresResultIterator implements CloseableIterator {
+  private String getSubDocUpdateQuery() {
+    return String.format(
+        "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
+        collectionName, DOCUMENT, DOCUMENT, ID);
+  }
+
+  private String getSubDocUpdateQuery(final SubDocumentValue subDocValue) {
+    return String.format(
+        "UPDATE %s SET %s=jsonb_set(%s, ?::text[], %s) WHERE %s=?",
+        collectionName,
+        DOCUMENT,
+        DOCUMENT,
+        subDocValue.accept(new PostgresSubDocumentValueParser()),
+        ID);
+  }
+
+  static class PostgresResultIterator implements CloseableIterator<Document> {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
     protected ResultSet resultSet;

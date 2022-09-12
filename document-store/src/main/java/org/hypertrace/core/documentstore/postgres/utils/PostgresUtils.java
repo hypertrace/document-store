@@ -8,6 +8,7 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -376,5 +377,25 @@ public class PostgresUtils {
 
   public static String wrapAliasWithDoubleQuotes(String fieldName) {
     return "\"" + fieldName + "\"";
+  }
+
+  public static String formatSubDocPath(String subDocPath) {
+    return "{" + subDocPath.replaceAll(DOC_PATH_SEPARATOR, ",") + "}";
+  }
+
+  public static boolean isValidPrimitiveType(Object v) {
+    Set<Class<?>> validClassez =
+        new HashSet<>() {
+          {
+            add(Double.class);
+            add(Float.class);
+            add(Integer.class);
+            add(Long.class);
+            add(String.class);
+            add(Boolean.class);
+            add(Number.class);
+          }
+        };
+    return validClassez.contains(v.getClass());
   }
 }

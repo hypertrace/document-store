@@ -5,41 +5,33 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.model.subdoc.visitor.SubDocumentValueVisitor;
 
 public interface SubDocumentValue {
-
-  /** @return The contained sub-document value */
-  Object getValue();
-
-  Object accept(final SubDocumentValueVisitor visitor);
+  <T> T accept(final SubDocumentValueVisitor visitor);
 
   static SubDocumentValue of(@Nonnull final Document document) {
     return new NestedSubDocumentValue(document);
   }
 
   static SubDocumentValue of(@Nonnull final Number value) {
-    return toPrimitiveValue(value);
+    return new PrimitiveSubDocumentValue(value);
   }
 
   static SubDocumentValue of(@Nonnull final String value) {
-    return toPrimitiveValue(value);
+    return new PrimitiveSubDocumentValue(value);
   }
 
   static SubDocumentValue of(@Nonnull final Boolean value) {
-    return toPrimitiveValue(value);
+    return new PrimitiveSubDocumentValue(value);
   }
 
   static SubDocumentValue of(@Nonnull final Number[] values) {
-    return toPrimitiveValue(values);
+    return new PrimitiveSubDocumentValue(values);
   }
 
   static SubDocumentValue of(@Nonnull final String[] values) {
-    return toPrimitiveValue(values);
+    return new PrimitiveSubDocumentValue(values);
   }
 
   static SubDocumentValue of(@Nonnull final Boolean[] values) {
-    return toPrimitiveValue(values);
-  }
-
-  private static <T> SubDocumentValue toPrimitiveValue(@Nonnull final T value) {
-    return new PrimitiveSubDocumentValue(value);
+    return new PrimitiveSubDocumentValue(values);
   }
 }

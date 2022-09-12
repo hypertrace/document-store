@@ -1236,7 +1236,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextMongo")
+  @MethodSource("databaseContextBoth")
   public void testUpdateAtomicWithFilter(final String datastoreName)
       throws IOException, ExecutionException, InterruptedException {
     final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);

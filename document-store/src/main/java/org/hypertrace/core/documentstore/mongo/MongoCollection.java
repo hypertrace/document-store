@@ -52,7 +52,7 @@ import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
-import org.hypertrace.core.documentstore.mongo.subdoc.MongoPrimitiveSubDocumentValueSanitizer;
+import org.hypertrace.core.documentstore.mongo.subdoc.MongoSubDocumentValueSanitizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -493,7 +493,7 @@ public class MongoCollection implements Collection {
       for (final SubDocumentUpdate update : updates) {
         final String path = update.getSubDocument().getPath();
         final Object value =
-            update.getSubDocumentValue().accept(new MongoPrimitiveSubDocumentValueSanitizer());
+            update.getSubDocumentValue().accept(new MongoSubDocumentValueSanitizer());
         updateObject.put(path, value);
       }
 
