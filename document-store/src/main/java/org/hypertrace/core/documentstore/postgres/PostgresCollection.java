@@ -401,8 +401,9 @@ public class PostgresCollection implements Collection {
       final java.util.Collection<SubDocumentUpdate> updates)
       throws IOException {
 
-    try (final Connection connection = client.getNewConnection();
-        final Statement statement = connection.createStatement()) {
+    try (final Connection connection = client.getNewConnection()) {
+      connection.setAutoCommit(false);
+
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
               collectionName, query);
@@ -417,8 +418,6 @@ public class PostgresCollection implements Collection {
       optionalOrderBy.ifPresent(orderBy -> queryBuilder.append(" ORDER BY ").append(orderBy));
       queryBuilder.append(" LIMIT 1");
       queryBuilder.append(" FOR UPDATE SKIP LOCKED");
-
-      statement.execute("BEGIN");
 
       try (final PreparedStatement pStmt = connection.prepareStatement(queryBuilder.toString())) {
         enrichPreparedStatementWithParams(pStmt, parser.getParamsBuilder().build());
@@ -454,10 +453,10 @@ public class PostgresCollection implements Collection {
           }
         }
 
-        statement.execute("COMMIT");
+        connection.commit();
         return Optional.of(document);
       } catch (final Exception e) {
-        statement.execute("ABORT");
+        connection.rollback();
         throw e;
       }
     } catch (final Exception e) {
