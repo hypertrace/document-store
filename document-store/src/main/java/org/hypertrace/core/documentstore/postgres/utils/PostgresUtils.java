@@ -7,13 +7,18 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 
@@ -397,5 +402,12 @@ public class PostgresUtils {
           }
         };
     return validClassez.contains(v.getClass());
+  }
+
+  public static String extractId(Document document) throws JsonProcessingException {
+    @SuppressWarnings("Convert2Diamond")
+    final Map<String, Object> map =
+        new ObjectMapper().readValue(document.toJson(), new TypeReference<Map<String, Object>>() {});
+    return String.valueOf(map.get(ID));
   }
 }

@@ -1,6 +1,8 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Optional.empty;
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.extractId;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.isValidPrimitiveType;
 
@@ -22,6 +24,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -54,6 +57,7 @@ import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
+import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentUpdater;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueGetter;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
@@ -75,10 +79,16 @@ public class PostgresCollection implements Collection {
 
   private final PostgresClient client;
   private final String collectionName;
+  private final PostgresQueryBuilder queryBuilder;
+  private final PostgresSubDocumentUpdater subDocUpdater;
+  private final Clock clock;
 
   public PostgresCollection(PostgresClient client, String collectionName) {
     this.client = client;
     this.collectionName = collectionName;
+    this.queryBuilder = new PostgresQueryBuilder(this.collectionName);
+    this.subDocUpdater = new PostgresSubDocumentUpdater(queryBuilder);
+    this.clock = Clock.systemUTC();
   }
 
   @Override
@@ -407,51 +417,28 @@ public class PostgresCollection implements Collection {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
               collectionName, query);
-      final String selections = ID + ", " + parser.getSelections();
-      final Optional<String> optionalOrderBy = parser.parseOrderBy();
-      final Optional<String> optionalFilter = parser.parseFilter();
+      final String selectQuery = queryBuilder.buildSelectQueryForUpdateSkippingLocked(parser);
 
-      final StringBuilder queryBuilder = new StringBuilder();
-      queryBuilder.append("SELECT ").append(selections);
-      queryBuilder.append(" FROM ").append(collectionName);
-      optionalFilter.ifPresent(filter -> queryBuilder.append(" WHERE ").append(filter));
-      optionalOrderBy.ifPresent(orderBy -> queryBuilder.append(" ORDER BY ").append(orderBy));
-      queryBuilder.append(" LIMIT 1");
-      queryBuilder.append(" FOR UPDATE SKIP LOCKED");
-
-      try (final PreparedStatement pStmt = connection.prepareStatement(queryBuilder.toString())) {
+      try (final PreparedStatement pStmt = connection.prepareStatement(selectQuery)) {
         enrichPreparedStatementWithParams(pStmt, parser.getParamsBuilder().build());
 
         final ResultSet resultSet = pStmt.executeQuery();
-        final CloseableIterator<Document> iterator =
-            new PostgresResultIteratorWithMetaData(resultSet);
+        final Optional<Document> documentOptional = getFirstDocument(resultSet);
 
-        if (!iterator.hasNext()) {
+        if (documentOptional.isEmpty()) {
+          connection.commit();
           return empty();
         }
 
-        final Document document = iterator.next();
-        iterator.close();
-
-        @SuppressWarnings("Convert2Diamond")
-        final Map<String, Object> map =
-            MAPPER.readValue(document.toJson(), new TypeReference<Map<String, Object>>() {});
-        final String id = String.valueOf(map.get(ID));
+        final Document document = documentOptional.get();
+        final String id = extractId(document);
 
         for (final SubDocumentUpdate update : updates) {
-          final String updateQuery = getSubDocUpdateQuery(update.getSubDocumentValue());
-          final String subDocPath = formatSubDocPath(update.getSubDocument().getPath());
-          final Object value =
-              update.getSubDocumentValue().accept(new PostgresSubDocumentValueGetter());
-
-          try (final PreparedStatement pStatement = connection.prepareStatement(updateQuery)) {
-            pStatement.setString(1, subDocPath);
-            pStatement.setObject(2, value);
-            pStatement.setString(3, id);
-
-            pStatement.executeUpdate();
-          }
+          subDocUpdater.executeUpdateQuery(connection, id, update);
         }
+
+        final SubDocumentUpdate lastUpdatedTimeUpdate = SubDocumentUpdate.of(LAST_UPDATED_TIME, clock.millis());
+        subDocUpdater.executeUpdateQuery(connection, id, lastUpdatedTimeUpdate);
 
         connection.commit();
         return Optional.of(document);
@@ -1059,6 +1046,13 @@ public class PostgresCollection implements Collection {
     return -1;
   }
 
+  public Optional<Document> getFirstDocument(final ResultSet resultSet) throws IOException {
+    try (final CloseableIterator<Document> iterator =
+        new PostgresResultIteratorWithMetaData(resultSet)) {
+      return Optional.of(iterator).filter(Iterator::hasNext).map(Iterator::next);
+    }
+  }
+
   private String getInsertSQL() {
     return String.format(
         "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb)",
@@ -1081,16 +1075,6 @@ public class PostgresCollection implements Collection {
     return String.format(
         "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
         collectionName, DOCUMENT, DOCUMENT, ID);
-  }
-
-  private String getSubDocUpdateQuery(final SubDocumentValue subDocValue) {
-    return String.format(
-        "UPDATE %s SET %s=jsonb_set(%s, ?::text[], %s) WHERE %s=?",
-        collectionName,
-        DOCUMENT,
-        DOCUMENT,
-        subDocValue.accept(new PostgresSubDocumentValueParser()),
-        ID);
   }
 
   static class PostgresResultIterator implements CloseableIterator<Document> {

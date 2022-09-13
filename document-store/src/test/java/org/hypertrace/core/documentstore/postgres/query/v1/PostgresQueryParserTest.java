@@ -15,13 +15,29 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
+import static org.hypertrace.core.documentstore.util.TestUtil.assertJsonEquals;
+import static org.hypertrace.core.documentstore.util.TestUtil.readBasicDBObject;
+import static org.hypertrace.core.documentstore.util.TestUtil.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.mongodb.BasicDBObject;
+import com.mongodb.client.model.FindOneAndUpdateOptions;
+import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
+import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -30,6 +46,8 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.query.Filter;
@@ -40,6 +58,7 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.Sort;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 public class PostgresQueryParserTest {
   private static final String TEST_COLLECTION = "testCollection";
@@ -947,5 +966,61 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
     assertEquals(10, params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testUpdateAtomicWithoutFilter() throws IOException {
+    final org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("date"),
+                            LT,
+                            ConstantExpression.of("2022-08-09T18:53:17Z")))
+                    .build())
+            .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+            .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("date"))
+            .addSelection(IdentifierExpression.of("props"))
+            .build();
+    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+    final SubDocumentUpdate propsUpdate =
+        SubDocumentUpdate.of(
+            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
+
+    final BasicDBObject setObject = readBasicDBObject("atomic_read_and_update/set_object.json");
+    final BasicDBObject selections = readBasicDBObject("atomic_read_and_update/selection.json");
+    final BasicDBObject sort = readBasicDBObject("atomic_read_and_update/sort.json");
+    final BasicDBObject filter = readBasicDBObject("atomic_read_and_update/filter.json");
+    final BasicDBObject response = readBasicDBObject("atomic_read_and_update/response.json");
+
+    final ArgumentCaptor<FindOneAndUpdateOptions> options =
+        ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
+
+    when(mockClock.millis()).thenReturn(1660721309000L);
+    when(collection.findOneAndUpdate(eq(filter), eq(setObject), options.capture()))
+        .thenReturn(response);
+
+    final Optional<Document> result =
+        mongoCollection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
+
+    assertTrue(result.isPresent());
+    assertJsonEquals(
+        readFileFromResource("atomic_read_and_update/response.json").orElseThrow(),
+        result.get().toJson());
+    assertEquals(selections, options.getValue().getProjection());
+    assertEquals(sort, options.getValue().getSort());
+
+    verify(collection, times(1))
+        .findOneAndUpdate(eq(filter), eq(setObject), any(FindOneAndUpdateOptions.class));
   }
 }
