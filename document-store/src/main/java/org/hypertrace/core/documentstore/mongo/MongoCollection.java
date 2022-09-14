@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.CREATED_TIME;
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.dbObjectToDocument;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
@@ -64,9 +66,6 @@ public class MongoCollection implements Collection {
   // Fields automatically added for each document
   public static final String ID_KEY = "_id";
   private static final String LAST_UPDATE_TIME = "_lastUpdateTime";
-  private static final String LAST_UPDATED_TIME = "lastUpdatedTime";
-  /* follow json/protobuf convention to make it deser, let's not make our life harder */
-  private static final String CREATED_TIME = "createdTime";
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 

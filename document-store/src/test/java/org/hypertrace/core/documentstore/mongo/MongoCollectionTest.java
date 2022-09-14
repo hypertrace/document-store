@@ -187,7 +187,7 @@ public class MongoCollectionTest {
   }
 
   @Test
-  void testUpdateAtomicWithoutFilter() throws IOException {
+  void testUpdateAtomicWithFilter() throws IOException {
     final org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .setFilter(

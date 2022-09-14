@@ -1,0 +1,23 @@
+[
+  {
+    "date": "2014-03-01T08:00:00Z",
+    "price": 10,
+    "props": {
+      "brand": "Dettol",
+      "size": "M",
+      "seller": {
+        "name": "Metro Chemicals Pvt. Ltd.",
+        "address": {
+          "city": "Mumbai",
+          "pincode": 400004
+        }
+      }
+    },
+    "quantity": 2
+  },
+  {
+    "date": "2016-02-06T20:20:13Z",
+    "price": 10,
+    "quantity": 5
+  }
+]

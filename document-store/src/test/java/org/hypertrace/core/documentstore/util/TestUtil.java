@@ -11,6 +11,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.JSONDocument;
 
 public class TestUtil {
   public static Optional<String> readFileFromResource(final String filePath) throws IOException {
@@ -28,6 +30,10 @@ public class TestUtil {
 
   public static BasicDBObject readBasicDBObject(final String filePath) throws IOException {
     return BasicDBObject.parse(readFileFromResource(filePath).orElseThrow());
+  }
+
+  public static Document readDocument(final String filePath) throws IOException {
+    return new JSONDocument(readFileFromResource(filePath).orElseThrow());
   }
 
   @SuppressWarnings("unchecked")

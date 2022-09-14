@@ -1,14 +1,13 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Optional.empty;
-import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.extractId;
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID_ALIAS;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.extractAndRemoveId;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.isValidPrimitiveType;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -24,7 +23,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -54,12 +52,10 @@ import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
-import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
+import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentUpdater;
-import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueGetter;
-import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,14 +77,12 @@ public class PostgresCollection implements Collection {
   private final String collectionName;
   private final PostgresQueryBuilder queryBuilder;
   private final PostgresSubDocumentUpdater subDocUpdater;
-  private final Clock clock;
 
   public PostgresCollection(PostgresClient client, String collectionName) {
     this.client = client;
     this.collectionName = collectionName;
     this.queryBuilder = new PostgresQueryBuilder(this.collectionName);
     this.subDocUpdater = new PostgresSubDocumentUpdater(queryBuilder);
-    this.clock = Clock.systemUTC();
   }
 
   @Override
@@ -431,17 +425,17 @@ public class PostgresCollection implements Collection {
         }
 
         final Document document = documentOptional.get();
-        final String id = extractId(document);
+        final DocumentAndId docAndId = extractAndRemoveId(document);
+        final String id = docAndId.getId();
 
         for (final SubDocumentUpdate update : updates) {
           subDocUpdater.executeUpdateQuery(connection, id, update);
         }
 
-        final SubDocumentUpdate lastUpdatedTimeUpdate = SubDocumentUpdate.of(LAST_UPDATED_TIME, clock.millis());
-        subDocUpdater.executeUpdateQuery(connection, id, lastUpdatedTimeUpdate);
+        subDocUpdater.updateLastUpdatedTime(connection, id);
 
         connection.commit();
-        return Optional.of(document);
+        return Optional.of(docAndId.getDocument());
       } catch (final Exception e) {
         connection.rollback();
         throw e;
@@ -1146,7 +1140,7 @@ public class PostgresCollection implements Collection {
     protected Document prepareDocument() throws SQLException, IOException {
       ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
       int columnCount = resultSetMetaData.getColumnCount();
-      Map<String, Object> jsonNode = new HashMap();
+      Map<String, Object> jsonNode = new HashMap<>();
       for (int i = 1; i <= columnCount; i++) {
         String columnName = resultSetMetaData.getColumnName(i);
         String columnValue = getColumnValue(resultSetMetaData, columnName, i);
@@ -1173,7 +1167,7 @@ public class PostgresCollection implements Collection {
       }
 
       // check for ID column
-      if (columnName.equals(ID)) {
+      if (Set.of(ID, IMPLICIT_ID_ALIAS).contains(columnName)) {
         return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
       }
 

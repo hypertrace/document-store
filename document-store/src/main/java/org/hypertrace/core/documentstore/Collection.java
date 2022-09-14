@@ -189,7 +189,7 @@ public interface Collection {
    * {@param query}, (2) updates the document as specified in {@param updateDocument} and (3)
    * returns the document (if exists) including the fields selected in the {@param query}
    *
-   * @return The document before updating if exists, otherwise an empty optional
+   * @return The document <strong>before updating</strong> if exists, otherwise an empty optional
    * @throws IOException if there was any error in updating/fetching the document
    * @implSpec The definition of an update here is
    *     <ol>

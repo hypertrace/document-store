@@ -1,5 +1,8 @@
 package org.hypertrace.core.documentstore.postgres.query.v1;
 
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID_ALIAS;
+import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -86,6 +89,10 @@ public class PostgresQueryParser {
 
   public String getSelections() {
     return parseSelection().orElse(ALL_SELECTIONS);
+  }
+
+  public String getSelectionsWithImplicitId() {
+    return getSelections() + ", " + String.format("%s AS %s", ID, IMPLICIT_ID_ALIAS);
   }
 
   public Optional<String> parseSelection() {

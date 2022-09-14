@@ -36,6 +36,34 @@ public class SubDocumentUpdate {
   }
 
   public static SubDocumentUpdate of(final String subDocumentPath, final SubDocumentValue value) {
-    return new SubDocumentUpdate(new SubDocument(subDocumentPath), value);
+    return new SubDocumentUpdate(SubDocument.builder().path(subDocumentPath).build(), value);
+  }
+
+  public static SubDocumentUpdate of(final SubDocument subDocument, final String value) {
+    return of(subDocument, SubDocumentValue.of(value));
+  }
+
+  public static SubDocumentUpdate of(final SubDocument subDocument, final Number value) {
+    return of(subDocument, SubDocumentValue.of(value));
+  }
+
+  public static SubDocumentUpdate of(final SubDocument subDocument, final Boolean value) {
+    return of(subDocument, SubDocumentValue.of(value));
+  }
+
+  public static SubDocumentUpdate of(final SubDocument subDocument, final String[] value) {
+    return of(subDocument, SubDocumentValue.of(value));
+  }
+
+  public static SubDocumentUpdate of(final SubDocument subDocument, final Number[] value) {
+    return of(subDocument, SubDocumentValue.of(value));
+  }
+
+  public static SubDocumentUpdate of(final SubDocument subDocument, final Boolean[] value) {
+    return of(subDocument, SubDocumentValue.of(value));
+  }
+
+  public static SubDocumentUpdate of(final SubDocument subDocument, final SubDocumentValue value) {
+    return new SubDocumentUpdate(subDocument, value);
   }
 }

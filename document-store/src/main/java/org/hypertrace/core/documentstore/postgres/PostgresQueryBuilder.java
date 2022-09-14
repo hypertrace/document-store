@@ -11,11 +11,12 @@ import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValu
 @RequiredArgsConstructor
 public class PostgresQueryBuilder {
   private final String collectionName;
-  private final PostgresSubDocumentValueParser subDocValueParser = new PostgresSubDocumentValueParser();
+  private final PostgresSubDocumentValueParser subDocValueParser =
+      new PostgresSubDocumentValueParser();
 
   public String buildSelectQueryForUpdateSkippingLocked(
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser) {
-    final String selections = ID + ", " + parser.getSelections();
+    final String selections = parser.getSelectionsWithImplicitId();
     final Optional<String> optionalOrderBy = parser.parseOrderBy();
     final Optional<String> optionalFilter = parser.parseFilter();
 
@@ -33,10 +34,6 @@ public class PostgresQueryBuilder {
   public String getSubDocUpdateQuery(final SubDocumentValue subDocValue) {
     return String.format(
         "UPDATE %s SET %s=jsonb_set(%s, ?::text[], %s) WHERE %s=?",
-        collectionName,
-        DOCUMENT,
-        DOCUMENT,
-        subDocValue.accept(subDocValueParser),
-        ID);
+        collectionName, DOCUMENT, DOCUMENT, subDocValue.accept(subDocValueParser), ID);
   }
 }

@@ -1290,6 +1290,11 @@ public class DocStoreQueryV1Test {
     final Document document2 = doc2Optional.get();
 
     assertNotEquals(document1, document2);
+    assertDocsAndSizeEqualWithoutOrder(
+        datastoreName,
+        List.of(document1, document2).iterator(),
+        2,
+        "mongo/atomic_read_and_update_docs.json");
     assertDocsAndSizeEqual(
         collection.find(
             Query.builder()
