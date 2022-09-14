@@ -185,17 +185,24 @@ public interface Collection {
   UpdateResult update(Key key, Document document, Filter condition) throws IOException;
 
   /**
-   * Atomically (1) reads the first document matching the filter and sorting criteria given in the
-   * {@param query}, (2) updates the document as specified in {@param updateDocument} and (3)
-   * returns the document (if exists) including the fields selected in the {@param query}
+   * Atomically
    *
+   * <ol>
+   *   <li>reads the first document matching the filter and sorting criteria given in the query,
+   *   <li>updates the document as specified in updates and
+   *   <li>returns the document (if exists) including the fields selected in the query
+   * </ol>
+   *
+   * @param query The query specifying the desired filter and sorting criteria along with the
+   *     necessary selections
+   * @param updates The list of sub-document updates to be performed atomically
    * @return The document <strong>before updating</strong> if exists, otherwise an empty optional
    * @throws IOException if there was any error in updating/fetching the document
    * @implSpec The definition of an update here is
    *     <ol>
-   *       <li>The existing fields/sub-documents will be updated
-   *       <li>New fields/sub-documents will be created if they do not exist
-   *       <li>None of the existing fields/sub-documents will be removed
+   *       <li>The existing sub-documents will be updated
+   *       <li>New sub-documents will be created if they do not exist
+   *       <li>None of the existing sub-documents will be removed
    *     </ol>
    */
   Optional<Document> update(
