@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.query.transformer;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_ARRAY;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
@@ -73,7 +73,7 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
  */
 final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressionVisitor {
   private static final Function<AggregateExpression, AggregateExpression> DISTINCT_COUNT_HANDLER =
-      expression -> AggregateExpression.of(DISTINCT, expression.getExpression());
+      expression -> AggregateExpression.of(DISTINCT_ARRAY, expression.getExpression());
 
   private static final Map<AggregationOperator, Function<AggregateExpression, AggregateExpression>>
       AGGREGATION_SUBSTITUTE_MAP =
