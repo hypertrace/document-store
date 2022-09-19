@@ -59,6 +59,8 @@ public class PostgresAggregateExpressionVisitor extends PostgresSelectTypeExpres
   private String convertToAggregationFunction(AggregationOperator operator, String value) {
     if (operator.equals(AggregationOperator.DISTINCT_COUNT)) {
       return String.format("COUNT(DISTINCT %s )", value);
+    } else if (operator.equals(AggregationOperator.DISTINCT)) {
+      return String.format("ARRAY_AGG(DISTINCT %s)", value);
     } else if (operator.equals(AggregationOperator.DISTINCT_ARRAY)) {
       return String.format("ARRAY_AGG(DISTINCT %s)", value);
     }
