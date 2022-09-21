@@ -3,7 +3,7 @@ package org.hypertrace.core.documentstore;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
-import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_ARRAY;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
@@ -521,7 +521,8 @@ public class DocStoreQueryV1Test {
             .addAggregation(IdentifierExpression.of("price"))
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("price"))
-            .addSelection(AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")))
+            .addSelection(
+                AggregateExpression.of(DISTINCT_ARRAY, IdentifierExpression.of("quantity")))
             .build();
 
     assertThrows(RuntimeException.class, () -> collection.aggregate(query));
@@ -539,7 +540,8 @@ public class DocStoreQueryV1Test {
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("price"))
             .addSelection(
-                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
+                AggregateExpression.of(DISTINCT_ARRAY, IdentifierExpression.of("quantity")),
+                "quantities")
             .setAggregationFilter(
                 RelationalExpression.of(
                     ConstantExpression.of(1),
@@ -566,7 +568,8 @@ public class DocStoreQueryV1Test {
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("price"))
             .addSelection(
-                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
+                AggregateExpression.of(DISTINCT_ARRAY, IdentifierExpression.of("quantity")),
+                "quantities")
             .addSelection(
                 FunctionExpression.builder()
                     .operator(LENGTH)

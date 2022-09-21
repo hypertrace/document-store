@@ -2,7 +2,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1;
 
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
-import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_ARRAY;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
@@ -355,7 +355,7 @@ public class PostgresQueryParserTest {
                 RelationalExpression.of(
                     IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
             .addSelection(
-                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")),
+                AggregateExpression.of(DISTINCT_ARRAY, IdentifierExpression.of("quantity")),
                 "qty_distinct")
             .addSelection(
                 FunctionExpression.builder()
@@ -391,7 +391,8 @@ public class PostgresQueryParserTest {
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("price"))
             .addSelection(
-                AggregateExpression.of(DISTINCT, IdentifierExpression.of("quantity")), "quantities")
+                AggregateExpression.of(DISTINCT_ARRAY, IdentifierExpression.of("quantity")),
+                "quantities")
             .addSelection(
                 FunctionExpression.builder()
                     .operator(LENGTH)
