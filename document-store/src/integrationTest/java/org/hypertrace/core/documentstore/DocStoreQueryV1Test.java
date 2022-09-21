@@ -1297,7 +1297,7 @@ public class DocStoreQueryV1Test {
         datastoreName,
         List.of(document1, document2).iterator(),
         2,
-        "mongo/atomic_read_and_update_docs.json");
+        "mongo/atomic_update_response.json");
     assertDocsAndSizeEqual(
         collection.find(
             Query.builder()
@@ -1308,8 +1308,8 @@ public class DocStoreQueryV1Test {
                 .addSelection(IdentifierExpression.of("props.brand"), "brand")
                 .addSort(IdentifierExpression.of("_id"), ASC)
                 .build()),
-        "mongo/atomic_read_and_update_collection_data.json",
-        8);
+        "mongo/updateable_collection_data_after_atomic_update.json",
+        9);
   }
 
   private static Collection getCollection(final String dataStoreName) {
