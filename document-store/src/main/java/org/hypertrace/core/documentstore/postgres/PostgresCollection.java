@@ -411,7 +411,7 @@ public class PostgresCollection implements Collection {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
               collectionName, query);
-      final String selectQuery = queryBuilder.buildSelectQueryForUpdateSkippingLocked(parser);
+      final String selectQuery = parser.buildSelectQueryForUpdateSkippingLocked();
 
       try (final PreparedStatement pStmt = connection.prepareStatement(selectQuery)) {
         enrichPreparedStatementWithParams(pStmt, parser.getParamsBuilder().build());

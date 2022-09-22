@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static com.mongodb.client.model.ReturnDocument.BEFORE;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.CREATED_TIME;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.dbObjectToDocument;
@@ -474,7 +475,7 @@ public class MongoCollection implements Collection {
     try {
       final BasicDBObject selections = getSelections(query);
       final BasicDBObject sorts = getOrders(query);
-      final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
+      final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions().returnDocument(BEFORE);
 
       if (!selections.isEmpty()) {
         options.projection(selections);

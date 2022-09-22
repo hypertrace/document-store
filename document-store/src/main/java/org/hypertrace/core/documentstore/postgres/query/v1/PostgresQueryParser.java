@@ -87,43 +87,59 @@ public class PostgresQueryParser {
     return sqlBuilder.toString();
   }
 
-  public String getSelections() {
+  public String buildSelectQueryForUpdateSkippingLocked() {
+    final String selections = getSelectionsWithImplicitId();
+    final Optional<String> optionalOrderBy = parseOrderBy();
+    final Optional<String> optionalFilter = parseFilter();
+
+    final StringBuilder queryBuilder = new StringBuilder();
+    queryBuilder.append("SELECT ").append(selections);
+    queryBuilder.append(" FROM ").append(collection);
+    optionalFilter.ifPresent(filter -> queryBuilder.append(" WHERE ").append(filter));
+    optionalOrderBy.ifPresent(orderBy -> queryBuilder.append(" ORDER BY ").append(orderBy));
+    queryBuilder.append(" LIMIT 1");
+    queryBuilder.append(" FOR UPDATE SKIP LOCKED");
+
+    return queryBuilder.toString();
+  }
+
+  private String getSelections() {
     return parseSelection().orElse(ALL_SELECTIONS);
   }
 
-  public String getSelectionsWithImplicitId() {
+  private String getSelectionsWithImplicitId() {
     return getSelections() + ", " + String.format("%s AS %s", ID, IMPLICIT_ID_ALIAS);
   }
 
-  public Optional<String> parseSelection() {
+  private Optional<String> parseSelection() {
     return Optional.ofNullable(PostgresSelectTypeExpressionVisitor.getSelections(this));
   }
 
-  public Optional<String> parseFilter() {
+  private Optional<String> parseFilter() {
     return PostgresFilterTypeExpressionVisitor.getFilterClause(this);
   }
 
-  public Optional<String> parseUnnestFilter() {
+  private Optional<String> parseUnnestFilter() {
     return PostgresUnnestFilterTypeExpressionVisitor.getFilterClause(this);
   }
 
-  public Optional<String> parseFromClause() {
+  private Optional<String> parseFromClause() {
     return PostgresFromTypeExpressionVisitor.getFromClause(this);
   }
 
-  public Optional<String> parseGroupBy() {
+  private Optional<String> parseGroupBy() {
     return Optional.ofNullable(PostgresGroupTypeExpressionVisitor.getGroupByClause(this));
   }
 
-  public Optional<String> parseHaving() {
+  private Optional<String> parseHaving() {
     return PostgresAggregationFilterTypeExpressionVisitor.getAggregationFilterClause(this);
   }
 
-  public Optional<String> parseOrderBy() {
+  private Optional<String> parseOrderBy() {
     return PostgresSortTypeExpressionVisitor.getOrderByClause(this);
   }
 
-  public Optional<String> parsePagination() {
+  private Optional<String> parsePagination() {
     Optional<Pagination> pagination = this.query.getPagination();
     if (pagination.isPresent()) {
       this.paramsBuilder.addObjectParam(pagination.get().getOffset());
