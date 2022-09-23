@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.expression.model;
+package org.hypertrace.core.documentstore.model;
 
 public interface Printable {
   @Override

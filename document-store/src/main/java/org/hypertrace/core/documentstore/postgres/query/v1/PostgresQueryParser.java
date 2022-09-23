@@ -1,5 +1,8 @@
 package org.hypertrace.core.documentstore.postgres.query.v1;
 
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID_ALIAS;
+import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -7,7 +10,6 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
-import org.hypertrace.core.documentstore.postgres.PostgresCollection;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumnTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresAggregationFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
@@ -18,11 +20,9 @@ import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSortT
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresUnnestFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class PostgresQueryParser {
-  private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
+  private static final String ALL_SELECTIONS = "*";
 
   @Getter private final String collection;
   @Getter private final Query query;
@@ -62,45 +62,53 @@ public class PostgresQueryParser {
 
     // handle where clause
     Optional<String> whereFilter = fromClause.isPresent() ? parseUnnestFilter() : parseFilter();
-    if (whereFilter.isPresent()) {
-      sqlBuilder.append(String.format(" WHERE %s", whereFilter.get()));
-    }
+    whereFilter.ifPresent(s -> sqlBuilder.append(String.format(" WHERE %s", s)));
 
     // selection clause
-    Optional<String> selectionClause = parseSelection();
-    if (selectionClause.isPresent()) {
-      sqlBuilder.insert(
-          startIndexOfSelection,
-          String.format("SELECT %s FROM %s", selectionClause.get(), finalTableName));
-    } else {
-      sqlBuilder.insert(startIndexOfSelection, String.format("SELECT * FROM %s", finalTableName));
-    }
+    sqlBuilder.insert(
+        startIndexOfSelection, String.format("SELECT %s FROM %s", getSelections(), finalTableName));
 
     // group by
     Optional<String> groupBy = parseGroupBy();
-    if (groupBy.isPresent()) {
-      sqlBuilder.append(String.format(" GROUP BY %s", groupBy.get()));
-    }
+    groupBy.ifPresent(s -> sqlBuilder.append(String.format(" GROUP BY %s", s)));
 
     // having
     Optional<String> having = parseHaving();
-    if (having.isPresent()) {
-      sqlBuilder.append(String.format(" HAVING %s", having.get()));
-    }
+    having.ifPresent(s -> sqlBuilder.append(String.format(" HAVING %s", s)));
 
     // order by
     Optional<String> orderBy = parseOrderBy();
-    if (orderBy.isPresent()) {
-      sqlBuilder.append(String.format(" ORDER BY %s", orderBy.get()));
-    }
+    orderBy.ifPresent(s -> sqlBuilder.append(String.format(" ORDER BY %s", s)));
 
     // offset and limit
     Optional<String> pagination = parsePagination();
-    if (pagination.isPresent()) {
-      sqlBuilder.append(String.format(" %s", pagination.get()));
-    }
+    pagination.ifPresent(s -> sqlBuilder.append(String.format(" %s", s)));
 
     return sqlBuilder.toString();
+  }
+
+  public String buildSelectQueryForUpdateSkippingLocked() {
+    final String selections = getSelectionsWithImplicitId();
+    final Optional<String> optionalOrderBy = parseOrderBy();
+    final Optional<String> optionalFilter = parseFilter();
+
+    final StringBuilder queryBuilder = new StringBuilder();
+    queryBuilder.append("SELECT ").append(selections);
+    queryBuilder.append(" FROM ").append(collection);
+    optionalFilter.ifPresent(filter -> queryBuilder.append(" WHERE ").append(filter));
+    optionalOrderBy.ifPresent(orderBy -> queryBuilder.append(" ORDER BY ").append(orderBy));
+    queryBuilder.append(" LIMIT 1");
+    queryBuilder.append(" FOR UPDATE SKIP LOCKED");
+
+    return queryBuilder.toString();
+  }
+
+  private String getSelections() {
+    return parseSelection().orElse(ALL_SELECTIONS);
+  }
+
+  private String getSelectionsWithImplicitId() {
+    return getSelections() + ", " + String.format("%s AS %s", ID, IMPLICIT_ID_ALIAS);
   }
 
   private Optional<String> parseSelection() {

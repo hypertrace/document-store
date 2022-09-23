@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_ARRAY;
@@ -15,6 +16,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
@@ -28,7 +30,9 @@ import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -37,6 +41,13 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
@@ -45,6 +56,8 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Filter;
@@ -69,6 +82,7 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 public class DocStoreQueryV1Test {
   private static final String COLLECTION_NAME = "myTest";
+  private static final String UPDATABLE_COLLECTION_NAME = "updatable_collection";
 
   private static Map<String, Datastore> datastoreMap;
 
@@ -117,12 +131,17 @@ public class DocStoreQueryV1Test {
     datastoreMap.put(MONGO_STORE, mongoDatastore);
     datastoreMap.put(POSTGRES_STORE, postgresDatastore);
 
-    Map<Key, Document> documents = Utils.createDocumentsFromResource("mongo/collection_data.json");
+    createCollectionData("mongo/collection_data.json", COLLECTION_NAME);
+  }
+
+  private static void createCollectionData(final String resourcePath, final String collectionName)
+      throws IOException {
+    final Map<Key, Document> documents = Utils.buildDocumentsFromResource(resourcePath);
     datastoreMap.forEach(
         (k, v) -> {
-          v.deleteCollection(COLLECTION_NAME);
-          v.createCollection(COLLECTION_NAME, null);
-          Collection collection = v.getCollection(COLLECTION_NAME);
+          v.deleteCollection(collectionName);
+          v.createCollection(collectionName, null);
+          Collection collection = v.getCollection(collectionName);
           collection.bulkUpsert(documents);
         });
   }
@@ -153,8 +172,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testFindAll(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     Query query = Query.builder().build();
     Iterator<Document> resultDocs = collection.find(query);
@@ -166,8 +184,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testHasNext(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     Query query = Query.builder().build();
     Iterator<Document> resultDocs = collection.find(query);
@@ -180,8 +197,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testFindSimple(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     List<SelectionSpec> selectionSpecs =
         List.of(
@@ -211,8 +227,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testFindWithDuplicateSelections(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     List<SelectionSpec> selectionSpecs =
         List.of(
@@ -243,8 +258,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testFindWithDuplicateSortingAndPagination(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     List<SelectionSpec> selectionSpecs =
         List.of(
             SelectionSpec.of(IdentifierExpression.of("item")),
@@ -289,8 +303,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testFindWithNestedFields(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     List<SelectionSpec> selectionSpecs =
         List.of(
             SelectionSpec.of(IdentifierExpression.of("item")),
@@ -330,8 +343,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testAggregateEmpty(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query = Query.builder().build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
@@ -342,8 +354,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testAggregateSimple(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query =
         Query.builder()
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
@@ -357,8 +368,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testOptionalFieldCount(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query =
         Query.builder()
             .addSelection(
@@ -375,8 +385,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testAggregateWithDuplicateSelections(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query =
         Query.builder()
             .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
@@ -391,8 +400,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testAggregateWithFiltersAndOrdering(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query =
         Query.builder()
             .addSelection(
@@ -432,8 +440,7 @@ public class DocStoreQueryV1Test {
   @MethodSource("databaseContextBoth")
   public void testAggregateWithFiltersAndDuplicateOrderingAndDuplicateAggregations(
       String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query =
         Query.builder()
             .addSelection(
@@ -474,8 +481,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testAggregateWithNestedFields(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query =
         Query.builder()
             .addSelection(IdentifierExpression.of("props.seller.address.pincode"), "pincode.value")
@@ -508,8 +514,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testAggregateWithoutAggregationAlias(String dataStoreName) {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query =
         Query.builder()
             .addAggregation(IdentifierExpression.of("item"))
@@ -527,8 +532,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testAggregateWithUnsupportedExpressionNesting(String dataStoreName) {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query =
         Query.builder()
             .addAggregation(IdentifierExpression.of("item"))
@@ -556,8 +560,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testAggregateWithMultipleGroupingLevels(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     Query query =
         Query.builder()
             .addAggregation(IdentifierExpression.of("item"))
@@ -615,8 +618,7 @@ public class DocStoreQueryV1Test {
   @MethodSource("databaseContextBoth")
   public void testQueryQ1AggregationFilterAlongWithNonAliasFields(String dataStoreName)
       throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .addSelection(
@@ -647,8 +649,7 @@ public class DocStoreQueryV1Test {
   @MethodSource("databaseContextBoth")
   public void testQueryQ1AggregationFilterWithStringAlongWithNonAliasFields(String dataStoreName)
       throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .addSelection(
@@ -679,8 +680,7 @@ public class DocStoreQueryV1Test {
   @MethodSource("databaseContextBoth")
   public void testQueryQ1AggregationFilterWithStringInFilterAlongWithNonAliasFields(
       String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .addSelection(
@@ -773,8 +773,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testQueryV1ForSimpleWhereClause(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     // query docs
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -791,8 +790,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testQueryV1FilterWithNestedFiled(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     // query docs
     org.hypertrace.core.documentstore.query.Query query =
@@ -820,8 +818,7 @@ public class DocStoreQueryV1Test {
   @MethodSource("databaseContextBoth")
   public void testQueryV1ForFilterWithLogicalExpressionAndOr(String dataStoreName)
       throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     // query docs
     org.hypertrace.core.documentstore.query.Query query =
@@ -857,8 +854,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testQueryV1ForSelectionExpression(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     // query docs
     org.hypertrace.core.documentstore.query.Query query =
@@ -887,8 +883,7 @@ public class DocStoreQueryV1Test {
   @MethodSource("databaseContextBoth")
   public void testQueryV1FunctionalSelectionExpressionWithNestedFieldWithAlias(String dataStoreName)
       throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     // query docs
     org.hypertrace.core.documentstore.query.Query query =
@@ -919,8 +914,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testQueryV1AggregationExpression(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -952,8 +946,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testQueryV1AggregationFilter(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -975,8 +968,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testQueryV1AggregationFilterWithWhereClause(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -1001,8 +993,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testUnnestWithoutPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -1023,8 +1014,7 @@ public class DocStoreQueryV1Test {
   @MethodSource("databaseContextBoth")
   public void testUnnestWithoutPreserveNullAndEmptyArraysWithFilters(String dataStoreName)
       throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -1055,8 +1045,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testUnnestWithPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -1076,8 +1065,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testUnnestAndAggregate(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -1099,8 +1087,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testUnnestAndAggregate_preserveEmptyTrue(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     // include all documents in the result irrespective of `sales` field
     org.hypertrace.core.documentstore.query.Query query =
@@ -1118,8 +1105,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testUnnest(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -1141,8 +1127,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testUnnestAndAggregate_preserveEmptyFalse(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     // consider only those documents where sales field is missing
     org.hypertrace.core.documentstore.query.Query query =
@@ -1160,8 +1145,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testFilterAndUnnest(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     RelationalExpression relationalExpression =
         RelationalExpression.of(
@@ -1192,8 +1176,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
 
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
@@ -1216,8 +1199,7 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
   public void testFindWithSortingAndPagination(String datastoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(datastoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(datastoreName);
 
     List<SelectionSpec> selectionSpecs =
         List.of(
@@ -1256,10 +1238,92 @@ public class DocStoreQueryV1Test {
     assertDocsAndSizeEqual(resultDocs, "mongo/filter_with_sorting_and_pagination_response.json", 3);
   }
 
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
+  public void testUpdateAtomicWithFilter(final String datastoreName)
+      throws IOException, ExecutionException, InterruptedException {
+    final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+    createCollectionData("mongo/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+    final Query query =
+        Query.builder()
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("date"),
+                            LT,
+                            ConstantExpression.of("2022-08-09T18:53:17Z")))
+                    .build())
+            .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+            .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("date"))
+            .addSelection(IdentifierExpression.of("props"))
+            .build();
+    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+    final SubDocumentUpdate propsUpdate =
+        SubDocumentUpdate.of(
+            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
+
+    final Random random = new Random();
+    final Callable<Optional<Document>> callable =
+        () -> {
+          MILLISECONDS.sleep(random.nextInt(1000));
+          return collection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
+        };
+
+    final ExecutorService executor = Executors.newFixedThreadPool(2);
+    final Future<Optional<Document>> future1 = executor.submit(callable);
+    final Future<Optional<Document>> future2 = executor.submit(callable);
+
+    final Optional<Document> doc1Optional = future1.get();
+    final Optional<Document> doc2Optional = future2.get();
+
+    assertTrue(doc1Optional.isPresent());
+    assertTrue(doc2Optional.isPresent());
+
+    final Document document1 = doc1Optional.get();
+    final Document document2 = doc2Optional.get();
+
+    assertNotEquals(document1, document2);
+    assertDocsAndSizeEqualWithoutOrder(
+        datastoreName,
+        List.of(document1, document2).iterator(),
+        2,
+        "mongo/atomic_update_response.json");
+    assertDocsAndSizeEqual(
+        collection.find(
+            Query.builder()
+                .addSelection(IdentifierExpression.of("item"))
+                .addSelection(IdentifierExpression.of("price"))
+                .addSelection(IdentifierExpression.of("quantity"))
+                .addSelection(IdentifierExpression.of("date"))
+                .addSelection(IdentifierExpression.of("props.brand"), "brand")
+                .addSort(IdentifierExpression.of("_id"), ASC)
+                .build()),
+        "mongo/updateable_collection_data_after_atomic_update.json",
+        9);
+  }
+
+  private static Collection getCollection(final String dataStoreName) {
+    return getCollection(dataStoreName, COLLECTION_NAME);
+  }
+
+  private static Collection getCollection(final String dataStoreName, final String collectionName) {
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    return datastore.getCollection(collectionName);
+  }
+
   private static void testCountApi(
       final String dataStoreName, final Query query, final String filePath) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Collection collection = getCollection(dataStoreName);
     final long actualSize = collection.count(query);
     final String fileContent = readFileFromResource(filePath).orElseThrow();
     final long expectedSize = convertJsonToMap(fileContent).size();

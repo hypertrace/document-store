@@ -1,20 +1,30 @@
 package org.hypertrace.core.documentstore.postgres.utils;
 
+import static java.util.Objects.requireNonNull;
 import static org.hypertrace.core.documentstore.Collection.UNSUPPORTED_QUERY_OPERATION;
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID_ALIAS;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.CREATED_AT;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCUMENT;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_PATH_SEPARATOR;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
 
 public class PostgresUtils {
   private static final String QUESTION_MARK = "?";
@@ -376,5 +386,35 @@ public class PostgresUtils {
 
   public static String wrapAliasWithDoubleQuotes(String fieldName) {
     return "\"" + fieldName + "\"";
+  }
+
+  public static String formatSubDocPath(String subDocPath) {
+    return "{" + subDocPath.replaceAll(DOC_PATH_SEPARATOR, ",") + "}";
+  }
+
+  public static boolean isValidPrimitiveType(Object v) {
+    Set<Class<?>> validClassez =
+        new HashSet<>() {
+          {
+            add(Double.class);
+            add(Float.class);
+            add(Integer.class);
+            add(Long.class);
+            add(String.class);
+            add(Boolean.class);
+            add(Number.class);
+          }
+        };
+    return validClassez.contains(v.getClass());
+  }
+
+  public static DocumentAndId extractAndRemoveId(final Document document) throws IOException {
+    @SuppressWarnings("Convert2Diamond")
+    final Map<String, Object> map =
+        new ObjectMapper()
+            .readValue(document.toJson(), new TypeReference<Map<String, Object>>() {});
+    final String id = String.valueOf(requireNonNull(map.remove(IMPLICIT_ID_ALIAS)));
+    final Document documentWithoutId = new JSONDocument(new ObjectMapper().writeValueAsString(map));
+    return new DocumentAndId(documentWithoutId, id);
   }
 }

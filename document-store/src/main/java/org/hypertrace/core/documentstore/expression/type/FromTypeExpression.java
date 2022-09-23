@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.expression.type;
 
-import org.hypertrace.core.documentstore.expression.model.Hashable;
-import org.hypertrace.core.documentstore.expression.model.Printable;
+import org.hypertrace.core.documentstore.model.Hashable;
+import org.hypertrace.core.documentstore.model.Printable;
 import org.hypertrace.core.documentstore.parser.FromTypeExpressionVisitor;
 
 /**
