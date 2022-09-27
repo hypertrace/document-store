@@ -6,13 +6,13 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
 import com.typesafe.config.Config;
+import com.typesafe.config.ConfigBeanFactory;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Duration;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -22,51 +22,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Provides {@link Datastore} implementation for Postgres DB. */
-public class PostgresDatastore implements Datastore {
+public class PostgresDatastore implements Datastore, PostgresDefaults {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDatastore.class);
 
-  private static final String DEFAULT_USER = "postgres";
-  private static final String DEFAULT_PASSWORD = "postgres";
-  private static final String DEFAULT_DB_NAME = "postgres";
-  private static final int DEFAULT_MAX_CONNECTION_ATTEMPTS = 200;
-  private static final Duration DEFAULT_CONNECTION_RETRY_BACKOFF = Duration.ofSeconds(5);
-
   private PostgresClient client;
   private String database;
+  private PostgresConnectionPool connectionPool;
 
   @Override
   public boolean init(Config config) {
     try {
       DriverManager.registerDriver(new org.postgresql.Driver());
-      this.database = config.hasPath("database") ? config.getString("database") : DEFAULT_DB_NAME;
+      final PostgresConfig postgresConfig = ConfigBeanFactory.create(config, PostgresConfig.class);
 
-      String url;
-      if (config.hasPath("url")) {
-        url = config.getString("url");
-      } else {
-        String hostName = config.getString("host");
-        int port = config.getInt("port");
-        url = String.format("jdbc:postgresql://%s:%s/", hostName, port);
-      }
-
-      String user = config.hasPath("user") ? config.getString("user") : DEFAULT_USER;
-      String password =
-          config.hasPath("password") ? config.getString("password") : DEFAULT_PASSWORD;
-      int maxConnectionAttempts =
-          config.hasPath("maxConnectionAttempts")
-              ? config.getInt("maxConnectionAttempts")
-              : DEFAULT_MAX_CONNECTION_ATTEMPTS;
-      Duration connectionRetryBackoff =
-          config.hasPath("connectionRetryBackoff")
-              ? config.getDuration("connectionRetryBackoff")
-              : DEFAULT_CONNECTION_RETRY_BACKOFF;
-
-      String finalUrl = url + this.database;
-      client =
-          new PostgresClient(
-              finalUrl, user, password, maxConnectionAttempts, connectionRetryBackoff);
-
+      client = new PostgresClient(postgresConfig);
+      database = postgresConfig.getDatabase();
+      connectionPool = new PostgresConnectionPool(postgresConfig);
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Unable to instantiate PostgresClient with config:%s", config), e);
@@ -132,7 +104,7 @@ public class PostgresDatastore implements Datastore {
     if (!tables.contains(collectionName)) {
       createCollection(collectionName, null);
     }
-    return new PostgresCollection(client, collectionName);
+    return new PostgresCollection(client, connectionPool, collectionName);
   }
 
   @Override

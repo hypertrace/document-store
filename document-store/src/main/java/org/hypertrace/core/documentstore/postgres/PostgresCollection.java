@@ -74,12 +74,17 @@ public class PostgresCollection implements Collection {
   private static final CloseableIterator<Document> EMPTY_ITERATOR = createEmptyIterator();
 
   private final PostgresClient client;
+  private final PostgresConnectionPool connectionPool;
   private final String collectionName;
   private final PostgresQueryBuilder queryBuilder;
   private final PostgresSubDocumentUpdater subDocUpdater;
 
-  public PostgresCollection(PostgresClient client, String collectionName) {
+  public PostgresCollection(
+      final PostgresClient client,
+      final PostgresConnectionPool connectionPool,
+      final String collectionName) {
     this.client = client;
+    this.connectionPool = connectionPool;
     this.collectionName = collectionName;
     this.queryBuilder = new PostgresQueryBuilder(this.collectionName);
     this.subDocUpdater = new PostgresSubDocumentUpdater(queryBuilder);

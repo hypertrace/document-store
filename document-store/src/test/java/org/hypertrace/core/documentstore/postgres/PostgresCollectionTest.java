@@ -50,6 +50,7 @@ class PostgresCollectionTest {
   private static final long currentTime = 1658956123L;
 
   @Mock private PostgresClient mockClient;
+  @Mock private PostgresConnectionPool connectionPool;
   @Mock private Connection mockConnection;
   @Mock private PreparedStatement mockSelectPreparedStatement;
   @Mock private PreparedStatement mockUpdatePreparedStatement;
@@ -64,7 +65,7 @@ class PostgresCollectionTest {
   void setUp() {
     try (final MockedStatic<Clock> clockMock = Mockito.mockStatic(Clock.class)) {
       clockMock.when(Clock::systemUTC).thenReturn(mockClock);
-      postgresCollection = new PostgresCollection(mockClient, COLLECTION_NAME);
+      postgresCollection = new PostgresCollection(mockClient, connectionPool, COLLECTION_NAME);
     }
   }
 

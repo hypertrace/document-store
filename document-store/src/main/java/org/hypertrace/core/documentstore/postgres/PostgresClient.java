@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 
 class PostgresClient {
 
-  private static final Logger log = LoggerFactory.getLogger(PostgresClient.class);
+  private static final Logger log = LoggerFactory.getLogger(PostgresConnectionPool.class);
   private static final int VALIDATION_QUERY_TIMEOUT_SECONDS = 5;
 
   private final String url;
@@ -24,17 +24,12 @@ class PostgresClient {
   private int count = 0;
   private Connection connection;
 
-  public PostgresClient(
-      String url,
-      String user,
-      String password,
-      int maxConnectionAttempts,
-      Duration connectionRetryBackoff) {
-    this.url = url;
-    this.user = user;
-    this.password = password;
-    this.maxConnectionAttempts = maxConnectionAttempts;
-    this.connectionRetryBackoff = connectionRetryBackoff;
+  public PostgresClient(final PostgresConfig config) {
+    this.url = config.getConnectionString();
+    this.user = config.getUser();
+    this.password = config.getPassword();
+    this.maxConnectionAttempts = config.getMaxConnectionAttempts();
+    this.connectionRetryBackoff = config.getConnectionRetryBackoff();
   }
 
   public synchronized Connection getConnection() {
