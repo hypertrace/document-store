@@ -405,13 +405,15 @@ public class PostgresCollection implements Collection {
       final java.util.Collection<SubDocumentUpdate> updates)
       throws IOException {
 
-    try (final Connection connection = client.getNewConnection()) {
+    final Connection connection = client.getNewConnection();
+
+    try {
       connection.setAutoCommit(false);
 
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
               collectionName, query);
-      final String selectQuery = parser.buildSelectQueryForUpdateSkippingLocked();
+      final String selectQuery = parser.buildSelectQueryForUpdate();
 
       try (final PreparedStatement pStmt = connection.prepareStatement(selectQuery)) {
         enrichPreparedStatementWithParams(pStmt, parser.getParamsBuilder().build());
@@ -436,11 +438,13 @@ public class PostgresCollection implements Collection {
 
         connection.commit();
         return Optional.of(docAndId.getDocument());
-      } catch (final Exception e) {
-        connection.rollback();
-        throw e;
       }
     } catch (final Exception e) {
+      try {
+        connection.rollback();
+      } catch (final SQLException ex) {
+        // Do nothing
+      }
       throw new IOException(e);
     }
   }

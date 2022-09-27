@@ -70,6 +70,7 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -1239,77 +1240,144 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @MethodSource("databaseContextPostgres")
   public void testUpdateAtomicWithFilter(final String datastoreName)
       throws IOException, ExecutionException, InterruptedException {
-    final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-    createCollectionData("mongo/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+    for (int i = 0; i < 10; i++) {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("mongo/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-    final Query query =
-        Query.builder()
-            .setFilter(
-                LogicalExpression.builder()
-                    .operator(AND)
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("date"),
-                            LT,
-                            ConstantExpression.of("2022-08-09T18:53:17Z")))
-                    .build())
-            .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-            .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
-            .addSelection(IdentifierExpression.of("quantity"))
-            .addSelection(IdentifierExpression.of("price"))
-            .addSelection(IdentifierExpression.of("date"))
-            .addSelection(IdentifierExpression.of("props"))
-            .build();
-    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-    final SubDocumentUpdate propsUpdate =
-        SubDocumentUpdate.of(
-            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              LT,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate =
+          SubDocumentUpdate.of(
+              "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
 
-    final Random random = new Random();
-    final Callable<Optional<Document>> callable =
-        () -> {
-          MILLISECONDS.sleep(random.nextInt(1000));
-          return collection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
-        };
+      final Random random = new Random();
+      final Callable<Optional<Document>> callable =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
+          };
 
-    final ExecutorService executor = Executors.newFixedThreadPool(2);
-    final Future<Optional<Document>> future1 = executor.submit(callable);
-    final Future<Optional<Document>> future2 = executor.submit(callable);
+      final ExecutorService executor = Executors.newFixedThreadPool(2);
+      final Future<Optional<Document>> future1 = executor.submit(callable);
+      final Future<Optional<Document>> future2 = executor.submit(callable);
 
-    final Optional<Document> doc1Optional = future1.get();
-    final Optional<Document> doc2Optional = future2.get();
+      final Optional<Document> doc1Optional = future1.get();
+      final Optional<Document> doc2Optional = future2.get();
 
-    assertTrue(doc1Optional.isPresent());
-    assertTrue(doc2Optional.isPresent());
+      assertTrue(doc1Optional.isPresent());
+      assertTrue(doc2Optional.isPresent());
 
-    final Document document1 = doc1Optional.get();
-    final Document document2 = doc2Optional.get();
+      final Document document1 = doc1Optional.get();
+      final Document document2 = doc2Optional.get();
 
-    assertNotEquals(document1, document2);
-    assertDocsAndSizeEqualWithoutOrder(
-        datastoreName,
-        List.of(document1, document2).iterator(),
-        2,
-        "mongo/atomic_update_response.json");
-    assertDocsAndSizeEqual(
-        collection.find(
-            Query.builder()
-                .addSelection(IdentifierExpression.of("item"))
-                .addSelection(IdentifierExpression.of("price"))
-                .addSelection(IdentifierExpression.of("quantity"))
-                .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props.brand"), "brand")
-                .addSort(IdentifierExpression.of("_id"), ASC)
-                .build()),
-        "mongo/updateable_collection_data_after_atomic_update.json",
-        9);
+      assertNotEquals(document1, document2);
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          List.of(document1, document2).iterator(),
+          2,
+          "mongo/atomic_update_response.json");
+      assertDocsAndSizeEqual(
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props.brand"), "brand")
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "mongo/updateable_collection_data_after_atomic_update.json",
+          9);
+    }
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextPostgres")
+  public void testUpdateAtomicWithFilter1(final String datastoreName)
+      throws IOException, ExecutionException, InterruptedException {
+    for (int i = 0; i < 50; i++) {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("mongo/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final Query query =
+          Query.builder()
+              .setFilter(RelationalExpression.of(IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate =
+          SubDocumentUpdate.of(
+              "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
+
+      final Random random = new Random();
+      final Callable<Optional<Document>> callable =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
+          };
+
+      final ExecutorService executor = Executors.newFixedThreadPool(2);
+      final Future<Optional<Document>> future1 = executor.submit(callable);
+      final Future<Optional<Document>> future2 = executor.submit(callable);
+
+      final Optional<Document> doc1Optional = future1.get();
+      final Optional<Document> doc2Optional = future2.get();
+
+      assertTrue(doc1Optional.isPresent());
+      assertTrue(doc2Optional.isPresent());
+
+      final Document document1 = doc1Optional.get();
+      final Document document2 = doc2Optional.get();
+
+      assertNotEquals(document1, document2);
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          List.of(document1, document2).iterator(),
+          2,
+          "mongo/atomic_update_response1.json");
+      assertDocsAndSizeEqual(
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props.brand"), "brand")
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "mongo/updatable_collection_data_after_atomic_update1.json",
+          9);
+    }
   }
 
   private static Collection getCollection(final String dataStoreName) {

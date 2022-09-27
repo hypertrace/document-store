@@ -23,6 +23,7 @@ class PostgresClient {
 
   private int count = 0;
   private Connection connection;
+  private Connection anotherConnection;
 
   public PostgresClient(
       String url,
@@ -40,11 +41,11 @@ class PostgresClient {
   public synchronized Connection getConnection() {
     try {
       if (connection == null) {
-        newConnection();
+        connection = newConnection();
       } else if (!isConnectionValid(connection)) {
         log.info("The database connection is invalid. Reconnecting...");
         close();
-        newConnection();
+        connection = newConnection();
       }
     } catch (SQLException sqle) {
       throw new RuntimeException(sqle);
@@ -52,10 +53,28 @@ class PostgresClient {
     return connection;
   }
 
-  public Connection getNewConnection() throws SQLException {
-    log.info("Acquiring new connection to {}", url);
-    return DriverManager.getConnection(url, user, password);
+  public synchronized Connection getNewConnection() {
+    try {
+      if (false) {
+        return newConnection();
+      }
+      if (anotherConnection == null) {
+        anotherConnection = newConnection();
+      } else if (!isConnectionValid(anotherConnection)) {
+        log.info("The database connection is invalid. Reconnecting...");
+        close();
+        anotherConnection = newConnection();
+      }
+    } catch (SQLException sqle) {
+      throw new RuntimeException(sqle);
+    }
+    return anotherConnection;
   }
+//
+//  public Connection getNewConnection() throws SQLException {
+//    log.info("Acquiring new connection to {}", url);
+//    return DriverManager.getConnection(url, user, password);
+//  }
 
   private boolean isConnectionValid(Connection connection) {
     try {
@@ -73,15 +92,14 @@ class PostgresClient {
     }
   }
 
-  private void newConnection() throws SQLException {
+  private Connection newConnection() throws SQLException {
     ++count;
     int attempts = 0;
     while (attempts < maxConnectionAttempts) {
       try {
         ++attempts;
         log.info("Attempting(attempt #{}) to open connection #{} to {}", attempts, count, url);
-        connection = DriverManager.getConnection(url, user, password);
-        return;
+        return DriverManager.getConnection(url, user, password);
       } catch (SQLException sqle) {
         attempts++;
         if (attempts < maxConnectionAttempts) {
@@ -102,6 +120,8 @@ class PostgresClient {
         }
       }
     }
+
+    return null;
   }
 
   private void close() {
