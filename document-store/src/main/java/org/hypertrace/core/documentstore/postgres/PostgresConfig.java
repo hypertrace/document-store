@@ -16,15 +16,12 @@ public class PostgresConfig {
       new PostgresConnectionStringGetter(this);
 
   @Optional private String host;
-
   @Optional private int port;
 
   @Optional @ToString.Exclude private String user = PostgresDefaults.DEFAULT_USER;
-
   @Optional @ToString.Exclude private String password = PostgresDefaults.DEFAULT_PASSWORD;
 
   @Optional private String database = PostgresDefaults.DEFAULT_DB_NAME;
-
   @Optional private String url;
 
   @Optional private int maxConnectionAttempts = PostgresDefaults.DEFAULT_MAX_CONNECTION_ATTEMPTS;

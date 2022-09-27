@@ -76,7 +76,7 @@ class PostgresCollectionTest {
 
     final String id = UUID.randomUUID().toString();
 
-    when(mockClient.getNewConnection()).thenReturn(mockConnection);
+    when(connectionPool.getConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(
             String.format(
                 "SELECT "
@@ -125,7 +125,7 @@ class PostgresCollectionTest {
     assertTrue(oldDocument.isPresent());
     assertEquals(document, oldDocument.get());
 
-    verify(mockClient, times(1)).getNewConnection();
+    verify(connectionPool, times(1)).getConnection();
     verify(mockConnection, times(1)).setAutoCommit(false);
     verify(mockConnection, times(1))
         .prepareStatement(
@@ -184,7 +184,7 @@ class PostgresCollectionTest {
     final Query query = buildQueryWithFilterSortAndProjection();
     final List<SubDocumentUpdate> updates = buildUpdates();
 
-    when(mockClient.getNewConnection()).thenReturn(mockConnection);
+    when(connectionPool.getConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(
             String.format(
                 "SELECT "
@@ -211,7 +211,7 @@ class PostgresCollectionTest {
 
     assertTrue(oldDocument.isEmpty());
 
-    verify(mockClient, times(1)).getNewConnection();
+    verify(connectionPool, times(1)).getConnection();
     verify(mockConnection, times(1)).setAutoCommit(false);
     verify(mockConnection, times(1))
         .prepareStatement(
@@ -252,7 +252,7 @@ class PostgresCollectionTest {
 
     final String id = UUID.randomUUID().toString();
 
-    when(mockClient.getNewConnection()).thenReturn(mockConnection);
+    when(connectionPool.getConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(
             String.format(
                 "SELECT "
@@ -298,7 +298,7 @@ class PostgresCollectionTest {
 
     assertThrows(IOException.class, () -> postgresCollection.update(query, updates));
 
-    verify(mockClient, times(1)).getNewConnection();
+    verify(connectionPool, times(1)).getConnection();
     verify(mockConnection, times(1)).setAutoCommit(false);
     verify(mockConnection, times(1))
         .prepareStatement(

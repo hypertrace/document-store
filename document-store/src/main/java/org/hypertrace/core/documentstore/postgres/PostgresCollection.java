@@ -410,7 +410,7 @@ public class PostgresCollection implements Collection {
       final java.util.Collection<SubDocumentUpdate> updates)
       throws IOException {
 
-    try (final Connection connection = client.getNewConnection()) {
+    try (final Connection connection = connectionPool.getConnection()) {
       connection.setAutoCommit(false);
 
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =

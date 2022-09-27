@@ -47,11 +47,6 @@ class PostgresClient {
     return connection;
   }
 
-  public Connection getNewConnection() throws SQLException {
-    log.info("Acquiring new connection to {}", url);
-    return DriverManager.getConnection(url, user, password);
-  }
-
   private boolean isConnectionValid(Connection connection) {
     try {
       if (connection.getMetaData().getJDBCMajorVersion() >= 4) {
