@@ -32,7 +32,7 @@ public class PostgresConfig {
   @Optional
   private PostgresConnectionPoolConfig connectionPool = new PostgresConnectionPoolConfig();
 
-  public String getConnectionString() {
+  String getConnectionString() {
     return connectionStringGetter.getConnectionString();
   }
 }

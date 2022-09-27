@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Map.entry;
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;

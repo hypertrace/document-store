@@ -22,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Provides {@link Datastore} implementation for Postgres DB. */
-public class PostgresDatastore implements Datastore, PostgresDefaults {
+public class PostgresDatastore implements Datastore {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDatastore.class);
 
