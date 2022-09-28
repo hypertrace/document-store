@@ -87,7 +87,7 @@ public class PostgresQueryParser {
     return sqlBuilder.toString();
   }
 
-  public String buildSelectQueryForUpdateSkippingLocked() {
+  public String buildSelectQueryForUpdate() {
     final String selections = getSelectionsWithImplicitId();
     final Optional<String> optionalOrderBy = parseOrderBy();
     final Optional<String> optionalFilter = parseFilter();
@@ -98,7 +98,7 @@ public class PostgresQueryParser {
     optionalFilter.ifPresent(filter -> queryBuilder.append(" WHERE ").append(filter));
     optionalOrderBy.ifPresent(orderBy -> queryBuilder.append(" ORDER BY ").append(orderBy));
     queryBuilder.append(" LIMIT 1");
-    queryBuilder.append(" FOR UPDATE SKIP LOCKED");
+    queryBuilder.append(" FOR UPDATE");
 
     return queryBuilder.toString();
   }
