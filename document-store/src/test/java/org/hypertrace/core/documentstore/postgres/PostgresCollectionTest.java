@@ -92,8 +92,7 @@ class PostgresCollectionTest {
                     + "document->'price' ASC NULLS FIRST,"
                     + "document->'date' DESC NULLS LAST "
                     + "LIMIT 1 "
-                    + "FOR UPDATE "
-                    + "SKIP LOCKED",
+                    + "FOR UPDATE",
                 COLLECTION_NAME)))
         .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
@@ -143,8 +142,7 @@ class PostgresCollectionTest {
                     + "document->'price' ASC NULLS FIRST,"
                     + "document->'date' DESC NULLS LAST "
                     + "LIMIT 1 "
-                    + "FOR UPDATE "
-                    + "SKIP LOCKED",
+                    + "FOR UPDATE",
                 COLLECTION_NAME));
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
@@ -200,8 +198,7 @@ class PostgresCollectionTest {
                     + "document->'price' ASC NULLS FIRST,"
                     + "document->'date' DESC NULLS LAST "
                     + "LIMIT 1 "
-                    + "FOR UPDATE "
-                    + "SKIP LOCKED",
+                    + "FOR UPDATE",
                 COLLECTION_NAME)))
         .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
@@ -229,8 +226,7 @@ class PostgresCollectionTest {
                     + "document->'price' ASC NULLS FIRST,"
                     + "document->'date' DESC NULLS LAST "
                     + "LIMIT 1 "
-                    + "FOR UPDATE "
-                    + "SKIP LOCKED",
+                    + "FOR UPDATE",
                 COLLECTION_NAME));
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
@@ -268,8 +264,7 @@ class PostgresCollectionTest {
                     + "document->'price' ASC NULLS FIRST,"
                     + "document->'date' DESC NULLS LAST "
                     + "LIMIT 1 "
-                    + "FOR UPDATE "
-                    + "SKIP LOCKED",
+                    + "FOR UPDATE",
                 COLLECTION_NAME)))
         .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
@@ -316,8 +311,7 @@ class PostgresCollectionTest {
                     + "document->'price' ASC NULLS FIRST,"
                     + "document->'date' DESC NULLS LAST "
                     + "LIMIT 1 "
-                    + "FOR UPDATE "
-                    + "SKIP LOCKED",
+                    + "FOR UPDATE",
                 COLLECTION_NAME));
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
