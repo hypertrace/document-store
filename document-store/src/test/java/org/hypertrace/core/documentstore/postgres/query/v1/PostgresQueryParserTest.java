@@ -980,7 +980,7 @@ public class PostgresQueryParserTest {
     final org.hypertrace.core.documentstore.query.Filter filter =
         org.hypertrace.core.documentstore.query.Filter.builder()
             .expression(
-                and(
+                or(
                     KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
                     KeyExpression.of(new SingleValueKey(TENANT_ID, "30"))))
             .build();
@@ -991,7 +991,7 @@ public class PostgresQueryParserTest {
             PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
     final String sql = postgresQueryParser.parse();
 
-    assertEquals("SELECT * FROM testCollection WHERE (id = ?) AND (id = ?)", sql);
+    assertEquals("SELECT * FROM testCollection WHERE (id = ?) OR (id = ?)", sql);
 
     final Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(2, params.getObjectParams().size());
@@ -1004,7 +1004,7 @@ public class PostgresQueryParserTest {
     final org.hypertrace.core.documentstore.query.Filter filter =
         org.hypertrace.core.documentstore.query.Filter.builder()
             .expression(
-                or(
+                and(
                     KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
                     RelationalExpression.of(
                         IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Comb"))))
@@ -1015,7 +1015,7 @@ public class PostgresQueryParserTest {
             PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
     final String sql = postgresQueryParser.parse();
 
-    assertEquals("SELECT * FROM testCollection WHERE (id = ?) OR (document->>'item' != ?)", sql);
+    assertEquals("SELECT * FROM testCollection WHERE (id = ?) AND (document->>'item' != ?)", sql);
 
     final Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(2, params.getObjectParams().size());
