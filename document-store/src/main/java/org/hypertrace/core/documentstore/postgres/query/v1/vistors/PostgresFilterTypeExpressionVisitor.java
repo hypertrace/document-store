@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getType;
 
@@ -64,7 +65,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final KeyExpression expression) {
-    return ID + " = " + StringUtils.wrap(expression.getKey().toString(), "'");
+    return PostgresUtils.prepareParsedNonCompositeFilter(
+        ID, EQ.name(), expression.getKey().toString(), postgresQueryParser.getParamsBuilder());
   }
 
   public static Optional<String> getFilterClause(PostgresQueryParser postgresQueryParser) {

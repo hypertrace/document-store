@@ -1311,7 +1311,8 @@ public class DocStoreQueryV1Test {
 
     final Iterator<Document> resultDocs =
         collection.find(Query.builder().setFilter(filter).build());
-    assertDocsAndSizeEqualWithoutOrder(datastoreName, resultDocs, 2, "query/key_filter_multiple_response.json");
+    assertDocsAndSizeEqualWithoutOrder(
+        datastoreName, resultDocs, 2, "query/key_filter_multiple_response.json");
   }
 
   @ParameterizedTest
@@ -1335,7 +1336,11 @@ public class DocStoreQueryV1Test {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
         org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(and(KeyExpression.of(new SingleValueKey(TENANT_ID, "7")), RelationalExpression.of(IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Soap"))))
+            .expression(
+                and(
+                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                    RelationalExpression.of(
+                        IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Soap"))))
             .build();
 
     final Iterator<Document> resultDocs =
@@ -1349,7 +1354,11 @@ public class DocStoreQueryV1Test {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
         org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(and(KeyExpression.of(new SingleValueKey(TENANT_ID, "7")), RelationalExpression.of(IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Comb"))))
+            .expression(
+                and(
+                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                    RelationalExpression.of(
+                        IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Comb"))))
             .build();
 
     final Iterator<Document> resultDocs =

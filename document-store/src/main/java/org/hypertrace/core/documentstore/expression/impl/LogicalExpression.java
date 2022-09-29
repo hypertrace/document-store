@@ -74,8 +74,11 @@ public class LogicalExpression implements FilterTypeExpression {
     return buildLogicalExpression(operand1, operand2, otherOperands, OR);
   }
 
-  private static LogicalExpression buildLogicalExpression(final FilterTypeExpression operand1,
-      final FilterTypeExpression operand2, final FilterTypeExpression[] otherOperands, final LogicalOperator operator) {
+  private static LogicalExpression buildLogicalExpression(
+      final FilterTypeExpression operand1,
+      final FilterTypeExpression operand2,
+      final FilterTypeExpression[] otherOperands,
+      final LogicalOperator operator) {
     return LogicalExpression.builder()
         .operator(operator)
         .operand(operand1)
@@ -84,8 +87,8 @@ public class LogicalExpression implements FilterTypeExpression {
         .build();
   }
 
-  private static LogicalExpression buildLogicalExpression(final Collection<FilterTypeExpression> operands,
-      final LogicalOperator operator) {
+  private static LogicalExpression buildLogicalExpression(
+      final Collection<FilterTypeExpression> operands, final LogicalOperator operator) {
     return LogicalExpression.builder()
         .operator(operator)
         .operands(operands.stream().collect(toUnmodifiableList()))
