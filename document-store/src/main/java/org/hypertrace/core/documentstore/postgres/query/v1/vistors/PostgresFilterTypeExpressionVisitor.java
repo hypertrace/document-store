@@ -1,11 +1,13 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getType;
 
 import java.util.Optional;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
@@ -24,6 +26,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     this.postgresQueryParser = postgresQueryParser;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public String visit(final LogicalExpression expression) {
     Collector<String, ?, String> collector =
@@ -56,6 +59,12 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     final String parseResult = lhs.accept(lhsVisitor);
     return PostgresUtils.prepareParsedNonCompositeFilter(
         parseResult, operator.toString(), value, postgresQueryParser.getParamsBuilder());
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public String visit(final KeyExpression expression) {
+    return ID + " = " + StringUtils.wrap(expression.getKey().toString(), "'");
   }
 
   public static Optional<String> getFilterClause(PostgresQueryParser postgresQueryParser) {

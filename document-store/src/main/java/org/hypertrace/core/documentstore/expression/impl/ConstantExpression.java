@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
@@ -63,6 +64,8 @@ public class ConstantExpression implements SelectTypeExpression {
 
   @Override
   public String toString() {
-    return value instanceof String ? "'" + value + "'" : String.valueOf(value);
+    return value instanceof String
+        ? StringUtils.wrap(value.toString(), "'")
+        : String.valueOf(value);
   }
 }

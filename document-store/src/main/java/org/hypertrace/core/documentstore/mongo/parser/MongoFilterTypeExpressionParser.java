@@ -1,9 +1,12 @@
 package org.hypertrace.core.documentstore.mongo.parser;
 
+import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
+
 import com.mongodb.BasicDBObject;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
@@ -26,6 +29,12 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
     return new MongoRelationalExpressionParser().parse(expression);
   }
 
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(final KeyExpression expression) {
+    return Map.of(ID_KEY, expression.getKey().toString());
+  }
+
   public static BasicDBObject getFilterClause(
       final Query query, final Function<Query, Optional<FilterTypeExpression>> filterProvider) {
     BasicDBObject filters = getFilter(query, filterProvider);
@@ -37,10 +46,6 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
     return convertFilterToClause(filters);
   }
 
-  private static BasicDBObject convertFilterToClause(BasicDBObject filters) {
-    return filters.isEmpty() ? new BasicDBObject() : new BasicDBObject(FILTER_CLAUSE, filters);
-  }
-
   public static BasicDBObject getFilter(
       final Query query, final Function<Query, Optional<FilterTypeExpression>> filterProvider) {
     Optional<FilterTypeExpression> filterOptional = filterProvider.apply(query);
@@ -50,6 +55,10 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
     }
 
     return getFilter(filterOptional.get());
+  }
+
+  private static BasicDBObject convertFilterToClause(BasicDBObject filters) {
+    return filters.isEmpty() ? new BasicDBObject() : new BasicDBObject(FILTER_CLAUSE, filters);
   }
 
   private static BasicDBObject getFilter(FilterTypeExpression filterTypeExpression) {

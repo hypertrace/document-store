@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
 import java.util.Optional;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
@@ -11,9 +12,9 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 public class PostgresAggregationFilterTypeExpressionVisitor
     extends PostgresFilterTypeExpressionVisitor {
 
-  private PostgresSelectTypeExpressionVisitor lhsFieldVisitor;
-  private PostgresSelectTypeExpressionVisitor lhsVisitor;
-  private PostgresSelectTypeExpressionVisitor rhsVisitor;
+  private final PostgresSelectTypeExpressionVisitor lhsFieldVisitor;
+  private final PostgresSelectTypeExpressionVisitor lhsVisitor;
+  private final PostgresSelectTypeExpressionVisitor rhsVisitor;
 
   public PostgresAggregationFilterTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
     super(postgresQueryParser);
@@ -45,6 +46,13 @@ public class PostgresAggregationFilterTypeExpressionVisitor
         operator.toString(),
         PostgresUtils.preProcessedStringForFieldAccessor(value),
         postgresQueryParser.getParamsBuilder());
+  }
+
+  @Override
+  public String visit(final KeyExpression expression) {
+    throw new IllegalArgumentException(
+        String.format(
+            "Cannot perform aggregation filtering on key: %s", expression.getKey().toString()));
   }
 
   public static Optional<String> getAggregationFilterClause(
