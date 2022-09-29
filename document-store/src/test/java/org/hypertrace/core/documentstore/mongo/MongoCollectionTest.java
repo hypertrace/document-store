@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static java.util.Collections.emptyList;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
@@ -9,6 +10,7 @@ import static org.hypertrace.core.documentstore.util.TestUtil.assertJsonEquals;
 import static org.hypertrace.core.documentstore.util.TestUtil.readBasicDBObject;
 import static org.hypertrace.core.documentstore.util.TestUtil.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -240,5 +242,14 @@ public class MongoCollectionTest {
 
     verify(collection, times(1))
         .findOneAndUpdate(eq(filter), eq(setObject), any(FindOneAndUpdateOptions.class));
+  }
+
+  @Test
+  void testAtomicUpdateWithoutUpdates() {
+    assertThrows(
+        IOException.class,
+        () ->
+            mongoCollection.update(
+                org.hypertrace.core.documentstore.query.Query.builder().build(), emptyList()));
   }
 }
