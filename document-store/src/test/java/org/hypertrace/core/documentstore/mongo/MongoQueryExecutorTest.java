@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.TestUtil.readFileFromResource;
+import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.and;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
@@ -38,10 +39,12 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.List;
 import java.util.Map;
+import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
@@ -77,6 +80,7 @@ class MongoQueryExecutorTest {
   private MongoQueryExecutor executor;
 
   private static final VerificationMode NOT_INVOKED = times(0);
+  private static final String TENANT_ID = "tenant-id";
 
   @BeforeEach
   void setUp() {
@@ -444,6 +448,70 @@ class MongoQueryExecutorTest {
             .build();
 
     testAggregation(query, "mongo/pipeline/functional_lhs_in_relational_filter.json");
+  }
+
+  @Test
+  public void testFindWithSingleKey() throws IOException, URISyntaxException {
+    final org.hypertrace.core.documentstore.query.Filter filter =
+        org.hypertrace.core.documentstore.query.Filter.builder()
+            .expression(KeyExpression.of(new SingleValueKey(TENANT_ID, "7")))
+            .build();
+
+    final BasicDBObject parsed = readExpectedBasicDBObject("mongo/filter/single_key_filter.json");
+    executor.find(Query.builder().setFilter(filter).build());
+
+    verify(collection).getNamespace();
+    verify(collection).find(parsed);
+    verify(iterable).projection(new BasicDBObject());
+    verify(iterable, NOT_INVOKED).sort(any());
+    verify(iterable, NOT_INVOKED).skip(anyInt());
+    verify(iterable, NOT_INVOKED).limit(anyInt());
+    verify(iterable).cursor();
+  }
+
+  @Test
+  public void testFindWithMultipleKeys() throws IOException, URISyntaxException {
+    final org.hypertrace.core.documentstore.query.Filter filter =
+        org.hypertrace.core.documentstore.query.Filter.builder()
+            .expression(
+                and(
+                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                    KeyExpression.of(new SingleValueKey(TENANT_ID, "30"))))
+            .build();
+
+    final BasicDBObject parsed = readExpectedBasicDBObject("mongo/filter/two_key_filter.json");
+    executor.find(Query.builder().setFilter(filter).build());
+
+    verify(collection).getNamespace();
+    verify(collection).find(parsed);
+    verify(iterable).projection(new BasicDBObject());
+    verify(iterable, NOT_INVOKED).sort(any());
+    verify(iterable, NOT_INVOKED).skip(anyInt());
+    verify(iterable, NOT_INVOKED).limit(anyInt());
+    verify(iterable).cursor();
+  }
+
+  @Test
+  public void testFindWithKeyAndRelationalFilter() throws IOException, URISyntaxException {
+    final org.hypertrace.core.documentstore.query.Filter filter =
+        org.hypertrace.core.documentstore.query.Filter.builder()
+            .expression(
+                and(
+                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                    RelationalExpression.of(
+                        IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Comb"))))
+            .build();
+    final BasicDBObject parsed =
+        readExpectedBasicDBObject("mongo/filter/key_and_relational_filter.json");
+    executor.find(Query.builder().setFilter(filter).build());
+
+    verify(collection).getNamespace();
+    verify(collection).find(parsed);
+    verify(iterable).projection(new BasicDBObject());
+    verify(iterable, NOT_INVOKED).sort(any());
+    verify(iterable, NOT_INVOKED).skip(anyInt());
+    verify(iterable, NOT_INVOKED).limit(anyInt());
+    verify(iterable).cursor();
   }
 
   private void testAggregation(Query query, final String filePath)

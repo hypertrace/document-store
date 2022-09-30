@@ -1,8 +1,13 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 
 import com.google.common.base.Preconditions;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import lombok.AccessLevel;
@@ -47,9 +52,59 @@ public class LogicalExpression implements FilterTypeExpression {
 
   LogicalOperator operator;
 
+  public static LogicalExpression and(final Collection<FilterTypeExpression> operands) {
+    return buildLogicalExpression(operands, AND);
+  }
+
+  public static LogicalExpression and(
+      final FilterTypeExpression operand1,
+      final FilterTypeExpression operand2,
+      final FilterTypeExpression... otherOperands) {
+    return buildLogicalExpression(operand1, operand2, otherOperands, AND);
+  }
+
+  public static LogicalExpression or(final Collection<FilterTypeExpression> operands) {
+    return buildLogicalExpression(operands, OR);
+  }
+
+  public static LogicalExpression or(
+      final FilterTypeExpression operand1,
+      final FilterTypeExpression operand2,
+      final FilterTypeExpression... otherOperands) {
+    return buildLogicalExpression(operand1, operand2, otherOperands, OR);
+  }
+
+  private static LogicalExpression buildLogicalExpression(
+      final FilterTypeExpression operand1,
+      final FilterTypeExpression operand2,
+      final FilterTypeExpression[] otherOperands,
+      final LogicalOperator operator) {
+    return LogicalExpression.builder()
+        .operator(operator)
+        .operand(operand1)
+        .operand(operand2)
+        .operands(Arrays.stream(otherOperands).collect(toUnmodifiableList()))
+        .build();
+  }
+
+  private static LogicalExpression buildLogicalExpression(
+      final Collection<FilterTypeExpression> operands, final LogicalOperator operator) {
+    return LogicalExpression.builder()
+        .operator(operator)
+        .operands(operands.stream().collect(toUnmodifiableList()))
+        .build();
+  }
+
   @Override
   public <T> T accept(final FilterTypeExpressionVisitor visitor) {
     return visitor.visit(this);
+  }
+
+  @Override
+  public String toString() {
+    return "("
+        + operands.stream().map(String::valueOf).collect(joining(") " + operator + " ("))
+        + ")";
   }
 
   public static class LogicalExpressionBuilder {
@@ -61,12 +116,5 @@ public class LogicalExpression implements FilterTypeExpression {
       Preconditions.checkArgument(operator != null, "operator is null");
       return new LogicalExpression(operands, operator);
     }
-  }
-
-  @Override
-  public String toString() {
-    return "("
-        + operands.stream().map(String::valueOf).collect(joining(") " + operator + " ("))
-        + ")";
   }
 }

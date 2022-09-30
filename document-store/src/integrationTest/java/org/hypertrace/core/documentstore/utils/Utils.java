@@ -42,6 +42,7 @@ public class Utils {
   public static final String POSTGRES_UPDATED_AT = "updated_at";
 
   public static final String POSTGRES_CREATED_AT = "created_at";
+  public static final String TENANT_ID = "default";
 
   public static Document createDocument(ImmutablePair<String, Object>... pairs) {
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
@@ -99,14 +100,17 @@ public class Utils {
   }
 
   public static void assertDocsAndSizeEqual(
-      Iterator<Document> documents, String filePath, int expectedSize) throws IOException {
+      String dataStoreName, Iterator<Document> documents, String filePath, int expectedSize)
+      throws IOException {
     String fileContent = readFileFromResource(filePath).orElseThrow();
     List<Map<String, Object>> expected = convertJsonToMap(fileContent);
 
     int actualSize = 0;
     List<Map<String, Object>> actual = new ArrayList<>();
     while (documents.hasNext()) {
-      actual.add(convertDocumentToMap(documents.next()));
+      final Map<String, Object> doc = convertDocumentToMap(documents.next());
+      removeDateRelatedFields(dataStoreName, doc);
+      actual.add(doc);
       actualSize++;
     }
 
@@ -122,7 +126,7 @@ public class Utils {
 
     Map<Key, Document> documentMap = new HashMap<>();
     for (Map<String, Object> map : maps) {
-      Key key = new SingleValueKey("default", map.get(MongoCollection.ID_KEY).toString());
+      Key key = new SingleValueKey(TENANT_ID, map.get(MongoCollection.ID_KEY).toString());
       Document value = new JSONDocument(map);
       documentMap.put(key, value);
     }
@@ -140,7 +144,7 @@ public class Utils {
     int actualSize = 0;
     while (documents.hasNext()) {
       Map<String, Object> doc = convertDocumentToMap(documents.next());
-      removesDateRelatedFields(dataStoreName, doc);
+      removeDateRelatedFields(dataStoreName, doc);
       actualDocs.add(doc);
       actualSize++;
     }
@@ -164,7 +168,7 @@ public class Utils {
     assertEquals(expected, actual);
   }
 
-  private static void removesDateRelatedFields(String dataStoreName, Map<String, Object> document) {
+  private static void removeDateRelatedFields(String dataStoreName, Map<String, Object> document) {
     if (isMongo(dataStoreName)) {
       document.remove(MONGO_CREATED_TIME_KEY);
       document.remove(MONGO_LAST_UPDATED_TIME_KEY);
