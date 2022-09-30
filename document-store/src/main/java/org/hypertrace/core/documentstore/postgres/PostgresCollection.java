@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Optional.empty;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.OUTER_COLUMNS;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.extractAndRemoveId;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.isValidPrimitiveType;
@@ -409,6 +410,10 @@ public class PostgresCollection implements Collection {
       final org.hypertrace.core.documentstore.query.Query query,
       final java.util.Collection<SubDocumentUpdate> updates)
       throws IOException {
+
+    if (updates.isEmpty()) {
+      throw new IOException("At least one update is required");
+    }
 
     try (final Connection connection = connectionPool.getConnection()) {
       connection.setAutoCommit(false);
@@ -1171,8 +1176,8 @@ public class PostgresCollection implements Collection {
         return MAPPER.writeValueAsString(resultSet.getArray(columnIndex).getArray());
       }
 
-      // check for ID column
-      if (Set.of(ID, IMPLICIT_ID).contains(columnName)) {
+      // check for any OUTER column including ID, and its alias
+      if (OUTER_COLUMNS.contains(columnName) || IMPLICIT_ID.equals(columnName)) {
         return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
       }
 
