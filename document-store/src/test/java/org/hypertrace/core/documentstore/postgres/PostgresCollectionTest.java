@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static java.sql.Types.INTEGER;
 import static java.sql.Types.VARCHAR;
+import static java.util.Collections.emptyList;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
@@ -343,6 +344,15 @@ class PostgresCollectionTest {
     verify(update2PrepStatement, times(1)).close();
     verify(update3PrepStatement, times(1)).close();
     verify(mockConnection, times(1)).close();
+  }
+
+  @Test
+  void testAtomicUpdateWithoutUpdates() {
+    assertThrows(
+        IOException.class,
+        () ->
+            postgresCollection.update(
+                org.hypertrace.core.documentstore.query.Query.builder().build(), emptyList()));
   }
 
   private Query buildQueryWithFilterSortAndProjection() {

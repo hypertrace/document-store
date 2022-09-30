@@ -10,7 +10,6 @@ import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectTypeExpr
 import static org.hypertrace.core.documentstore.mongo.parser.MongoSortTypeExpressionParser.getOrders;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.MongoCommandException;
@@ -67,8 +66,6 @@ public class MongoCollection implements Collection {
   // Fields automatically added for each document
   public static final String ID_KEY = "_id";
   private static final String LAST_UPDATE_TIME = "_lastUpdateTime";
-
-  private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private static final int MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE = 2;
   private static final int DELAY_BETWEEN_RETRIES_MILLIS = 10;
@@ -472,6 +469,11 @@ public class MongoCollection implements Collection {
       final org.hypertrace.core.documentstore.query.Query query,
       final java.util.Collection<SubDocumentUpdate> updates)
       throws IOException {
+
+    if (updates.isEmpty()) {
+      throw new IOException("At least one update is required");
+    }
+
     try {
       final BasicDBObject selections = getSelections(query);
       final BasicDBObject sorts = getOrders(query);

@@ -197,7 +197,8 @@ public interface Collection {
    *     necessary selections
    * @param updates The list of sub-document updates to be performed atomically
    * @return The document <strong>before updating</strong> if exists, otherwise an empty optional
-   * @throws IOException if there was any error in updating/fetching the document
+   * @throws IOException if there was any error in updating/fetching the document or the updates is
+   *     empty
    * @implSpec The definition of an update here is
    *     <ol>
    *       <li>The existing sub-documents will be updated
