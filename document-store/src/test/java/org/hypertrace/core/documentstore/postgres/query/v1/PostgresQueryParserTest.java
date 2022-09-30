@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1;
 
+import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.and;
+import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.or;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_ARRAY;
@@ -22,10 +24,12 @@ import static org.hypertrace.core.documentstore.expression.operators.SortOrder.D
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.util.List;
+import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
@@ -43,6 +47,7 @@ import org.junit.jupiter.api.Test;
 
 public class PostgresQueryParserTest {
   private static final String TEST_COLLECTION = "testCollection";
+  private static final String TENANT_ID = "tenant-id";
 
   @Test
   void testParseSimpleFilter() {
@@ -948,5 +953,73 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
     assertEquals(10, params.getObjectParams().get(1));
+  }
+
+  @Test
+  public void testFindWithSingleKey() {
+    final org.hypertrace.core.documentstore.query.Filter filter =
+        org.hypertrace.core.documentstore.query.Filter.builder()
+            .expression(KeyExpression.of(new SingleValueKey(TENANT_ID, "7")))
+            .build();
+
+    final PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_COLLECTION,
+            PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
+    final String sql = postgresQueryParser.parse();
+
+    assertEquals("SELECT * FROM testCollection WHERE id = ?", sql);
+
+    final Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals(TENANT_ID + ":7", params.getObjectParams().get(1));
+  }
+
+  @Test
+  public void testFindWithMultipleKeys() {
+    final org.hypertrace.core.documentstore.query.Filter filter =
+        org.hypertrace.core.documentstore.query.Filter.builder()
+            .expression(
+                or(
+                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                    KeyExpression.of(new SingleValueKey(TENANT_ID, "30"))))
+            .build();
+
+    final PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_COLLECTION,
+            PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
+    final String sql = postgresQueryParser.parse();
+
+    assertEquals("SELECT * FROM testCollection WHERE (id = ?) OR (id = ?)", sql);
+
+    final Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(2, params.getObjectParams().size());
+    assertEquals(TENANT_ID + ":7", params.getObjectParams().get(1));
+    assertEquals(TENANT_ID + ":30", params.getObjectParams().get(2));
+  }
+
+  @Test
+  public void testFindWithKeyAndRelationalFilter() {
+    final org.hypertrace.core.documentstore.query.Filter filter =
+        org.hypertrace.core.documentstore.query.Filter.builder()
+            .expression(
+                and(
+                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                    RelationalExpression.of(
+                        IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Comb"))))
+            .build();
+    final PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_COLLECTION,
+            PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
+    final String sql = postgresQueryParser.parse();
+
+    assertEquals("SELECT * FROM testCollection WHERE (id = ?) AND (document->>'item' != ?)", sql);
+
+    final Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(2, params.getObjectParams().size());
+    assertEquals(TENANT_ID + ":7", params.getObjectParams().get(1));
+    assertEquals("Comb", params.getObjectParams().get(2));
   }
 }

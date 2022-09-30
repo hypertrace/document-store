@@ -2,7 +2,7 @@ package org.hypertrace.core.documentstore.postgres.utils;
 
 import static java.util.Objects.requireNonNull;
 import static org.hypertrace.core.documentstore.Collection.UNSUPPORTED_QUERY_OPERATION;
-import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID_ALIAS;
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.CREATED_AT;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCUMENT;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_PATH_SEPARATOR;
@@ -413,7 +413,7 @@ public class PostgresUtils {
     final Map<String, Object> map =
         new ObjectMapper()
             .readValue(document.toJson(), new TypeReference<Map<String, Object>>() {});
-    final String id = String.valueOf(requireNonNull(map.remove(IMPLICIT_ID_ALIAS)));
+    final String id = String.valueOf(requireNonNull(map.remove(IMPLICIT_ID)));
     final Document documentWithoutId = new JSONDocument(new ObjectMapper().writeValueAsString(map));
     return new DocumentAndId(documentWithoutId, id);
   }

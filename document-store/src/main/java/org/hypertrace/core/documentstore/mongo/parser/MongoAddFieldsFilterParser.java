@@ -7,6 +7,7 @@ import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
@@ -40,6 +41,12 @@ public class MongoAddFieldsFilterParser implements FilterTypeExpressionVisitor {
 
     final String key = encodeKey(lhs.toString());
     return Map.of(key, parsedLhs);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(final KeyExpression expression) {
+    return emptyMap();
   }
 
   private Map<String, Object> parse(final FilterTypeExpression operand) {

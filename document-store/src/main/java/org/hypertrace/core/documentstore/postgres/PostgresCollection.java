@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Optional.empty;
-import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID_ALIAS;
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.OUTER_COLUMNS;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.extractAndRemoveId;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
@@ -1171,8 +1171,8 @@ public class PostgresCollection implements Collection {
         return MAPPER.writeValueAsString(resultSet.getArray(columnIndex).getArray());
       }
 
-      // check for ID column
-      if (OUTER_COLUMNS.contains(columnName) || IMPLICIT_ID_ALIAS.equals(columnName)) {
+      // check for any OUTER column including ID, and its alias
+      if (OUTER_COLUMNS.contains(columnName) || IMPLICIT_ID.equals(columnName)) {
         return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
       }
 

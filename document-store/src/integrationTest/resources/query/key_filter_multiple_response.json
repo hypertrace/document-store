@@ -1,0 +1,70 @@
+[
+  {
+    "item": "Comb",
+    "price": 7.5,
+    "quantity": 10,
+    "date": "2015-09-10T08:43:00Z",
+    "props": {
+      "seller": {
+        "name": "Go Go Plastics",
+        "address": {
+          "city": "Kolkata",
+          "pincode": 700007
+        }
+      }
+    }
+  },
+  {
+    "item": "Shampoo",
+    "price": 5,
+    "quantity": 10,
+    "date": "2014-03-15T09:00:00Z",
+    "props": {
+      "brand": "Sunsilk",
+      "size": "L",
+      "seller": {
+        "name": "Metro Chemicals Pvt. Ltd.",
+        "address": {
+          "city": "Mumbai",
+          "pincode": 400004
+        }
+      }
+    },
+    "sales": [
+      {
+        "city": "delhi",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 3000
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 1000
+          }
+        ]
+      },
+      {
+        "city": "mumbai",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 700
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 5000
+          }
+        ]
+      }
+    ]
+  }
+]
