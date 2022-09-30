@@ -1368,6 +1368,27 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
+  public void testFindWithMultipleKeysAndPartiallyMatchingRelationalFilter(
+      final String datastoreName) throws IOException {
+    final Collection collection = getCollection(datastoreName);
+    final org.hypertrace.core.documentstore.query.Filter filter =
+        org.hypertrace.core.documentstore.query.Filter.builder()
+            .expression(
+                and(
+                    or(
+                        KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                        KeyExpression.of(new SingleValueKey(TENANT_ID, "3"))),
+                    RelationalExpression.of(
+                        IdentifierExpression.of("item"), EQ, ConstantExpression.of("Comb"))))
+            .build();
+
+    final Iterator<Document> resultDocs =
+        collection.find(Query.builder().setFilter(filter).build());
+    assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
   public void testAggregateWithSingleKey(final String datastoreName) throws IOException {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
@@ -1526,7 +1547,7 @@ public class DocStoreQueryV1Test {
   public void testAtomicUpdateDocumentWithoutSelections(final String datastoreName)
       throws IOException, ExecutionException, InterruptedException {
     final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-    createCollectionData("mongo/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+    createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
     final Query query =
         Query.builder()
@@ -1573,7 +1594,7 @@ public class DocStoreQueryV1Test {
         datastoreName,
         collection.find(Query.builder().build()),
         9,
-        "mongo/updatable_collection_data_without_selection.json");
+        "query/updatable_collection_data_without_selection.json");
   }
 
   private static Collection getCollection(final String dataStoreName) {
