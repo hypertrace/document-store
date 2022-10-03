@@ -24,6 +24,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.utils.Utils.MONGO_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.POSTGRES_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.TENANT_ID;
@@ -60,6 +61,7 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
@@ -1439,7 +1441,10 @@ public class DocStoreQueryV1Test {
     final Callable<Optional<Document>> callable =
         () -> {
           MILLISECONDS.sleep(random.nextInt(1000));
-          return collection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
+          return collection.update(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate),
+              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
         };
 
     final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -1505,7 +1510,10 @@ public class DocStoreQueryV1Test {
     final Callable<Optional<Document>> callable =
         () -> {
           MILLISECONDS.sleep(random.nextInt(1000));
-          return collection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
+          return collection.update(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate),
+              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
         };
 
     final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -1573,7 +1581,10 @@ public class DocStoreQueryV1Test {
     final Callable<Optional<Document>> callable =
         () -> {
           MILLISECONDS.sleep(random.nextInt(1000));
-          return collection.update(query, List.of(dateUpdate));
+          return collection.update(
+              query,
+              List.of(dateUpdate),
+              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
         };
 
     final ExecutorService executor = Executors.newFixedThreadPool(2);

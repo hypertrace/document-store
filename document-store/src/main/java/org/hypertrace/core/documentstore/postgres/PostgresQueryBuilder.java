@@ -18,4 +18,8 @@ public class PostgresQueryBuilder {
         "UPDATE %s SET %s=jsonb_set(%s, ?::text[], %s) WHERE %s=?",
         collectionName, DOCUMENT, DOCUMENT, subDocValue.accept(subDocValueParser), ID);
   }
+
+  public String getFindByIdQuery() {
+    return String.format("SELECT * FROM %s WHERE %s=?", collectionName, ID);
+  }
 }

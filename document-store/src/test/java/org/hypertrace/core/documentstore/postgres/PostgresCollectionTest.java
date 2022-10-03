@@ -8,6 +8,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.util.TestUtil.readDocument;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -33,6 +34,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.Query;
@@ -119,7 +121,9 @@ class PostgresCollectionTest {
 
     when(mockClock.millis()).thenReturn(currentTime);
 
-    final Optional<Document> oldDocument = postgresCollection.update(query, updates);
+    final Optional<Document> oldDocument =
+        postgresCollection.update(
+            query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
     assertTrue(oldDocument.isPresent());
     assertEquals(document, oldDocument.get());
@@ -204,7 +208,9 @@ class PostgresCollectionTest {
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(false);
 
-    final Optional<Document> oldDocument = postgresCollection.update(query, updates);
+    final Optional<Document> oldDocument =
+        postgresCollection.update(
+            query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
     assertTrue(oldDocument.isEmpty());
 
@@ -291,7 +297,11 @@ class PostgresCollectionTest {
 
     when(mockUpdatePreparedStatement.executeUpdate()).thenThrow(SQLException.class);
 
-    assertThrows(IOException.class, () -> postgresCollection.update(query, updates));
+    assertThrows(
+        IOException.class,
+        () ->
+            postgresCollection.update(
+                query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
 
     verify(mockClient, times(1)).getNewConnection();
     verify(mockConnection, times(1)).setAutoCommit(false);
@@ -352,7 +362,9 @@ class PostgresCollectionTest {
         IOException.class,
         () ->
             postgresCollection.update(
-                org.hypertrace.core.documentstore.query.Query.builder().build(), emptyList()));
+                org.hypertrace.core.documentstore.query.Query.builder().build(),
+                emptyList(),
+                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
   }
 
   private Query buildQueryWithFilterSortAndProjection() {

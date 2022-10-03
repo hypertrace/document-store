@@ -1,5 +1,10 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static com.mongodb.client.model.ReturnDocument.AFTER;
+import static com.mongodb.client.model.ReturnDocument.BEFORE;
+import static java.util.Map.entry;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -8,20 +13,26 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mongodb.BasicDBObject;
+import com.mongodb.client.model.ReturnDocument;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.function.Function;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
+import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 
 public final class MongoUtils {
   public static final String FIELD_SEPARATOR = ".";
   public static final String PREFIX = "$";
   private static final String UNSUPPORTED_OPERATION = "No MongoDB support available for: '%s'";
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final Map<ReturnDocumentType, ReturnDocument> RETURN_DOCUMENT_MAP =
+      Map.ofEntries(entry(BEFORE_UPDATE, BEFORE), entry(AFTER_UPDATE, AFTER));
 
   public static <T> UnsupportedOperationException getUnsupportedOperationException(T t) {
     return new UnsupportedOperationException(String.format(UNSUPPORTED_OPERATION, t));
@@ -87,5 +98,13 @@ public final class MongoUtils {
       // throwing exception is not very useful here.
       return JSONDocument.errorDocument(e.getMessage());
     }
+  }
+
+  public static ReturnDocument getReturnDocument(final ReturnDocumentType returnDocumentType) {
+    return Optional.ofNullable(RETURN_DOCUMENT_MAP.get(returnDocumentType))
+        .orElseThrow(
+            () ->
+                new UnsupportedOperationException(
+                    String.format("Unhandled return document type: %s", returnDocumentType)));
   }
 }

@@ -2,10 +2,13 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Optional.empty;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.OUTER_COLUMNS;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.enrichPreparedStatementWithParams;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.extractAndRemoveId;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.isValidPrimitiveType;
+import static org.postgresql.util.PSQLState.UNIQUE_VIOLATION;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -52,12 +55,16 @@ import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.postgres.PostgresQueryExecutor.QueryResult;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentUpdater;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
+import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,12 +85,14 @@ public class PostgresCollection implements Collection {
   private final String collectionName;
   private final PostgresQueryBuilder queryBuilder;
   private final PostgresSubDocumentUpdater subDocUpdater;
+  private final PostgresQueryExecutor queryExecutor;
 
   public PostgresCollection(PostgresClient client, String collectionName) {
     this.client = client;
     this.collectionName = collectionName;
     this.queryBuilder = new PostgresQueryBuilder(this.collectionName);
     this.subDocUpdater = new PostgresSubDocumentUpdater(queryBuilder);
+    this.queryExecutor = new PostgresQueryExecutor();
   }
 
   @Override
@@ -138,7 +147,6 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /** create a new document if one doesn't exists with key */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -151,8 +159,15 @@ public class PostgresCollection implements Collection {
         LOGGER.debug("Create result: {}", result);
       }
       return new CreateResult(result > 0);
+    } catch (final PSQLException e) {
+      if (UNIQUE_VIOLATION.getState().equals(e.getSQLState())) {
+        throw new DuplicateDocumentException();
+      }
+
+      LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
+      throw new IOException(e);
     } catch (SQLException e) {
-      LOGGER.error("SQLException creating document. key: {} content:{}", key, document, e);
+      LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
       throw new IOException(e);
     }
   }
@@ -403,7 +418,8 @@ public class PostgresCollection implements Collection {
   @Override
   public Optional<Document> update(
       final org.hypertrace.core.documentstore.query.Query query,
-      final java.util.Collection<SubDocumentUpdate> updates)
+      final java.util.Collection<SubDocumentUpdate> updates,
+      final UpdateOptions updateOptions)
       throws IOException {
 
     if (updates.isEmpty()) {
@@ -418,11 +434,9 @@ public class PostgresCollection implements Collection {
               collectionName, query);
       final String selectQuery = parser.buildSelectQueryForUpdate();
 
-      try (final PreparedStatement pStmt = connection.prepareStatement(selectQuery)) {
-        enrichPreparedStatementWithParams(pStmt, parser.getParamsBuilder().build());
-
-        final ResultSet resultSet = pStmt.executeQuery();
-        final Optional<Document> documentOptional = getFirstDocument(resultSet);
+      try (final QueryResult result =
+          queryExecutor.execute(connection, selectQuery, parser.getParamsBuilder().build())) {
+        final Optional<Document> documentOptional = getFirstDocument(result.getResultSet());
 
         if (documentOptional.isEmpty()) {
           connection.commit();
@@ -439,8 +453,26 @@ public class PostgresCollection implements Collection {
 
         subDocUpdater.updateLastUpdatedTime(connection, id);
 
+        final Document returnDocument;
+
+        if (updateOptions.getReturnDocumentType() == BEFORE_UPDATE) {
+          returnDocument = docAndId.getDocument();
+        } else if (updateOptions.getReturnDocumentType() == AFTER_UPDATE) {
+          final String findByIdQuery = queryBuilder.getFindByIdQuery();
+          final Params params = Params.newBuilder().addObjectParam(id).build();
+
+          try (final QueryResult queryResult =
+              queryExecutor.execute(connection, findByIdQuery, params)) {
+            returnDocument = getFirstDocument(queryResult.getResultSet()).orElseThrow();
+          }
+        } else {
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Unhandled return document type: %s", updateOptions.getReturnDocumentType()));
+        }
+
         connection.commit();
-        return Optional.of(docAndId.getDocument());
+        return Optional.of(returnDocument);
       } catch (final Exception e) {
         connection.rollback();
         throw e;
@@ -684,25 +716,6 @@ public class PostgresCollection implements Collection {
     PreparedStatement preparedStatement = client.getConnection().prepareStatement(sqlQuery);
     enrichPreparedStatementWithParams(preparedStatement, params);
     return preparedStatement;
-  }
-
-  @VisibleForTesting
-  protected void enrichPreparedStatementWithParams(
-      PreparedStatement preparedStatement, Params params) throws RuntimeException {
-    params
-        .getObjectParams()
-        .forEach(
-            (k, v) -> {
-              try {
-                if (isValidPrimitiveType(v)) {
-                  preparedStatement.setObject(k, v);
-                } else {
-                  throw new UnsupportedOperationException("Un-supported object types in filter");
-                }
-              } catch (SQLException e) {
-                LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
-              }
-            });
   }
 
   @Override
@@ -1045,11 +1058,9 @@ public class PostgresCollection implements Collection {
     return -1;
   }
 
-  public Optional<Document> getFirstDocument(final ResultSet resultSet) throws IOException {
-    try (final CloseableIterator<Document> iterator =
-        new PostgresResultIteratorWithMetaData(resultSet)) {
-      return Optional.of(iterator).filter(Iterator::hasNext).map(Iterator::next);
-    }
+  public Optional<Document> getFirstDocument(final ResultSet resultSet) {
+    final CloseableIterator<Document> iterator = new PostgresResultIteratorWithMetaData(resultSet);
+    return Optional.of(iterator).filter(Iterator::hasNext).map(Iterator::next);
   }
 
   private String getInsertSQL() {

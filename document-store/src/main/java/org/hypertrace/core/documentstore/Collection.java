@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 
 /** Interface spec for common operations on a collection of documents */
@@ -157,13 +159,21 @@ public interface Collection {
   void drop();
 
   /**
-   * create a new document if one doesn't exists with the key
+   * Create a new document if one doesn't violate any unique constraints (including the unique key
+   * constraint)
    *
    * @param key Unique key of the document in the collection.
    * @param document Document to be created.
    * @return an instance of {@link CreateResult}
+   * @throws DuplicateDocumentException if either
+   *     <ul>
+   *       <li>a document with the given key already exists or
+   *       <li>the given document violates an unique constraint
+   *     </ul>
+   *
+   * @throws IOException if there was any other exception while creating the document
    */
-  CreateResult create(Key key, Document document) throws IOException;
+  CreateResult create(Key key, Document document) throws DuplicateDocumentException, IOException;
 
   /**
    * Updates existing documents if the corresponding Filter condition evaluates to true
@@ -196,7 +206,9 @@ public interface Collection {
    * @param query The query specifying the desired filter and sorting criteria along with the
    *     necessary selections
    * @param updates The list of sub-document updates to be performed atomically
-   * @return The document <strong>before updating</strong> if exists, otherwise an empty optional
+   * @param updateOptions Options for updating/returning the document
+   * @return The old (before update) or new (after update) document optional if one exists,
+   *     otherwise an empty optional.
    * @throws IOException if there was any error in updating/fetching the document or the updates is
    *     empty
    * @implSpec The definition of an update here is
@@ -208,7 +220,8 @@ public interface Collection {
    */
   Optional<Document> update(
       final org.hypertrace.core.documentstore.query.Query query,
-      final java.util.Collection<SubDocumentUpdate> updates)
+      final java.util.Collection<SubDocumentUpdate> updates,
+      final UpdateOptions updateOptions)
       throws IOException;
 
   String UNSUPPORTED_QUERY_OPERATION = "Query operation is not supported";
