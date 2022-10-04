@@ -108,14 +108,14 @@ class PostgresCollectionTest {
     final PreparedStatement update2PrepStatement = mock(PreparedStatement.class);
     when(mockConnection.prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], to_jsonb(?)) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
                 COLLECTION_NAME)))
         .thenReturn(update1PrepStatement, update2PrepStatement, mockUpdatePreparedStatement);
 
     final PreparedStatement update3PrepStatement = mock(PreparedStatement.class);
     when(mockConnection.prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], ?::jsonb) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
                 COLLECTION_NAME)))
         .thenReturn(update3PrepStatement);
 
@@ -155,12 +155,12 @@ class PostgresCollectionTest {
     verify(mockConnection, times(3))
         .prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], to_jsonb(?)) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
                 COLLECTION_NAME));
     verify(mockConnection, times(1))
         .prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], ?::jsonb) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
                 COLLECTION_NAME));
 
     verifyUpdate(id, update1PrepStatement, "{date}", "2022-08-09T18:53:17Z");
@@ -282,14 +282,14 @@ class PostgresCollectionTest {
     final PreparedStatement update2PrepStatement = mock(PreparedStatement.class);
     when(mockConnection.prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], to_jsonb(?)) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
                 COLLECTION_NAME)))
         .thenReturn(update1PrepStatement, update2PrepStatement, mockUpdatePreparedStatement);
 
     final PreparedStatement update3PrepStatement = mock(PreparedStatement.class);
     when(mockConnection.prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], ?::jsonb) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
                 COLLECTION_NAME)))
         .thenReturn(update3PrepStatement);
 
@@ -330,12 +330,12 @@ class PostgresCollectionTest {
     verify(mockConnection, times(3))
         .prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], to_jsonb(?)) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
                 COLLECTION_NAME));
     verify(mockConnection, times(1))
         .prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], ?::jsonb) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
                 COLLECTION_NAME));
 
     verifyUpdate(id, update1PrepStatement, "{date}", "2022-08-09T18:53:17Z");
@@ -429,9 +429,9 @@ class PostgresCollectionTest {
       final String subDocPath,
       final T value)
       throws SQLException {
-    verify(preparedStatement, times(1)).setString(1, subDocPath);
+    verify(preparedStatement, times(1)).setObject(1, subDocPath);
     verify(preparedStatement, times(1)).setObject(2, value);
-    verify(preparedStatement, times(1)).setString(3, id);
+    verify(preparedStatement, times(1)).setObject(3, id);
     verify(preparedStatement, times(1)).executeUpdate();
   }
 }
