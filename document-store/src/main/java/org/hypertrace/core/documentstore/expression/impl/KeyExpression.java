@@ -21,6 +21,17 @@ public class KeyExpression implements FilterTypeExpression {
     return new KeyExpression(key);
   }
 
+  public static KeyExpression from(final String keyString) {
+    Preconditions.checkArgument(keyString != null, "key is null");
+    return new KeyExpression(
+        new Key() {
+          @Override
+          public String toString() {
+            return keyString;
+          }
+        });
+  }
+
   @Override
   public <T> T accept(final FilterTypeExpressionVisitor visitor) {
     return visitor.visit(this);

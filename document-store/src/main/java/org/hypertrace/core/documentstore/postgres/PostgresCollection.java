@@ -2,10 +2,13 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Optional.empty;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.OUTER_COLUMNS;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.enrichPreparedStatementWithParams;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.extractAndRemoveId;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.isValidPrimitiveType;
+import static org.postgresql.util.PSQLState.UNIQUE_VIOLATION;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -52,12 +55,15 @@ import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
+import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
-import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentUpdater;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
+import org.postgresql.util.PSQLException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,12 +84,14 @@ public class PostgresCollection implements Collection {
   private final String collectionName;
   private final PostgresQueryBuilder queryBuilder;
   private final PostgresSubDocumentUpdater subDocUpdater;
+  private final PostgresQueryExecutor queryExecutor;
 
   public PostgresCollection(PostgresClient client, String collectionName) {
     this.client = client;
     this.collectionName = collectionName;
-    this.queryBuilder = new PostgresQueryBuilder(this.collectionName);
+    this.queryBuilder = new PostgresQueryBuilder(collectionName);
     this.subDocUpdater = new PostgresSubDocumentUpdater(queryBuilder);
+    this.queryExecutor = new PostgresQueryExecutor(collectionName);
   }
 
   @Override
@@ -126,7 +134,8 @@ public class PostgresCollection implements Collection {
     }
 
     try (PreparedStatement preparedStatement =
-        buildPreparedStatement(upsertQueryBuilder.toString(), paramsBuilder.build())) {
+        queryExecutor.buildPreparedStatement(
+            upsertQueryBuilder.toString(), paramsBuilder.build(), client.getConnection())) {
       int result = preparedStatement.executeUpdate();
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: {}", result);
@@ -138,7 +147,6 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  /** create a new document if one doesn't exists with key */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try (PreparedStatement preparedStatement =
@@ -151,8 +159,15 @@ public class PostgresCollection implements Collection {
         LOGGER.debug("Create result: {}", result);
       }
       return new CreateResult(result > 0);
+    } catch (final PSQLException e) {
+      if (UNIQUE_VIOLATION.getState().equals(e.getSQLState())) {
+        throw new DuplicateDocumentException();
+      }
+
+      LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
+      throw new IOException(e);
     } catch (SQLException e) {
-      LOGGER.error("SQLException creating document. key: {} content:{}", key, document, e);
+      LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
       throw new IOException(e);
     }
   }
@@ -372,7 +387,8 @@ public class PostgresCollection implements Collection {
     String pgSqlQuery = sqlBuilder.toString();
     try {
       PreparedStatement preparedStatement =
-          buildPreparedStatement(pgSqlQuery, paramsBuilder.build());
+          queryExecutor.buildPreparedStatement(
+              pgSqlQuery, paramsBuilder.build(), client.getConnection());
       LOGGER.debug("Executing search query to PostgresSQL:{}", preparedStatement.toString());
       ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
@@ -391,19 +407,20 @@ public class PostgresCollection implements Collection {
   @Override
   public CloseableIterator<Document> find(
       final org.hypertrace.core.documentstore.query.Query query) {
-    return executeQueryV1(query);
+    return queryExecutor.execute(client.getConnection(), query);
   }
 
   @Override
   public CloseableIterator<Document> aggregate(
       final org.hypertrace.core.documentstore.query.Query query) {
-    return executeQueryV1(query);
+    return queryExecutor.execute(client.getConnection(), query);
   }
 
   @Override
   public Optional<Document> update(
       final org.hypertrace.core.documentstore.query.Query query,
-      final java.util.Collection<SubDocumentUpdate> updates)
+      final java.util.Collection<SubDocumentUpdate> updates,
+      final UpdateOptions updateOptions)
       throws IOException {
 
     if (updates.isEmpty()) {
@@ -418,11 +435,11 @@ public class PostgresCollection implements Collection {
               collectionName, query);
       final String selectQuery = parser.buildSelectQueryForUpdate();
 
-      try (final PreparedStatement pStmt = connection.prepareStatement(selectQuery)) {
-        enrichPreparedStatementWithParams(pStmt, parser.getParamsBuilder().build());
-
-        final ResultSet resultSet = pStmt.executeQuery();
-        final Optional<Document> documentOptional = getFirstDocument(resultSet);
+      try (final PreparedStatement preparedStatement =
+          queryExecutor.buildPreparedStatement(
+              selectQuery, parser.getParamsBuilder().build(), connection)) {
+        final Optional<Document> documentOptional =
+            getFirstDocument(preparedStatement.executeQuery());
 
         if (documentOptional.isEmpty()) {
           connection.commit();
@@ -439,8 +456,32 @@ public class PostgresCollection implements Collection {
 
         subDocUpdater.updateLastUpdatedTime(connection, id);
 
+        final Document returnDocument;
+
+        if (updateOptions.getReturnDocumentType() == BEFORE_UPDATE) {
+          returnDocument = docAndId.getDocument();
+        } else if (updateOptions.getReturnDocumentType() == AFTER_UPDATE) {
+          final org.hypertrace.core.documentstore.query.Query findByIdQuery =
+              org.hypertrace.core.documentstore.query.Query.builder()
+                  .addSelections(query.getSelections())
+                  .setFilter(
+                      org.hypertrace.core.documentstore.query.Filter.builder()
+                          .expression(KeyExpression.from(id))
+                          .build())
+                  .build();
+
+          try (final CloseableIterator<Document> iterator =
+              queryExecutor.execute(connection, findByIdQuery)) {
+            returnDocument = getFirstDocument(iterator).orElseThrow();
+          }
+        } else {
+          throw new UnsupportedOperationException(
+              String.format(
+                  "Unhandled return document type: %s", updateOptions.getReturnDocumentType()));
+        }
+
         connection.commit();
-        return Optional.of(docAndId.getDocument());
+        return Optional.of(returnDocument);
       } catch (final Exception e) {
         connection.rollback();
         throw e;
@@ -459,7 +500,8 @@ public class PostgresCollection implements Collection {
     String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(count)", subQuery);
     try {
       PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
+          queryExecutor.buildPreparedStatement(
+              sqlQuery, queryParser.getParamsBuilder().build(), client.getConnection());
       ResultSet resultSet = preparedStatement.executeQuery();
       resultSet.next();
       return resultSet.getLong(1);
@@ -498,7 +540,8 @@ public class PostgresCollection implements Collection {
     sqlBuilder.append(" WHERE ").append(filters);
     try {
       PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlBuilder.toString(), paramsBuilder.build());
+          queryExecutor.buildPreparedStatement(
+              sqlBuilder.toString(), paramsBuilder.build(), client.getConnection());
       int deletedCount = preparedStatement.executeUpdate();
       return deletedCount > 0;
     } catch (SQLException e) {
@@ -600,7 +643,8 @@ public class PostgresCollection implements Collection {
     }
 
     try (PreparedStatement preparedStatement =
-        buildPreparedStatement(totalSQLBuilder.toString(), paramsBuilder.build())) {
+        queryExecutor.buildPreparedStatement(
+            totalSQLBuilder.toString(), paramsBuilder.build(), client.getConnection())) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);
@@ -676,33 +720,6 @@ public class PostgresCollection implements Collection {
     }
 
     throw new IOException("Could not bulk upsert the documents.");
-  }
-
-  @VisibleForTesting
-  protected PreparedStatement buildPreparedStatement(String sqlQuery, Params params)
-      throws SQLException, RuntimeException {
-    PreparedStatement preparedStatement = client.getConnection().prepareStatement(sqlQuery);
-    enrichPreparedStatementWithParams(preparedStatement, params);
-    return preparedStatement;
-  }
-
-  @VisibleForTesting
-  protected void enrichPreparedStatementWithParams(
-      PreparedStatement preparedStatement, Params params) throws RuntimeException {
-    params
-        .getObjectParams()
-        .forEach(
-            (k, v) -> {
-              try {
-                if (isValidPrimitiveType(v)) {
-                  preparedStatement.setObject(k, v);
-                } else {
-                  throw new UnsupportedOperationException("Un-supported object types in filter");
-                }
-              } catch (SQLException e) {
-                LOGGER.error("SQLException setting Param. key: {}, value: {}", k, v);
-              }
-            });
   }
 
   @Override
@@ -839,37 +856,6 @@ public class PostgresCollection implements Collection {
           e);
       throw new IOException(e);
     }
-  }
-
-  private CloseableIterator<Document> executeQueryV1(
-      final org.hypertrace.core.documentstore.query.Query query) {
-    org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
-        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-            collectionName, transformAndLog(query));
-    String sqlQuery = queryParser.parse();
-    try {
-      PreparedStatement preparedStatement =
-          buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build());
-      LOGGER.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
-      ResultSet resultSet = preparedStatement.executeQuery();
-      CloseableIterator closeableIterator =
-          query.getSelections().size() > 0
-              ? new PostgresResultIteratorWithMetaData(resultSet)
-              : new PostgresResultIterator(resultSet);
-      return closeableIterator;
-    } catch (SQLException e) {
-      LOGGER.error(
-          "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
-      throw new RuntimeException(e);
-    }
-  }
-
-  private org.hypertrace.core.documentstore.query.Query transformAndLog(
-      org.hypertrace.core.documentstore.query.Query query) {
-    LOGGER.debug("Original query before transformation: {}", query);
-    query = PostgresQueryTransformer.transform(query);
-    LOGGER.debug("Query after transformation: {}", query);
-    return query;
   }
 
   private int[] bulkUpsertImpl(Map<Key, Document> documents) throws SQLException, IOException {
@@ -1046,10 +1032,16 @@ public class PostgresCollection implements Collection {
   }
 
   public Optional<Document> getFirstDocument(final ResultSet resultSet) throws IOException {
-    try (final CloseableIterator<Document> iterator =
-        new PostgresResultIteratorWithMetaData(resultSet)) {
-      return Optional.of(iterator).filter(Iterator::hasNext).map(Iterator::next);
-    }
+    final CloseableIterator<Document> iterator = new PostgresResultIteratorWithMetaData(resultSet);
+    return getFirstDocument(iterator);
+  }
+
+  public Optional<Document> getFirstDocument(final CloseableIterator<Document> iterator)
+      throws IOException {
+    final Optional<Document> optionalDocument =
+        Optional.of(iterator).filter(Iterator::hasNext).map(Iterator::next);
+    iterator.close();
+    return optionalDocument;
   }
 
   private String getInsertSQL() {
