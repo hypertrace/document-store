@@ -8,6 +8,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.util.TestUtil.readDocument;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -33,6 +34,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.Query;
@@ -107,20 +109,22 @@ class PostgresCollectionTest {
     final PreparedStatement update2PrepStatement = mock(PreparedStatement.class);
     when(mockConnection.prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], to_jsonb(?)) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
                 COLLECTION_NAME)))
         .thenReturn(update1PrepStatement, update2PrepStatement, mockUpdatePreparedStatement);
 
     final PreparedStatement update3PrepStatement = mock(PreparedStatement.class);
     when(mockConnection.prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], ?::jsonb) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
                 COLLECTION_NAME)))
         .thenReturn(update3PrepStatement);
 
     when(mockClock.millis()).thenReturn(currentTime);
 
-    final Optional<Document> oldDocument = postgresCollection.update(query, updates);
+    final Optional<Document> oldDocument =
+        postgresCollection.update(
+            query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
     assertTrue(oldDocument.isPresent());
     assertEquals(document, oldDocument.get());
@@ -152,12 +156,12 @@ class PostgresCollectionTest {
     verify(mockConnection, times(3))
         .prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], to_jsonb(?)) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
                 COLLECTION_NAME));
     verify(mockConnection, times(1))
         .prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], ?::jsonb) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
                 COLLECTION_NAME));
 
     verifyUpdate(id, update1PrepStatement, "{date}", "2022-08-09T18:53:17Z");
@@ -205,7 +209,9 @@ class PostgresCollectionTest {
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(false);
 
-    final Optional<Document> oldDocument = postgresCollection.update(query, updates);
+    final Optional<Document> oldDocument =
+        postgresCollection.update(
+            query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
     assertTrue(oldDocument.isEmpty());
 
@@ -277,14 +283,14 @@ class PostgresCollectionTest {
     final PreparedStatement update2PrepStatement = mock(PreparedStatement.class);
     when(mockConnection.prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], to_jsonb(?)) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
                 COLLECTION_NAME)))
         .thenReturn(update1PrepStatement, update2PrepStatement, mockUpdatePreparedStatement);
 
     final PreparedStatement update3PrepStatement = mock(PreparedStatement.class);
     when(mockConnection.prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], ?::jsonb) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
                 COLLECTION_NAME)))
         .thenReturn(update3PrepStatement);
 
@@ -292,7 +298,11 @@ class PostgresCollectionTest {
 
     when(mockUpdatePreparedStatement.executeUpdate()).thenThrow(SQLException.class);
 
-    assertThrows(IOException.class, () -> postgresCollection.update(query, updates));
+    assertThrows(
+        IOException.class,
+        () ->
+            postgresCollection.update(
+                query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
 
     verify(connectionPool, times(1)).getConnection();
     verify(mockConnection, times(1)).setAutoCommit(false);
@@ -321,12 +331,12 @@ class PostgresCollectionTest {
     verify(mockConnection, times(3))
         .prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], to_jsonb(?)) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
                 COLLECTION_NAME));
     verify(mockConnection, times(1))
         .prepareStatement(
             String.format(
-                "UPDATE %s SET document=jsonb_set(document, ?::text[], ?::jsonb) WHERE id=?",
+                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
                 COLLECTION_NAME));
 
     verifyUpdate(id, update1PrepStatement, "{date}", "2022-08-09T18:53:17Z");
@@ -353,7 +363,9 @@ class PostgresCollectionTest {
         IOException.class,
         () ->
             postgresCollection.update(
-                org.hypertrace.core.documentstore.query.Query.builder().build(), emptyList()));
+                org.hypertrace.core.documentstore.query.Query.builder().build(),
+                emptyList(),
+                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
   }
 
   private Query buildQueryWithFilterSortAndProjection() {
@@ -418,9 +430,9 @@ class PostgresCollectionTest {
       final String subDocPath,
       final T value)
       throws SQLException {
-    verify(preparedStatement, times(1)).setString(1, subDocPath);
+    verify(preparedStatement, times(1)).setObject(1, subDocPath);
     verify(preparedStatement, times(1)).setObject(2, value);
-    verify(preparedStatement, times(1)).setString(3, id);
+    verify(preparedStatement, times(1)).setObject(3, id);
     verify(preparedStatement, times(1)).executeUpdate();
   }
 }

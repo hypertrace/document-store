@@ -1,9 +1,9 @@
 package org.hypertrace.core.documentstore.mongo;
 
-import static com.mongodb.client.model.ReturnDocument.BEFORE;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.CREATED_TIME;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.dbObjectToDocument;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.getReturnDocument;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectTypeExpressionParser.getSelections;
@@ -14,6 +14,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.MongoCommandException;
 import com.mongodb.MongoServerException;
+import com.mongodb.MongoWriteException;
 import com.mongodb.bulk.BulkWriteResult;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
@@ -53,6 +54,7 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
+import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.mongo.subdoc.MongoSubDocumentValueSanitizer;
 import org.slf4j.Logger;
@@ -207,7 +209,6 @@ public class MongoCollection implements Collection {
     }
   }
 
-  /** create a new document if one doesn't exists with key */
   @Override
   public CreateResult create(Key key, Document document) throws IOException {
     try {
@@ -217,8 +218,15 @@ public class MongoCollection implements Collection {
         LOGGER.debug("Create result: " + insertOneResult);
       }
       return new CreateResult(insertOneResult.getInsertedId() != null);
-    } catch (Exception e) {
-      LOGGER.error("Exception creating document. key: {} content:{}", key, document, e);
+    } catch (final MongoWriteException e) {
+      if (e.getCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE) {
+        throw new DuplicateDocumentException();
+      }
+
+      LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
+      throw new IOException(e);
+    } catch (final Exception e) {
+      LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
       throw new IOException(e);
     }
   }
@@ -467,7 +475,8 @@ public class MongoCollection implements Collection {
   @Override
   public Optional<Document> update(
       final org.hypertrace.core.documentstore.query.Query query,
-      final java.util.Collection<SubDocumentUpdate> updates)
+      final java.util.Collection<SubDocumentUpdate> updates,
+      org.hypertrace.core.documentstore.model.options.UpdateOptions updateOptions)
       throws IOException {
 
     if (updates.isEmpty()) {
@@ -477,7 +486,9 @@ public class MongoCollection implements Collection {
     try {
       final BasicDBObject selections = getSelections(query);
       final BasicDBObject sorts = getOrders(query);
-      final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions().returnDocument(BEFORE);
+      final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
+
+      options.returnDocument(getReturnDocument(updateOptions.getReturnDocumentType()));
 
       if (!selections.isEmpty()) {
         options.projection(selections);
