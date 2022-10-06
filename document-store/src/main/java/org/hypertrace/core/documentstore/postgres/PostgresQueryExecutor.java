@@ -2,14 +2,11 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.enrichPreparedStatementWithParams;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import lombok.AllArgsConstructor;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
@@ -22,15 +19,6 @@ import org.hypertrace.core.documentstore.query.Query;
 @AllArgsConstructor
 public class PostgresQueryExecutor {
   private final String collectionName;
-
-  public QueryResult execute(final Connection connection, final String query, final Params params)
-      throws SQLException {
-    final PreparedStatement preparedStatement = connection.prepareStatement(query);
-    enrichPreparedStatementWithParams(preparedStatement, params);
-    final ResultSet resultSet = preparedStatement.executeQuery();
-
-    return new QueryResult(preparedStatement, resultSet);
-  }
 
   public CloseableIterator<Document> execute(final Connection connection, final Query query) {
     final org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
@@ -66,21 +54,5 @@ public class PostgresQueryExecutor {
     query = PostgresQueryTransformer.transform(query);
     log.debug("Query after transformation: {}", query);
     return query;
-  }
-
-  @Value
-  public static class QueryResult implements Closeable {
-    PreparedStatement preparedStatement;
-    ResultSet resultSet;
-
-    @Override
-    public void close() throws IOException {
-      try {
-        resultSet.close();
-        preparedStatement.close();
-      } catch (final SQLException e) {
-        throw new IOException(e);
-      }
-    }
   }
 }

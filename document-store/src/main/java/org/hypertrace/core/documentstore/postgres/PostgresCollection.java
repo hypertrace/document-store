@@ -59,7 +59,6 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
-import org.hypertrace.core.documentstore.postgres.PostgresQueryExecutor.QueryResult;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentUpdater;
@@ -436,9 +435,11 @@ public class PostgresCollection implements Collection {
               collectionName, query);
       final String selectQuery = parser.buildSelectQueryForUpdate();
 
-      try (final QueryResult result =
-          queryExecutor.execute(connection, selectQuery, parser.getParamsBuilder().build())) {
-        final Optional<Document> documentOptional = getFirstDocument(result.getResultSet());
+      try (final PreparedStatement preparedStatement =
+          queryExecutor.buildPreparedStatement(
+              selectQuery, parser.getParamsBuilder().build(), connection)) {
+        final Optional<Document> documentOptional =
+            getFirstDocument(preparedStatement.executeQuery());
 
         if (documentOptional.isEmpty()) {
           connection.commit();
@@ -1030,13 +1031,17 @@ public class PostgresCollection implements Collection {
     return -1;
   }
 
-  public Optional<Document> getFirstDocument(final ResultSet resultSet) {
+  public Optional<Document> getFirstDocument(final ResultSet resultSet) throws IOException {
     final CloseableIterator<Document> iterator = new PostgresResultIteratorWithMetaData(resultSet);
     return getFirstDocument(iterator);
   }
 
-  public Optional<Document> getFirstDocument(final CloseableIterator<Document> iterator) {
-    return Optional.of(iterator).filter(Iterator::hasNext).map(Iterator::next);
+  public Optional<Document> getFirstDocument(final CloseableIterator<Document> iterator)
+      throws IOException {
+    final Optional<Document> optionalDocument =
+        Optional.of(iterator).filter(Iterator::hasNext).map(Iterator::next);
+    iterator.close();
+    return optionalDocument;
   }
 
   private String getInsertSQL() {
