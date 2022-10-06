@@ -1555,10 +1555,10 @@ public class DocStoreQueryV1Test {
                 .addSelection(IdentifierExpression.of("price"))
                 .addSelection(IdentifierExpression.of("quantity"))
                 .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props.brand"), "brand")
+                .addSelection(IdentifierExpression.of("props"))
                 .addSort(IdentifierExpression.of("_id"), ASC)
                 .build()),
-        "query/updatable_collection_data_after_atomic_update.json",
+        "query/updatable_collection_data_after_atomic_update_selecting_all_props.json",
         9);
   }
 
