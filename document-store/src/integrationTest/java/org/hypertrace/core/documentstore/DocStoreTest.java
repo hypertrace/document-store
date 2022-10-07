@@ -51,6 +51,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -1779,6 +1780,125 @@ public class DocStoreTest {
     actualDocs = convertToMap(documents, "id");
     expectedDocs = convertToMap(List.of(key2InsertedDocument, key3InsertedDocument), "id");
     verifyResultDocsMatchesWithExpected(actualDocs, expectedDocs);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testContains(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 10), Map.of("product", "xyz", "score", 5)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 8), Map.of("product", "xyz", "score", 7)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 7), Map.of("product", "xyz", "score", 8)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 7), Map.of("product", "def", "score", 8)))));
+
+    // try with contains filter
+    Query query = new Query();
+    Filter filter = new Filter(Op.CONTAINS, "products", Map.of("product", "xyz"));
+    query.setFilter(filter);
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = covertResultSetToDocuments(results);
+    Assertions.assertEquals(3, documents.size());
+
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"id\":\"testKey1\"")
+                  || document.toJson().contains("\"id\":\"testKey2\"")
+                  || document.toJson().contains("\"id\":\"testKey3\""));
+        });
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testNotContains(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 10), Map.of("product", "xyz", "score", 5)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 8), Map.of("product", "xyz", "score", 7)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 7), Map.of("product", "xyz", "score", 8)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 7), Map.of("product", "def", "score", 8)))));
+
+    // try with not contains filter
+    Query query = new Query();
+    Filter filter = new Filter(Op.NOT_CONTAINS, "products", Map.of("product", "xyz"));
+    query.setFilter(filter);
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = covertResultSetToDocuments(results);
+    Assertions.assertEquals(1, documents.size());
+
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(jsonStr.contains("\"id\":\"testKey4\""));
+        });
   }
 
   private List<Document> covertResultSetToDocuments(Iterator<Document> results) {
