@@ -1,0 +1,44 @@
+[
+  {
+    "date": "2022-08-09T18:53:17Z",
+    "price": 10,
+    "props": {
+      "new_property": {
+        "deep": {
+          "nested": {
+            "value": {
+              "json": "new_value"
+            }
+          }
+        }
+      },
+      "brand": "Dettol",
+      "size": "M",
+      "seller": {
+        "name": "Metro Chemicals Pvt. Ltd.",
+        "address": {
+          "city": "Mumbai",
+          "pincode": 400004
+        }
+      }
+    },
+    "quantity": 1000
+  },
+  {
+    "date": "2022-08-09T18:53:17Z",
+    "price": 10,
+    "quantity": 1000,
+    "props": {
+      "brand": "Dettol",
+      "new_property": {
+        "deep": {
+          "nested": {
+            "value": {
+              "json": "new_value"
+            }
+          }
+        }
+      }
+    }
+  }
+]

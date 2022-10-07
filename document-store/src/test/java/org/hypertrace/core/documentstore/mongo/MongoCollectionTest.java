@@ -38,6 +38,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.SortingSpec;
@@ -231,7 +232,10 @@ public class MongoCollectionTest {
         .thenReturn(response);
 
     final Optional<Document> result =
-        mongoCollection.update(query, List.of(dateUpdate, quantityUpdate, propsUpdate));
+        mongoCollection.update(
+            query,
+            List.of(dateUpdate, quantityUpdate, propsUpdate),
+            UpdateOptions.DEFAULT_UPDATE_OPTIONS);
 
     assertTrue(result.isPresent());
     assertJsonEquals(
@@ -250,6 +254,8 @@ public class MongoCollectionTest {
         IOException.class,
         () ->
             mongoCollection.update(
-                org.hypertrace.core.documentstore.query.Query.builder().build(), emptyList()));
+                org.hypertrace.core.documentstore.query.Query.builder().build(),
+                emptyList(),
+                UpdateOptions.DEFAULT_UPDATE_OPTIONS));
   }
 }

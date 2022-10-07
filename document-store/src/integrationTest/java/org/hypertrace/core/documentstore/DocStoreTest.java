@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -42,6 +43,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
@@ -2394,6 +2396,23 @@ public class DocStoreTest {
     Assertions.assertTrue(documents.size() == 1);
     Map<String, Object> doc = OBJECT_MAPPER.readValue(documents.get(0).toJson(), Map.class);
     Assertions.assertEquals(resultMap.get(SUCCESS).get(0).getTestValue(), (int) doc.get("size"));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testCreateWithMultipleValues(final String dataStoreName) throws Exception {
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    final Collection collection = datastore.getCollection(COLLECTION_NAME);
+    final SingleValueKey documentKey = new SingleValueKey("default", "testKey1");
+
+    @SuppressWarnings("unchecked")
+    final Document document =
+        Utils.createDocument(
+            ImmutablePair.of("id", documentKey.getValue()),
+            ImmutablePair.of("name", String.format("thread-%s", UUID.randomUUID())));
+
+    collection.create(documentKey, document);
+    assertThrows(DuplicateDocumentException.class, () -> collection.create(documentKey, document));
   }
 
   @ParameterizedTest

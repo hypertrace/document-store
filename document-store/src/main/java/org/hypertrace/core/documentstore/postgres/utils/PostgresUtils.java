@@ -14,15 +14,17 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter.Op;
@@ -31,6 +33,7 @@ import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
 
+@Slf4j
 public class PostgresUtils {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String QUESTION_MARK = "?";
@@ -477,10 +480,21 @@ public class PostgresUtils {
     return new DocumentAndId(documentWithoutId, id);
   }
 
-  private static void pareseEqFilterForArrayType() {
-    // get left side of the filed
-    // sqlOperator @>
-    // get Right side of the value
-    return;
+  public static void enrichPreparedStatementWithParams(
+      final PreparedStatement preparedStatement, final Params params) {
+    params
+        .getObjectParams()
+        .forEach(
+            (k, v) -> {
+              try {
+                if (isValidPrimitiveType(v)) {
+                  preparedStatement.setObject(k, v);
+                } else {
+                  throw new UnsupportedOperationException("Un-supported object types in filter");
+                }
+              } catch (SQLException e) {
+                log.error("SQLException setting Param. key: {}, value: {}", k, v);
+              }
+            });
   }
 }
