@@ -1669,6 +1669,105 @@ public class DocStoreTest {
     assertEquals(0, bulkUpdateResult.getUpdatedCount());
   }
 
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_ArrayValue_Total(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Key key2 = new SingleValueKey("default", "testKey2");
+    Document key2InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label2"))))))));
+    collection.upsert(key2, key2InsertedDocument);
+
+    Key key3 = new SingleValueKey("default", "testKey3");
+    Document key3InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("attributes", Map.of("name", "testKey3")));
+    collection.upsert(key3, key3InsertedDocument);
+
+    Key key4 = new SingleValueKey("default", "testKey4");
+    Document key4InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key4, key4InsertedDocument);
+
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    assertEquals(4, documents.size());
+
+    // test for eq operator for non-primitive type
+    JsonNode mapNode = OBJECT_MAPPER.readTree("{\"value\": {\"string\":\"Label1\"}}");
+    Map map = OBJECT_MAPPER.convertValue(mapNode, Map.class);
+    query = new Query();
+    Filter f = new Filter();
+    f.setFieldName("attributes.labels.valueList.values");
+    f.setOp(Op.EQ);
+    f.setValue(map);
+    query.setFilter(f);
+    long result = collection.total(query);
+    assertEquals(2, result);
+
+    // test for not eq operator for non-primitive type
+    query = new Query();
+    f = new Filter();
+    f.setFieldName("attributes.labels.valueList.values");
+    f.setOp(Op.NEQ);
+    f.setValue(map);
+    query.setFilter(f);
+    result = collection.total(query);
+    assertEquals(2, result);
+  }
+
   private Map<String, JsonNode> convertToMap(java.util.Collection<Document> docs, String key) {
     return docs.stream()
         .map(

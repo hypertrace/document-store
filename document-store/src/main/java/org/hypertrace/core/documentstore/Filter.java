@@ -24,7 +24,8 @@ public class Filter {
     EXISTS,
     NOT_EXISTS,
     LIKE,
-    NOT_IN
+    NOT_IN,
+    NOT_CONTAINS
   }
 
   public Filter() {}

@@ -8,7 +8,9 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCU
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_PATH_SEPARATOR;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.isValidPrimitiveType;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -18,15 +20,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
 
 public class PostgresUtils {
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String QUESTION_MARK = "?";
   private static final String JSON_FIELD_ACCESSOR = "->";
   private static final String JSON_DATA_ACCESSOR = "->>";
@@ -143,9 +149,9 @@ public class PostgresUtils {
   }
 
   private static String prepareParameterizedStringForList(
-      List<Object> values, Params.Builder paramsBuilder) {
+      Iterable<Object> values, Params.Builder paramsBuilder) {
     String collect =
-        values.stream()
+        StreamSupport.stream(values.spliterator(), false)
             .map(
                 val -> {
                   paramsBuilder.addObjectParam(val);
@@ -174,9 +180,16 @@ public class PostgresUtils {
     StringBuilder filterString = new StringBuilder(parsedExpression);
     String sqlOperator;
     boolean isMultiValued = false;
+    boolean isContainsOp = false;
     switch (op) {
       case "EQ":
       case "=":
+        // For non-primitive types, the behaviour of equality is any element match.
+        // On Mongo, it was internally handled. For postgres, we are mapping it to contains operator.
+        // Refer the test case {@link DocStoreTest.test_ArrayValue_Total}
+        if (!isValidPrimitiveType(value)) {
+          return parseNonCompositeFilter(fieldName, parsedExpression, columnName, Op.CONTAINS.toString(), value, paramsBuilder);
+        }
         sqlOperator = " = ";
         break;
       case "GT":
@@ -217,14 +230,14 @@ public class PostgresUtils {
         }
         sqlOperator = " NOT IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
         break;
       case "IN":
         // NOTE: both NOT_IN and IN filter currently limited to non-array field
         //  - https://github.com/hypertrace/document-store/issues/32#issuecomment-781411676
         sqlOperator = " IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
         break;
       case "NOT_EXISTS":
       case "NOT EXISTS":
@@ -247,6 +260,12 @@ public class PostgresUtils {
         break;
       case "NEQ":
       case "!=":
+        // For non-primitive types, the behaviour of equality is any element match.
+        // On Mongo, it was internally handled. For postgres, we are mapping it to contains operator.
+        // Refer the test case {@link DocStoreTest.test_ArrayValue_Total}
+        if (!isValidPrimitiveType(value)) {
+          return parseNonCompositeFilter(fieldName, parsedExpression, columnName, Op.NOT_CONTAINS.toString(), value, paramsBuilder);
+        }
         sqlOperator = " != ";
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
         // The expected behaviour is to get all documents which either satisfy non equality
@@ -262,7 +281,28 @@ public class PostgresUtils {
         }
         break;
       case "CONTAINS":
-        // TODO: Matches condition inside an array of documents
+        // only work with array elements of jsonb document
+        if (OUTER_COLUMNS.contains(fieldName)) {
+          throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+        }
+        isContainsOp = true;
+        filterString = prepareFieldAccessorExpr(fieldName, columnName);
+        value = prepareValueForContainsOp(value);
+        sqlOperator = " @> ";
+        break;
+      case "NOT_CONTAINS":
+        // only work with array elements of jsonb document
+        if (OUTER_COLUMNS.contains(fieldName)) {
+          throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+        }
+        isContainsOp = true;
+        String lhsExp = prepareFieldAccessorExpr(fieldName, columnName).toString();
+        filterString = new StringBuilder(lhsExp)
+            .append(" IS NULL OR NOT ")
+            .append(lhsExp);
+        value = prepareValueForContainsOp(value);
+        sqlOperator = " @> ";
+        break;
       default:
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     }
@@ -271,12 +311,30 @@ public class PostgresUtils {
     if (value != null) {
       if (isMultiValued) {
         filterString.append(value);
+      } else if (isContainsOp) {
+        filterString.append(QUESTION_MARK);
+        filterString.append("::jsonb");
+        paramsBuilder.addObjectParam(value);
       } else {
         filterString.append(QUESTION_MARK);
         paramsBuilder.addObjectParam(value);
       }
     }
     return filterString.toString();
+  }
+
+  private static Object prepareValueForContainsOp(Object value) {
+    String transformedValue = null;
+    try {
+      if (value instanceof Iterable<?>) {
+        transformedValue = OBJECT_MAPPER.writeValueAsString(value);
+      } else {
+        transformedValue = "[" + OBJECT_MAPPER.writeValueAsString(value) + "]";
+      }
+    } catch (JsonProcessingException ex) {
+      throw new RuntimeException(ex);
+    }
+    return transformedValue;
   }
 
   /**
@@ -328,13 +386,13 @@ public class PostgresUtils {
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
         sqlOperator = " NOT IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
         break;
       case "IN":
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
         sqlOperator = " IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((List<Object>) value, paramsBuilder);
+        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
         break;
       case "NOT_EXISTS":
       case "NOT EXISTS":
@@ -416,5 +474,12 @@ public class PostgresUtils {
     final String id = String.valueOf(requireNonNull(map.remove(IMPLICIT_ID)));
     final Document documentWithoutId = new JSONDocument(new ObjectMapper().writeValueAsString(map));
     return new DocumentAndId(documentWithoutId, id);
+  }
+
+  private static void pareseEqFilterForArrayType() {
+    // get left side of the filed
+    // sqlOperator @>
+    // get Right side of the value
+    return;
   }
 }
