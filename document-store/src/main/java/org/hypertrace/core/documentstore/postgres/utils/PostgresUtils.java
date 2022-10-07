@@ -409,7 +409,8 @@ public class PostgresUtils {
         sqlOperator = " != ";
         break;
       case "CONTAINS":
-        // TODO: Matches condition inside an array of documents
+      case "NOT_CONTAINS":
+        // Both contains and not_contains are not supported for aggregation filter for now.
       default:
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     }
