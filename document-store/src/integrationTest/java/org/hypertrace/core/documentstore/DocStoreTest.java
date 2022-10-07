@@ -1671,7 +1671,7 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void test_ArrayValue_Total(String dataStoreName) throws Exception {
+  public void test_TotalAndSearchAPIForNonPrimitiveTypes_EqNeqOperator(String dataStoreName) throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -1739,13 +1739,10 @@ public class DocStoreTest {
     // get all documents
     Query query = new Query();
     Iterator<Document> results = collection.search(query);
-    List<Document> documents = new ArrayList<>();
-    while (results.hasNext()) {
-      documents.add(results.next());
-    }
+    List<Document> documents = covertResultSetToDocuments(results);
     assertEquals(4, documents.size());
 
-    // test for eq operator for non-primitive type
+    // Test of Total API for eq operator for non-primitive type
     JsonNode mapNode = OBJECT_MAPPER.readTree("{\"value\": {\"string\":\"Label1\"}}");
     Map map = OBJECT_MAPPER.convertValue(mapNode, Map.class);
     query = new Query();
@@ -1757,7 +1754,16 @@ public class DocStoreTest {
     long result = collection.total(query);
     assertEquals(2, result);
 
-    // test for not eq operator for non-primitive type
+    // Test of Search API for eq operator for non-primitive type
+    results = collection.search(query);
+    documents = covertResultSetToDocuments(results);
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs = convertToMap(List.of(key1InsertedDocument,
+        key4InsertedDocument), "id");
+    verifyResultDocsMatchesWithExpected(actualDocs, expectedDocs);
+
+
+    // Test of Total API for neq operator for non-primitive type
     query = new Query();
     f = new Filter();
     f.setFieldName("attributes.labels.valueList.values");
@@ -1766,6 +1772,30 @@ public class DocStoreTest {
     query.setFilter(f);
     result = collection.total(query);
     assertEquals(2, result);
+
+    // Test of Search API for neq operator for non-primitive type
+    results = collection.search(query);
+    documents = covertResultSetToDocuments(results);
+    actualDocs = convertToMap(documents, "id");
+    expectedDocs = convertToMap(List.of(key2InsertedDocument, key3InsertedDocument), "id");
+    verifyResultDocsMatchesWithExpected(actualDocs, expectedDocs);
+  }
+
+  private List<Document> covertResultSetToDocuments(Iterator<Document> results) {
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    return documents;
+  }
+
+  private void verifyResultDocsMatchesWithExpected(Map<String, JsonNode> actualDocs, Map<String, JsonNode> expectedDocs) {
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
   }
 
   private Map<String, JsonNode> convertToMap(java.util.Collection<Document> docs, String key) {
