@@ -188,10 +188,17 @@ public class PostgresUtils {
       case "EQ":
       case "=":
         // For non-primitive types, the behaviour of equality is any element match.
-        // On Mongo, it was internally handled. For postgres, we are mapping it to contains operator.
+        // On Mongo, it was internally handled. For postgres, we are mapping it to contains
+        // operator.
         // Refer the test case {@link DocStoreTest.test_ArrayValue_Total}
         if (!isValidPrimitiveType(value)) {
-          return parseNonCompositeFilter(fieldName, parsedExpression, columnName, Op.CONTAINS.toString(), value, paramsBuilder);
+          return parseNonCompositeFilter(
+              fieldName,
+              parsedExpression,
+              columnName,
+              Op.CONTAINS.toString(),
+              value,
+              paramsBuilder);
         }
         sqlOperator = " = ";
         break;
@@ -264,10 +271,17 @@ public class PostgresUtils {
       case "NEQ":
       case "!=":
         // For non-primitive types, the behaviour of equality is any element match.
-        // On Mongo, it was internally handled. For postgres, we are mapping it to contains operator.
+        // On Mongo, it was internally handled. For postgres, we are mapping it to contains
+        // operator.
         // Refer the test case {@link DocStoreTest.test_ArrayValue_Total}
         if (!isValidPrimitiveType(value)) {
-          return parseNonCompositeFilter(fieldName, parsedExpression, columnName, Op.NOT_CONTAINS.toString(), value, paramsBuilder);
+          return parseNonCompositeFilter(
+              fieldName,
+              parsedExpression,
+              columnName,
+              Op.NOT_CONTAINS.toString(),
+              value,
+              paramsBuilder);
         }
         sqlOperator = " != ";
         // https://github.com/hypertrace/document-store/pull/20#discussion_r547101520
@@ -300,9 +314,7 @@ public class PostgresUtils {
         }
         isContainsOp = true;
         String lhsExp = prepareFieldAccessorExpr(fieldName, columnName).toString();
-        filterString = new StringBuilder(lhsExp)
-            .append(" IS NULL OR NOT ")
-            .append(lhsExp);
+        filterString = new StringBuilder(lhsExp).append(" IS NULL OR NOT ").append(lhsExp);
         value = prepareValueForContainsOp(value);
         sqlOperator = " @> ";
         break;

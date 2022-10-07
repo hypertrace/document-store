@@ -53,7 +53,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -1674,7 +1673,8 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void test_TotalAndSearchAPIForNonPrimitiveTypes_EqNeqOperator(String dataStoreName) throws Exception {
+  public void test_TotalAndSearchAPIForNonPrimitiveTypes_EqNeqOperator(String dataStoreName)
+      throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     datastore.createCollection(COLLECTION_NAME, null);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -1761,10 +1761,9 @@ public class DocStoreTest {
     results = collection.search(query);
     documents = covertResultSetToDocuments(results);
     Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
-    Map<String, JsonNode> expectedDocs = convertToMap(List.of(key1InsertedDocument,
-        key4InsertedDocument), "id");
+    Map<String, JsonNode> expectedDocs =
+        convertToMap(List.of(key1InsertedDocument, key4InsertedDocument), "id");
     verifyResultDocsMatchesWithExpected(actualDocs, expectedDocs);
-
 
     // Test of Total API for neq operator for non-primitive type
     query = new Query();
@@ -1911,7 +1910,8 @@ public class DocStoreTest {
     return documents;
   }
 
-  private void verifyResultDocsMatchesWithExpected(Map<String, JsonNode> actualDocs, Map<String, JsonNode> expectedDocs) {
+  private void verifyResultDocsMatchesWithExpected(
+      Map<String, JsonNode> actualDocs, Map<String, JsonNode> expectedDocs) {
     for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
       String key = entry.getKey();
       JsonNode attributesJsonNode = entry.getValue().get("attributes");
