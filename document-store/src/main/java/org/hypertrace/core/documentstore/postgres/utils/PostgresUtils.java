@@ -187,11 +187,11 @@ public class PostgresUtils {
     switch (op) {
       case "EQ":
       case "=":
-        // For non-primitive types, the behaviour of equality is any element match.
-        // On Mongo, it was internally handled. For postgres, we are mapping it to contains
-        // operator.
+        // For non-primitive object types, the behaviour of equality is element match in mongo
+        // So, to handle compatibility, For postgres, we are mapping it to contains operator.
         // Refer the test case {@link DocStoreTest.test_ArrayValue_Total}
-        if (!isValidPrimitiveType(value)) {
+        // TODO: Change client to use contains operator
+        if (!isValidPrimitiveType(value) && !(value instanceof Iterable<?>)) {
           return parseNonCompositeFilter(
               fieldName,
               parsedExpression,
@@ -270,10 +270,10 @@ public class PostgresUtils {
         break;
       case "NEQ":
       case "!=":
-        // For non-primitive types, the behaviour of equality is any element match.
-        // On Mongo, it was internally handled. For postgres, we are mapping it to contains
-        // operator.
+        // For non-primitive object types, the behaviour of equality is element match in mongo
+        // So, to handle compatibility, For postgres, we are mapping it to contains operator.
         // Refer the test case {@link DocStoreTest.test_ArrayValue_Total}
+        // TODO: Change client to use contains operator
         if (!isValidPrimitiveType(value)) {
           return parseNonCompositeFilter(
               fieldName,
@@ -425,7 +425,7 @@ public class PostgresUtils {
         break;
       case "CONTAINS":
       case "NOT_CONTAINS":
-        // Both contains and not_contains are not supported for aggregation filter for now.
+        // For now, both contains and not_contains are not supported in aggregation filter.
       default:
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     }

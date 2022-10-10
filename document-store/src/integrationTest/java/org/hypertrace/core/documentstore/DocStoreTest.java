@@ -1673,7 +1673,7 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void test_TotalAndSearchAPIForNonPrimitiveTypes_EqNeqOperator(String dataStoreName)
+  public void test_TotalAndSearchAPIForNonPrimitiveMapTypes_EqNeqOperator(String dataStoreName)
       throws Exception {
     Datastore datastore = datastoreMap.get(dataStoreName);
     datastore.createCollection(COLLECTION_NAME, null);
