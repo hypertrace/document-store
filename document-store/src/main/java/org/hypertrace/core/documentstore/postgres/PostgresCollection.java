@@ -85,9 +85,7 @@ public class PostgresCollection implements Collection {
   private final PostgresSubDocumentUpdater subDocUpdater;
   private final PostgresQueryExecutor queryExecutor;
 
-  public PostgresCollection(
-      final PostgresClient client,
-      final String collectionName) {
+  public PostgresCollection(final PostgresClient client, final String collectionName) {
     this.client = client;
     this.collectionName = collectionName;
     this.subDocUpdater = new PostgresSubDocumentUpdater(new PostgresQueryBuilder(collectionName));
@@ -427,7 +425,7 @@ public class PostgresCollection implements Collection {
       throw new IOException("At least one update is required");
     }
 
-    try (final Connection connection = client.getConnectionFromPool()) {
+    try (final Connection connection = client.getPooledConnection()) {
       connection.setAutoCommit(false);
 
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =

@@ -49,7 +49,7 @@ class PostgresClient {
     return connection;
   }
 
-  public Connection getConnectionFromPool() throws SQLException {
+  public Connection getPooledConnection() throws SQLException {
     return connectionPool.getConnection();
   }
 

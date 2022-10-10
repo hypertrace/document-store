@@ -53,7 +53,6 @@ class PostgresCollectionTest {
   private static final long currentTime = 1658956123L;
 
   @Mock private PostgresClient mockClient;
-  @Mock private PostgresConnectionPool connectionPool;
   @Mock private Connection mockConnection;
   @Mock private PreparedStatement mockSelectPreparedStatement;
   @Mock private PreparedStatement mockUpdatePreparedStatement;
@@ -68,7 +67,7 @@ class PostgresCollectionTest {
   void setUp() {
     try (final MockedStatic<Clock> clockMock = Mockito.mockStatic(Clock.class)) {
       clockMock.when(Clock::systemUTC).thenReturn(mockClock);
-      postgresCollection = new PostgresCollection(mockClient, connectionPool, COLLECTION_NAME);
+      postgresCollection = new PostgresCollection(mockClient, COLLECTION_NAME);
     }
   }
 
@@ -79,7 +78,7 @@ class PostgresCollectionTest {
 
     final String id = UUID.randomUUID().toString();
 
-    when(connectionPool.getConnection()).thenReturn(mockConnection);
+    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(
             String.format(
                 "SELECT "
@@ -129,7 +128,7 @@ class PostgresCollectionTest {
     assertTrue(oldDocument.isPresent());
     assertEquals(document, oldDocument.get());
 
-    verify(connectionPool, times(1)).getConnection();
+    verify(mockClient, times(1)).getPooledConnection();
     verify(mockConnection, times(1)).setAutoCommit(false);
     verify(mockConnection, times(1))
         .prepareStatement(
@@ -187,7 +186,7 @@ class PostgresCollectionTest {
     final Query query = buildQueryWithFilterSortAndProjection();
     final List<SubDocumentUpdate> updates = buildUpdates();
 
-    when(connectionPool.getConnection()).thenReturn(mockConnection);
+    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(
             String.format(
                 "SELECT "
@@ -215,7 +214,7 @@ class PostgresCollectionTest {
 
     assertTrue(oldDocument.isEmpty());
 
-    verify(connectionPool, times(1)).getConnection();
+    verify(mockClient, times(1)).getPooledConnection();
     verify(mockConnection, times(1)).setAutoCommit(false);
     verify(mockConnection, times(1))
         .prepareStatement(
@@ -255,7 +254,7 @@ class PostgresCollectionTest {
 
     final String id = UUID.randomUUID().toString();
 
-    when(connectionPool.getConnection()).thenReturn(mockConnection);
+    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(
             String.format(
                 "SELECT "
@@ -304,7 +303,7 @@ class PostgresCollectionTest {
             postgresCollection.update(
                 query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
 
-    verify(connectionPool, times(1)).getConnection();
+    verify(mockClient, times(1)).getPooledConnection();
     verify(mockConnection, times(1)).setAutoCommit(false);
     verify(mockConnection, times(1))
         .prepareStatement(
