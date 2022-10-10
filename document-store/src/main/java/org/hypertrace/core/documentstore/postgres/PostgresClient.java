@@ -20,6 +20,7 @@ class PostgresClient {
   private final String password;
   private final int maxConnectionAttempts;
   private final Duration connectionRetryBackoff;
+  private final PostgresConnectionPool connectionPool;
 
   private int count = 0;
   private Connection connection;
@@ -30,6 +31,7 @@ class PostgresClient {
     this.password = config.getPassword();
     this.maxConnectionAttempts = config.getMaxConnectionAttempts();
     this.connectionRetryBackoff = config.getConnectionRetryBackoff();
+    this.connectionPool = new PostgresConnectionPool(config);
   }
 
   public synchronized Connection getConnection() {
@@ -45,6 +47,10 @@ class PostgresClient {
       throw new RuntimeException(sqle);
     }
     return connection;
+  }
+
+  public Connection getConnectionFromPool() throws SQLException {
+    return connectionPool.getConnection();
   }
 
   private boolean isConnectionValid(Connection connection) {

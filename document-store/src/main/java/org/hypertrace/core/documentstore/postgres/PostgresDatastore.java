@@ -104,7 +104,7 @@ public class PostgresDatastore implements Datastore {
     if (!tables.contains(collectionName)) {
       createCollection(collectionName, null);
     }
-    return new PostgresCollection(client, connectionPool, collectionName);
+    return new PostgresCollection(client, collectionName);
   }
 
   @Override
