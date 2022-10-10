@@ -8,7 +8,6 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCU
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_PATH_SEPARATOR;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.isValidPrimitiveType;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -27,6 +26,7 @@ import java.util.stream.StreamSupport;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.postgres.Params;
@@ -191,7 +191,7 @@ public class PostgresUtils {
         // So, to handle compatibility, For postgres, we are mapping it to contains operator.
         // Refer the test case {@link DocStoreTest.test_ArrayValue_Total}
         // TODO: Change client to use contains operator
-        if (!isValidPrimitiveType(value) && !(value instanceof Iterable<?>)) {
+        if (isNotIterableAndFilterObjectType(value)) {
           return parseNonCompositeFilter(
               fieldName,
               parsedExpression,
@@ -274,7 +274,7 @@ public class PostgresUtils {
         // So, to handle compatibility, For postgres, we are mapping it to contains operator.
         // Refer the test case {@link DocStoreTest.test_ArrayValue_Total}
         // TODO: Change client to use contains operator
-        if (!isValidPrimitiveType(value)) {
+        if (isNotIterableAndFilterObjectType(value)) {
           return parseNonCompositeFilter(
               fieldName,
               parsedExpression,
@@ -480,6 +480,16 @@ public class PostgresUtils {
           }
         };
     return validClassez.contains(v.getClass());
+  }
+
+  private static boolean isNotIterableAndFilterObjectType(Object value) {
+    if (!isValidPrimitiveType(value)
+        && !(value instanceof Iterable<?>)
+        && !(value instanceof Filter)
+        && !(value instanceof org.hypertrace.core.documentstore.query.Filter)) {
+      return true;
+    }
+    return false;
   }
 
   public static DocumentAndId extractAndRemoveId(final Document document) throws IOException {

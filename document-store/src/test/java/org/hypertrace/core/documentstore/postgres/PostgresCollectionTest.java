@@ -13,6 +13,7 @@ import static org.hypertrace.core.documentstore.util.TestUtil.readDocument;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -365,6 +367,29 @@ class PostgresCollectionTest {
                 org.hypertrace.core.documentstore.query.Query.builder().build(),
                 emptyList(),
                 UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
+  }
+
+  @Test
+  void testNonCompositeFilterUnsupportedException() throws SQLException {
+    when(mockClient.getConnection()).thenReturn(mockConnection);
+    final PreparedStatement preparedStatement = mock(PreparedStatement.class);
+    when(mockConnection.prepareStatement(any())).thenReturn(preparedStatement);
+
+    final Filter filterEq = new Filter(Filter.Op.EQ, "key1", List.of("a", "b"));
+    org.hypertrace.core.documentstore.Query eqFilterQuery =
+        new org.hypertrace.core.documentstore.Query();
+    eqFilterQuery.setFilter(filterEq);
+
+    assertThrows(
+        UnsupportedOperationException.class, () -> postgresCollection.search(eqFilterQuery));
+
+    final Filter filterNotEq = new Filter(Filter.Op.NEQ, "key1", List.of("a", "b"));
+    org.hypertrace.core.documentstore.Query notEqFilterQuery =
+        new org.hypertrace.core.documentstore.Query();
+    notEqFilterQuery.setFilter(filterNotEq);
+
+    assertThrows(
+        UnsupportedOperationException.class, () -> postgresCollection.search(notEqFilterQuery));
   }
 
   private Query buildQueryWithFilterSortAndProjection() {

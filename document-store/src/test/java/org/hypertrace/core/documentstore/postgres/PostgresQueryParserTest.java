@@ -1,10 +1,8 @@
 package org.hypertrace.core.documentstore.postgres;
 
-import static org.hypertrace.core.documentstore.Collection.UNSUPPORTED_QUERY_OPERATION;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.CREATED_AT;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCUMENT_ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import java.util.Map;
@@ -223,27 +221,6 @@ class PostgresQueryParserTest {
           "document->'key1' IS NULL OR NOT document->'key1' @> ?::jsonb", query);
       Assertions.assertEquals(paramsBuilder.build().getObjectParams().get(1), "[{\"a\":\"b\"}]");
     }
-  }
-
-  @Test
-  void testNonCompositeFilterUnsupportedException() {
-    String expectedMessage = UNSUPPORTED_QUERY_OPERATION;
-
-    final Filter filterEq = new Filter(Filter.Op.EQ, "key1", List.of("a", "b"));
-    Exception exception =
-        assertThrows(
-            UnsupportedOperationException.class,
-            () -> PostgresQueryParser.parseFilter(filterEq, initParams()));
-    String actualMessage = exception.getMessage();
-    Assertions.assertTrue(actualMessage.contains(expectedMessage));
-
-    final Filter filterNeq = new Filter(Filter.Op.NEQ, "key1", List.of("a", "b"));
-    exception =
-        assertThrows(
-            UnsupportedOperationException.class,
-            () -> PostgresQueryParser.parseFilter(filterNeq, initParams()));
-    actualMessage = exception.getMessage();
-    Assertions.assertTrue(actualMessage.contains(expectedMessage));
   }
 
   @Test
