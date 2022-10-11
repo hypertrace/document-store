@@ -1671,6 +1671,255 @@ public class DocStoreTest {
     assertEquals(0, bulkUpdateResult.getUpdatedCount());
   }
 
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void test_TotalAndSearchAPIForNonPrimitiveMapTypes_EqNeqOperator(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("default", "testKey1");
+    Document key1InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey1",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label1"))))))));
+    collection.upsert(key1, key1InsertedDocument);
+
+    Key key2 = new SingleValueKey("default", "testKey2");
+    Document key2InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey2",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(ImmutablePair.of("value", Map.of("string", "Label2"))))))));
+    collection.upsert(key2, key2InsertedDocument);
+
+    Key key3 = new SingleValueKey("default", "testKey3");
+    Document key3InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("attributes", Map.of("name", "testKey3")));
+    collection.upsert(key3, key3InsertedDocument);
+
+    Key key4 = new SingleValueKey("default", "testKey4");
+    Document key4InsertedDocument =
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "attributes",
+                Map.of(
+                    "name",
+                    "testKey4",
+                    "labels",
+                    ImmutablePair.of(
+                        "valueList",
+                        ImmutablePair.of(
+                            "values",
+                            List.of(
+                                ImmutablePair.of("value", Map.of("string", "Label1")),
+                                ImmutablePair.of("value", Map.of("string", "Label2")),
+                                ImmutablePair.of("value", Map.of("string", "Label3"))))))));
+    collection.upsert(key4, key4InsertedDocument);
+
+    // get all documents
+    Query query = new Query();
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = covertResultSetToDocuments(results);
+    assertEquals(4, documents.size());
+
+    // Test of Total API for eq operator for non-primitive type
+    JsonNode mapNode = OBJECT_MAPPER.readTree("{\"value\": {\"string\":\"Label1\"}}");
+    Map map = OBJECT_MAPPER.convertValue(mapNode, Map.class);
+    query = new Query();
+    Filter f = new Filter();
+    f.setFieldName("attributes.labels.valueList.values");
+    f.setOp(Op.EQ);
+    f.setValue(map);
+    query.setFilter(f);
+    long result = collection.total(query);
+    assertEquals(2, result);
+
+    // Test of Search API for eq operator for non-primitive type
+    results = collection.search(query);
+    documents = covertResultSetToDocuments(results);
+    Map<String, JsonNode> actualDocs = convertToMap(documents, "id");
+    Map<String, JsonNode> expectedDocs =
+        convertToMap(List.of(key1InsertedDocument, key4InsertedDocument), "id");
+    verifyResultDocsMatchesWithExpected(actualDocs, expectedDocs);
+
+    // Test of Total API for neq operator for non-primitive type
+    query = new Query();
+    f = new Filter();
+    f.setFieldName("attributes.labels.valueList.values");
+    f.setOp(Op.NEQ);
+    f.setValue(map);
+    query.setFilter(f);
+    result = collection.total(query);
+    assertEquals(2, result);
+
+    // Test of Search API for neq operator for non-primitive type
+    results = collection.search(query);
+    documents = covertResultSetToDocuments(results);
+    actualDocs = convertToMap(documents, "id");
+    expectedDocs = convertToMap(List.of(key2InsertedDocument, key3InsertedDocument), "id");
+    verifyResultDocsMatchesWithExpected(actualDocs, expectedDocs);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testContains(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 10), Map.of("product", "xyz", "score", 5)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 8), Map.of("product", "xyz", "score", 7)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 7), Map.of("product", "xyz", "score", 8)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 7), Map.of("product", "def", "score", 8)))));
+
+    // try with contains filter
+    Query query = new Query();
+    Filter filter = new Filter(Op.CONTAINS, "products", Map.of("product", "xyz"));
+    query.setFilter(filter);
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = covertResultSetToDocuments(results);
+    Assertions.assertEquals(3, documents.size());
+
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(
+              jsonStr.contains("\"id\":\"testKey1\"")
+                  || document.toJson().contains("\"id\":\"testKey2\"")
+                  || document.toJson().contains("\"id\":\"testKey3\""));
+        });
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testNotContains(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 10), Map.of("product", "xyz", "score", 5)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 8), Map.of("product", "xyz", "score", 7)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 7), Map.of("product", "xyz", "score", 8)))));
+
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of(
+                "products",
+                List.of(
+                    Map.of("product", "abc", "score", 7), Map.of("product", "def", "score", 8)))));
+
+    // try with not contains filter
+    Query query = new Query();
+    Filter filter = new Filter(Op.NOT_CONTAINS, "products", Map.of("product", "xyz"));
+    query.setFilter(filter);
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = covertResultSetToDocuments(results);
+    Assertions.assertEquals(1, documents.size());
+
+    documents.forEach(
+        document -> {
+          String jsonStr = document.toJson();
+          assertTrue(jsonStr.contains("\"id\":\"testKey4\""));
+        });
+  }
+
+  private List<Document> covertResultSetToDocuments(Iterator<Document> results) {
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    return documents;
+  }
+
+  private void verifyResultDocsMatchesWithExpected(
+      Map<String, JsonNode> actualDocs, Map<String, JsonNode> expectedDocs) {
+    for (Map.Entry<String, JsonNode> entry : actualDocs.entrySet()) {
+      String key = entry.getKey();
+      JsonNode attributesJsonNode = entry.getValue().get("attributes");
+      JsonNode expectedAttributesJsonNode = expectedDocs.get(key).get("attributes");
+      assertEquals(expectedAttributesJsonNode, attributesJsonNode);
+    }
+  }
+
   private Map<String, JsonNode> convertToMap(java.util.Collection<Document> docs, String key) {
     return docs.stream()
         .map(

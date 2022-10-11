@@ -1,12 +1,11 @@
 package org.hypertrace.core.documentstore.postgres;
 
-import static org.hypertrace.core.documentstore.Collection.UNSUPPORTED_QUERY_OPERATION;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.CREATED_AT;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCUMENT_ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
+import java.util.Map;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.OrderBy;
@@ -189,20 +188,38 @@ class PostgresQueryParserTest {
       String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals("document->'key1' IS NULL ", query);
     }
+
+    {
+      Filter filter = new Filter(Op.CONTAINS, "key1", "k1");
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
+      Assertions.assertEquals("document->'key1' @> ?::jsonb", query);
+    }
+
+    {
+      Filter filter = new Filter(Op.NOT_CONTAINS, "key1", "k1");
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
+      Assertions.assertEquals(
+          "document->'key1' IS NULL OR NOT document->'key1' @> ?::jsonb", query);
+    }
   }
 
   @Test
-  void testNonCompositeFilterUnsupportedException() {
-    String expectedMessage = UNSUPPORTED_QUERY_OPERATION;
+  void testParseNonCompositeFilterForEqNeqForNonPrimitiveMapType() {
     {
-      Filter filter = new Filter(Filter.Op.CONTAINS, "key1", null);
-      String expected = String.format(expectedMessage, Filter.Op.CONTAINS);
-      Exception exception =
-          assertThrows(
-              UnsupportedOperationException.class,
-              () -> PostgresQueryParser.parseFilter(filter, initParams()));
-      String actualMessage = exception.getMessage();
-      Assertions.assertTrue(actualMessage.contains(expected));
+      Filter filter = new Filter(Filter.Op.EQ, "key1", Map.of("a", "b"));
+      Params.Builder paramsBuilder = initParams();
+      String query = PostgresQueryParser.parseFilter(filter, paramsBuilder);
+      Assertions.assertEquals("document->'key1' @> ?::jsonb", query);
+      Assertions.assertEquals(paramsBuilder.build().getObjectParams().get(1), "[{\"a\":\"b\"}]");
+    }
+
+    {
+      Filter filter = new Filter(Filter.Op.NEQ, "key1", Map.of("a", "b"));
+      Params.Builder paramsBuilder = initParams();
+      String query = PostgresQueryParser.parseFilter(filter, paramsBuilder);
+      Assertions.assertEquals(
+          "document->'key1' IS NULL OR NOT document->'key1' @> ?::jsonb", query);
+      Assertions.assertEquals(paramsBuilder.build().getObjectParams().get(1), "[{\"a\":\"b\"}]");
     }
   }
 

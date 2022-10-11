@@ -640,9 +640,12 @@ public class PostgresCollection implements Collection {
       }
     }
 
+    String sqlQuery = totalSQLBuilder.toString();
+    Params params = paramsBuilder.build();
+    LOGGER.debug("API: total, orgQuery:{}, sqlQuery:{}, params:{}", query, sqlQuery, params);
+
     try (PreparedStatement preparedStatement =
-        queryExecutor.buildPreparedStatement(
-            totalSQLBuilder.toString(), paramsBuilder.build(), client.getConnection())) {
+        queryExecutor.buildPreparedStatement(sqlQuery, params, client.getConnection())) {
       ResultSet resultSet = preparedStatement.executeQuery();
       while (resultSet.next()) {
         count = resultSet.getLong(1);

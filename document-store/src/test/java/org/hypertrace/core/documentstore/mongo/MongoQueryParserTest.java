@@ -82,6 +82,13 @@ class MongoQueryParserTest {
     }
 
     {
+      Filter filter = new Filter(Op.NOT_CONTAINS, "key1", "abc");
+      Map<String, Object> query = MongoQueryParser.parseFilter(filter);
+      assertEquals(
+          new BasicDBObject("$not", new BasicDBObject("$elemMatch", "abc")), query.get("key1"));
+    }
+
+    {
       Filter filter = new Filter(Filter.Op.NEQ, "key1", "abc");
       Map<String, Object> query = MongoQueryParser.parseFilter(filter);
       BasicDBObject notEquals = new BasicDBObject();
