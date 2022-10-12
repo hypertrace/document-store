@@ -30,7 +30,8 @@ public class PostgresConnectionStringGetter {
     return String.format("jdbc:postgresql://%s:%d/", config.getHost(), config.getPort());
   }
 
-  private static String appendDatabase(final String baseConnectionString, final PostgresConfig config) {
+  private static String appendDatabase(
+      final String baseConnectionString, final PostgresConfig config) {
     return baseConnectionString + config.getDatabase();
   }
 }
