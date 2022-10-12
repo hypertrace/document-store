@@ -26,11 +26,11 @@ public class PostgresConnectionStringGetter {
         .orElseThrow();
   }
 
-  private String buildConnectionString(final PostgresConfig config) {
+  private static String buildConnectionString(final PostgresConfig config) {
     return String.format("jdbc:postgresql://%s:%d/", config.getHost(), config.getPort());
   }
 
-  private String appendDatabase(final String baseConnectionString, final PostgresConfig config) {
+  private static String appendDatabase(final String baseConnectionString, final PostgresConfig config) {
     return baseConnectionString + config.getDatabase();
   }
 }
