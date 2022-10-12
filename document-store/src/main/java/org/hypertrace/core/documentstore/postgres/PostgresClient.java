@@ -20,21 +20,18 @@ class PostgresClient {
   private final String password;
   private final int maxConnectionAttempts;
   private final Duration connectionRetryBackoff;
+  private final PostgresConnectionPool connectionPool;
 
   private int count = 0;
   private Connection connection;
 
-  public PostgresClient(
-      String url,
-      String user,
-      String password,
-      int maxConnectionAttempts,
-      Duration connectionRetryBackoff) {
-    this.url = url;
-    this.user = user;
-    this.password = password;
-    this.maxConnectionAttempts = maxConnectionAttempts;
-    this.connectionRetryBackoff = connectionRetryBackoff;
+  public PostgresClient(final PostgresConfig config) {
+    this.url = config.getConnectionString();
+    this.user = config.getUser();
+    this.password = config.getPassword();
+    this.maxConnectionAttempts = config.getMaxConnectionAttempts();
+    this.connectionRetryBackoff = config.getConnectionRetryBackoff();
+    this.connectionPool = new PostgresConnectionPool(config);
   }
 
   public synchronized Connection getConnection() {
@@ -52,9 +49,8 @@ class PostgresClient {
     return connection;
   }
 
-  public Connection getNewConnection() throws SQLException {
-    log.info("Acquiring new connection to {}", url);
-    return DriverManager.getConnection(url, user, password);
+  public Connection getPooledConnection() throws SQLException {
+    return connectionPool.getConnection();
   }
 
   private boolean isConnectionValid(Connection connection) {
