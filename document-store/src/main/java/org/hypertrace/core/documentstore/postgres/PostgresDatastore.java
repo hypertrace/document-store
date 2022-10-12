@@ -28,7 +28,6 @@ public class PostgresDatastore implements Datastore {
 
   private PostgresClient client;
   private String database;
-  private PostgresConnectionPool connectionPool;
 
   @Override
   public boolean init(Config config) {
@@ -38,7 +37,6 @@ public class PostgresDatastore implements Datastore {
 
       client = new PostgresClient(postgresConfig);
       database = postgresConfig.getDatabase();
-      connectionPool = new PostgresConnectionPool(postgresConfig);
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Unable to instantiate PostgresClient with config:%s", config), e);
