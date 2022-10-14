@@ -205,6 +205,11 @@ public class Query {
       return this;
     }
 
+    public QueryBuilder clearFilter() {
+      this.filterBuilder = null;
+      return this;
+    }
+
     public QueryBuilder setAggregation(final Aggregation aggregation) {
       this.aggregationBuilder = aggregation.toBuilder();
       return this;

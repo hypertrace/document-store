@@ -1249,6 +1249,7 @@ public class DocStoreQueryV1Test {
                             EQ,
                             ConstantExpression.of("mumbai")))
                     .build())
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
             .setFilter(
                 LogicalExpression.builder()
                     .operator(AND)

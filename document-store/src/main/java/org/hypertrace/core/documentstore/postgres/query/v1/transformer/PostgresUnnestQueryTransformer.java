@@ -50,6 +50,7 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     }
 
     // Prepare an AND tree of filters. If, any OR filter, the full sub-tree needs to move.
+    // [x, y, z, OR, OR]
     AndFiltersCollector andFiltersCollector = new AndFiltersCollector();
     List<FilterTypeExpression> andFilters =
         query
@@ -66,18 +67,25 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
         matchUnnestExpressionsWithFilters(
             query.getFromTypeExpressions(), andFilters, finalAndFilters);
 
-    // return modified query if any change
-    return andFilters.size() == finalAndFilters.size()
-        ? query
-        : new TransformedQueryBuilder(query)
-            .setFilter(prepareFinalAndFiltersChain(finalAndFilters))
-            .setFromClauses(finalFromTypeExpressions)
-            .build();
+    // return same query if no change
+    if (andFilters.size() == finalAndFilters.size()) return query;
+
+    // return modified query if change
+    TransformedQueryBuilder transformedQueryBuilder = new TransformedQueryBuilder(query);
+    Optional<FilterTypeExpression> finalFilter = prepareFinalAndFiltersChain(finalAndFilters);
+    transformedQueryBuilder.setFromClauses(finalFromTypeExpressions);
+    if (finalFilter.isPresent()) {
+      transformedQueryBuilder.setFilter(finalFilter.get());
+    } else {
+      transformedQueryBuilder.clearFilter();
+    }
+    return transformedQueryBuilder.build();
   }
 
-  private FilterTypeExpression prepareFinalAndFiltersChain(
+  private Optional<FilterTypeExpression> prepareFinalAndFiltersChain(
       List<FilterTypeExpression> finalFilters) {
-    return finalFilters.stream().reduce(null, PostgresUnnestQueryTransformer::buildAndFilter);
+    return Optional.ofNullable(
+        finalFilters.stream().reduce(null, PostgresUnnestQueryTransformer::buildAndFilter));
   }
 
   private static FilterTypeExpression buildAndFilter(
@@ -146,7 +154,7 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
                 filterTypeExpression.accept(
                     new FilterToUnnestExpressionMatcher(
                         filterIdentifierProvider, unnestExpression)))
-        .max(Comparator.comparing(u -> u.getIdentifierExpression().getName()));
+        .max(Comparator.comparingInt(u -> u.getIdentifierExpression().getName().length()));
   }
 
   private static UnnestExpression getBuildUnnestExpression(
@@ -239,7 +247,7 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
         return expression.getOperands().stream()
             .filter(filterTypeExpression -> filterTypeExpression.accept(this))
             .findFirst()
-            .isEmpty();
+            .isPresent();
       }
       return false;
     }
@@ -253,8 +261,7 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
 
     @Override
     public Boolean visit(KeyExpression expression) {
-      String lhs = expression.getKey().toString();
-      return (lhs.contains(unnestExpression.getIdentifierExpression().getName()));
+      return false;
     }
   }
 }
