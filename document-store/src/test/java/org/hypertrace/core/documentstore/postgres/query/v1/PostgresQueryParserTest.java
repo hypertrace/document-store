@@ -763,6 +763,144 @@ public class PostgresQueryParserTest {
   }
 
   @Test
+  void testUnnestWithRegularFilterAndNullAndEmptyPreserved() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium.type"),
+                            EQ,
+                            ConstantExpression.of("retail")))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+    String sql = postgresQueryParser.parse();
+
+    assertEquals(
+        "With \n"
+            + "table0 as (SELECT * from testCollection WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
+            + "SELECT document->'item' AS item, document->'price' AS price, sales->'city' AS sales_dot_city, sales_dot_medium->'type' AS sales_dot_medium_dot_type FROM table2 WHERE sales_dot_medium->>'type' = ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(2, params.getObjectParams().size());
+  }
+
+  @Test
+  void testUnnestWithRegularAndUnnestFilterAndNullAndEmptyPreserved() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales.medium"))
+                    .preserveNullAndEmptyArrays(true)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium.type"),
+                            EQ,
+                            ConstantExpression.of("retail")))
+                    .build())
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium.type"),
+                            EQ,
+                            ConstantExpression.of("retail")))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+    String sql = postgresQueryParser.parse();
+
+    assertEquals(
+        "With \n"
+            + "table0 as (SELECT * from testCollection WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
+            + "SELECT document->'item' AS item, document->'quantity' AS quantity, sales->'city' AS sales_dot_city, sales_dot_medium->'type' AS sales_dot_medium_dot_type FROM table2 WHERE (sales_dot_medium->>'type' = ?) AND (sales_dot_medium->>'type' = ?)",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(3, params.getObjectParams().size());
+  }
+
+  @Test
+  void testUnnestWithRegularAndDifferentUnnestFilterAndNullAndEmptyPreserved() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales.medium"))
+                    .preserveNullAndEmptyArrays(true)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium.channel"),
+                            EQ,
+                            ConstantExpression.of("online")))
+                    .build())
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium.type"),
+                            EQ,
+                            ConstantExpression.of("retail")))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+    String sql = postgresQueryParser.parse();
+
+    assertEquals(
+        "With \n"
+            + "table0 as (SELECT * from testCollection WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
+            + "SELECT document->'item' AS item, document->'quantity' AS quantity, sales->'city' AS sales_dot_city, sales_dot_medium->'type' AS sales_dot_medium_dot_type FROM table2 WHERE (sales_dot_medium->>'type' = ?) AND (sales_dot_medium->>'channel' = ?)",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(3, params.getObjectParams().size());
+  }
+
+  @Test
   void testQueryQ1AggregationFilterWithStringAlongWithNonAliasFields() {
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()

@@ -11,6 +11,7 @@ public class PostgresQueryTransformer {
   private static final List<QueryTransformer> TRANSFORMERS =
       new ImmutableList.Builder<QueryTransformer>()
           .add(new PostgresSelectionQueryTransformer())
+          .add(new PostgresUnnestQueryTransformer())
           .build();
 
   public static Query transform(final Query query) {

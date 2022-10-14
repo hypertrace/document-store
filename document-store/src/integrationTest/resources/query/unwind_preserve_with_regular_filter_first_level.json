@@ -1,0 +1,9 @@
+[
+  {
+    "item":"Shampoo",
+    "quantity":10,
+    "sales":{
+      "city":"mumbai"
+    }
+  }
+]
