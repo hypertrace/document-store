@@ -1266,7 +1266,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsAndSizeEqual(
-        dataStoreName, iterator, "query/unwind_preserve_with_regular_filter_first_level.json", 1);
+        dataStoreName, iterator, "query/unwind_preserve_with_regular_filter_first_level.json", 3);
   }
 
   @ParameterizedTest

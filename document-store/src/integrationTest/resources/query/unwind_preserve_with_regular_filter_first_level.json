@@ -5,5 +5,19 @@
     "sales":{
       "city":"mumbai"
     }
+  },
+  {
+    "item":"Shampoo",
+    "quantity":10,
+    "sales":{
+      "city":"mumbai"
+    }
+  },
+  {
+    "item":"Shampoo",
+    "quantity":10,
+    "sales":{
+      "city":"mumbai"
+    }
   }
 ]
