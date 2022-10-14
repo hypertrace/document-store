@@ -8,7 +8,6 @@ import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getL
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getSkipClause;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.getCountClause;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoAddFieldsParser.getAddFieldsClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilterClause;
 import static org.hypertrace.core.documentstore.mongo.parser.MongoGroupTypeExpressionParser.getGroupClause;
@@ -18,6 +17,7 @@ import static org.hypertrace.core.documentstore.mongo.parser.MongoSortTypeExpres
 import static org.hypertrace.core.documentstore.mongo.parser.MongoSortTypeExpressionParser.getSortClause;
 
 import com.mongodb.BasicDBObject;
+import com.mongodb.MongoCommandException;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
@@ -40,7 +40,6 @@ public class MongoQueryExecutor {
   private static final List<Function<Query, Collection<BasicDBObject>>>
       AGGREGATE_PIPELINE_FUNCTIONS =
           List.of(
-              query -> singleton(getAddFieldsClause(query)),
               query -> singleton(getFilterClause(query, Query::getFilter)),
               MongoFromTypeExpressionParser::getFromClauses,
               query -> singleton(getGroupClause(query)),
@@ -80,7 +79,14 @@ public class MongoQueryExecutor {
             .collect(Collectors.toList());
 
     logPipeline(pipeline);
-    AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
+
+    AggregateIterable<BasicDBObject> iterable;
+    try {
+      iterable = collection.aggregate(pipeline);
+    } catch (final MongoCommandException e) {
+      log.error("Execution failed for query: {}. Aggregation Pipeline: {}", query, pipeline);
+      throw e;
+    }
 
     return iterable.cursor();
   }

@@ -1,18 +1,16 @@
 [
   {
-    "$addFields": {
-      "MULTIPLY(`quantity`, `price`)": {
-        "$multiply": [
-          "$quantity",
-          "$price"
-        ]
-      }
-    }
-  },
-  {
     "$match": {
-      "MULTIPLY(`quantity`, `price`)": {
-        "$gt": 50
+      "$expr": {
+        "$gt": [
+          {
+            "$multiply": [
+              "$quantity",
+              "$price"
+            ]
+          },
+          50
+        ]
       }
     }
   },

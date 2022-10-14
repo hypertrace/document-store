@@ -1,10 +1,20 @@
 {
   "$and": [
     {
-      "percentage": { "$gt": 90 }
+      "$expr": {
+        "$gt": [
+          "$percentage",
+          90
+        ]
+      }
     },
     {
-      "class": "XII"
+      "$expr": {
+        "$eq": [
+          "$class",
+          "XII"
+        ]
+      }
     }
   ]
 }

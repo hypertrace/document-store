@@ -20,23 +20,26 @@ import com.mongodb.BasicDBObject;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.function.BiFunction;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 
 final class MongoRelationalExpressionParser {
 
-  private static final Map<RelationalOperator, BiFunction<String, Object, Map<String, Object>>>
+  private static final Map<
+          RelationalOperator,
+          BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>>
       HANDLERS =
           unmodifiableMap(
               new EnumMap<>(RelationalOperator.class) {
                 {
-                  put(EQ, Map::of);
-                  put(NEQ, handler("ne"));
-                  put(GT, handler("gt"));
-                  put(LT, handler("lt"));
-                  put(GTE, handler("gte"));
-                  put(LTE, handler("lte"));
+                  put(EQ, expressionHandler("eq"));
+                  put(NEQ, expressionHandler("ne"));
+                  put(GT, expressionHandler("gt"));
+                  put(LT, expressionHandler("lt"));
+                  put(GTE, expressionHandler("gte"));
+                  put(LTE, expressionHandler("lte"));
                   put(IN, handler("in"));
                   put(CONTAINS, handler("elemMatch"));
                   put(EXISTS, handler("exists"));
@@ -46,52 +49,71 @@ final class MongoRelationalExpressionParser {
                 }
               });
 
+  private static final MongoSelectTypeExpressionParser functionAcceptingLhsParserForExprOperators =
+      new MongoFunctionExpressionParser(
+          new MongoIdentifierPrefixingParser(new MongoIdentifierExpressionParser()));
+  private static final MongoSelectTypeExpressionParser defaultLhsParser =
+      new MongoIdentifierExpressionParser();
+  // Only a constant RHS is supported as of now
+  private static final MongoSelectTypeExpressionParser rhsParser =
+      new MongoConstantExpressionParser();
+
   Map<String, Object> parse(final RelationalExpression expression) {
     final SelectTypeExpression lhs = expression.getLhs();
     final RelationalOperator operator = expression.getOperator();
     final SelectTypeExpression rhs = expression.getRhs();
-
-    // Only a constant RHS is supported as of now
-    final MongoSelectTypeExpressionParser rhsParser = new MongoConstantExpressionParser();
-    final MongoSelectTypeExpressionParser lhsParser = new MongoRelationalLhsExpressionParser();
-
-    final String key = lhs.accept(lhsParser);
-    final Object value = rhs.accept(rhsParser);
-
-    return generateMap(key, value, operator);
+    return generateMap(lhs, rhs, operator);
   }
 
   private static Map<String, Object> generateMap(
-      final String key, Object value, final RelationalOperator operator) {
-    BiFunction<String, Object, Map<String, Object>> handler =
+      final SelectTypeExpression lhs, SelectTypeExpression rhs, final RelationalOperator operator) {
+    BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>> handler =
         HANDLERS.getOrDefault(operator, unknownHandler(operator));
 
     switch (operator) {
       case EXISTS:
-        value = true;
+        rhs = ConstantExpression.of(true);
         break;
 
       case NOT_EXISTS:
-        value = false;
+        rhs = ConstantExpression.of(false);
         break;
     }
 
-    return handler.apply(key, value);
+    return handler.apply(lhs, rhs);
   }
 
-  private static BiFunction<String, Object, Map<String, Object>> handler(final String op) {
-    return (key, value) -> Map.of(key, new BasicDBObject(PREFIX + op, value));
+  private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
+      handler(final String op) {
+    return (lhs, rhs) -> {
+      final String parsedLhs = lhs.accept(defaultLhsParser);
+      final Object parsedRhs = rhs.accept(rhsParser);
+      return Map.of(parsedLhs, new BasicDBObject(PREFIX + op, parsedRhs));
+    };
   }
 
-  private static BiFunction<String, Object, Map<String, Object>> likeHandler() {
-    return (key, value) ->
-        // Case-insensitive regex search
-        Map.of(key, new BasicDBObject("$regex", value).append("$options", "i"));
+  private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
+      expressionHandler(final String op) {
+    return (lhs, rhs) -> {
+      final Object parsedLhs = lhs.accept(functionAcceptingLhsParserForExprOperators);
+      final Object parsedRhs = rhs.accept(rhsParser);
+      return Map.of("$expr", new BasicDBObject(PREFIX + op, new Object[] {parsedLhs, parsedRhs}));
+    };
   }
 
-  private static BiFunction<String, Object, Map<String, Object>> unknownHandler(
-      final RelationalOperator operator) {
-    return (key, value) -> {
+  private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
+      likeHandler() {
+    return (lhs, rhs) -> {
+      final String parsedLhs = lhs.accept(defaultLhsParser);
+      final Object parsedRhs = rhs.accept(rhsParser);
+      // Case-insensitive regex search
+      return Map.of(parsedLhs, new BasicDBObject("$regex", parsedRhs).append("$options", "i"));
+    };
+  }
+
+  private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
+      unknownHandler(final RelationalOperator operator) {
+    return (lhs, rhs) -> {
       throw getUnsupportedOperationException(operator);
     };
   }
