@@ -50,29 +50,31 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     }
 
     // Prepare an AND tree of filters. If, any OR filter, the full sub-tree needs to move.
-    // [x, y, z, OR, OR]
-    AndFiltersCollector andFiltersCollector = new AndFiltersCollector();
-    List<FilterTypeExpression> andFilters =
+    AndSplitFiltersCollector andSplitFiltersCollector = new AndSplitFiltersCollector();
+    List<FilterTypeExpression> originalAndSplitFilters =
         query
             .getFilter()
             .map(
                 filterTypeExpression ->
-                    filterTypeExpression.<List<FilterTypeExpression>>accept(andFiltersCollector))
+                    filterTypeExpression.<List<FilterTypeExpression>>accept(
+                        andSplitFiltersCollector))
             .orElse(List.of());
 
     // check if any filter matches with unnest expression
     // if matches, move the matched one to unnest filter and remove it from main filter list
-    List<FilterTypeExpression> finalAndFilters = new ArrayList<>();
+    List<FilterTypeExpression> finalAndSplitFilters = new ArrayList<>();
     List<FromTypeExpression> finalFromTypeExpressions =
         matchUnnestExpressionsWithFilters(
-            query.getFromTypeExpressions(), andFilters, finalAndFilters);
+            query.getFromTypeExpressions(), originalAndSplitFilters, finalAndSplitFilters);
 
     // return same query if no change
-    if (andFilters.size() == finalAndFilters.size()) return query;
+    if (originalAndSplitFilters.size() == finalAndSplitFilters.size()) {
+      return query;
+    }
 
     // return modified query if change
     TransformedQueryBuilder transformedQueryBuilder = new TransformedQueryBuilder(query);
-    Optional<FilterTypeExpression> finalFilter = prepareFinalAndFiltersChain(finalAndFilters);
+    Optional<FilterTypeExpression> finalFilter = prepareFinalAndFiltersChain(finalAndSplitFilters);
     transformedQueryBuilder.setFromClauses(finalFromTypeExpressions);
     if (finalFilter.isPresent()) {
       transformedQueryBuilder.setFilter(finalFilter.get());
@@ -90,13 +92,13 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
 
   private static FilterTypeExpression buildAndFilter(
       FilterTypeExpression left, FilterTypeExpression right) {
-    if (left == null) return right;
-    if (right == null) return left;
-    return LogicalExpression.builder()
-        .operator(LogicalOperator.AND)
-        .operand(left)
-        .operand(right)
-        .build();
+    if (left == null) {
+      return right;
+    }
+    if (right == null) {
+      return left;
+    }
+    return LogicalExpression.and(left, right);
   }
 
   private static List<FromTypeExpression> matchUnnestExpressionsWithFilters(
@@ -118,7 +120,7 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
 
       if (matchedUnnestExpression.isPresent()) {
         UnnestExpression unnestExpression =
-            getBuildUnnestExpression(matchedUnnestExpression.get(), filterTypeExpression);
+            buildUnnestExpression(matchedUnnestExpression.get(), filterTypeExpression);
         updateModifiedUnnestExpression(
             finalFromTypeExpressions, matchedUnnestExpression.get(), unnestExpression);
       } else {
@@ -130,11 +132,11 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
 
   private static void updateModifiedUnnestExpression(
       List<FromTypeExpression> finalFromTypeExpressions,
-      FromTypeExpression org,
+      FromTypeExpression original,
       FromTypeExpression modified) {
     int foundAt =
         IntStream.range(0, finalFromTypeExpressions.size())
-            .filter(i -> finalFromTypeExpressions.get(i).equals(org))
+            .filter(i -> finalFromTypeExpressions.get(i).equals(original))
             .findFirst()
             .getAsInt();
     finalFromTypeExpressions.set(foundAt, modified);
@@ -157,7 +159,7 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
         .max(Comparator.comparingInt(u -> u.getIdentifierExpression().getName().length()));
   }
 
-  private static UnnestExpression getBuildUnnestExpression(
+  private static UnnestExpression buildUnnestExpression(
       UnnestExpression matchedUnnestExpression, FilterTypeExpression filterTypeExpression) {
     return UnnestExpression.builder()
         .identifierExpression(matchedUnnestExpression.getIdentifierExpression())
@@ -194,7 +196,7 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
       return expression.getOperands().stream()
           .map(exp -> exp.<List<String>>accept(this))
           .flatMap(Collection::stream)
-          .collect(Collectors.toList());
+          .collect(Collectors.toUnmodifiableList());
     }
 
     @Override
@@ -204,7 +206,7 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
   }
 
   @SuppressWarnings("unchecked")
-  private static class AndFiltersCollector implements FilterTypeExpressionVisitor {
+  private static class AndSplitFiltersCollector implements FilterTypeExpressionVisitor {
 
     @Override
     public List<FilterTypeExpression> visit(LogicalExpression expression) {
@@ -214,7 +216,7 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
                 filterTypeExpression ->
                     filterTypeExpression.<List<FilterTypeExpression>>accept(this))
             .flatMap(Collection::stream)
-            .collect(Collectors.toList());
+            .collect(Collectors.toUnmodifiableList());
       }
       return List.of(expression);
     }
