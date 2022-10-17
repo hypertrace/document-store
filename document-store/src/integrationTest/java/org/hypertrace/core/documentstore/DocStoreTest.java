@@ -796,6 +796,26 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
+  public void bulkUpdateSubDocOnlyForExistingDocumentsWithSameKey(String dataStoreName)
+      throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key1 = new SingleValueKey("tenant-1", "testKey1");
+    collection.upsert(key1, Utils.createDocument("foo1", "bar1"));
+
+    Map<Key, Map<String, Document>> toUpdate = new HashMap<>();
+    Map<String, Document> subDoc1 = new HashMap<>();
+    subDoc1.put("subDocPath1", Utils.createDocument("nested1", "100"));
+    subDoc1.put("subDocPath2", Utils.createDocument("nested2", "100"));
+
+    toUpdate.put(key1, subDoc1);
+    BulkUpdateResult bulkUpdateResult = collection.bulkUpdateSubDocs(toUpdate);
+    long result = bulkUpdateResult.getUpdatedCount();
+    assertEquals(1, result);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
   public void testSubDocumentDelete(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
