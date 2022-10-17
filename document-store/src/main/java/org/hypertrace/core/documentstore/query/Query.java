@@ -205,7 +205,7 @@ public class Query {
       return this;
     }
 
-    public QueryBuilder clearFilter() {
+    protected QueryBuilder clearFilter() {
       this.filterBuilder = null;
       return this;
     }

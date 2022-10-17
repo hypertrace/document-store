@@ -17,6 +17,11 @@ public final class TransformedQueryBuilder extends Query.QueryBuilder {
     copyFromClauses(query);
   }
 
+  public TransformedQueryBuilder clearFilter() {
+    super.clearFilter();
+    return this;
+  }
+
   private void copySelections(final Query query) {
     // Iterate through elements to ensure deep-copy
     query.getSelections().forEach(this::addSelection);
