@@ -280,7 +280,7 @@ public class PostgresCollection implements Collection {
     long partiallyUpdated = updated.getTotalUpdateCount();
     long fullyUpdated = updateLastModifiedTime(updated.getUpdatedDocuments());
     if (fullyUpdated != partiallyUpdated) {
-      LOGGER.error(
+      LOGGER.warn(
           "Not all documents fully updated, documents fullyUpdated:{}, partiallyUpdated:{}, expected:{}",
           fullyUpdated,
           partiallyUpdated,
@@ -300,9 +300,9 @@ public class PostgresCollection implements Collection {
       PreparedStatement preparedStatement =
           client.getConnection().prepareStatement(updateSubDocSQL);
       for (Key key : documents.keySet()) {
-        orderList.add(key);
         Map<String, Document> subDocuments = documents.get(key);
         for (String subDocPath : subDocuments.keySet()) {
+          orderList.add(key);
           Document subDocument = subDocuments.get(subDocPath);
           String jsonSubDocPath = formatSubDocPath(subDocPath);
           String jsonString = subDocument.toJson();
@@ -314,14 +314,12 @@ public class PostgresCollection implements Collection {
       }
       int[] updateCounts = preparedStatement.executeBatch();
       Set<Key> updatedDocs = new HashSet<>();
-      long totalUpdateCount = 0;
       for (int i = 0; i < updateCounts.length; i++) {
         if (updateCounts[i] > 0) {
           updatedDocs.add(orderList.get(i));
         }
-        totalUpdateCount += updateCounts[i];
       }
-      return new BulkUpdateSubDocsInternalResult(updatedDocs, totalUpdateCount);
+      return new BulkUpdateSubDocsInternalResult(updatedDocs, updatedDocs.size());
     } catch (SQLException e) {
       LOGGER.error("SQLException updating sub document.", e);
       throw e;
