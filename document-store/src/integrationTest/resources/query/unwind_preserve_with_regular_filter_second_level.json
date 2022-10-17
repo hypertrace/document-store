@@ -1,0 +1,22 @@
+[
+  {
+    "item":"Shampoo",
+    "quantity":10,
+    "sales":{
+      "city":"delhi",
+      "medium":{
+        "type":"retail"
+      }
+    }
+  },
+  {
+    "item":"Shampoo",
+    "quantity":10,
+    "sales":{
+      "city":"mumbai",
+      "medium":{
+        "type":"retail"
+      }
+    }
+  }
+]

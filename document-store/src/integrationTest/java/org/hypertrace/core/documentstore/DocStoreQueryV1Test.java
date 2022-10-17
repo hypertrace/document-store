@@ -1188,6 +1188,89 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
+  public void testUnnestWithRegularFilterAndNullAndEmptyPreservedAtSecondLevel(String dataStoreName)
+      throws IOException {
+    Collection collection = getCollection(dataStoreName);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addSelection(IdentifierExpression.of("sales.medium.type"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), true))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales.medium"))
+                    .preserveNullAndEmptyArrays(true)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium.type"),
+                            EQ,
+                            ConstantExpression.of("retail")))
+                    .build())
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium.type"),
+                            EQ,
+                            ConstantExpression.of("retail")))
+                    .build())
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsAndSizeEqual(
+        dataStoreName, iterator, "query/unwind_preserve_with_regular_filter_second_level.json", 2);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
+  public void testUnnestWithRegularFilterAndNullAndEmptyPreservedAtFirstLevel(String dataStoreName)
+      throws IOException {
+    Collection collection = getCollection(dataStoreName);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("sales.city"))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(true)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.city"),
+                            EQ,
+                            ConstantExpression.of("mumbai")))
+                    .build())
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.city"),
+                            EQ,
+                            ConstantExpression.of("mumbai")))
+                    .build())
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsAndSizeEqual(
+        dataStoreName, iterator, "query/unwind_preserve_with_regular_filter_first_level.json", 3);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
   public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
