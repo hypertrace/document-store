@@ -53,11 +53,8 @@ final class MongoRelationalExpressionParser {
                 }
               });
 
-  private static final MongoSelectTypeExpressionParser functionAcceptingLhsParserForExprOperators =
-      new MongoFunctionExpressionParser(
-          new MongoIdentifierPrefixingParser(new MongoIdentifierExpressionParser()));
-  private static final MongoSelectTypeExpressionParser defaultLhsParser =
-      new MongoIdentifierExpressionParser();
+  private static final MongoSelectTypeExpressionParser functionParser = new MongoFunctionExpressionParser();
+  private static final MongoSelectTypeExpressionParser identifierParser = new MongoIdentifierExpressionParser();
   // Only a constant RHS is supported as of now
   private static final MongoSelectTypeExpressionParser rhsParser =
       new MongoConstantExpressionParser();
@@ -90,7 +87,7 @@ final class MongoRelationalExpressionParser {
   private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
       handler(final String op) {
     return (lhs, rhs) -> {
-      final String parsedLhs = lhs.accept(defaultLhsParser);
+      final String parsedLhs = lhs.accept(identifierParser);
       final Object parsedRhs = rhs.accept(rhsParser);
       return Map.of(parsedLhs, new BasicDBObject(PREFIX + op, parsedRhs));
     };
@@ -99,16 +96,22 @@ final class MongoRelationalExpressionParser {
   private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
       expressionHandler(final String op) {
     return (lhs, rhs) -> {
-      final Object parsedLhs = lhs.accept(functionAcceptingLhsParserForExprOperators);
       final Object parsedRhs = rhs.accept(rhsParser);
-      return Map.of(EXPR, new BasicDBObject(PREFIX + op, new Object[] {parsedLhs, parsedRhs}));
+
+      try {
+        final Object parsedLhs = lhs.accept(functionParser);
+        return Map.of(EXPR, new BasicDBObject(PREFIX + op, new Object[] {parsedLhs, parsedRhs}));
+      } catch (final UnsupportedOperationException e) {
+        final String parsedLhs = lhs.accept(identifierParser);
+        return Map.of(parsedLhs, new BasicDBObject(PREFIX + op, parsedRhs));
+      }
     };
   }
 
   private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
       likeHandler() {
     return (lhs, rhs) -> {
-      final String parsedLhs = lhs.accept(defaultLhsParser);
+      final String parsedLhs = lhs.accept(identifierParser);
       final Object parsedRhs = rhs.accept(rhsParser);
       return Map.of(
           parsedLhs, new BasicDBObject(REGEX, parsedRhs).append(OPTIONS, IGNORE_CASE_OPTION));
