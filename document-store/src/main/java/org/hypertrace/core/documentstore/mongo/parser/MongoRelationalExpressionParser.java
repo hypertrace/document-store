@@ -26,6 +26,10 @@ import org.hypertrace.core.documentstore.expression.operators.RelationalOperator
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 
 final class MongoRelationalExpressionParser {
+  private static final String EXPR = "$expr";
+  private static final String REGEX = "$regex";
+  private static final String OPTIONS = "$options";
+  private static final String IGNORE_CASE_OPTION = "i";
 
   private static final Map<
           RelationalOperator,
@@ -97,7 +101,7 @@ final class MongoRelationalExpressionParser {
     return (lhs, rhs) -> {
       final Object parsedLhs = lhs.accept(functionAcceptingLhsParserForExprOperators);
       final Object parsedRhs = rhs.accept(rhsParser);
-      return Map.of("$expr", new BasicDBObject(PREFIX + op, new Object[] {parsedLhs, parsedRhs}));
+      return Map.of(EXPR, new BasicDBObject(PREFIX + op, new Object[] {parsedLhs, parsedRhs}));
     };
   }
 
@@ -106,8 +110,8 @@ final class MongoRelationalExpressionParser {
     return (lhs, rhs) -> {
       final String parsedLhs = lhs.accept(defaultLhsParser);
       final Object parsedRhs = rhs.accept(rhsParser);
-      // Case-insensitive regex search
-      return Map.of(parsedLhs, new BasicDBObject("$regex", parsedRhs).append("$options", "i"));
+      return Map.of(
+          parsedLhs, new BasicDBObject(REGEX, parsedRhs).append(OPTIONS, IGNORE_CASE_OPTION));
     };
   }
 
