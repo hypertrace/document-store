@@ -77,8 +77,8 @@ public interface Collection {
   CloseableIterator<Document> find(final org.hypertrace.core.documentstore.query.Query query);
 
   /**
-   * Aggregate the documents conforming to the query specification.
-   * SELECT * FROM collection WHERE col1 + col2 > ?
+   * Aggregate the documents conforming to the query specification. SELECT * FROM collection WHERE
+   * col1 + col2 > ?
    *
    * @param query The aggregate query specification
    * @return {@link CloseableIterator} of matching documents
@@ -218,7 +218,6 @@ public interface Collection {
    *       <li>New sub-documents will be created if they do not exist
    *       <li>None of the existing sub-documents will be removed
    *     </ol>
-   *
    *     $expr
    */
   Optional<Document> update(

@@ -1238,8 +1238,8 @@ public class DocStoreQueryV1Test {
                             ConstantExpression.of("retail")))
                     .build())
             .setFilter(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
@@ -1269,7 +1269,9 @@ public class DocStoreQueryV1Test {
                             ConstantExpression.of("mumbai")))
                     .build())
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales.medium"), true))
-            .setFilter(RelationalExpression.of(IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), GT, ConstantExpression.of(5)))
             .build();
 
     Iterator<Document> iterator = collection.aggregate(query);
