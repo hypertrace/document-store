@@ -1,7 +1,9 @@
 {
   "$and": [
     {
-      "item": "Soap"
+      "item": {
+        "$eq": "Soap"
+      }
     },
     {
       "date": {

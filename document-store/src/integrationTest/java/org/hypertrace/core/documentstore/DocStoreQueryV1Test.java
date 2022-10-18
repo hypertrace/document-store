@@ -600,7 +600,7 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
-  public void testQueryWithFunctionalLeftHandSideInFilter(final String dataStoreName)
+  public void testAggregateWithFunctionalLeftHandSideFilter(final String dataStoreName)
       throws IOException {
     final Datastore datastore = datastoreMap.get(dataStoreName);
     final Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -622,8 +622,36 @@ public class DocStoreQueryV1Test {
 
     final Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqual(
-        dataStoreName, resultDocs, "query/test_aggr_functional_lhs_in_filter_response.json", 3);
-    testCountApi(dataStoreName, query, "query/test_aggr_functional_lhs_in_filter_response.json");
+        dataStoreName, resultDocs, "query/test_functional_lhs_in_filter_response.json", 3);
+    testCountApi(dataStoreName, query, "query/test_functional_lhs_in_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
+  public void testFindWithFunctionalLeftHandSideFilter(final String dataStoreName)
+      throws IOException {
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    final Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    final Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .setFilter(
+                RelationalExpression.of(
+                    FunctionExpression.builder()
+                        .operator(MULTIPLY)
+                        .operand(IdentifierExpression.of("quantity"))
+                        .operand(IdentifierExpression.of("price"))
+                        .build(),
+                    GT,
+                    ConstantExpression.of(50)))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    final Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqual(
+        dataStoreName, resultDocs, "query/test_functional_lhs_in_filter_response.json", 3);
+    testCountApi(dataStoreName, query, "query/test_functional_lhs_in_filter_response.json");
   }
 
   @ParameterizedTest
