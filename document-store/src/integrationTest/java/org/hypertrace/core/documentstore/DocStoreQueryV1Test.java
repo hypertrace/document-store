@@ -622,8 +622,8 @@ public class DocStoreQueryV1Test {
 
     final Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqual(
-        dataStoreName, resultDocs, "query/test_aggr_functional_lhs_in_filter_response.json", 3);
-    testCountApi(dataStoreName, query, "query/test_aggr_functional_lhs_in_filter_response.json");
+        dataStoreName, resultDocs, "query/test_functional_lhs_in_filter_response.json", 3);
+    testCountApi(dataStoreName, query, "query/test_functional_lhs_in_filter_response.json");
   }
 
   @ParameterizedTest
@@ -650,8 +650,8 @@ public class DocStoreQueryV1Test {
 
     final Iterator<Document> resultDocs = collection.find(query);
     assertDocsAndSizeEqual(
-        dataStoreName, resultDocs, "query/test_aggr_functional_lhs_in_filter_response.json", 3);
-    testCountApi(dataStoreName, query, "query/test_aggr_functional_lhs_in_filter_response.json");
+        dataStoreName, resultDocs, "query/test_functional_lhs_in_filter_response.json", 3);
+    testCountApi(dataStoreName, query, "query/test_functional_lhs_in_filter_response.json");
   }
 
   @ParameterizedTest

@@ -80,15 +80,13 @@ public class MongoQueryExecutor {
 
     logPipeline(pipeline);
 
-    AggregateIterable<BasicDBObject> iterable;
     try {
-      iterable = collection.aggregate(pipeline);
+      final AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
+      return iterable.cursor();
     } catch (final MongoCommandException e) {
       log.error("Execution failed for query: {}. Aggregation Pipeline: {}", query, pipeline);
       throw e;
     }
-
-    return iterable.cursor();
   }
 
   public long count(final Query originalQuery) {

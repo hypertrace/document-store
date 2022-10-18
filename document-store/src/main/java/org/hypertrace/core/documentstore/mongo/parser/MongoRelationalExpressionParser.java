@@ -53,8 +53,10 @@ final class MongoRelationalExpressionParser {
                 }
               });
 
-  private static final MongoSelectTypeExpressionParser functionParser = new MongoFunctionExpressionParser();
-  private static final MongoSelectTypeExpressionParser identifierParser = new MongoIdentifierExpressionParser();
+  private static final MongoSelectTypeExpressionParser functionParser =
+      new MongoFunctionExpressionParser();
+  private static final MongoSelectTypeExpressionParser identifierParser =
+      new MongoIdentifierExpressionParser();
   // Only a constant RHS is supported as of now
   private static final MongoSelectTypeExpressionParser rhsParser =
       new MongoConstantExpressionParser();
