@@ -98,14 +98,13 @@ final class MongoRelationalExpressionParser {
   private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
       expressionHandler(final String op) {
     return (lhs, rhs) -> {
-      final Object parsedRhs = rhs.accept(rhsParser);
-
+      // Use $expr type expression for FunctionExpression with normal handler as a fallback
       try {
         final Object parsedLhs = lhs.accept(functionParser);
+        final Object parsedRhs = rhs.accept(rhsParser);
         return Map.of(EXPR, new BasicDBObject(PREFIX + op, new Object[] {parsedLhs, parsedRhs}));
       } catch (final UnsupportedOperationException e) {
-        final String parsedLhs = lhs.accept(identifierParser);
-        return Map.of(parsedLhs, new BasicDBObject(PREFIX + op, parsedRhs));
+        return handler(op).apply(lhs, rhs);
       }
     };
   }
