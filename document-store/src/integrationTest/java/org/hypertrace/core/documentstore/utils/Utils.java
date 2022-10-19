@@ -184,13 +184,20 @@ public class Utils {
     }
   }
 
-  public static void upsertAndVerify(final String dataStoreName, final Collection collection,
-      final Key key, final Document document, final Map<String, Object> expectedDocMap) throws IOException {
+  public static void upsertAndVerify(
+      final String dataStoreName,
+      final Collection collection,
+      final Key key,
+      final Document document,
+      final Map<String, Object> expectedDocMap)
+      throws IOException {
     collection.upsert(key, document);
 
-    final Iterator<Document> docIterator = collection.find(org.hypertrace.core.documentstore.query.Query.builder()
-        .setFilter(KeyExpression.of(key))
-        .build());
+    final Iterator<Document> docIterator =
+        collection.find(
+            org.hypertrace.core.documentstore.query.Query.builder()
+                .setFilter(KeyExpression.of(key))
+                .build());
 
     assertTrue(docIterator.hasNext());
     final Map<String, Object> storedDocumentMap = convertDocumentToMap(docIterator.next());
