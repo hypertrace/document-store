@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.utils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -16,11 +17,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.mongo.MongoCollection;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
@@ -168,7 +171,7 @@ public class Utils {
     assertEquals(expected, actual);
   }
 
-  private static void removeDateRelatedFields(String dataStoreName, Map<String, Object> document) {
+  public static void removeDateRelatedFields(String dataStoreName, Map<String, Object> document) {
     if (isMongo(dataStoreName)) {
       document.remove(MONGO_CREATED_TIME_KEY);
       document.remove(MONGO_LAST_UPDATED_TIME_KEY);
@@ -179,6 +182,20 @@ public class Utils {
       document.remove(DocStoreConstants.CREATED_TIME);
       document.remove(DocStoreConstants.LAST_UPDATED_TIME);
     }
+  }
+
+  public static void upsertAndVerify(final String dataStoreName, final Collection collection,
+      final Key key, final Document document, final Map<String, Object> expectedDocMap) throws IOException {
+    collection.upsert(key, document);
+
+    final Iterator<Document> docIterator = collection.find(org.hypertrace.core.documentstore.query.Query.builder()
+        .setFilter(KeyExpression.of(key))
+        .build());
+
+    assertTrue(docIterator.hasNext());
+    final Map<String, Object> storedDocumentMap = convertDocumentToMap(docIterator.next());
+    removeDateRelatedFields(dataStoreName, storedDocumentMap);
+    assertEquals(expectedDocMap, storedDocumentMap);
   }
 
   private static boolean isMongo(String dataStoreName) {

@@ -12,6 +12,9 @@ import static org.hypertrace.core.documentstore.utils.Utils.MONGO_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.POSTGRES_CREATED_AT;
 import static org.hypertrace.core.documentstore.utils.Utils.POSTGRES_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.POSTGRES_UPDATED_AT;
+import static org.hypertrace.core.documentstore.utils.Utils.convertDocumentToMap;
+import static org.hypertrace.core.documentstore.utils.Utils.removeDateRelatedFields;
+import static org.hypertrace.core.documentstore.utils.Utils.upsertAndVerify;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -43,6 +46,7 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
@@ -140,6 +144,29 @@ public class DocStoreTest {
   @MethodSource
   private static Stream<Arguments> databaseContextMongo() {
     return Stream.of(Arguments.of(MONGO_STORE));
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testUpsertNotReplace(final String dataStoreName) throws Exception {
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    final Collection collection = datastore.getCollection(COLLECTION_NAME);
+    final Map<String, Object> originalMap = Map.of("foo1", "bar1");
+    final Document document = new JSONDocument(originalMap);
+    final SingleValueKey key = new SingleValueKey("default", "testKey");
+
+    upsertAndVerify(dataStoreName, collection, key, document, originalMap);
+
+    // Verify the second upsert also passes and the values are unmodified. In other words, verify
+    // the upsert operation is idempotent
+    upsertAndVerify(dataStoreName, collection, key, document, originalMap);
+
+    final Map<String, Object> updatedMap = Map.of("foo2", "bar2");
+    final Document updateDocument = new JSONDocument(updatedMap);
+
+    // Ensure both the old and the new keys are present
+    final Map<String, Object> resultMap = Map.of("foo1", "bar1", "foo2", "bar2");
+    upsertAndVerify(dataStoreName, collection, key, updateDocument, resultMap);
   }
 
   @ParameterizedTest
