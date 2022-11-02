@@ -15,6 +15,18 @@ public interface Collection {
    * Upsert (create a new doc or update if one already exists) the given document into the doc
    * store.
    *
+   * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
+   * the existing fields are modified is implementation specific. For example, upserting <code>
+   *   {
+   *    "foo2": "bar2"
+   *   }
+   * </code> if a document <code>
+   *   {
+   *     "foo1": "bar1"
+   *   }
+   * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
+   * the "foo1" field is implementation specific
+   *
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
    * @return True if this operation resulted in update of an existing document. False, otherwise.
@@ -24,6 +36,18 @@ public interface Collection {
   /**
    * Upsert (create a new doc or update if one already exists) the given document into the doc
    * store.
+   *
+   * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
+   * the existing fields are modified is implementation specific. For example, upserting <code>
+   *   {
+   *    "foo2": "bar2"
+   *   }
+   * </code> if a document <code>
+   *   {
+   *     "foo1": "bar1"
+   *   }
+   * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
+   * the "foo1" field is implementation specific
    *
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
