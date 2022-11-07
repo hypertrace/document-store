@@ -6,21 +6,21 @@ import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.SubQueryIdentifierExpression;
 
-final class MongoIdentifierPrefixingParser extends MongoSelectTypeExpressionParser {
+final class MongoSubQueryIdentifierPrefixingParser extends MongoSelectTypeExpressionParser {
 
-  MongoIdentifierPrefixingParser(final MongoSelectTypeExpressionParser baseParser) {
+  MongoSubQueryIdentifierPrefixingParser(final MongoSelectTypeExpressionParser baseParser) {
     super(baseParser);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final IdentifierExpression expression) {
-    return Optional.ofNullable(baseParser.visit(expression)).map(id -> PREFIX + id).orElse(null);
+    return Optional.ofNullable(baseParser.visit(expression)).map(Object::toString).orElse(null);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final SubQueryIdentifierExpression expression) {
-    return Optional.ofNullable(baseParser.visit(expression)).map(Object::toString).orElse(null);
+    return Optional.ofNullable(baseParser.visit(expression)).map(id -> PREFIX + id).orElse(null);
   }
 }

@@ -1,6 +1,5 @@
 [
   {
-    "_id": 1,
     "item": "Soap",
     "price": 10,
     "quantity": 2,
@@ -15,6 +14,14 @@
           "city": "Mumbai",
           "pincode": 400004
         }
+      }
+    },
+    "s": {
+      "_id": "default:1",
+      "product_id": 123,
+      "buyer": {
+        "name": "ABC Corp.",
+        "location": "Mysore"
       }
     },
     "sales": [
@@ -51,7 +58,6 @@
     ]
   },
   {
-    "_id": 2,
     "item": "Mirror",
     "price": 20,
     "quantity": 1,
@@ -65,7 +71,6 @@
     ]
   },
   {
-    "_id": 3,
     "item": "Shampoo",
     "price": 5,
     "quantity": 10,
@@ -80,6 +85,14 @@
           "city": "Mumbai",
           "pincode": 400004
         }
+      }
+    },
+    "s": {
+      "_id": "default:3",
+      "product_id": 125,
+      "buyer": {
+        "name": "Buyer 1",
+        "location": "Bangalore"
       }
     },
     "sales": [
@@ -120,7 +133,68 @@
     ]
   },
   {
-    "_id": 4,
+    "item": "Shampoo",
+    "price": 5,
+    "quantity": 10,
+    "product_id": 125,
+    "date": "2014-03-15T09:00:00Z",
+    "props": {
+      "brand": "Sunsilk",
+      "size": "L",
+      "seller": {
+        "name": "Metro Chemicals Pvt. Ltd.",
+        "address": {
+          "city": "Mumbai",
+          "pincode": 400004
+        }
+      }
+    },
+    "s": {
+      "_id": "default:4",
+      "product_id": 125,
+      "buyer": {
+        "name": "Buyer 2",
+        "location": "New Delhi"
+      }
+    },
+    "sales": [
+      {
+        "city": "delhi",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 3000
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 1000
+          }
+        ]
+      },
+      {
+        "city": "mumbai",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 700
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 5000
+          }
+        ]
+      }
+    ]
+  },
+  {
     "item": "Shampoo",
     "price": 5,
     "quantity": 20,
@@ -128,7 +202,6 @@
     "sales": []
   },
   {
-    "_id": 5,
     "item": "Soap",
     "price": 20,
     "quantity": 5,
@@ -146,14 +219,12 @@
     }
   },
   {
-    "_id": 6,
     "item": "Comb",
     "price": 7.5,
     "quantity": 5,
     "date": "2015-06-04T05:08:13Z"
   },
   {
-    "_id": 7,
     "item": "Comb",
     "price": 7.5,
     "quantity": 10,
@@ -170,11 +241,14 @@
     }
   },
   {
-    "_id": 8,
     "item": "Soap",
     "price": 10,
     "quantity": 5,
     "product_id": 131,
-    "date": "2016-02-06T20:20:13Z"
+    "date": "2016-02-06T20:20:13Z",
+    "s": {
+      "_id": "default:8",
+      "product_id": 131
+    }
   }
 ]

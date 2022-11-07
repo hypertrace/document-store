@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.mongo;
 import static java.lang.Long.parseLong;
 import static java.util.Collections.singleton;
 import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.applyPagination;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getLimitClause;
 import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getSkipClause;
@@ -51,6 +52,13 @@ public class MongoQueryExecutor {
 
   final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
+  public static List<BasicDBObject> parsePipeline(final Query query) {
+    return AGGREGATE_PIPELINE_FUNCTIONS.stream()
+        .flatMap(function -> function.apply(query).stream())
+        .filter(not(BasicDBObject::isEmpty))
+        .collect(toUnmodifiableList());
+  }
+
   public MongoCursor<BasicDBObject> find(final Query query) {
     BasicDBObject filterClause = getFilter(query, Query::getFilter);
     BasicDBObject projection = getSelections(query);
@@ -72,11 +80,7 @@ public class MongoQueryExecutor {
   public MongoCursor<BasicDBObject> aggregate(final Query originalQuery) {
     Query query = transformAndLog(originalQuery);
 
-    List<BasicDBObject> pipeline =
-        AGGREGATE_PIPELINE_FUNCTIONS.stream()
-            .flatMap(function -> function.apply(query).stream())
-            .filter(not(BasicDBObject::isEmpty))
-            .collect(Collectors.toList());
+    List<BasicDBObject> pipeline = parsePipeline(query);
 
     logPipeline(pipeline);
 

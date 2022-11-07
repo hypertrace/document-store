@@ -58,9 +58,11 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.SubQueryIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -89,6 +91,7 @@ import org.testcontainers.utility.DockerImageName;
 @Testcontainers
 public class DocStoreQueryV1Test {
   private static final String COLLECTION_NAME = "myTest";
+  private static final String SALES_COLLECTION_NAME = "sales";
   private static final String UPDATABLE_COLLECTION_NAME = "updatable_collection";
 
   private static Map<String, Datastore> datastoreMap;
@@ -139,6 +142,7 @@ public class DocStoreQueryV1Test {
     datastoreMap.put(POSTGRES_STORE, postgresDatastore);
 
     createCollectionData("query/collection_data.json", COLLECTION_NAME);
+    createCollectionData("query/sales_collection_data.json", SALES_COLLECTION_NAME);
   }
 
   private static void createCollectionData(final String resourcePath, final String collectionName)
@@ -1798,6 +1802,30 @@ public class DocStoreQueryV1Test {
         collection.find(Query.builder().build()),
         9,
         "query/updatable_collection_data_without_selection.json");
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextMongo")
+  public void testBasicJoin(final String datastoreName) throws IOException {
+    final Collection collection = getCollection(datastoreName, COLLECTION_NAME);
+
+    final Query query =
+        Query.builder()
+            .addFromClause(
+                JoinExpression.builder()
+                    .joinCondition(
+                        RelationalExpression.of(
+                            SubQueryIdentifierExpression.of("product_id"),
+                            EQ,
+                            IdentifierExpression.of("product_id")))
+                    .joiningCollectionName(SALES_COLLECTION_NAME)
+                    .collectionAlias("s")
+                    .build())
+            .build();
+
+    final CloseableIterator<Document> documentIterator = collection.aggregate(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        datastoreName, documentIterator, 9, "query/basic_join_response.json", "s");
   }
 
   private static Collection getCollection(final String dataStoreName) {

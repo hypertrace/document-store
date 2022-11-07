@@ -12,9 +12,11 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.SubQueryIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
@@ -176,6 +178,11 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     public UnnestExpression visit(UnnestExpression unnestExpression) {
       return unnestExpression;
     }
+
+    @Override
+    public <T> T visit(JoinExpression joinExpression) {
+      throw new UnsupportedOperationException();
+    }
   }
 
   @SuppressWarnings("unchecked")
@@ -202,6 +209,11 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     @Override
     public List<String> visit(IdentifierExpression expression) {
       return List.of(expression.getName());
+    }
+
+    @Override
+    public <T> T visit(SubQueryIdentifierExpression expression) {
+      throw new UnsupportedOperationException();
     }
   }
 

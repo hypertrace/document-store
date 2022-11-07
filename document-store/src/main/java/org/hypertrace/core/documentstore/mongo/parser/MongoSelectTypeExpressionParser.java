@@ -9,6 +9,7 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.SubQueryIdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
@@ -44,6 +45,11 @@ public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpre
 
   @Override
   public <T> T visit(final IdentifierExpression expression) {
+    return baseParser.visit(expression);
+  }
+
+  @Override
+  public <T> T visit(final SubQueryIdentifierExpression expression) {
     return baseParser.visit(expression);
   }
 

@@ -1,0 +1,38 @@
+[
+  {
+    "_id": 1,
+    "product_id": 123,
+    "buyer": {
+      "name": "ABC Corp.",
+      "location": "Mysore"
+    }
+  },
+  {
+    "_id": 2,
+    "product_id": 144,
+    "buyer": {
+      "name": "ABC Corp.",
+      "location": "Mysore"
+    }
+  },
+  {
+    "_id": 3,
+    "product_id": 125,
+    "buyer": {
+      "name": "Buyer 1",
+      "location": "Bangalore"
+    }
+  },
+  {
+    "_id": 4,
+    "product_id": 125,
+    "buyer": {
+      "name": "Buyer 2",
+      "location": "New Delhi"
+    }
+  },
+  {
+    "_id": 8,
+    "product_id": 131
+  }
+]

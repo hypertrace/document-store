@@ -30,6 +30,7 @@ public class UnnestExpression implements FromTypeExpression {
     return new UnnestExpression(identifierExpression, preserveNullAndEmptyArrays, null);
   }
 
+  @SuppressWarnings("unused")
   public static class UnnestExpressionBuilder {
     public UnnestExpression build() {
       Preconditions.checkArgument(identifierExpression != null, "expression is null");

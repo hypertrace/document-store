@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.expression.impl.JoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.parser.FromTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
@@ -35,5 +36,10 @@ public class PostgresUnnestFilterTypeExpressionVisitor implements FromTypeExpres
             .filter(StringUtils::isNotEmpty)
             .collect(Collectors.joining(" AND "));
     return StringUtils.isNotEmpty(childList) ? Optional.of(childList) : Optional.empty();
+  }
+
+  @Override
+  public <T> T visit(JoinExpression joinExpression) {
+    throw new UnsupportedOperationException();
   }
 }

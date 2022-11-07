@@ -15,7 +15,7 @@ import org.hypertrace.core.documentstore.query.Query;
 
 public final class MongoFilterTypeExpressionParser implements FilterTypeExpressionVisitor {
 
-  private static final String FILTER_CLAUSE = "$match";
+  static final String FILTER_CLAUSE = "$match";
 
   @SuppressWarnings("unchecked")
   @Override

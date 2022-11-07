@@ -3,7 +3,9 @@ package org.hypertrace.core.documentstore.expression.impl;
 import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
-import lombok.Value;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.experimental.FieldDefaults;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
@@ -16,12 +18,14 @@ import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
  *
  * <p>Example: IdentifierExpression.of("col1");
  */
-@Value
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Getter
+@FieldDefaults(level = AccessLevel.PROTECTED)
+@EqualsAndHashCode
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class IdentifierExpression
     implements GroupTypeExpression, SelectTypeExpression, SortTypeExpression {
 
-  String name;
+  final String name;
 
   public static IdentifierExpression of(final String name) {
     Preconditions.checkArgument(name != null && !name.isBlank(), "name is null or blank");

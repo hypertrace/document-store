@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.utils;
 
+import static java.util.Collections.emptyMap;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -132,6 +133,34 @@ public class Utils {
     }
 
     return documentMap;
+  }
+
+  @SuppressWarnings("unchecked")
+  public static void assertDocsAndSizeEqualWithoutOrder(
+      String dataStoreName,
+      Iterator<Document> documents,
+      int expectedSize,
+      String filePath,
+      final String joinAlias)
+      throws IOException {
+    String fileContent = readFileFromResource(filePath).orElseThrow();
+    List<Map<String, Object>> expectedDocs = convertJsonToMap(fileContent);
+
+    List<Map<String, Object>> actualDocs = new ArrayList<>();
+    int actualSize = 0;
+    while (documents.hasNext()) {
+      Map<String, Object> doc = convertDocumentToMap(documents.next());
+      removeDateRelatedFields(dataStoreName, doc);
+      removeDateRelatedFields(
+          dataStoreName, (Map<String, Object>) doc.getOrDefault(joinAlias, emptyMap()));
+      actualDocs.add(doc);
+      actualSize++;
+    }
+
+    long count = expectedDocs.stream().filter(actualDocs::contains).count();
+
+    assertEquals(expectedSize, actualSize);
+    assertEquals(expectedSize, count);
   }
 
   public static void assertDocsAndSizeEqualWithoutOrder(

@@ -11,6 +11,7 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.SubQueryIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
@@ -114,6 +115,12 @@ final class MongoSelectionsAddingTransformation implements SelectTypeExpressionV
   @SuppressWarnings("unchecked")
   @Override
   public Optional<SelectionSpec> visit(final IdentifierExpression expression) {
+    return Optional.empty();
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Optional<SelectionSpec> visit(SubQueryIdentifierExpression expression) {
     return Optional.empty();
   }
 }

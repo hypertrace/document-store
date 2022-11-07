@@ -4,6 +4,7 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.SubQueryIdentifierExpression;
 
 public interface SelectTypeExpressionVisitor {
   <T> T visit(final AggregateExpression expression);
@@ -13,4 +14,6 @@ public interface SelectTypeExpressionVisitor {
   <T> T visit(final FunctionExpression expression);
 
   <T> T visit(final IdentifierExpression expression);
+
+  <T> T visit(final SubQueryIdentifierExpression expression);
 }
