@@ -856,7 +856,7 @@ public class DocStoreTest {
     collection.upsert(
         new SingleValueKey("default", "testKey"), Utils.createDocument("name", "Bob"));
 
-    String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB", "BO", "bO", "Ob", "OB"};
+    String[] ignoreCaseSearchValues = {"Bob", "bob", "BOB", "bOB", "BO", "bO", "Ob", "OB", "b.*B"};
 
     for (String searchValue : ignoreCaseSearchValues) {
       Query query = new Query();
