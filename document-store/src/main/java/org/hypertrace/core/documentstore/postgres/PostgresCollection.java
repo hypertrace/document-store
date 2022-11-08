@@ -1163,7 +1163,8 @@ public class PostgresCollection implements Collection {
       }
 
       // check for any OUTER column including ID, and its alias
-      if (OUTER_COLUMNS.contains(columnName) || IMPLICIT_ID.equals(columnName)) {
+      if (OUTER_COLUMNS.contains(columnName.toLowerCase())
+          || IMPLICIT_ID.equalsIgnoreCase(columnName)) {
         return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
       }
 
