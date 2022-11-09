@@ -516,7 +516,7 @@ public class DocStoreQueryV1Test {
                     IdentifierExpression.of("type"), EQ, ConstantExpression.of("VULNERABILITY")))
             .build());
     Iterator<Document> results = collection.aggregate(queryBuilder.build());
-    assertDocsAndSizeEqual(dataStoreName, results, "query/aggregate_with_caps_id.json", 1);
+    assertDocsAndSizeEqual(dataStoreName, results, "query/aggregate_with_test_id.json", 1);
 
     // delete the document created for this test
     collection.delete(key);

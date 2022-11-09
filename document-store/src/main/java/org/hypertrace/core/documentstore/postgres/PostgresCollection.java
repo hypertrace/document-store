@@ -1162,6 +1162,8 @@ public class PostgresCollection implements Collection {
         return MAPPER.writeValueAsString(resultSet.getArray(columnIndex).getArray());
       }
 
+      // KSHITIZ : Please note column name is the alias name. Comparing it against
+      // actual column name doesn't makes sense
       // check for any OUTER column including ID, and its alias
       if (OUTER_COLUMNS.contains(columnName.toLowerCase())
           || IMPLICIT_ID.equalsIgnoreCase(columnName)) {
