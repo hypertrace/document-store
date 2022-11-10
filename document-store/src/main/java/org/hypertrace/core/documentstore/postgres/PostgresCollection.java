@@ -1159,11 +1159,11 @@ public class PostgresCollection implements Collection {
             leafNodeValue = MAPPER.readTree(columnValue);
           } catch (JsonParseException ex) {
             // try to handle the case of json parsing failure
-            leafNodeValue = mapValueToJsonNode(resultSetMetaData.getColumnType(i), columnValue);
-            if (leafNodeValue == null) {
-              // mapping of value to json node failed, throw the exception upwards
-              throw ex;
-            }
+            // try to find mapping of value to json node
+            // if not found then throw the same exception upwards
+            leafNodeValue =
+                mapValueToJsonNode(resultSetMetaData.getColumnType(i), columnValue)
+                    .orElseThrow(() -> ex);
           }
           if (PostgresUtils.isEncodedNestedField(columnName)) {
             handleNestedField(
@@ -1215,22 +1215,22 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private static JsonNode mapValueToJsonNode(int columnType, String columnValue) {
+  private static Optional<JsonNode> mapValueToJsonNode(int columnType, String columnValue) {
     switch (columnType) {
       case VARCHAR:
-        return TextNode.valueOf(columnValue);
+        return Optional.of(TextNode.valueOf(columnValue));
       case BIGINT:
-        return BigIntegerNode.valueOf(BigInteger.valueOf(Long.valueOf(columnValue)));
+        return Optional.of(BigIntegerNode.valueOf(BigInteger.valueOf(Long.valueOf(columnValue))));
       case INTEGER:
-        return IntNode.valueOf(Integer.valueOf(columnValue));
+        return Optional.of(IntNode.valueOf(Integer.valueOf(columnValue)));
       case BOOLEAN:
-        return BooleanNode.valueOf(Boolean.valueOf(columnValue));
+        return Optional.of(BooleanNode.valueOf(Boolean.valueOf(columnValue)));
       case DOUBLE:
-        return DoubleNode.valueOf(Double.valueOf(columnValue));
+        return Optional.of(DoubleNode.valueOf(Double.valueOf(columnValue)));
       case FLOAT:
-        return FloatNode.valueOf(Float.valueOf(columnValue));
+        return Optional.of(FloatNode.valueOf(Float.valueOf(columnValue)));
       default:
-        return null;
+        return Optional.empty();
     }
   }
 
