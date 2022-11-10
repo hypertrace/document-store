@@ -1,5 +1,11 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static java.sql.Types.BIGINT;
+import static java.sql.Types.BOOLEAN;
+import static java.sql.Types.DOUBLE;
+import static java.sql.Types.FLOAT;
+import static java.sql.Types.INTEGER;
+import static java.sql.Types.VARCHAR;
 import static java.util.Optional.empty;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
@@ -15,9 +21,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.BigIntegerNode;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
+import com.fasterxml.jackson.databind.node.FloatNode;
+import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -1150,7 +1163,17 @@ public class PostgresCollection implements Collection {
         String columnName = resultSetMetaData.getColumnName(i);
         String columnValue = getColumnValue(resultSetMetaData, columnName, i);
         if (StringUtils.isNotEmpty(columnValue)) {
-          JsonNode leafNodeValue = MAPPER.readTree(columnValue);
+          JsonNode leafNodeValue;
+          try {
+            leafNodeValue = MAPPER.readTree(columnValue);
+          } catch (JsonParseException ex) {
+            // try to handle the case of json parsing failure
+            // try to find mapping of value to json node
+            // if not found then throw the same exception upwards
+            leafNodeValue =
+                mapValueToJsonNode(resultSetMetaData.getColumnType(i), columnValue)
+                    .orElseThrow(() -> ex);
+          }
           if (PostgresUtils.isEncodedNestedField(columnName)) {
             handleNestedField(
                 PostgresUtils.decodeAliasForNestedField(columnName), jsonNode, leafNodeValue);
@@ -1171,7 +1194,9 @@ public class PostgresCollection implements Collection {
         return MAPPER.writeValueAsString(resultSet.getArray(columnIndex).getArray());
       }
 
-      // check for any OUTER column including ID, and its alias
+      // check for any OUTER column including ID
+      // please note below check will not work in case of alias as alias provided
+      // can be different from actual column name
       if (OUTER_COLUMNS.contains(columnName) || IMPLICIT_ID.equals(columnName)) {
         return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
       }
@@ -1196,6 +1221,25 @@ public class PostgresCollection implements Collection {
       }
       String leafKey = keys.get(keys.size() - 1);
       curNode.put(leafKey, leafNodeValue);
+    }
+  }
+
+  private static Optional<JsonNode> mapValueToJsonNode(int columnType, String columnValue) {
+    switch (columnType) {
+      case VARCHAR:
+        return Optional.of(TextNode.valueOf(columnValue));
+      case BIGINT:
+        return Optional.of(BigIntegerNode.valueOf(BigInteger.valueOf(Long.valueOf(columnValue))));
+      case INTEGER:
+        return Optional.of(IntNode.valueOf(Integer.valueOf(columnValue)));
+      case BOOLEAN:
+        return Optional.of(BooleanNode.valueOf(Boolean.valueOf(columnValue)));
+      case DOUBLE:
+        return Optional.of(DoubleNode.valueOf(Double.valueOf(columnValue)));
+      case FLOAT:
+        return Optional.of(FloatNode.valueOf(Float.valueOf(columnValue)));
+      default:
+        return Optional.empty();
     }
   }
 
