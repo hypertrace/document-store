@@ -1186,8 +1186,8 @@ public class PostgresCollection implements Collection {
       }
 
       // check for any OUTER column including ID
-      // please note below check will not work in case alias as alias will be
-      // provided instead of actual column name
+      // please note below check will not work in case of alias as alias provided
+      // can be different from actual column name
       if (OUTER_COLUMNS.contains(columnName) || IMPLICIT_ID.equals(columnName)) {
         return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
       }
