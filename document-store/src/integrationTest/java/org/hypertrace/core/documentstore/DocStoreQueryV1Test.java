@@ -26,6 +26,7 @@ import static org.hypertrace.core.documentstore.expression.operators.SortOrder.A
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.utils.Utils.MONGO_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.POSTGRES_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.TENANT_ID;
@@ -1975,7 +1976,7 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @MethodSource("databaseContextBoth")
-  public void testBulkUpdateWithFilterAndGetNewDocuments(final String datastoreName)
+  public void testBulkUpdateWithFilterAndGetNoDocuments(final String datastoreName)
       throws IOException {
     final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
     createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
@@ -2009,15 +2010,13 @@ public class DocStoreQueryV1Test {
             "props.new_property.deep.nested.value",
             SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
 
-    final Random random = new Random();
     final CloseableIterator<Document> docIterator =
         collection.bulkUpdate(
             query,
             List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
-            UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+            UpdateOptions.builder().returnDocumentType(NONE).build());
 
-    assertDocsAndSizeEqualWithoutOrder(
-        datastoreName, docIterator, 2, "query/atomic_update_response_get_new_document.json");
+    assertFalse(docIterator.hasNext());
     assertDocsAndSizeEqual(
         datastoreName,
         collection.find(
