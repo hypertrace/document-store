@@ -488,6 +488,15 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
+  public CloseableIterator<Document> bulkUpdate(
+      org.hypertrace.core.documentstore.query.Query query,
+      final java.util.Collection<SubDocumentUpdate> updates,
+      final UpdateOptions updateOptions)
+      throws IOException {
+    throw new UnsupportedOperationException();
+  }
+
+  @Override
   public long count(org.hypertrace.core.documentstore.query.Query query) {
     org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(

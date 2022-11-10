@@ -224,5 +224,11 @@ public interface Collection {
       final UpdateOptions updateOptions)
       throws IOException;
 
+  CloseableIterator<Document> bulkUpdate(
+      final org.hypertrace.core.documentstore.query.Query query,
+      final java.util.Collection<SubDocumentUpdate> updates,
+      final UpdateOptions updateOptions)
+      throws IOException;
+
   String UNSUPPORTED_QUERY_OPERATION = "Query operation is not supported";
 }
