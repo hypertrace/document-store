@@ -70,6 +70,7 @@ import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
@@ -437,8 +438,6 @@ public class PostgresCollection implements Collection {
     }
 
     try (final Connection connection = client.getPooledConnection()) {
-      connection.setAutoCommit(false);
-
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
               collectionName, query);
@@ -452,6 +451,7 @@ public class PostgresCollection implements Collection {
 
         if (documentOptional.isEmpty()) {
           connection.commit();
+          connection.setAutoCommit(true);
           return empty();
         }
 
@@ -506,7 +506,43 @@ public class PostgresCollection implements Collection {
       final java.util.Collection<SubDocumentUpdate> updates,
       final UpdateOptions updateOptions)
       throws IOException {
-    throw new UnsupportedOperationException();
+    if (updates.isEmpty()) {
+      throw new IOException("At least one update is required");
+    }
+
+    final Connection connection = client.getConnection();
+
+    try {
+      final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
+      CloseableIterator<Document> iterator = null;
+
+      if (returnDocumentType == BEFORE_UPDATE) {
+        iterator = aggregate(query);
+      }
+
+      for (final SubDocumentUpdate update : updates) {
+        subDocUpdater.executeUpdateQuery(connection, query, update);
+      }
+
+      subDocUpdater.updateLastUpdatedTime(connection, query);
+
+      switch (returnDocumentType) {
+        case AFTER_UPDATE:
+          return aggregate(query);
+
+        case BEFORE_UPDATE:
+          return iterator;
+
+        case NONE:
+          return CloseableIterator.emptyIterator();
+
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported return document type: " + returnDocumentType);
+      }
+    } catch (final Exception e) {
+      throw new IOException(e);
+    }
   }
 
   @Override

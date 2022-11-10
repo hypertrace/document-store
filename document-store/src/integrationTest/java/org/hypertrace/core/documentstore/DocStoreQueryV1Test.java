@@ -1973,6 +1973,66 @@ public class DocStoreQueryV1Test {
         "query/updatable_collection_data_without_selection.json");
   }
 
+  @ParameterizedTest
+  @MethodSource("databaseContextBoth")
+  public void testBulkUpdateWithFilterAndGetNewDocuments(final String datastoreName)
+      throws IOException {
+    final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+    createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+    final Query query =
+        Query.builder()
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("date"),
+                            LT,
+                            ConstantExpression.of("2022-08-09T18:53:17Z")))
+                    .build())
+            .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+            .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("date"))
+            .addSelection(IdentifierExpression.of("props"))
+            .build();
+    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+    final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+    final SubDocumentUpdate addProperty =
+        SubDocumentUpdate.of(
+            "props.new_property.deep.nested.value",
+            SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+
+    final Random random = new Random();
+    final CloseableIterator<Document> docIterator =
+        collection.bulkUpdate(
+            query,
+            List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+            UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+
+    assertDocsAndSizeEqualWithoutOrder(
+        datastoreName, docIterator, 2, "query/atomic_update_response_get_new_document.json");
+    assertDocsAndSizeEqual(
+        datastoreName,
+        collection.find(
+            Query.builder()
+                .addSelection(IdentifierExpression.of("item"))
+                .addSelection(IdentifierExpression.of("price"))
+                .addSelection(IdentifierExpression.of("quantity"))
+                .addSelection(IdentifierExpression.of("date"))
+                .addSelection(IdentifierExpression.of("props"))
+                .addSort(IdentifierExpression.of("_id"), ASC)
+                .build()),
+        "query/updatable_collection_data_after_atomic_update_selecting_all_props.json",
+        9);
+  }
+
   private static Collection getCollection(final String dataStoreName) {
     return getCollection(dataStoreName, COLLECTION_NAME);
   }

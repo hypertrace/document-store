@@ -10,6 +10,8 @@ import org.hypertrace.core.documentstore.model.subdoc.SubDocument;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.PostgresQueryBuilder;
+import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.query.Query;
 
 public class PostgresSubDocumentUpdater {
   private final PostgresQueryBuilder queryBuilder;
@@ -32,10 +34,30 @@ public class PostgresSubDocumentUpdater {
     }
   }
 
+  public void executeUpdateQuery(
+      final Connection connection, final Query query, final SubDocumentUpdate update)
+      throws SQLException {
+    final PostgresQueryParser parser =
+        new PostgresQueryParser(queryBuilder.getCollectionName(), query);
+    final String updateQuery = queryBuilder.getSubDocUpdateQuery(update, parser);
+
+    try (final PreparedStatement pStatement = connection.prepareStatement(updateQuery)) {
+      enrichPreparedStatementWithParams(pStatement, parser.getParamsBuilder().build());
+      pStatement.executeUpdate();
+    }
+  }
+
   public void updateLastUpdatedTime(final Connection connection, final String id)
       throws SQLException {
     final SubDocumentUpdate lastUpdatedTimeUpdate =
         SubDocumentUpdate.of(SubDocument.implicitUpdatedTime(), clock.millis());
     executeUpdateQuery(connection, id, lastUpdatedTimeUpdate);
+  }
+
+  public void updateLastUpdatedTime(final Connection connection, final Query query)
+      throws SQLException {
+    final SubDocumentUpdate lastUpdatedTimeUpdate =
+        SubDocumentUpdate.of(SubDocument.implicitUpdatedTime(), clock.millis());
+    executeUpdateQuery(connection, query, lastUpdatedTimeUpdate);
   }
 }

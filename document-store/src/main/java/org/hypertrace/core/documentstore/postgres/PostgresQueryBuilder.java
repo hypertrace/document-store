@@ -7,15 +7,17 @@ import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.for
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareFieldAccessorExpr;
 
 import java.util.Arrays;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
+import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueGetter;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
 
 @RequiredArgsConstructor
 public class PostgresQueryBuilder {
-  private final String collectionName;
+  @Getter private final String collectionName;
   private final PostgresSubDocumentValueParser subDocValueParser =
       new PostgresSubDocumentValueParser();
   private final PostgresSubDocumentValueGetter subDocValueGetter =
@@ -30,6 +32,17 @@ public class PostgresQueryBuilder {
 
     return String.format(
         "UPDATE %s SET %s=%s WHERE %s=?", collectionName, DOCUMENT, setCommand, ID);
+  }
+
+  public String getSubDocUpdateQuery(
+      final SubDocumentUpdate update, final PostgresQueryParser parser) {
+    final String[] path = update.getSubDocument().getPath().split(DOC_PATH_SEPARATOR);
+    final String setCommand =
+        getJsonbSetCall(DOCUMENT, path, update.getSubDocumentValue(), parser.getParamsBuilder());
+    final String optionalFilter = parser.buildFilter();
+
+    return String.format(
+        "UPDATE %s SET %s=%s %s", collectionName, DOCUMENT, setCommand, optionalFilter);
   }
 
   private String getJsonbSetCall(
