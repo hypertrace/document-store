@@ -356,29 +356,29 @@ public class DocStoreQueryV1Test {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     String documentString =
-            "{\"id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
-                    + "\"_id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
-                    + "\"type\":\"VULNERABILITY\","
-                    + "\"tenantId\":\""
-                    + TENANT_ID
-                    + "\","
-                    + "\"attributes\":"
-                    + "{\"name\":\"X-Content-Type-Options without nosniff\","
-                    + "\"type\":\"VULNERABILITY_TYPE_MISSING_NOSNIFF_IN_CONTENT_TYPE_OPTIONS_HEADER\","
-                    + "\"status\":\"OPEN\","
-                    + "\"severity\":\"HIGH\","
-                    + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\","
-                    + "\"service_id\":\"8d64ccfb-ad07-3a3c-bc32-740f1c794b7d\","
-                    + "\"entity_name\":\"POST/login\","
-                    + "\"entity_type\":\"API\","
-                    + "\"environment\":\"cluster001\","
-                    + "\"is_external\":true,\"service_name\":"
-                    + "\"nginx-traceshop\","
-                    + "\"detection_timestamp\":1663312992746,"
-                    + "\"status_update_timestamp\":1663312992746},"
-                    + "\"identifyingAttributes\":{"
-                    + "\"name\":\"X-Content-Type-Options without nosniff\","
-                    + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\"}}";
+        "{\"id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
+            + "\"_id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
+            + "\"type\":\"VULNERABILITY\","
+            + "\"tenantId\":\""
+            + TENANT_ID
+            + "\","
+            + "\"attributes\":"
+            + "{\"name\":\"X-Content-Type-Options without nosniff\","
+            + "\"type\":\"VULNERABILITY_TYPE_MISSING_NOSNIFF_IN_CONTENT_TYPE_OPTIONS_HEADER\","
+            + "\"status\":\"OPEN\","
+            + "\"severity\":\"HIGH\","
+            + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\","
+            + "\"service_id\":\"8d64ccfb-ad07-3a3c-bc32-740f1c794b7d\","
+            + "\"entity_name\":\"POST/login\","
+            + "\"entity_type\":\"API\","
+            + "\"environment\":\"cluster001\","
+            + "\"is_external\":true,\"service_name\":"
+            + "\"nginx-traceshop\","
+            + "\"detection_timestamp\":1663312992746,"
+            + "\"status_update_timestamp\":1663312992746},"
+            + "\"identifyingAttributes\":{"
+            + "\"name\":\"X-Content-Type-Options without nosniff\","
+            + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\"}}";
     Document document = new JSONDocument(documentString);
     SingleValueKey key = new SingleValueKey(TENANT_ID, "e2e7f827-7ea5-5a5f-b547-d737965e4e58");
     collection.upsert(key, document);
@@ -387,19 +387,19 @@ public class DocStoreQueryV1Test {
     QueryBuilder queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
     queryBuilder.addSelection(IdentifierExpression.of("id"));
     queryBuilder.addSelection(
-            SelectionSpec.of(IdentifierExpression.of("attributes.status"), "STATUS"));
+        SelectionSpec.of(IdentifierExpression.of("attributes.status"), "STATUS"));
     queryBuilder.addSelection(
-            SelectionSpec.of(IdentifierExpression.of("attributes.entity_id"), "ENTITY_ID"));
+        SelectionSpec.of(IdentifierExpression.of("attributes.entity_id"), "ENTITY_ID"));
     queryBuilder.setFilter(
-            LogicalExpression.builder()
-                    .operand(
-                            RelationalExpression.of(
-                                    IdentifierExpression.of("tenantId"), EQ, ConstantExpression.of(TENANT_ID)))
-                    .operator(AND)
-                    .operand(
-                            RelationalExpression.of(
-                                    IdentifierExpression.of("type"), EQ, ConstantExpression.of("VULNERABILITY")))
-                    .build());
+        LogicalExpression.builder()
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("tenantId"), EQ, ConstantExpression.of(TENANT_ID)))
+            .operator(AND)
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("type"), EQ, ConstantExpression.of("VULNERABILITY")))
+            .build());
     Iterator<Document> results = collection.aggregate(queryBuilder.build());
     assertDocsAndSizeEqual(dataStoreName, results, "query/aggregate_with_id.json", 1);
 
