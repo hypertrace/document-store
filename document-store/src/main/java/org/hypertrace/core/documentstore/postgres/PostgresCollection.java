@@ -459,11 +459,7 @@ public class PostgresCollection implements Collection {
         final DocumentAndId docAndId = extractAndRemoveId(document);
         final String id = docAndId.getId();
 
-        for (final SubDocumentUpdate update : updates) {
-          subDocUpdater.executeUpdateQuery(connection, id, update);
-        }
-
-        subDocUpdater.updateLastUpdatedTime(connection, id);
+        subDocUpdater.executeUpdateQuery(connection, id, updates);
 
         final Document returnDocument;
 
@@ -520,11 +516,7 @@ public class PostgresCollection implements Collection {
         iterator = aggregate(query);
       }
 
-      for (final SubDocumentUpdate update : updates) {
-        subDocUpdater.executeUpdateQuery(connection, query, update);
-      }
-
-      subDocUpdater.updateLastUpdatedTime(connection, query);
+      subDocUpdater.executeUpdateQuery(connection, query, updates);
 
       switch (returnDocumentType) {
         case AFTER_UPDATE:

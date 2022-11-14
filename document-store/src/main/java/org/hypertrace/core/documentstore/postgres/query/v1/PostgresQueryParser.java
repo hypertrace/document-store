@@ -103,8 +103,8 @@ public class PostgresQueryParser {
     return queryBuilder.toString();
   }
 
-  public String buildFilter() {
-    return parseFilter().map(filter -> " WHERE " + filter).orElse("");
+  public String buildFilterClause() {
+    return parseFilter().map(filter -> "WHERE " + filter).orElse("");
   }
 
   private String getSelections() {
