@@ -2028,7 +2028,7 @@ public class DocStoreQueryV1Test {
                 .addSelection(IdentifierExpression.of("props"))
                 .addSort(IdentifierExpression.of("_id"), ASC)
                 .build()),
-        "query/updatable_collection_data_after_atomic_update_selecting_all_props.json",
+        "query/updatable_collection_data_all_matching_filter.json",
         9);
   }
 

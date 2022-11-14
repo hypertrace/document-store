@@ -92,6 +92,7 @@ public class MongoUpdateExecutor {
         return Optional.of(cursor);
 
       case NONE:
+        logAndUpdate(filter, setObject);
         return Optional.empty();
 
       default:
