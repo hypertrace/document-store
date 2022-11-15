@@ -48,8 +48,9 @@ public class MongoUpdateExecutor {
       final BasicDBObject selections = getSelections(query);
       final BasicDBObject sorts = getOrders(query);
       final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
+      final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
 
-      options.returnDocument(getReturnDocument(updateOptions.getReturnDocumentType()));
+      options.returnDocument(getReturnDocument(returnDocumentType));
 
       if (!selections.isEmpty()) {
         options.projection(selections);
@@ -63,7 +64,7 @@ public class MongoUpdateExecutor {
 
       final BasicDBObject setObject = updateParser.buildSetClause(updates);
 
-      if (updateOptions.getReturnDocumentType() == NONE) {
+      if (returnDocumentType == NONE) {
         collection.findOneAndUpdate(filter, setObject, options);
         return Optional.empty();
       }

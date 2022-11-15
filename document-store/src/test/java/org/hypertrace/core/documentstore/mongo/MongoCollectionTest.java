@@ -1,19 +1,23 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static com.mongodb.client.model.ReturnDocument.AFTER;
 import static java.util.Collections.emptyList;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.util.TestUtil.assertJsonEquals;
 import static org.hypertrace.core.documentstore.util.TestUtil.readBasicDBObject;
 import static org.hypertrace.core.documentstore.util.TestUtil.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -22,6 +26,7 @@ import static org.mockito.Mockito.when;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoNamespace;
+import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
@@ -30,6 +35,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 import org.bson.conversions.Bson;
+import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
@@ -43,6 +49,7 @@ import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
@@ -189,9 +196,9 @@ public class MongoCollectionTest {
     assertEquals("{\"proj1\": 1, \"proj2\": 1}", projectionArgumentCaptor.getValue().toString());
   }
 
-  @Test
-  void testUpdateAtomicWithFilter() throws IOException {
-    final org.hypertrace.core.documentstore.query.Query query =
+  @Nested
+  class UpdateTest {
+    private final org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .setFilter(
                 LogicalExpression.builder()
@@ -212,50 +219,176 @@ public class MongoCollectionTest {
             .addSelection(IdentifierExpression.of("date"))
             .addSelection(IdentifierExpression.of("props"))
             .build();
-    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-    final SubDocumentUpdate propsUpdate =
+    private final SubDocumentUpdate dateUpdate =
+        SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+    private final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+    private final SubDocumentUpdate propsUpdate =
         SubDocumentUpdate.of(
             "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
+    private final BasicDBObject setObject =
+        readBasicDBObject("atomic_read_and_update/set_object.json");
+    private final BasicDBObject selections =
+        readBasicDBObject("atomic_read_and_update/selection.json");
+    private final BasicDBObject sort = readBasicDBObject("atomic_read_and_update/sort.json");
+    private final BasicDBObject filter = readBasicDBObject("atomic_read_and_update/filter.json");
+    private final BasicDBObject response =
+        readBasicDBObject("atomic_read_and_update/response.json");
 
-    final BasicDBObject setObject = readBasicDBObject("atomic_read_and_update/set_object.json");
-    final BasicDBObject selections = readBasicDBObject("atomic_read_and_update/selection.json");
-    final BasicDBObject sort = readBasicDBObject("atomic_read_and_update/sort.json");
-    final BasicDBObject filter = readBasicDBObject("atomic_read_and_update/filter.json");
-    final BasicDBObject response = readBasicDBObject("atomic_read_and_update/response.json");
+    UpdateTest() throws IOException {}
 
-    final ArgumentCaptor<FindOneAndUpdateOptions> options =
-        ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
+    @Test
+    void testUpdateAtomicWithFilter() throws IOException {
+      final ArgumentCaptor<FindOneAndUpdateOptions> options =
+          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
 
-    when(mockClock.millis()).thenReturn(1660721309000L);
-    when(collection.findOneAndUpdate(eq(filter), eq(setObject), options.capture()))
-        .thenReturn(response);
+      when(mockClock.millis()).thenReturn(1660721309000L);
+      when(collection.findOneAndUpdate(eq(filter), eq(setObject), options.capture()))
+          .thenReturn(response);
 
-    final Optional<Document> result =
-        mongoCollection.update(
-            query,
-            List.of(dateUpdate, quantityUpdate, propsUpdate),
-            UpdateOptions.DEFAULT_UPDATE_OPTIONS);
+      final Optional<Document> result =
+          mongoCollection.update(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate),
+              UpdateOptions.DEFAULT_UPDATE_OPTIONS);
 
-    assertTrue(result.isPresent());
-    assertJsonEquals(
-        readFileFromResource("atomic_read_and_update/response.json").orElseThrow(),
-        result.get().toJson());
-    assertEquals(selections, options.getValue().getProjection());
-    assertEquals(sort, options.getValue().getSort());
+      assertTrue(result.isPresent());
+      assertJsonEquals(
+          readFileFromResource("atomic_read_and_update/response.json").orElseThrow(),
+          result.get().toJson());
+      assertEquals(selections, options.getValue().getProjection());
+      assertEquals(sort, options.getValue().getSort());
+      assertEquals(AFTER, options.getValue().getReturnDocument());
 
-    verify(collection, times(1))
-        .findOneAndUpdate(eq(filter), eq(setObject), any(FindOneAndUpdateOptions.class));
+      verify(collection, times(1))
+          .findOneAndUpdate(eq(filter), eq(setObject), any(FindOneAndUpdateOptions.class));
+    }
+
+    @Test
+    void testUpdateAtomicWithFilter_getNone() throws IOException {
+      final ArgumentCaptor<FindOneAndUpdateOptions> options =
+          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
+
+      when(mockClock.millis()).thenReturn(1660721309000L);
+      when(collection.findOneAndUpdate(eq(filter), eq(setObject), options.capture()))
+          .thenReturn(response);
+
+      final Optional<Document> result =
+          mongoCollection.update(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate),
+              UpdateOptions.builder().returnDocumentType(NONE).build());
+
+      assertFalse(result.isPresent());
+
+      assertEquals(selections, options.getValue().getProjection());
+      assertEquals(sort, options.getValue().getSort());
+      assertEquals(AFTER, options.getValue().getReturnDocument());
+
+      verify(collection, times(1))
+          .findOneAndUpdate(eq(filter), eq(setObject), any(FindOneAndUpdateOptions.class));
+    }
+
+    @Test
+    void testAtomicUpdateWithoutUpdates() {
+      assertThrows(
+          IOException.class,
+          () ->
+              mongoCollection.update(
+                  org.hypertrace.core.documentstore.query.Query.builder().build(),
+                  emptyList(),
+                  UpdateOptions.DEFAULT_UPDATE_OPTIONS));
+    }
   }
 
-  @Test
-  void testAtomicUpdateWithoutUpdates() {
-    assertThrows(
-        IOException.class,
-        () ->
-            mongoCollection.update(
-                org.hypertrace.core.documentstore.query.Query.builder().build(),
-                emptyList(),
-                UpdateOptions.DEFAULT_UPDATE_OPTIONS));
+  @Nested
+  class BulkUpdateTest {
+    private final org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .setFilter(
+                LogicalExpression.builder()
+                    .operator(AND)
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                    .operand(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("date"),
+                            LT,
+                            ConstantExpression.of("2022-08-09T18:53:17Z")))
+                    .build())
+            .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+            .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("date"))
+            .addSelection(IdentifierExpression.of("props"))
+            .build();
+    private final SubDocumentUpdate dateUpdate =
+        SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+    private final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+    private final SubDocumentUpdate propsUpdate =
+        SubDocumentUpdate.of(
+            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
+    private final BasicDBObject setObject =
+        readBasicDBObject("atomic_read_and_update/set_object.json");
+    private final BasicDBObject selections =
+        readBasicDBObject("atomic_read_and_update/selection.json");
+    private final BasicDBObject sort = readBasicDBObject("atomic_read_and_update/sort.json");
+    private final BasicDBObject filter = readBasicDBObject("atomic_read_and_update/filter.json");
+    private final BasicDBObject response =
+        readBasicDBObject("atomic_read_and_update/response.json");
+
+    BulkUpdateTest() throws IOException {}
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void testBulkUpdateWithFilter() throws IOException {
+      final AggregateIterable<BasicDBObject> mockIterable = mock(AggregateIterable.class);
+      final MongoCursor<BasicDBObject> mockCursor = mock(MongoCursor.class);
+
+      when(mockClock.millis()).thenReturn(1660721309000L);
+      when(collection.aggregate(anyList())).thenReturn(mockIterable);
+      when(mockIterable.cursor()).thenReturn(mockCursor);
+      when(mockCursor.hasNext()).thenReturn(true).thenReturn(false);
+      when(mockCursor.next()).thenReturn(response);
+
+      final CloseableIterator<Document> result =
+          mongoCollection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate),
+              UpdateOptions.DEFAULT_UPDATE_OPTIONS);
+
+      assertTrue(result.hasNext());
+      assertJsonEquals(
+          readFileFromResource("atomic_read_and_update/response.json").orElseThrow(),
+          result.next().toJson());
+
+      verify(collection, times(1)).updateMany(filter, setObject);
+    }
+
+    @Test
+    void testBulkUpdateWithFilter_getNone() throws IOException {
+      when(mockClock.millis()).thenReturn(1660721309000L);
+
+      final CloseableIterator<Document> result =
+          mongoCollection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate),
+              UpdateOptions.builder().returnDocumentType(NONE).build());
+
+      assertFalse(result.hasNext());
+      verify(collection, times(1)).updateMany(filter, setObject);
+    }
+
+    @Test
+    void testBulkUpdateWithoutUpdates() {
+      assertThrows(
+          IOException.class,
+          () ->
+              mongoCollection.bulkUpdate(
+                  org.hypertrace.core.documentstore.query.Query.builder().build(),
+                  emptyList(),
+                  UpdateOptions.DEFAULT_UPDATE_OPTIONS));
+    }
   }
 }
