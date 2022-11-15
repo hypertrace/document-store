@@ -106,20 +106,36 @@ class PostgresCollectionTest {
 
     final Document document = readDocument("atomic_read_and_update/response.json");
 
-    final PreparedStatement update1PrepStatement = mock(PreparedStatement.class);
-    final PreparedStatement update2PrepStatement = mock(PreparedStatement.class);
-    when(mockConnection.prepareStatement(
-            String.format(
-                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
-                COLLECTION_NAME)))
-        .thenReturn(update1PrepStatement, update2PrepStatement, mockUpdatePreparedStatement);
-
-    final PreparedStatement update3PrepStatement = mock(PreparedStatement.class);
-    when(mockConnection.prepareStatement(
-            String.format(
-                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
-                COLLECTION_NAME)))
-        .thenReturn(update3PrepStatement);
+    final String updateQuery =
+        String.format(
+            "WITH concatenated AS "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t4.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t3.document, '{}'), ?::text[], ?::jsonb) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t2.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT id, document FROM %s AS t0 WHERE id = ?) "
+                + "AS t1) "
+                + "AS t2) "
+                + "AS t3) "
+                + "AS t4) "
+                + "UPDATE %s "
+                + "SET document=concatenated.document "
+                + "FROM concatenated "
+                + "WHERE %s.id=concatenated.id",
+            COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
+    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
 
     when(mockClock.millis()).thenReturn(currentTime);
 
@@ -131,7 +147,6 @@ class PostgresCollectionTest {
     assertEquals(document, oldDocument.get());
 
     verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1)).setAutoCommit(false);
     verify(mockConnection, times(1))
         .prepareStatement(
             String.format(
@@ -154,22 +169,17 @@ class PostgresCollectionTest {
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
 
-    verify(mockConnection, times(3))
-        .prepareStatement(
-            String.format(
-                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
-                COLLECTION_NAME));
-    verify(mockConnection, times(1))
-        .prepareStatement(
-            String.format(
-                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
-                COLLECTION_NAME));
+    verify(mockConnection, times(1)).prepareStatement(updateQuery);
 
-    verifyUpdate(id, update1PrepStatement, "{date}", "2022-08-09T18:53:17Z");
-    verifyUpdate(id, update2PrepStatement, "{quantity}", 1000);
-    verifyUpdate(id, update3PrepStatement, "{props}", "{\"brand\":\"Dettol\"}");
-    verifyUpdate(id, mockUpdatePreparedStatement, "{lastUpdatedTime}", currentTime);
-
+    verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
+    verify(mockUpdatePreparedStatement).setObject(2, currentTime);
+    verify(mockUpdatePreparedStatement).setObject(3, "{props}");
+    verify(mockUpdatePreparedStatement).setObject(4, "{\"brand\":\"Dettol\"}");
+    verify(mockUpdatePreparedStatement).setObject(5, "{quantity}");
+    verify(mockUpdatePreparedStatement).setObject(6, 1000);
+    verify(mockUpdatePreparedStatement).setObject(7, "{date}");
+    verify(mockUpdatePreparedStatement).setObject(8, "2022-08-09T18:53:17Z");
+    verify(mockUpdatePreparedStatement).setObject(9, id);
     // Ensure the transaction is committed
     verify(mockConnection, times(1)).commit();
 
@@ -177,9 +187,6 @@ class PostgresCollectionTest {
     verify(mockResultSet, times(1)).close();
     verify(mockSelectPreparedStatement, times(1)).close();
     verify(mockUpdatePreparedStatement, times(1)).close();
-    verify(update1PrepStatement, times(1)).close();
-    verify(update2PrepStatement, times(1)).close();
-    verify(update3PrepStatement, times(1)).close();
     verify(mockConnection, times(1)).close();
   }
 
@@ -217,7 +224,6 @@ class PostgresCollectionTest {
     assertTrue(oldDocument.isEmpty());
 
     verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1)).setAutoCommit(false);
     verify(mockConnection, times(1))
         .prepareStatement(
             String.format(
@@ -280,20 +286,32 @@ class PostgresCollectionTest {
     when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
     mockResultSetMetadata(id);
 
-    final PreparedStatement update1PrepStatement = mock(PreparedStatement.class);
-    final PreparedStatement update2PrepStatement = mock(PreparedStatement.class);
-    when(mockConnection.prepareStatement(
-            String.format(
-                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
-                COLLECTION_NAME)))
-        .thenReturn(update1PrepStatement, update2PrepStatement, mockUpdatePreparedStatement);
-
-    final PreparedStatement update3PrepStatement = mock(PreparedStatement.class);
-    when(mockConnection.prepareStatement(
-            String.format(
-                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
-                COLLECTION_NAME)))
-        .thenReturn(update3PrepStatement);
+    final String updateQuery =
+        String.format(
+            "WITH concatenated AS "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t4.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t3.document, '{}'), ?::text[], ?::jsonb) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t2.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM (SELECT id, document FROM %s AS t0 WHERE id = ?)"
+                + " AS t1) AS t2) AS t3) AS t4) "
+                + "UPDATE %s "
+                + "SET document=concatenated.document "
+                + "FROM concatenated "
+                + "WHERE %s.id=concatenated.id",
+            COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
+    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
 
     when(mockClock.millis()).thenReturn(currentTime);
 
@@ -306,7 +324,6 @@ class PostgresCollectionTest {
                 query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
 
     verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1)).setAutoCommit(false);
     verify(mockConnection, times(1))
         .prepareStatement(
             String.format(
@@ -329,21 +346,17 @@ class PostgresCollectionTest {
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
 
-    verify(mockConnection, times(3))
-        .prepareStatement(
-            String.format(
-                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], to_jsonb(?)) WHERE id=?",
-                COLLECTION_NAME));
-    verify(mockConnection, times(1))
-        .prepareStatement(
-            String.format(
-                "UPDATE %s SET document=jsonb_set(COALESCE(document, '{}'), ?::text[], ?::jsonb) WHERE id=?",
-                COLLECTION_NAME));
+    verify(mockConnection, times(1)).prepareStatement(updateQuery);
 
-    verifyUpdate(id, update1PrepStatement, "{date}", "2022-08-09T18:53:17Z");
-    verifyUpdate(id, update2PrepStatement, "{quantity}", 1000);
-    verifyUpdate(id, update3PrepStatement, "{props}", "{\"brand\":\"Dettol\"}");
-    verifyUpdate(id, mockUpdatePreparedStatement, "{lastUpdatedTime}", currentTime);
+    verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
+    verify(mockUpdatePreparedStatement).setObject(2, currentTime);
+    verify(mockUpdatePreparedStatement).setObject(3, "{props}");
+    verify(mockUpdatePreparedStatement).setObject(4, "{\"brand\":\"Dettol\"}");
+    verify(mockUpdatePreparedStatement).setObject(5, "{quantity}");
+    verify(mockUpdatePreparedStatement).setObject(6, 1000);
+    verify(mockUpdatePreparedStatement).setObject(7, "{date}");
+    verify(mockUpdatePreparedStatement).setObject(8, "2022-08-09T18:53:17Z");
+    verify(mockUpdatePreparedStatement).setObject(9, id);
 
     // Ensure the transaction is rolled back
     verify(mockConnection, times(1)).rollback();
@@ -352,9 +365,6 @@ class PostgresCollectionTest {
     verify(mockResultSet, times(1)).close();
     verify(mockSelectPreparedStatement, times(1)).close();
     verify(mockUpdatePreparedStatement, times(1)).close();
-    verify(update1PrepStatement, times(1)).close();
-    verify(update2PrepStatement, times(1)).close();
-    verify(update3PrepStatement, times(1)).close();
     verify(mockConnection, times(1)).close();
   }
 
@@ -446,17 +456,5 @@ class PostgresCollectionTest {
     when(mockResultSetMetaData.getColumnName(5)).thenReturn("_implicit_id");
     when(mockResultSetMetaData.getColumnType(5)).thenReturn(VARCHAR);
     when(mockResultSet.getString(5)).thenReturn(id);
-  }
-
-  private <T> void verifyUpdate(
-      final String id,
-      final PreparedStatement preparedStatement,
-      final String subDocPath,
-      final T value)
-      throws SQLException {
-    verify(preparedStatement, times(1)).setObject(1, subDocPath);
-    verify(preparedStatement, times(1)).setObject(2, value);
-    verify(preparedStatement, times(1)).setObject(3, id);
-    verify(preparedStatement, times(1)).executeUpdate();
   }
 }
