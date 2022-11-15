@@ -207,8 +207,8 @@ public interface Collection {
    *     necessary selections
    * @param updates The list of sub-document updates to be performed atomically
    * @param updateOptions Options for updating/returning the document
-   * @return The old (before update) or new (after update) document optional if one exists,
-   *     otherwise an empty optional.
+   * @return The old (before update) or new (after update) document optional if one exists and
+   *     requested, otherwise an empty optional.
    * @throws IOException if there was any error in updating/fetching the document or the updates is
    *     empty
    * @implSpec The definition of an update here is
@@ -224,6 +224,27 @@ public interface Collection {
       final UpdateOptions updateOptions)
       throws IOException;
 
+  /**
+   * Apply the set of supplied updates to all the documents matching the filter criteria specified
+   * in the query.
+   *
+   * <p>If requested, returns the set of matching documents before or after update
+   * <strong>non-atomically</strong>
+   *
+   * @param query The query to be executed. Also, contains the filter for updating
+   * @param updates The list of sub-document updates to be performed
+   * @param updateOptions Options for updating/returning the document
+   * @return A closeable iterator to the old (before update) or new (after update) documents if
+   *     requested, otherwise an empty iterator.
+   * @throws IOException if there was any error in updating/fetching the documents or the updates is
+   *     empty
+   * @implSpec The definition of an update here is
+   *     <ol>
+   *       <li>The existing sub-documents will be updated
+   *       <li>New sub-documents will be created if they do not exist
+   *       <li>None of the existing sub-documents will be removed
+   *     </ol>
+   */
   CloseableIterator<Document> bulkUpdate(
       final org.hypertrace.core.documentstore.query.Query query,
       final java.util.Collection<SubDocumentUpdate> updates,

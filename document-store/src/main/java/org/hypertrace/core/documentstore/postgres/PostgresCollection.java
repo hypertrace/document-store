@@ -450,7 +450,6 @@ public class PostgresCollection implements Collection {
 
         if (documentOptional.isEmpty()) {
           connection.commit();
-          connection.setAutoCommit(true);
           return empty();
         }
 
