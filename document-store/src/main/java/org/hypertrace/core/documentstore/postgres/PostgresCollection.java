@@ -10,6 +10,7 @@ import static java.util.Optional.empty;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.OUTER_COLUMNS;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.enrichPreparedStatementWithParams;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.extractAndRemoveId;
@@ -47,7 +48,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -92,7 +92,8 @@ public class PostgresCollection implements Collection {
   public static final String CREATED_AT = "created_at";
   public static final String DOC_PATH_SEPARATOR = "\\.";
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final CloseableIterator<Document> EMPTY_ITERATOR = createEmptyIterator();
+  private static final CloseableIterator<Document> EMPTY_ITERATOR =
+      CloseableIterator.emptyIterator();
 
   private final PostgresClient client;
   private final String collectionName;
@@ -433,9 +434,7 @@ public class PostgresCollection implements Collection {
       final UpdateOptions updateOptions)
       throws IOException {
 
-    if (updates.isEmpty()) {
-      throw new IOException("At least one update is required");
-    }
+    ensureAtLeastOneUpdateIsPresent(updates);
 
     try (final Connection connection = client.getPooledConnection()) {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
@@ -479,6 +478,8 @@ public class PostgresCollection implements Collection {
               queryExecutor.execute(connection, findByIdQuery)) {
             returnDocument = getFirstDocument(iterator).orElseThrow();
           }
+        } else if (updateOptions.getReturnDocumentType() == NONE) {
+          returnDocument = null;
         } else {
           throw new UnsupportedOperationException(
               String.format(
@@ -486,7 +487,7 @@ public class PostgresCollection implements Collection {
         }
 
         connection.commit();
-        return Optional.of(returnDocument);
+        return Optional.ofNullable(returnDocument);
       } catch (final Exception e) {
         connection.rollback();
         throw e;
@@ -502,20 +503,18 @@ public class PostgresCollection implements Collection {
       final java.util.Collection<SubDocumentUpdate> updates,
       final UpdateOptions updateOptions)
       throws IOException {
-    if (updates.isEmpty()) {
-      throw new IOException("At least one update is required");
-    }
+    ensureAtLeastOneUpdateIsPresent(updates);
 
-    final Connection connection = client.getConnection();
+    CloseableIterator<Document> iterator = null;
 
     try {
       final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
-      CloseableIterator<Document> iterator = null;
 
       if (returnDocumentType == BEFORE_UPDATE) {
         iterator = aggregate(query);
       }
 
+      final Connection connection = client.getConnection();
       subDocUpdater.executeUpdateQuery(connection, query, updates);
 
       switch (returnDocumentType) {
@@ -533,7 +532,17 @@ public class PostgresCollection implements Collection {
               "Unsupported return document type: " + returnDocumentType);
       }
     } catch (final Exception e) {
+      if (iterator != null) {
+        iterator.close();
+      }
       throw new IOException(e);
+    }
+  }
+
+  private void ensureAtLeastOneUpdateIsPresent(java.util.Collection<SubDocumentUpdate> updates)
+      throws IOException {
+    if (updates.isEmpty()) {
+      throw new IOException("At least one update is required");
     }
   }
 
@@ -1269,24 +1278,5 @@ public class PostgresCollection implements Collection {
       default:
         return Optional.empty();
     }
-  }
-
-  private static CloseableIterator<Document> createEmptyIterator() {
-    return new CloseableIterator<>() {
-      @Override
-      public void close() {
-        // empty iterator
-      }
-
-      @Override
-      public boolean hasNext() {
-        return false;
-      }
-
-      @Override
-      public Document next() {
-        throw new NoSuchElementException();
-      }
-    };
   }
 }

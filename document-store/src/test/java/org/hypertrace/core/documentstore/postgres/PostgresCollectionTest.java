@@ -8,14 +8,18 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.util.TestUtil.readDocument;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
@@ -29,6 +33,7 @@ import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
@@ -80,25 +85,25 @@ class PostgresCollectionTest {
 
     final String id = UUID.randomUUID().toString();
 
+    final String selectQuery =
+        String.format(
+            "SELECT "
+                + "document->'quantity' AS quantity, "
+                + "document->'price' AS price, "
+                + "document->'date' AS date, "
+                + "document->'props' AS props, "
+                + "id AS _implicit_id "
+                + "FROM %s "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?) "
+                + "ORDER BY "
+                + "document->'price' ASC NULLS FIRST,"
+                + "document->'date' DESC NULLS LAST "
+                + "LIMIT 1 "
+                + "FOR UPDATE",
+            COLLECTION_NAME);
     when(mockClient.getPooledConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(
-            String.format(
-                "SELECT "
-                    + "document->'quantity' AS quantity, "
-                    + "document->'price' AS price, "
-                    + "document->'date' AS date, "
-                    + "document->'props' AS props, "
-                    + "id AS _implicit_id "
-                    + "FROM %s "
-                    + "WHERE (document->>'item' = ?) "
-                    + "AND (document->>'date' < ?) "
-                    + "ORDER BY "
-                    + "document->'price' ASC NULLS FIRST,"
-                    + "document->'date' DESC NULLS LAST "
-                    + "LIMIT 1 "
-                    + "FOR UPDATE",
-                COLLECTION_NAME)))
-        .thenReturn(mockSelectPreparedStatement);
+    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(true);
     when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
@@ -147,24 +152,105 @@ class PostgresCollectionTest {
     assertEquals(document, oldDocument.get());
 
     verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1))
-        .prepareStatement(
-            String.format(
-                "SELECT "
-                    + "document->'quantity' AS quantity, "
-                    + "document->'price' AS price, "
-                    + "document->'date' AS date, "
-                    + "document->'props' AS props, "
-                    + "id AS _implicit_id "
-                    + "FROM %s "
-                    + "WHERE (document->>'item' = ?) "
-                    + "AND (document->>'date' < ?) "
-                    + "ORDER BY "
-                    + "document->'price' ASC NULLS FIRST,"
-                    + "document->'date' DESC NULLS LAST "
-                    + "LIMIT 1 "
-                    + "FOR UPDATE",
-                COLLECTION_NAME));
+    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
+    verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
+    verify(mockSelectPreparedStatement, times(1)).executeQuery();
+
+    verify(mockConnection, times(1)).prepareStatement(updateQuery);
+
+    verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
+    verify(mockUpdatePreparedStatement).setObject(2, currentTime);
+    verify(mockUpdatePreparedStatement).setObject(3, "{props}");
+    verify(mockUpdatePreparedStatement).setObject(4, "{\"brand\":\"Dettol\"}");
+    verify(mockUpdatePreparedStatement).setObject(5, "{quantity}");
+    verify(mockUpdatePreparedStatement).setObject(6, 1000);
+    verify(mockUpdatePreparedStatement).setObject(7, "{date}");
+    verify(mockUpdatePreparedStatement).setObject(8, "2022-08-09T18:53:17Z");
+    verify(mockUpdatePreparedStatement).setObject(9, id);
+    // Ensure the transaction is committed
+    verify(mockConnection, times(1)).commit();
+
+    // Ensure the resources are closed
+    verify(mockResultSet, times(1)).close();
+    verify(mockSelectPreparedStatement, times(1)).close();
+    verify(mockUpdatePreparedStatement, times(1)).close();
+    verify(mockConnection, times(1)).close();
+  }
+
+  @Test
+  void testUpdateAtomicWithFilter_getNone() throws IOException, SQLException {
+    final Query query = buildQueryWithFilterSortAndProjection();
+    final List<SubDocumentUpdate> updates = buildUpdates();
+
+    final String id = UUID.randomUUID().toString();
+
+    final String selectQuery =
+        String.format(
+            "SELECT "
+                + "document->'quantity' AS quantity, "
+                + "document->'price' AS price, "
+                + "document->'date' AS date, "
+                + "document->'props' AS props, "
+                + "id AS _implicit_id "
+                + "FROM %s "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?) "
+                + "ORDER BY "
+                + "document->'price' ASC NULLS FIRST,"
+                + "document->'date' DESC NULLS LAST "
+                + "LIMIT 1 "
+                + "FOR UPDATE",
+            COLLECTION_NAME);
+
+    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
+    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
+    when(mockResultSet.next()).thenReturn(true);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    mockResultSetMetadata(id);
+
+    final String updateQuery =
+        String.format(
+            "WITH concatenated AS "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t4.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t3.document, '{}'), ?::text[], ?::jsonb) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t2.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT id, document FROM %s AS t0 WHERE id = ?) "
+                + "AS t1) "
+                + "AS t2) "
+                + "AS t3) "
+                + "AS t4) "
+                + "UPDATE %s "
+                + "SET document=concatenated.document "
+                + "FROM concatenated "
+                + "WHERE %s.id=concatenated.id",
+            COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
+    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
+
+    when(mockClock.millis()).thenReturn(currentTime);
+
+    final Optional<Document> oldDocument =
+        postgresCollection.update(
+            query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
+
+    assertFalse(oldDocument.isPresent());
+
+    verify(mockClient, times(1)).getPooledConnection();
+    verify(mockConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
@@ -195,25 +281,25 @@ class PostgresCollectionTest {
     final Query query = buildQueryWithFilterSortAndProjection();
     final List<SubDocumentUpdate> updates = buildUpdates();
 
+    final String selectQuery =
+        String.format(
+            "SELECT "
+                + "document->'quantity' AS quantity, "
+                + "document->'price' AS price, "
+                + "document->'date' AS date, "
+                + "document->'props' AS props, "
+                + "id AS _implicit_id "
+                + "FROM %s "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?) "
+                + "ORDER BY "
+                + "document->'price' ASC NULLS FIRST,"
+                + "document->'date' DESC NULLS LAST "
+                + "LIMIT 1 "
+                + "FOR UPDATE",
+            COLLECTION_NAME);
     when(mockClient.getPooledConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(
-            String.format(
-                "SELECT "
-                    + "document->'quantity' AS quantity, "
-                    + "document->'price' AS price, "
-                    + "document->'date' AS date, "
-                    + "document->'props' AS props, "
-                    + "id AS _implicit_id "
-                    + "FROM %s "
-                    + "WHERE (document->>'item' = ?) "
-                    + "AND (document->>'date' < ?) "
-                    + "ORDER BY "
-                    + "document->'price' ASC NULLS FIRST,"
-                    + "document->'date' DESC NULLS LAST "
-                    + "LIMIT 1 "
-                    + "FOR UPDATE",
-                COLLECTION_NAME)))
-        .thenReturn(mockSelectPreparedStatement);
+    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(false);
 
@@ -224,24 +310,7 @@ class PostgresCollectionTest {
     assertTrue(oldDocument.isEmpty());
 
     verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1))
-        .prepareStatement(
-            String.format(
-                "SELECT "
-                    + "document->'quantity' AS quantity, "
-                    + "document->'price' AS price, "
-                    + "document->'date' AS date, "
-                    + "document->'props' AS props, "
-                    + "id AS _implicit_id "
-                    + "FROM %s "
-                    + "WHERE (document->>'item' = ?) "
-                    + "AND (document->>'date' < ?) "
-                    + "ORDER BY "
-                    + "document->'price' ASC NULLS FIRST,"
-                    + "document->'date' DESC NULLS LAST "
-                    + "LIMIT 1 "
-                    + "FOR UPDATE",
-                COLLECTION_NAME));
+    verify(mockConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
@@ -262,25 +331,25 @@ class PostgresCollectionTest {
 
     final String id = UUID.randomUUID().toString();
 
+    final String selectQuery =
+        String.format(
+            "SELECT "
+                + "document->'quantity' AS quantity, "
+                + "document->'price' AS price, "
+                + "document->'date' AS date, "
+                + "document->'props' AS props, "
+                + "id AS _implicit_id "
+                + "FROM %s "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?) "
+                + "ORDER BY "
+                + "document->'price' ASC NULLS FIRST,"
+                + "document->'date' DESC NULLS LAST "
+                + "LIMIT 1 "
+                + "FOR UPDATE",
+            COLLECTION_NAME);
     when(mockClient.getPooledConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(
-            String.format(
-                "SELECT "
-                    + "document->'quantity' AS quantity, "
-                    + "document->'price' AS price, "
-                    + "document->'date' AS date, "
-                    + "document->'props' AS props, "
-                    + "id AS _implicit_id "
-                    + "FROM %s "
-                    + "WHERE (document->>'item' = ?) "
-                    + "AND (document->>'date' < ?) "
-                    + "ORDER BY "
-                    + "document->'price' ASC NULLS FIRST,"
-                    + "document->'date' DESC NULLS LAST "
-                    + "LIMIT 1 "
-                    + "FOR UPDATE",
-                COLLECTION_NAME)))
-        .thenReturn(mockSelectPreparedStatement);
+    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(true);
     when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
@@ -324,24 +393,7 @@ class PostgresCollectionTest {
                 query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
 
     verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1))
-        .prepareStatement(
-            String.format(
-                "SELECT "
-                    + "document->'quantity' AS quantity, "
-                    + "document->'price' AS price, "
-                    + "document->'date' AS date, "
-                    + "document->'props' AS props, "
-                    + "id AS _implicit_id "
-                    + "FROM %s "
-                    + "WHERE (document->>'item' = ?) "
-                    + "AND (document->>'date' < ?) "
-                    + "ORDER BY "
-                    + "document->'price' ASC NULLS FIRST,"
-                    + "document->'date' DESC NULLS LAST "
-                    + "LIMIT 1 "
-                    + "FOR UPDATE",
-                COLLECTION_NAME));
+    verify(mockConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
@@ -374,6 +426,408 @@ class PostgresCollectionTest {
         IOException.class,
         () ->
             postgresCollection.update(
+                org.hypertrace.core.documentstore.query.Query.builder().build(),
+                emptyList(),
+                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
+  }
+
+  @Test
+  void testUpdateBulkWithFilter() throws IOException, SQLException {
+    final Query query = buildQueryWithFilterSortAndProjection();
+    final List<SubDocumentUpdate> updates = buildUpdates();
+
+    final String selectQuery =
+        String.format(
+            "SELECT "
+                + "document->'quantity' AS quantity, "
+                + "document->'price' AS price, "
+                + "document->'date' AS date, "
+                + "document->'props' AS props "
+                + "FROM %s "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?) "
+                + "ORDER BY "
+                + "document->'price' ASC NULLS FIRST,"
+                + "document->'date' DESC NULLS LAST",
+            COLLECTION_NAME);
+
+    when(mockClient.getConnection()).thenReturn(mockConnection);
+    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
+    when(mockResultSet.next()).thenReturn(true).thenReturn(false);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    when(mockResultSetMetaData.getColumnCount()).thenReturn(4);
+    mockResultSetMetadata();
+
+    final Document document = readDocument("atomic_read_and_update/response.json");
+
+    final String updateQuery =
+        String.format(
+            "WITH concatenated AS "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t4.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t3.document, '{}'), ?::text[], ?::jsonb) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t2.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT id, document "
+                + "FROM %s AS t0 "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?)) "
+                + "AS t1) "
+                + "AS t2) "
+                + "AS t3) "
+                + "AS t4) "
+                + "UPDATE %s "
+                + "SET document=concatenated.document "
+                + "FROM concatenated "
+                + "WHERE %s.id=concatenated.id",
+            COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
+
+    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
+    when(mockClock.millis()).thenReturn(currentTime);
+
+    final CloseableIterator<Document> oldDocument =
+        postgresCollection.bulkUpdate(
+            query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+
+    assertTrue(oldDocument.hasNext());
+    assertEquals(document, oldDocument.next());
+    assertFalse(oldDocument.hasNext());
+
+    // Obtain 2 connections: One for update and one for selecting
+    verify(mockClient, times(2)).getConnection();
+    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
+    verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
+    verify(mockSelectPreparedStatement, times(1)).executeQuery();
+
+    verify(mockConnection, times(1)).prepareStatement(updateQuery);
+
+    verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
+    verify(mockUpdatePreparedStatement).setObject(2, currentTime);
+    verify(mockUpdatePreparedStatement).setObject(3, "{props}");
+    verify(mockUpdatePreparedStatement).setObject(4, "{\"brand\":\"Dettol\"}");
+    verify(mockUpdatePreparedStatement).setObject(5, "{quantity}");
+    verify(mockUpdatePreparedStatement).setObject(6, 1000);
+    verify(mockUpdatePreparedStatement).setObject(7, "{date}");
+    verify(mockUpdatePreparedStatement).setObject(8, "2022-08-09T18:53:17Z");
+    verify(mockUpdatePreparedStatement).setObject(9, "Soap");
+    verify(mockUpdatePreparedStatement).setObject(10, "2022-08-09T18:53:17Z");
+
+    // Ensure the resources are closed
+    oldDocument.close();
+    verify(mockResultSet, times(1)).close();
+    verify(mockUpdatePreparedStatement, times(1)).close();
+  }
+
+  @Test
+  void testUpdateBulkWithFilter_getNone() throws IOException, SQLException {
+    final Query query = buildQueryWithFilterSortAndProjection();
+    final List<SubDocumentUpdate> updates = buildUpdates();
+
+    when(mockClient.getConnection()).thenReturn(mockConnection);
+
+    final String updateQuery =
+        String.format(
+            "WITH concatenated AS "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t4.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t3.document, '{}'), ?::text[], ?::jsonb) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t2.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT id, document "
+                + "FROM %s AS t0 "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?)) "
+                + "AS t1) "
+                + "AS t2) "
+                + "AS t3) "
+                + "AS t4) "
+                + "UPDATE %s "
+                + "SET document=concatenated.document "
+                + "FROM concatenated "
+                + "WHERE %s.id=concatenated.id",
+            COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
+
+    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
+    when(mockClock.millis()).thenReturn(currentTime);
+
+    final CloseableIterator<Document> oldDocument =
+        postgresCollection.bulkUpdate(
+            query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
+
+    assertFalse(oldDocument.hasNext());
+
+    verify(mockClient, times(1)).getConnection();
+    verifyNoMoreInteractions(mockSelectPreparedStatement);
+
+    verify(mockConnection, times(1)).prepareStatement(updateQuery);
+
+    verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
+    verify(mockUpdatePreparedStatement).setObject(2, currentTime);
+    verify(mockUpdatePreparedStatement).setObject(3, "{props}");
+    verify(mockUpdatePreparedStatement).setObject(4, "{\"brand\":\"Dettol\"}");
+    verify(mockUpdatePreparedStatement).setObject(5, "{quantity}");
+    verify(mockUpdatePreparedStatement).setObject(6, 1000);
+    verify(mockUpdatePreparedStatement).setObject(7, "{date}");
+    verify(mockUpdatePreparedStatement).setObject(8, "2022-08-09T18:53:17Z");
+    verify(mockUpdatePreparedStatement).setObject(9, "Soap");
+    verify(mockUpdatePreparedStatement).setObject(10, "2022-08-09T18:53:17Z");
+
+    // Ensure the resources are closed
+    verify(mockUpdatePreparedStatement, times(1)).close();
+  }
+
+  @Test
+  void testUpdateBulkWithFilter_emptyResults() throws IOException, SQLException {
+    final Query query = buildQueryWithFilterSortAndProjection();
+    final List<SubDocumentUpdate> updates = buildUpdates();
+
+    final String selectQuery =
+        String.format(
+            "SELECT "
+                + "document->'quantity' AS quantity, "
+                + "document->'price' AS price, "
+                + "document->'date' AS date, "
+                + "document->'props' AS props "
+                + "FROM %s "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?) "
+                + "ORDER BY "
+                + "document->'price' ASC NULLS FIRST,"
+                + "document->'date' DESC NULLS LAST",
+            COLLECTION_NAME);
+
+    when(mockClient.getConnection()).thenReturn(mockConnection);
+    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
+    when(mockResultSet.next()).thenReturn(false);
+
+    final String updateQuery =
+        String.format(
+            "WITH concatenated AS "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t4.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t3.document, '{}'), ?::text[], ?::jsonb) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t2.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT id, document "
+                + "FROM %s AS t0 "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?)) "
+                + "AS t1) "
+                + "AS t2) "
+                + "AS t3) "
+                + "AS t4) "
+                + "UPDATE %s "
+                + "SET document=concatenated.document "
+                + "FROM concatenated "
+                + "WHERE %s.id=concatenated.id",
+            COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
+
+    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
+    when(mockClock.millis()).thenReturn(currentTime);
+
+    final CloseableIterator<Document> oldDocument =
+        postgresCollection.bulkUpdate(
+            query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+
+    assertFalse(oldDocument.hasNext());
+
+    // Obtain 2 connections: One for update and one for selecting
+    verify(mockClient, times(2)).getConnection();
+    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
+    verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
+    verify(mockSelectPreparedStatement, times(1)).executeQuery();
+
+    verify(mockConnection, times(1)).prepareStatement(updateQuery);
+
+    verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
+    verify(mockUpdatePreparedStatement).setObject(2, currentTime);
+    verify(mockUpdatePreparedStatement).setObject(3, "{props}");
+    verify(mockUpdatePreparedStatement).setObject(4, "{\"brand\":\"Dettol\"}");
+    verify(mockUpdatePreparedStatement).setObject(5, "{quantity}");
+    verify(mockUpdatePreparedStatement).setObject(6, 1000);
+    verify(mockUpdatePreparedStatement).setObject(7, "{date}");
+    verify(mockUpdatePreparedStatement).setObject(8, "2022-08-09T18:53:17Z");
+    verify(mockUpdatePreparedStatement).setObject(9, "Soap");
+    verify(mockUpdatePreparedStatement).setObject(10, "2022-08-09T18:53:17Z");
+
+    // Ensure the resources are closed
+    oldDocument.close();
+    verify(mockResultSet, times(1)).close();
+    verify(mockUpdatePreparedStatement, times(1)).close();
+  }
+
+  @Test
+  void testUpdateBulkWithFilter_throwsExceptionBeforeUpdate() throws IOException, SQLException {
+    final Query query = buildQueryWithFilterSortAndProjection();
+    final List<SubDocumentUpdate> updates = buildUpdates();
+
+    final String selectQuery =
+        String.format(
+            "SELECT "
+                + "document->'quantity' AS quantity, "
+                + "document->'price' AS price, "
+                + "document->'date' AS date, "
+                + "document->'props' AS props "
+                + "FROM %s "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?) "
+                + "ORDER BY "
+                + "document->'price' ASC NULLS FIRST,"
+                + "document->'date' DESC NULLS LAST",
+            COLLECTION_NAME);
+
+    when(mockClient.getConnection()).thenReturn(mockConnection);
+    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockSelectPreparedStatement.executeQuery()).thenThrow(SQLException.class);
+
+    assertThrows(
+        IOException.class,
+        () ->
+            postgresCollection.bulkUpdate(
+                query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
+
+    verify(mockClient, times(1)).getConnection();
+    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
+    verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
+    verify(mockSelectPreparedStatement, times(1)).executeQuery();
+
+    verifyNoMoreInteractions(mockUpdatePreparedStatement);
+  }
+
+  @Test
+  void testUpdateBulkWithFilter_throwsExceptionAfterUpdate() throws IOException, SQLException {
+    final Query query = buildQueryWithFilterSortAndProjection();
+    final List<SubDocumentUpdate> updates = buildUpdates();
+
+    final String selectQuery =
+        String.format(
+            "SELECT "
+                + "document->'quantity' AS quantity, "
+                + "document->'price' AS price, "
+                + "document->'date' AS date, "
+                + "document->'props' AS props "
+                + "FROM %s "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?) "
+                + "ORDER BY "
+                + "document->'price' ASC NULLS FIRST,"
+                + "document->'date' DESC NULLS LAST",
+            COLLECTION_NAME);
+
+    when(mockClient.getConnection()).thenReturn(mockConnection);
+    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockSelectPreparedStatement.executeQuery()).thenThrow(SQLException.class);
+
+    final String updateQuery =
+        String.format(
+            "WITH concatenated AS "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t4.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t3.document, '{}'), ?::text[], ?::jsonb) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t2.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT "
+                + "id, "
+                + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
+                + "FROM "
+                + "(SELECT id, document "
+                + "FROM %s AS t0 "
+                + "WHERE (document->>'item' = ?) "
+                + "AND (document->>'date' < ?)) "
+                + "AS t1) "
+                + "AS t2) "
+                + "AS t3) "
+                + "AS t4) "
+                + "UPDATE %s "
+                + "SET document=concatenated.document "
+                + "FROM concatenated "
+                + "WHERE %s.id=concatenated.id",
+            COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
+
+    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
+    when(mockClock.millis()).thenReturn(currentTime);
+
+    assertThrows(
+        IOException.class,
+        () ->
+            postgresCollection.bulkUpdate(
+                query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build()));
+
+    // Obtain 2 connections: One for update and one for selecting
+    verify(mockClient, times(2)).getConnection();
+    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
+    verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
+    verify(mockSelectPreparedStatement, times(1)).executeQuery();
+
+    verify(mockConnection, times(1)).prepareStatement(updateQuery);
+
+    verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
+    verify(mockUpdatePreparedStatement).setObject(2, currentTime);
+    verify(mockUpdatePreparedStatement).setObject(3, "{props}");
+    verify(mockUpdatePreparedStatement).setObject(4, "{\"brand\":\"Dettol\"}");
+    verify(mockUpdatePreparedStatement).setObject(5, "{quantity}");
+    verify(mockUpdatePreparedStatement).setObject(6, 1000);
+    verify(mockUpdatePreparedStatement).setObject(7, "{date}");
+    verify(mockUpdatePreparedStatement).setObject(8, "2022-08-09T18:53:17Z");
+    verify(mockUpdatePreparedStatement).setObject(9, "Soap");
+    verify(mockUpdatePreparedStatement).setObject(10, "2022-08-09T18:53:17Z");
+
+    // Ensure the resources are closed
+    verify(mockUpdatePreparedStatement, times(1)).close();
+  }
+
+  @Test
+  void testBulkUpdateWithoutUpdates() {
+    assertThrows(
+        IOException.class,
+        () ->
+            postgresCollection.bulkUpdate(
                 org.hypertrace.core.documentstore.query.Query.builder().build(),
                 emptyList(),
                 UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
@@ -437,6 +891,14 @@ class PostgresCollectionTest {
   private void mockResultSetMetadata(final String id) throws SQLException {
     when(mockResultSetMetaData.getColumnCount()).thenReturn(5);
 
+    mockResultSetMetadata();
+
+    when(mockResultSetMetaData.getColumnName(5)).thenReturn("_implicit_id");
+    when(mockResultSetMetaData.getColumnType(5)).thenReturn(VARCHAR);
+    when(mockResultSet.getString(5)).thenReturn(id);
+  }
+
+  private void mockResultSetMetadata() throws SQLException {
     when(mockResultSetMetaData.getColumnName(1)).thenReturn("quantity");
     when(mockResultSetMetaData.getColumnType(1)).thenReturn(INTEGER);
     when(mockResultSet.getString(1)).thenReturn("5");
@@ -452,9 +914,5 @@ class PostgresCollectionTest {
     when(mockResultSetMetaData.getColumnName(4)).thenReturn("props");
     when(mockResultSetMetaData.getColumnType(4)).thenReturn(VARCHAR);
     when(mockResultSet.getString(4)).thenReturn(null);
-
-    when(mockResultSetMetaData.getColumnName(5)).thenReturn("_implicit_id");
-    when(mockResultSetMetaData.getColumnType(5)).thenReturn(VARCHAR);
-    when(mockResultSet.getString(5)).thenReturn(id);
   }
 }

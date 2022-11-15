@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.update;
 
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getReturnDocument;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getSelections;
@@ -61,6 +62,12 @@ public class MongoUpdateExecutor {
       final BasicDBObject filter = getFilter(query, Query::getFilter);
 
       final BasicDBObject setObject = updateParser.buildSetClause(updates);
+
+      if (updateOptions.getReturnDocumentType() == NONE) {
+        collection.findOneAndUpdate(filter, setObject, options);
+        return Optional.empty();
+      }
+
       return Optional.ofNullable(collection.findOneAndUpdate(filter, setObject, options))
           .map(MongoUtils::dbObjectToDocument);
     } catch (final Exception e) {
