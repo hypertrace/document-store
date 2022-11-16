@@ -1,9 +1,11 @@
 package org.hypertrace.core.documentstore.utils;
 
+import static com.fasterxml.jackson.databind.SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
@@ -115,7 +117,12 @@ public class Utils {
     }
 
     assertEquals(expectedSize, actualSize);
-    assertEquals(expected, actual);
+    final ObjectMapper objectMapper = new ObjectMapper();
+    objectMapper.configure(ORDER_MAP_ENTRIES_BY_KEYS, true);
+    final JsonNode expectedJson = objectMapper.readTree(objectMapper.writeValueAsString(expected));
+    final JsonNode actualJson = objectMapper.readTree(objectMapper.writeValueAsString(actual));
+
+    assertEquals(expectedJson, actualJson);
   }
 
   public static Map<Key, Document> buildDocumentsFromResource(String resourcePath)

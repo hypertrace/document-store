@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -37,9 +38,11 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param subDocPath Path to the sub document that needs to be updated
    * @param subDocument Sub document that needs to be updated at the above path
-   * @deprecated use {@link #bulkUpdateSubDocs(Map)} ()} instead.
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
-  @Deprecated
+  @Deprecated(forRemoval = true)
   boolean updateSubDoc(Key key, String subDocPath, Document subDocument);
 
   /**
@@ -47,7 +50,11 @@ public interface Collection {
    *
    * @param documents contains the mapping of key and the corresponding sub doc update queries
    * @return the update count or -1 if there is any exception
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
+  @Deprecated(forRemoval = true)
   BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents) throws Exception;
 
   /**
@@ -72,8 +79,10 @@ public interface Collection {
    * #search(Query)}
    *
    * @param query The query definition to find
-   * @return {@link CloseableIterator} of matching documents
+   * @return {@link CloseableIterator} of matching documents @Deprecated use {@link
+   *     #aggregate(org.hypertrace.core.documentstore.query.Query)} instead
    */
+  @Deprecated(forRemoval = true)
   CloseableIterator<Document> find(final org.hypertrace.core.documentstore.query.Query query);
 
   /**
@@ -207,8 +216,8 @@ public interface Collection {
    *     necessary selections
    * @param updates The list of sub-document updates to be performed atomically
    * @param updateOptions Options for updating/returning the document
-   * @return The old (before update) or new (after update) document optional if one exists,
-   *     otherwise an empty optional.
+   * @return The old (before update) or new (after update) document optional if one exists and
+   *     requested, otherwise an empty optional.
    * @throws IOException if there was any error in updating/fetching the document or the updates is
    *     empty
    * @implSpec The definition of an update here is
@@ -219,6 +228,42 @@ public interface Collection {
    *     </ol>
    */
   Optional<Document> update(
+      final org.hypertrace.core.documentstore.query.Query query,
+      final java.util.Collection<SubDocumentUpdate> updates,
+      final UpdateOptions updateOptions)
+      throws IOException;
+
+  /**
+   * Apply the set of supplied updates to all the documents matching the filter criteria specified
+   * in the query.
+   *
+   * <p>If requested, returns the set of matching documents before or after update
+   * <strong>non-atomically</strong>
+   *
+   * <p>Note that since the before update/after update documents are fetched non-atomically, the
+   * actual documents updated and the documents returned might be different (in scenarios like
+   * concurrent inserts, updates or deletes). The only time when the returned documents are
+   * guaranteed to match the updated documents exactly is when the query contains at least one
+   * filter on the unique constraints imposed in the database. Also, note that {@link Key} is
+   * implicitly unique and hence the presence of a {@link KeyExpression} as a part of the query
+   * filter is <strong>one of the scenarios</strong> when the updated documents and the returned
+   * documents would match.
+   *
+   * @param query The query to be executed. Also, contains the filter for updating
+   * @param updates The list of sub-document updates to be performed
+   * @param updateOptions Options for updating/returning the document
+   * @return A closeable iterator to the old (before update) or new (after update) documents if
+   *     requested, otherwise an empty iterator.
+   * @throws IOException if there was any error in updating/fetching the documents or the updates is
+   *     empty
+   * @implSpec The definition of an update here is
+   *     <ol>
+   *       <li>The existing sub-documents will be updated
+   *       <li>New sub-documents will be created if they do not exist
+   *       <li>None of the existing sub-documents will be removed
+   *     </ol>
+   */
+  CloseableIterator<Document> bulkUpdate(
       final org.hypertrace.core.documentstore.query.Query query,
       final java.util.Collection<SubDocumentUpdate> updates,
       final UpdateOptions updateOptions)

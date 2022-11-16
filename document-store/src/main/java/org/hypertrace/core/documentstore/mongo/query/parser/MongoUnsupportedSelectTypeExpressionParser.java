@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.mongo.parser;
+package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 

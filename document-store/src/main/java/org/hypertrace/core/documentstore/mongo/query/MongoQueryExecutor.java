@@ -1,20 +1,20 @@
-package org.hypertrace.core.documentstore.mongo;
+package org.hypertrace.core.documentstore.mongo.query;
 
 import static java.lang.Long.parseLong;
 import static java.util.Collections.singleton;
 import static java.util.function.Predicate.not;
-import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.applyPagination;
-import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getLimitClause;
-import static org.hypertrace.core.documentstore.mongo.MongoPaginationHelper.getSkipClause;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.getCountClause;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilterClause;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoGroupTypeExpressionParser.getGroupClause;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectTypeExpressionParser.getProjectClause;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectTypeExpressionParser.getSelections;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoSortTypeExpressionParser.getOrders;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoSortTypeExpressionParser.getSortClause;
+import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelper.applyPagination;
+import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelper.getLimitClause;
+import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelper.getSkipClause;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilter;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilterClause;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser.getGroupClause;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getProjectClause;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getSelections;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSortTypeExpressionParser.getOrders;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSortTypeExpressionParser.getSortClause;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoCommandException;
@@ -29,7 +29,7 @@ import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
-import org.hypertrace.core.documentstore.mongo.parser.MongoFromTypeExpressionParser;
+import org.hypertrace.core.documentstore.mongo.query.parser.MongoFromTypeExpressionParser;
 import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -49,7 +49,7 @@ public class MongoQueryExecutor {
               query -> singleton(getSkipClause(query)),
               query -> singleton(getLimitClause(query)));
 
-  final com.mongodb.client.MongoCollection<BasicDBObject> collection;
+  private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
   public MongoCursor<BasicDBObject> find(final Query query) {
     BasicDBObject filterClause = getFilter(query, Query::getFilter);

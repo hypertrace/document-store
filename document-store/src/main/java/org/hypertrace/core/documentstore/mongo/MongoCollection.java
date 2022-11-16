@@ -3,11 +3,7 @@ package org.hypertrace.core.documentstore.mongo;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.CREATED_TIME;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.dbObjectToDocument;
-import static org.hypertrace.core.documentstore.mongo.MongoUtils.getReturnDocument;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoFilterTypeExpressionParser.getFilter;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoSelectTypeExpressionParser.getSelections;
-import static org.hypertrace.core.documentstore.mongo.parser.MongoSortTypeExpressionParser.getOrders;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mongodb.BasicDBObject;
@@ -29,7 +25,6 @@ import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
-import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,7 +51,8 @@ import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
-import org.hypertrace.core.documentstore.mongo.subdoc.MongoSubDocumentValueSanitizer;
+import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
+import org.hypertrace.core.documentstore.mongo.update.MongoUpdateExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,7 +71,7 @@ public class MongoCollection implements Collection {
 
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
   private final MongoQueryExecutor queryExecutor;
-  private final Clock clock;
+  private final MongoUpdateExecutor updateExecutor;
 
   /**
    * The current MongoDB servers we use have a known issue - https://jira.mongodb
@@ -107,7 +103,7 @@ public class MongoCollection implements Collection {
   MongoCollection(com.mongodb.client.MongoCollection<BasicDBObject> collection) {
     this.collection = collection;
     this.queryExecutor = new MongoQueryExecutor(collection);
-    this.clock = Clock.systemUTC();
+    this.updateExecutor = new MongoUpdateExecutor(collection);
   }
 
   /**
@@ -476,46 +472,21 @@ public class MongoCollection implements Collection {
   public Optional<Document> update(
       final org.hypertrace.core.documentstore.query.Query query,
       final java.util.Collection<SubDocumentUpdate> updates,
-      org.hypertrace.core.documentstore.model.options.UpdateOptions updateOptions)
+      final org.hypertrace.core.documentstore.model.options.UpdateOptions updateOptions)
       throws IOException {
+    return updateExecutor.update(query, updates, updateOptions);
+  }
 
-    if (updates.isEmpty()) {
-      throw new IOException("At least one update is required");
-    }
-
-    try {
-      final BasicDBObject selections = getSelections(query);
-      final BasicDBObject sorts = getOrders(query);
-      final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
-
-      options.returnDocument(getReturnDocument(updateOptions.getReturnDocumentType()));
-
-      if (!selections.isEmpty()) {
-        options.projection(selections);
-      }
-
-      if (!sorts.isEmpty()) {
-        options.sort(sorts);
-      }
-
-      final BasicDBObject filter =
-          getFilter(query, org.hypertrace.core.documentstore.query.Query::getFilter);
-
-      final BasicDBObject updateObject = new BasicDBObject(LAST_UPDATED_TIME, clock.millis());
-
-      for (final SubDocumentUpdate update : updates) {
-        final String path = update.getSubDocument().getPath();
-        final Object value =
-            update.getSubDocumentValue().accept(new MongoSubDocumentValueSanitizer());
-        updateObject.put(path, value);
-      }
-
-      final BasicDBObject setObject = new BasicDBObject("$set", updateObject);
-      return Optional.ofNullable(collection.findOneAndUpdate(filter, setObject, options))
-          .map(MongoUtils::dbObjectToDocument);
-    } catch (final Exception e) {
-      throw new IOException(e);
-    }
+  @Override
+  public CloseableIterator<Document> bulkUpdate(
+      org.hypertrace.core.documentstore.query.Query query,
+      final java.util.Collection<SubDocumentUpdate> updates,
+      final org.hypertrace.core.documentstore.model.options.UpdateOptions updateOptions)
+      throws IOException {
+    return updateExecutor
+        .bulkUpdate(query, updates, updateOptions)
+        .map(this::convertToDocumentIterator)
+        .orElseGet(CloseableIterator::emptyIterator);
   }
 
   @Override
@@ -663,35 +634,42 @@ public class MongoCollection implements Collection {
   }
 
   private CloseableIterator<Document> convertToDocumentIterator(MongoCursor<BasicDBObject> cursor) {
-    return new CloseableIterator<>() {
-      private boolean closed = false;
+    return new MongoResultsIterator(cursor);
+  }
 
-      @Override
-      public void close() {
-        if (!closed) {
-          cursor.close();
-        }
-        closed = true;
-      }
+  static class MongoResultsIterator implements CloseableIterator<Document> {
+    private final MongoCursor<BasicDBObject> cursor;
+    private boolean closed = false;
 
-      @Override
-      public boolean hasNext() {
-        boolean hasNext = !closed && cursor.hasNext();
-        if (!hasNext) {
-          close();
-        }
-        return hasNext;
-      }
+    public MongoResultsIterator(final MongoCursor<BasicDBObject> cursor) {
+      this.cursor = cursor;
+    }
 
-      @Override
-      public Document next() {
-        try {
-          return dbObjectToDocument(cursor.next());
-        } catch (Exception ex) {
-          close();
-          throw ex;
-        }
+    @Override
+    public void close() {
+      if (!closed) {
+        cursor.close();
       }
-    };
+      closed = true;
+    }
+
+    @Override
+    public boolean hasNext() {
+      boolean hasNext = !closed && cursor.hasNext();
+      if (!hasNext) {
+        close();
+      }
+      return hasNext;
+    }
+
+    @Override
+    public Document next() {
+      try {
+        return dbObjectToDocument(cursor.next());
+      } catch (Exception ex) {
+        close();
+        throw ex;
+      }
+    }
   }
 }
