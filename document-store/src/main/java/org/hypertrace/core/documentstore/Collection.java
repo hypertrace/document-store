@@ -38,9 +38,11 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param subDocPath Path to the sub document that needs to be updated
    * @param subDocument Sub document that needs to be updated at the above path
-   * @deprecated use {@link #bulkUpdateSubDocs(Map)} ()} instead.
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
-  @Deprecated
+  @Deprecated(forRemoval = true)
   boolean updateSubDoc(Key key, String subDocPath, Document subDocument);
 
   /**
@@ -48,7 +50,11 @@ public interface Collection {
    *
    * @param documents contains the mapping of key and the corresponding sub doc update queries
    * @return the update count or -1 if there is any exception
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
+  @Deprecated(forRemoval = true)
   BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents) throws Exception;
 
   /**
@@ -73,8 +79,10 @@ public interface Collection {
    * #search(Query)}
    *
    * @param query The query definition to find
-   * @return {@link CloseableIterator} of matching documents
+   * @return {@link CloseableIterator} of matching documents @Deprecated use {@link
+   *     #aggregate(org.hypertrace.core.documentstore.query.Query)} instead
    */
+  @Deprecated(forRemoval = true)
   CloseableIterator<Document> find(final org.hypertrace.core.documentstore.query.Query query);
 
   /**
