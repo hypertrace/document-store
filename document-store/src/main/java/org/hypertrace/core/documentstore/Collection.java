@@ -231,6 +231,13 @@ public interface Collection {
    * <p>If requested, returns the set of matching documents before or after update
    * <strong>non-atomically</strong>
    *
+   * <p>Note that since the before update/after update documents are fetched non-atomically, the
+   * actual documents updated and the documents returned might be different (in scenarios like
+   * concurrent inserts, updates or deletes). The only time when the returned documents are
+   * guaranteed to match the updated documents exactly is when the query contains at least one
+   * filter on the unique constraints imposed in the database. Also, note that {@link Key} is
+   * implicitly unique.
+   *
    * @param query The query to be executed. Also, contains the filter for updating
    * @param updates The list of sub-document updates to be performed
    * @param updateOptions Options for updating/returning the document
