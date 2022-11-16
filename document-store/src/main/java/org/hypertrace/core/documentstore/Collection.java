@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -236,7 +237,9 @@ public interface Collection {
    * concurrent inserts, updates or deletes). The only time when the returned documents are
    * guaranteed to match the updated documents exactly is when the query contains at least one
    * filter on the unique constraints imposed in the database. Also, note that {@link Key} is
-   * implicitly unique.
+   * implicitly unique and hence the presence of a {@link KeyExpression} as a part of the query
+   * filter is <strong>one of the scenarios</strong> when the updated documents and the returned
+   * documents would match.
    *
    * @param query The query to be executed. Also, contains the filter for updating
    * @param updates The list of sub-document updates to be performed
