@@ -26,6 +26,7 @@ import static org.hypertrace.core.documentstore.expression.operators.SortOrder.A
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.utils.Utils.MONGO_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.POSTGRES_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.TENANT_ID;
@@ -70,6 +71,7 @@ import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.Query.QueryBuilder;
 import org.hypertrace.core.documentstore.query.Selection;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.Sort;
@@ -77,9 +79,12 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ArgumentsProvider;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -159,25 +164,29 @@ public class DocStoreQueryV1Test {
     postgres.stop();
   }
 
-  @MethodSource
-  private static Stream<Arguments> databaseContextBoth() {
-    return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
+  private static class AllProvider implements ArgumentsProvider {
+    @Override
+    public Stream<Arguments> provideArguments(final ExtensionContext context) {
+      return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
+    }
   }
 
-  @SuppressWarnings("unused")
-  @MethodSource
-  private static Stream<Arguments> databaseContextMongo() {
-    return Stream.of(Arguments.of(MONGO_STORE));
+  private static class MongoProvider implements ArgumentsProvider {
+    @Override
+    public Stream<Arguments> provideArguments(final ExtensionContext context) {
+      return Stream.of(Arguments.of(MONGO_STORE));
+    }
   }
 
-  @SuppressWarnings("unused")
-  @MethodSource
-  private static Stream<Arguments> databaseContextPostgres() {
-    return Stream.of(Arguments.of(POSTGRES_STORE));
+  private static class PostgresProvider implements ArgumentsProvider {
+    @Override
+    public Stream<Arguments> provideArguments(final ExtensionContext context) {
+      return Stream.of(Arguments.of(POSTGRES_STORE));
+    }
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindAll(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -189,7 +198,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testHasNext(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -202,7 +211,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindSimple(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -232,7 +241,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithDuplicateSelections(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -263,7 +272,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithDuplicateSortingAndPagination(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     List<SelectionSpec> selectionSpecs =
@@ -309,7 +318,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithNestedFields(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     List<SelectionSpec> selectionSpecs =
@@ -350,7 +359,179 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(PostgresProvider.class)
+  void testAggregateWithId(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    String documentString =
+        "{\"id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
+            + "\"_id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
+            + "\"type\":\"VULNERABILITY\","
+            + "\"tenantId\":\""
+            + TENANT_ID
+            + "\","
+            + "\"attributes\":"
+            + "{\"name\":\"X-Content-Type-Options without nosniff\","
+            + "\"type\":\"VULNERABILITY_TYPE_MISSING_NOSNIFF_IN_CONTENT_TYPE_OPTIONS_HEADER\","
+            + "\"status\":\"OPEN\","
+            + "\"severity\":\"HIGH\","
+            + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\","
+            + "\"service_id\":\"8d64ccfb-ad07-3a3c-bc32-740f1c794b7d\","
+            + "\"entity_name\":\"POST/login\","
+            + "\"entity_type\":\"API\","
+            + "\"environment\":\"cluster001\","
+            + "\"is_external\":true,\"service_name\":"
+            + "\"nginx-traceshop\","
+            + "\"detection_timestamp\":1663312992746,"
+            + "\"status_update_timestamp\":1663312992746},"
+            + "\"identifyingAttributes\":{"
+            + "\"name\":\"X-Content-Type-Options without nosniff\","
+            + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\"}}";
+    Document document = new JSONDocument(documentString);
+    SingleValueKey key = new SingleValueKey(TENANT_ID, "e2e7f827-7ea5-5a5f-b547-d737965e4e58");
+    collection.upsert(key, document);
+
+    // Search nested field in the document
+    QueryBuilder queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
+    queryBuilder.addSelection(IdentifierExpression.of("id"));
+    queryBuilder.addSelection(
+        SelectionSpec.of(IdentifierExpression.of("attributes.status"), "STATUS"));
+    queryBuilder.addSelection(
+        SelectionSpec.of(IdentifierExpression.of("attributes.entity_id"), "ENTITY_ID"));
+    queryBuilder.setFilter(
+        LogicalExpression.builder()
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("tenantId"), EQ, ConstantExpression.of(TENANT_ID)))
+            .operator(AND)
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("type"), EQ, ConstantExpression.of("VULNERABILITY")))
+            .build());
+    Iterator<Document> results = collection.aggregate(queryBuilder.build());
+    assertDocsAndSizeEqual(dataStoreName, results, "query/aggregate_with_id.json", 1);
+
+    // delete the document created for this test
+    collection.delete(key);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  void testAggregateWithIdAlias(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    String documentString =
+        "{\"id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
+            + "\"_id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
+            + "\"type\":\"VULNERABILITY\","
+            + "\"tenantId\":\""
+            + TENANT_ID
+            + "\","
+            + "\"attributes\":"
+            + "{\"name\":\"X-Content-Type-Options without nosniff\","
+            + "\"type\":\"VULNERABILITY_TYPE_MISSING_NOSNIFF_IN_CONTENT_TYPE_OPTIONS_HEADER\","
+            + "\"status\":\"OPEN\","
+            + "\"severity\":\"HIGH\","
+            + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\","
+            + "\"service_id\":\"8d64ccfb-ad07-3a3c-bc32-740f1c794b7d\","
+            + "\"entity_name\":\"POST/login\","
+            + "\"entity_type\":\"API\","
+            + "\"environment\":\"cluster001\","
+            + "\"is_external\":true,\"service_name\":"
+            + "\"nginx-traceshop\","
+            + "\"detection_timestamp\":1663312992746,"
+            + "\"status_update_timestamp\":1663312992746},"
+            + "\"identifyingAttributes\":{"
+            + "\"name\":\"X-Content-Type-Options without nosniff\","
+            + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\"}}";
+    Document document = new JSONDocument(documentString);
+    SingleValueKey key = new SingleValueKey(TENANT_ID, "e2e7f827-7ea5-5a5f-b547-d737965e4e58");
+    collection.upsert(key, document);
+
+    // Search nested field in the document
+    QueryBuilder queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
+    queryBuilder.addSelection(SelectionSpec.of(IdentifierExpression.of("id"), "ID"));
+    queryBuilder.addSelection(
+        SelectionSpec.of(IdentifierExpression.of("attributes.status"), "STATUS"));
+    queryBuilder.addSelection(
+        SelectionSpec.of(IdentifierExpression.of("attributes.entity_id"), "ENTITY_ID"));
+    queryBuilder.setFilter(
+        LogicalExpression.builder()
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("tenantId"), EQ, ConstantExpression.of(TENANT_ID)))
+            .operator(AND)
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("type"), EQ, ConstantExpression.of("VULNERABILITY")))
+            .build());
+    Iterator<Document> results = collection.aggregate(queryBuilder.build());
+    assertDocsAndSizeEqual(dataStoreName, results, "query/aggregate_with_caps_id.json", 1);
+
+    // delete the document created for this test
+    collection.delete(key);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  void testAggregateWithTestIdAlias(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    String documentString =
+        "{\"id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
+            + "\"_id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\","
+            + "\"type\":\"VULNERABILITY\","
+            + "\"tenantId\":\""
+            + TENANT_ID
+            + "\","
+            + "\"attributes\":"
+            + "{\"name\":\"X-Content-Type-Options without nosniff\","
+            + "\"type\":\"VULNERABILITY_TYPE_MISSING_NOSNIFF_IN_CONTENT_TYPE_OPTIONS_HEADER\","
+            + "\"status\":\"OPEN\","
+            + "\"severity\":\"HIGH\","
+            + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\","
+            + "\"service_id\":\"8d64ccfb-ad07-3a3c-bc32-740f1c794b7d\","
+            + "\"entity_name\":\"POST/login\","
+            + "\"entity_type\":\"API\","
+            + "\"environment\":\"cluster001\","
+            + "\"is_external\":true,\"service_name\":"
+            + "\"nginx-traceshop\","
+            + "\"detection_timestamp\":1663312992746,"
+            + "\"status_update_timestamp\":1663312992746},"
+            + "\"identifyingAttributes\":{"
+            + "\"name\":\"X-Content-Type-Options without nosniff\","
+            + "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\"}}";
+    Document document = new JSONDocument(documentString);
+    SingleValueKey key = new SingleValueKey(TENANT_ID, "e2e7f827-7ea5-5a5f-b547-d737965e4e58");
+    collection.upsert(key, document);
+
+    // Search nested field in the document
+    QueryBuilder queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
+    queryBuilder.addSelection(SelectionSpec.of(IdentifierExpression.of("id"), "TEST_ID"));
+    queryBuilder.addSelection(
+        SelectionSpec.of(IdentifierExpression.of("attributes.status"), "STATUS"));
+    queryBuilder.addSelection(
+        SelectionSpec.of(IdentifierExpression.of("attributes.entity_id"), "ENTITY_ID"));
+    queryBuilder.setFilter(
+        LogicalExpression.builder()
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("tenantId"), EQ, ConstantExpression.of(TENANT_ID)))
+            .operator(AND)
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("type"), EQ, ConstantExpression.of("VULNERABILITY")))
+            .build());
+    Iterator<Document> results = collection.aggregate(queryBuilder.build());
+    assertDocsAndSizeEqual(dataStoreName, results, "query/aggregate_with_test_id.json", 1);
+
+    // delete the document created for this test
+    collection.delete(key);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateEmpty(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     Query query = Query.builder().build();
@@ -361,7 +542,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateSimple(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     Query query =
@@ -375,7 +556,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testOptionalFieldCount(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     Query query =
@@ -392,7 +573,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateWithDuplicateSelections(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     Query query =
@@ -407,7 +588,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateWithFiltersAndOrdering(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     Query query =
@@ -446,7 +627,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateWithFiltersAndDuplicateOrderingAndDuplicateAggregations(
       String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -488,7 +669,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateWithNestedFields(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     Query query =
@@ -522,7 +703,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateWithoutAggregationAlias(String dataStoreName) {
     Collection collection = getCollection(dataStoreName);
     Query query =
@@ -540,7 +721,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateWithUnsupportedExpressionNesting(String dataStoreName) {
     Collection collection = getCollection(dataStoreName);
     Query query =
@@ -568,7 +749,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateWithMultipleGroupingLevels(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     Query query =
@@ -599,7 +780,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateWithFunctionalLeftHandSideFilter(final String dataStoreName)
       throws IOException {
     final Datastore datastore = datastoreMap.get(dataStoreName);
@@ -627,7 +808,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithFunctionalLeftHandSideFilter(final String dataStoreName)
       throws IOException {
     final Datastore datastore = datastoreMap.get(dataStoreName);
@@ -655,7 +836,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryQ1AggregationFilterAlongWithNonAliasFields(String dataStoreName)
       throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -686,7 +867,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryQ1AggregationFilterWithStringAlongWithNonAliasFields(String dataStoreName)
       throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -717,7 +898,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryQ1AggregationFilterWithStringInFilterAlongWithNonAliasFields(
       String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -754,7 +935,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   void testQueryQ1DistinctCountAggregationWithOnlyFilter(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
@@ -787,7 +968,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   void testQueryQ1DistinctCountAggregationWithMatchingSelectionAndGroupBy(String dataStoreName)
       throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
@@ -811,7 +992,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryV1ForSimpleWhereClause(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     // query docs
@@ -828,7 +1009,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryV1FilterWithNestedFiled(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -855,7 +1036,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryV1ForFilterWithLogicalExpressionAndOr(String dataStoreName)
       throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -892,7 +1073,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryV1ForSelectionExpression(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -920,7 +1101,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryV1FunctionalSelectionExpressionWithNestedFieldWithAlias(String dataStoreName)
       throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -952,7 +1133,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryV1AggregationExpression(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -984,7 +1165,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryV1AggregationFilter(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1006,7 +1187,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryV1AggregationFilterWithWhereClause(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1031,7 +1212,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testUnnestWithoutPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1051,7 +1232,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testUnnestWithoutPreserveNullAndEmptyArraysWithFilters(String dataStoreName)
       throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -1083,7 +1264,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testUnnestWithPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1103,7 +1284,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testUnnestAndAggregate(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1126,7 +1307,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testUnnestAndAggregate_preserveEmptyTrue(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1144,7 +1325,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testUnnest(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1166,7 +1347,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testUnnestAndAggregate_preserveEmptyFalse(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1184,7 +1365,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFilterAndUnnest(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1215,7 +1396,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testUnnestWithRegularFilterAndNullAndEmptyPreservedAtSecondLevel(String dataStoreName)
       throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -1257,7 +1438,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testUnnestWithRegularFilterAndNullAndEmptyPreservedAtFirstLevel(String dataStoreName)
       throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -1298,7 +1479,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
@@ -1321,7 +1502,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithSortingAndPagination(String datastoreName) throws IOException {
     Collection collection = getCollection(datastoreName);
 
@@ -1364,7 +1545,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithSingleKey(final String datastoreName) throws IOException {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
@@ -1378,7 +1559,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithDuplicateKeys(final String datastoreName) throws IOException {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
@@ -1395,7 +1576,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithConflictingKeys(final String datastoreName) {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
@@ -1412,7 +1593,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithMultipleKeys(final String datastoreName) throws IOException {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
@@ -1430,7 +1611,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithNonExistingKeys(final String datastoreName) {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
@@ -1444,7 +1625,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithKeyAndMatchingRelationalFilter(final String datastoreName)
       throws IOException {
     final Collection collection = getCollection(datastoreName);
@@ -1463,7 +1644,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithKeyAndNonMatchingRelationalFilter(final String datastoreName) {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
@@ -1481,7 +1662,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithMultipleKeysAndPartiallyMatchingRelationalFilter(
       final String datastoreName) throws IOException {
     final Collection collection = getCollection(datastoreName);
@@ -1502,7 +1683,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAggregateWithSingleKey(final String datastoreName) throws IOException {
     final Collection collection = getCollection(datastoreName);
     final org.hypertrace.core.documentstore.query.Filter filter =
@@ -1516,7 +1697,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAtomicUpdateWithFilter(final String datastoreName)
       throws IOException, ExecutionException, InterruptedException {
     final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
@@ -1594,7 +1775,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAtomicUpdateWithFilterAndGetNewDocument(final String datastoreName)
       throws IOException, ExecutionException, InterruptedException {
     final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
@@ -1674,7 +1855,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAtomicUpdateSameDocumentWithFilter(final String datastoreName)
       throws IOException, ExecutionException, InterruptedException {
     final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
@@ -1743,7 +1924,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @MethodSource("databaseContextBoth")
+  @ArgumentsSource(AllProvider.class)
   public void testAtomicUpdateDocumentWithoutSelections(final String datastoreName)
       throws IOException, ExecutionException, InterruptedException {
     final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
@@ -1798,6 +1979,274 @@ public class DocStoreQueryV1Test {
         collection.find(Query.builder().build()),
         9,
         "query/updatable_collection_data_without_selection.json");
+  }
+
+  @Nested
+  class BulkUpdateTest {
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithFilterAndGetNoDocuments(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              LT,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              UpdateOptions.builder().returnDocumentType(NONE).build());
+
+      assertFalse(docIterator.hasNext());
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props"))
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/bulk_update/updated_collection_data.json",
+          9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithFilterAndGetAfterDocumentsEmpty(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              LT,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+
+      // Since the date is updated to conflict with the filter, there will not be any documents
+      assertFalse(docIterator.hasNext());
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props"))
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/bulk_update/updated_collection_data.json",
+          9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithFilterAndGetAfterDocumentsNonEmpty(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("props.size"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+
+      assertDocsAndSizeEqual(
+          datastoreName,
+          docIterator,
+          "query/bulk_update/updated_collection_response_after_update.json",
+          4);
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props"))
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/bulk_update/updated_collection_data_relaxed_filter.json",
+          9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithFilterAndGetBeforeDocuments(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("props.size"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+
+      assertDocsAndSizeEqual(
+          datastoreName,
+          docIterator,
+          "query/bulk_update/updated_collection_response_before_update.json",
+          4);
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props"))
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/bulk_update/updated_collection_data_relaxed_filter.json",
+          9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithNonMatchingFilterAndGetBeforeDocuments(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      EQ,
+                      ConstantExpression.of("Non-existing-item")))
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("props.size"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+
+      assertFalse(docIterator.hasNext());
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(Query.builder().addSort(IdentifierExpression.of("_id"), ASC).build()),
+          "query/bulk_update/updatable_collection_data_no_update.json",
+          9);
+    }
   }
 
   private static Collection getCollection(final String dataStoreName) {

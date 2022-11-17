@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.mongo;
+package org.hypertrace.core.documentstore.mongo.query;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.FindIterable;

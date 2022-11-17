@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.mongo.parser;
+package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 
@@ -61,9 +61,9 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
     return filters.isEmpty() ? new BasicDBObject() : new BasicDBObject(FILTER_CLAUSE, filters);
   }
 
-  private static BasicDBObject getFilter(FilterTypeExpression filterTypeExpression) {
-    FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser();
-    Map<String, Object> filter = filterTypeExpression.accept(parser);
+  private static BasicDBObject getFilter(final FilterTypeExpression filterTypeExpression) {
+    final FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser();
+    final Map<String, Object> filter = filterTypeExpression.accept(parser);
     return new BasicDBObject(filter);
   }
 }

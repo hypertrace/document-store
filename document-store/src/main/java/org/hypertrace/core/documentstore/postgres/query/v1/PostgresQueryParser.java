@@ -103,6 +103,10 @@ public class PostgresQueryParser {
     return queryBuilder.toString();
   }
 
+  public String buildFilterClause() {
+    return parseFilter().map(filter -> "WHERE " + filter).orElse("");
+  }
+
   private String getSelections() {
     return parseSelection().orElse(ALL_SELECTIONS);
   }

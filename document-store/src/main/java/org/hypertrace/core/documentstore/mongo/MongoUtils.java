@@ -5,6 +5,7 @@ import static com.mongodb.client.model.ReturnDocument.BEFORE;
 import static java.util.Map.entry;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -32,7 +33,11 @@ public final class MongoUtils {
   private static final String UNSUPPORTED_OPERATION = "No MongoDB support available for: '%s'";
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Map<ReturnDocumentType, ReturnDocument> RETURN_DOCUMENT_MAP =
-      Map.ofEntries(entry(BEFORE_UPDATE, BEFORE), entry(AFTER_UPDATE, AFTER));
+      Map.ofEntries(
+          entry(BEFORE_UPDATE, BEFORE),
+          entry(AFTER_UPDATE, AFTER),
+          // Since Mongo doesn't have NONE return type, we map it to AFTER
+          entry(NONE, AFTER));
 
   public static <T> UnsupportedOperationException getUnsupportedOperationException(T t) {
     return new UnsupportedOperationException(String.format(UNSUPPORTED_OPERATION, t));

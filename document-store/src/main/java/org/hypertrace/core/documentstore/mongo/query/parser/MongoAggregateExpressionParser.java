@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.mongo.parser;
+package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;

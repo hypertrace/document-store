@@ -1,9 +1,16 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static java.sql.Types.BIGINT;
+import static java.sql.Types.BOOLEAN;
+import static java.sql.Types.DOUBLE;
+import static java.sql.Types.FLOAT;
+import static java.sql.Types.INTEGER;
+import static java.sql.Types.VARCHAR;
 import static java.util.Optional.empty;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.OUTER_COLUMNS;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.enrichPreparedStatementWithParams;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.extractAndRemoveId;
@@ -15,9 +22,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.BigIntegerNode;
+import com.fasterxml.jackson.databind.node.BooleanNode;
+import com.fasterxml.jackson.databind.node.DoubleNode;
+import com.fasterxml.jackson.databind.node.FloatNode;
+import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -34,7 +48,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -57,6 +70,7 @@ import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
@@ -78,7 +92,8 @@ public class PostgresCollection implements Collection {
   public static final String CREATED_AT = "created_at";
   public static final String DOC_PATH_SEPARATOR = "\\.";
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final CloseableIterator<Document> EMPTY_ITERATOR = createEmptyIterator();
+  private static final CloseableIterator<Document> EMPTY_ITERATOR =
+      CloseableIterator.emptyIterator();
 
   private final PostgresClient client;
   private final String collectionName;
@@ -419,13 +434,9 @@ public class PostgresCollection implements Collection {
       final UpdateOptions updateOptions)
       throws IOException {
 
-    if (updates.isEmpty()) {
-      throw new IOException("At least one update is required");
-    }
+    ensureAtLeastOneUpdateIsPresent(updates);
 
     try (final Connection connection = client.getPooledConnection()) {
-      connection.setAutoCommit(false);
-
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
               collectionName, query);
@@ -446,11 +457,7 @@ public class PostgresCollection implements Collection {
         final DocumentAndId docAndId = extractAndRemoveId(document);
         final String id = docAndId.getId();
 
-        for (final SubDocumentUpdate update : updates) {
-          subDocUpdater.executeUpdateQuery(connection, id, update);
-        }
-
-        subDocUpdater.updateLastUpdatedTime(connection, id);
+        subDocUpdater.executeUpdateQuery(connection, id, updates);
 
         final Document returnDocument;
 
@@ -470,6 +477,8 @@ public class PostgresCollection implements Collection {
               queryExecutor.execute(connection, findByIdQuery)) {
             returnDocument = getFirstDocument(iterator).orElseThrow();
           }
+        } else if (updateOptions.getReturnDocumentType() == NONE) {
+          returnDocument = null;
         } else {
           throw new UnsupportedOperationException(
               String.format(
@@ -477,13 +486,62 @@ public class PostgresCollection implements Collection {
         }
 
         connection.commit();
-        return Optional.of(returnDocument);
+        return Optional.ofNullable(returnDocument);
       } catch (final Exception e) {
         connection.rollback();
         throw e;
       }
     } catch (final Exception e) {
       throw new IOException(e);
+    }
+  }
+
+  @Override
+  public CloseableIterator<Document> bulkUpdate(
+      org.hypertrace.core.documentstore.query.Query query,
+      final java.util.Collection<SubDocumentUpdate> updates,
+      final UpdateOptions updateOptions)
+      throws IOException {
+    ensureAtLeastOneUpdateIsPresent(updates);
+
+    CloseableIterator<Document> iterator = null;
+
+    try {
+      final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
+
+      if (returnDocumentType == BEFORE_UPDATE) {
+        iterator = aggregate(query);
+      }
+
+      final Connection connection = client.getConnection();
+      subDocUpdater.executeUpdateQuery(connection, query, updates);
+
+      switch (returnDocumentType) {
+        case AFTER_UPDATE:
+          return aggregate(query);
+
+        case BEFORE_UPDATE:
+          return iterator;
+
+        case NONE:
+          return CloseableIterator.emptyIterator();
+
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported return document type: " + returnDocumentType);
+      }
+    } catch (final Exception e) {
+      if (iterator != null) {
+        iterator.close();
+      }
+      throw new IOException(e);
+    }
+  }
+
+  private void ensureAtLeastOneUpdateIsPresent(java.util.Collection<SubDocumentUpdate> updates)
+      throws IOException {
+    if (updates.isEmpty()) {
+      throw new IOException("At least one update is required");
     }
   }
 
@@ -1141,7 +1199,17 @@ public class PostgresCollection implements Collection {
         String columnName = resultSetMetaData.getColumnName(i);
         String columnValue = getColumnValue(resultSetMetaData, columnName, i);
         if (StringUtils.isNotEmpty(columnValue)) {
-          JsonNode leafNodeValue = MAPPER.readTree(columnValue);
+          JsonNode leafNodeValue;
+          try {
+            leafNodeValue = MAPPER.readTree(columnValue);
+          } catch (JsonParseException ex) {
+            // try to handle the case of json parsing failure
+            // try to find mapping of value to json node
+            // if not found then throw the same exception upwards
+            leafNodeValue =
+                mapValueToJsonNode(resultSetMetaData.getColumnType(i), columnValue)
+                    .orElseThrow(() -> ex);
+          }
           if (PostgresUtils.isEncodedNestedField(columnName)) {
             handleNestedField(
                 PostgresUtils.decodeAliasForNestedField(columnName), jsonNode, leafNodeValue);
@@ -1162,7 +1230,9 @@ public class PostgresCollection implements Collection {
         return MAPPER.writeValueAsString(resultSet.getArray(columnIndex).getArray());
       }
 
-      // check for any OUTER column including ID, and its alias
+      // check for any OUTER column including ID
+      // please note below check will not work in case of alias as alias provided
+      // can be different from actual column name
       if (OUTER_COLUMNS.contains(columnName) || IMPLICIT_ID.equals(columnName)) {
         return MAPPER.writeValueAsString(resultSet.getString(columnIndex));
       }
@@ -1190,22 +1260,22 @@ public class PostgresCollection implements Collection {
     }
   }
 
-  private static CloseableIterator<Document> createEmptyIterator() {
-    return new CloseableIterator<>() {
-      @Override
-      public void close() {
-        // empty iterator
-      }
-
-      @Override
-      public boolean hasNext() {
-        return false;
-      }
-
-      @Override
-      public Document next() {
-        throw new NoSuchElementException();
-      }
-    };
+  private static Optional<JsonNode> mapValueToJsonNode(int columnType, String columnValue) {
+    switch (columnType) {
+      case VARCHAR:
+        return Optional.of(TextNode.valueOf(columnValue));
+      case BIGINT:
+        return Optional.of(BigIntegerNode.valueOf(BigInteger.valueOf(Long.valueOf(columnValue))));
+      case INTEGER:
+        return Optional.of(IntNode.valueOf(Integer.valueOf(columnValue)));
+      case BOOLEAN:
+        return Optional.of(BooleanNode.valueOf(Boolean.valueOf(columnValue)));
+      case DOUBLE:
+        return Optional.of(DoubleNode.valueOf(Double.valueOf(columnValue)));
+      case FLOAT:
+        return Optional.of(FloatNode.valueOf(Float.valueOf(columnValue)));
+      default:
+        return Optional.empty();
+    }
   }
 }

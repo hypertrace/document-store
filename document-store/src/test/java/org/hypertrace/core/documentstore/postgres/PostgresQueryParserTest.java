@@ -98,7 +98,7 @@ class PostgresQueryParserTest {
               filter.getOp().toString(),
               filter.getValue(),
               initParams());
-      Assertions.assertEquals(ID + " ILIKE ?", query);
+      Assertions.assertEquals(ID + " ~* ?", query);
     }
 
     {
@@ -155,7 +155,7 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.LIKE, "key1", "abc");
       String query = PostgresQueryParser.parseFilter(filter, initParams());
-      Assertions.assertEquals("document->>'key1' ILIKE ?", query);
+      Assertions.assertEquals("document->>'key1' ~* ?", query);
     }
 
     {

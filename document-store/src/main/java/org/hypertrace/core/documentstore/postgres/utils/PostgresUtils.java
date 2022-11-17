@@ -222,8 +222,8 @@ public class PostgresUtils {
       case "~":
         // Case insensitive regex search, Append % at beginning and end of value to do a regex
         // search
-        sqlOperator = " ILIKE ";
-        value = "%" + value + "%";
+        sqlOperator = " ~* ";
+        value = ".*" + value + ".*";
         break;
       case "NOT_IN":
       case "NOT IN":
@@ -393,8 +393,8 @@ public class PostgresUtils {
       case "~":
         // Case insensitive regex search, Append % at beginning and end of value to do a regex
         // search
-        sqlOperator = " ILIKE ";
-        value = "%" + value + "%";
+        sqlOperator = " ~* ";
+        value = ".*" + value + ".*";
         break;
       case "NOT_IN":
       case "NOT IN":
