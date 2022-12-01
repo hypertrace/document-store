@@ -2,36 +2,39 @@ package org.hypertrace.core.documentstore.model.subdoc;
 
 import javax.annotation.Nonnull;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.model.Hashable;
+import org.hypertrace.core.documentstore.model.Printable;
 import org.hypertrace.core.documentstore.model.subdoc.visitor.SubDocumentValueVisitor;
 
-public interface SubDocumentValue {
+@SuppressWarnings("UnnecessaryInterfaceModifier")
+public interface SubDocumentValue extends Hashable, Printable {
   <T> T accept(final SubDocumentValueVisitor visitor);
 
-  static SubDocumentValue of(@Nonnull final Document document) {
+  public static SubDocumentValue of(@Nonnull final Document document) {
     return new NestedSubDocumentValue(document);
   }
 
-  static SubDocumentValue of(@Nonnull final Number value) {
+  public static SubDocumentValue of(@Nonnull final Number value) {
     return new PrimitiveSubDocumentValue(value);
   }
 
-  static SubDocumentValue of(@Nonnull final String value) {
+  public static SubDocumentValue of(@Nonnull final String value) {
     return new PrimitiveSubDocumentValue(value);
   }
 
-  static SubDocumentValue of(@Nonnull final Boolean value) {
+  public static SubDocumentValue of(@Nonnull final Boolean value) {
     return new PrimitiveSubDocumentValue(value);
   }
 
-  static SubDocumentValue of(@Nonnull final Number[] values) {
+  public static SubDocumentValue of(@Nonnull final Number[] values) {
     return new PrimitiveSubDocumentValue(values);
   }
 
-  static SubDocumentValue of(@Nonnull final String[] values) {
+  public static SubDocumentValue of(@Nonnull final String[] values) {
     return new PrimitiveSubDocumentValue(values);
   }
 
-  static SubDocumentValue of(@Nonnull final Boolean[] values) {
+  public static SubDocumentValue of(@Nonnull final Boolean[] values) {
     return new PrimitiveSubDocumentValue(values);
   }
 }

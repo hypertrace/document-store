@@ -61,15 +61,14 @@ public class MongoUpdateExecutor {
       }
 
       final BasicDBObject filter = getFilter(query, Query::getFilter);
-
-      final BasicDBObject setObject = updateParser.buildSetClause(updates);
+      final BasicDBObject updateObject = updateParser.buildUpdateClause(updates);
 
       if (returnDocumentType == NONE) {
-        collection.findOneAndUpdate(filter, setObject, options);
+        collection.findOneAndUpdate(filter, updateObject, options);
         return Optional.empty();
       }
 
-      return Optional.ofNullable(collection.findOneAndUpdate(filter, setObject, options))
+      return Optional.ofNullable(collection.findOneAndUpdate(filter, updateObject, options))
           .map(MongoUtils::dbObjectToDocument);
     } catch (final Exception e) {
       throw new IOException(e);
@@ -84,7 +83,7 @@ public class MongoUpdateExecutor {
     ensureAtLeastOneUpdateIsPresent(updates);
 
     final BasicDBObject filter = getFilter(query, Query::getFilter);
-    final BasicDBObject setObject = updateParser.buildSetClause(updates);
+    final BasicDBObject setObject = updateParser.buildUpdateClause(updates);
     final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
     final MongoCursor<BasicDBObject> cursor;
 

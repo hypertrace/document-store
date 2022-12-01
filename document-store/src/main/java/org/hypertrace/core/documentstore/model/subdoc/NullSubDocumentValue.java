@@ -4,19 +4,18 @@ import static lombok.AccessLevel.PACKAGE;
 
 import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.ToString;
 import org.hypertrace.core.documentstore.model.subdoc.visitor.SubDocumentValueVisitor;
 
 @EqualsAndHashCode
 @AllArgsConstructor(access = PACKAGE)
-@Getter
-@ToString
-public class PrimitiveSubDocumentValue implements SubDocumentValue {
-  private final Object value;
-
+public class NullSubDocumentValue implements SubDocumentValue {
   @Override
   public <T> T accept(final SubDocumentValueVisitor visitor) {
     return visitor.visit(this);
+  }
+
+  @Override
+  public String toString() {
+    return "<null-value>";
   }
 }
