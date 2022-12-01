@@ -142,7 +142,7 @@ public class Utils {
   }
 
   public static void assertDocsAndSizeEqualWithoutOrder(
-      String dataStoreName, Iterator<Document> documents, int expectedSize, String filePath)
+      String dataStoreName, Iterator<Document> documents, String filePath, int expectedSize)
       throws IOException {
     String fileContent = readFileFromResource(filePath).orElseThrow();
     List<Map<String, Object>> expectedDocs = convertJsonToMap(fileContent);

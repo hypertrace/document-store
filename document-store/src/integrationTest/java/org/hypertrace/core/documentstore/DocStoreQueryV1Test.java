@@ -27,6 +27,11 @@ import static org.hypertrace.core.documentstore.expression.operators.SortOrder.D
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET;
 import static org.hypertrace.core.documentstore.utils.Utils.MONGO_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.POSTGRES_STORE;
 import static org.hypertrace.core.documentstore.utils.Utils.TENANT_ID;
@@ -235,7 +240,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 5, "query/simple_filter_response.json");
+        dataStoreName, resultDocs, "query/simple_filter_response.json", 5);
 
     testCountApi(dataStoreName, query, "query/simple_filter_response.json");
   }
@@ -266,7 +271,7 @@ public class DocStoreQueryV1Test {
     Query query = Query.builder().setSelection(selection).setFilter(filter).build();
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 5, "query/simple_filter_response.json");
+        dataStoreName, resultDocs, "query/simple_filter_response.json", 5);
 
     testCountApi(dataStoreName, query, "query/simple_filter_response.json");
   }
@@ -551,7 +556,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    assertDocsAndSizeEqualWithoutOrder(dataStoreName, resultDocs, 1, "query/count_response.json");
+    assertDocsAndSizeEqualWithoutOrder(dataStoreName, resultDocs, "query/count_response.json", 1);
     testCountApi(dataStoreName, query, "query/count_response.json");
   }
 
@@ -568,7 +573,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 1, "query/optional_field_count_response.json");
+        dataStoreName, resultDocs, "query/optional_field_count_response.json", 1);
     testCountApi(dataStoreName, query, "query/optional_field_count_response.json");
   }
 
@@ -583,7 +588,7 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> resultDocs = collection.aggregate(query);
-    assertDocsAndSizeEqualWithoutOrder(dataStoreName, resultDocs, 1, "query/count_response.json");
+    assertDocsAndSizeEqualWithoutOrder(dataStoreName, resultDocs, "query/count_response.json", 1);
     testCountApi(dataStoreName, query, "query/count_response.json");
   }
 
@@ -688,7 +693,7 @@ public class DocStoreQueryV1Test {
 
     if (dataStoreName.equals(POSTGRES_STORE)) {
       assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, 3, "query/pg_aggregate_on_nested_fields_response.json");
+          dataStoreName, resultDocs, "query/pg_aggregate_on_nested_fields_response.json", 3);
       testCountApi(dataStoreName, query, "query/pg_aggregate_on_nested_fields_response.json");
     } else {
       // NOTE that as part of this query, mongo impl returns a null field in the response. However,
@@ -863,7 +868,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 4, "query/test_aggr_alias_distinct_count_response.json");
+        dataStoreName, resultDocs, "query/test_aggr_alias_distinct_count_response.json", 4);
   }
 
   @ParameterizedTest
@@ -894,7 +899,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 2, "query/test_string_aggr_alias_distinct_count_response.json");
+        dataStoreName, resultDocs, "query/test_string_aggr_alias_distinct_count_response.json", 2);
   }
 
   @ParameterizedTest
@@ -930,8 +935,8 @@ public class DocStoreQueryV1Test {
     assertDocsAndSizeEqualWithoutOrder(
         dataStoreName,
         resultDocs,
-        3,
-        "query/test_string_in_filter_aggr_alias_distinct_count_response.json");
+        "query/test_string_in_filter_aggr_alias_distinct_count_response.json",
+        3);
   }
 
   @ParameterizedTest
@@ -963,7 +968,7 @@ public class DocStoreQueryV1Test {
 
     try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
       assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, 1, "query/test_aggr_only_with_fliter_response.json");
+          dataStoreName, resultDocs, "query/test_aggr_only_with_fliter_response.json", 1);
     }
   }
 
@@ -987,7 +992,7 @@ public class DocStoreQueryV1Test {
             .build();
     try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
       assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, 3, "query/test_aggr_with_match_selection_and_groupby.json");
+          dataStoreName, resultDocs, "query/test_aggr_with_match_selection_and_groupby.json", 3);
     }
   }
 
@@ -1005,7 +1010,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, iterator, 6, "query/simple_filter_quantity_neq_10.json");
+        dataStoreName, iterator, "query/simple_filter_quantity_neq_10.json", 6);
   }
 
   @ParameterizedTest
@@ -1032,7 +1037,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, iterator, 1, "query/test_nest_field_filter_response.json");
+        dataStoreName, iterator, "query/test_nest_field_filter_response.json", 1);
   }
 
   @ParameterizedTest
@@ -1069,7 +1074,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 6, "query/filter_with_logical_and_or_operator.json");
+        dataStoreName, resultDocs, "query/filter_with_logical_and_or_operator.json", 6);
   }
 
   @ParameterizedTest
@@ -1097,7 +1102,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 2, "query/test_selection_expression_result.json");
+        dataStoreName, resultDocs, "query/test_selection_expression_result.json", 2);
   }
 
   @ParameterizedTest
@@ -1128,8 +1133,8 @@ public class DocStoreQueryV1Test {
     assertDocsAndSizeEqualWithoutOrder(
         dataStoreName,
         resultDocs,
-        2,
-        "query/test_selection_expression_nested_fields_alias_result.json");
+        "query/test_selection_expression_nested_fields_alias_result.json",
+        2);
   }
 
   @ParameterizedTest
@@ -1161,7 +1166,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 3, "query/test_aggregation_expression_result.json");
+        dataStoreName, resultDocs, "query/test_aggregation_expression_result.json", 3);
   }
 
   @ParameterizedTest
@@ -1183,7 +1188,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 4, "query/distinct_count_response.json");
+        dataStoreName, resultDocs, "query/distinct_count_response.json", 4);
   }
 
   @ParameterizedTest
@@ -1208,7 +1213,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 2, "query/test_aggr_filter_and_where_filter_result.json");
+        dataStoreName, resultDocs, "query/test_aggr_filter_and_where_filter_result.json", 2);
   }
 
   @ParameterizedTest
@@ -1228,7 +1233,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 11, "query/unwind_not_preserving_selection_response.json");
+        dataStoreName, resultDocs, "query/unwind_not_preserving_selection_response.json", 11);
   }
 
   @ParameterizedTest
@@ -1260,7 +1265,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 3, "query/unwind_not_preserving_filter_response.json");
+        dataStoreName, resultDocs, "query/unwind_not_preserving_filter_response.json", 3);
   }
 
   @ParameterizedTest
@@ -1280,7 +1285,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, 17, "query/unwind_preserving_selection_response.json");
+        dataStoreName, resultDocs, "query/unwind_preserving_selection_response.json", 17);
   }
 
   @ParameterizedTest
@@ -1321,7 +1326,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, iterator, 1, "query/unwind_preserving_empty_array_response.json");
+        dataStoreName, iterator, "query/unwind_preserving_empty_array_response.json", 1);
   }
 
   @ParameterizedTest
@@ -1361,7 +1366,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, iterator, 1, "query/unwind_not_preserving_empty_array_response.json");
+        dataStoreName, iterator, "query/unwind_not_preserving_empty_array_response.json", 1);
   }
 
   @ParameterizedTest
@@ -1607,7 +1612,7 @@ public class DocStoreQueryV1Test {
     final Iterator<Document> resultDocs =
         collection.find(Query.builder().setFilter(filter).build());
     assertDocsAndSizeEqualWithoutOrder(
-        datastoreName, resultDocs, 2, "query/key_filter_multiple_response.json");
+        datastoreName, resultDocs, "query/key_filter_multiple_response.json", 2);
   }
 
   @ParameterizedTest
@@ -1757,8 +1762,8 @@ public class DocStoreQueryV1Test {
     assertDocsAndSizeEqualWithoutOrder(
         datastoreName,
         List.of(document1, document2).iterator(),
-        2,
-        "query/atomic_update_response.json");
+        "query/atomic_update_response.json",
+        2);
     assertDocsAndSizeEqual(
         datastoreName,
         collection.find(
@@ -1837,8 +1842,8 @@ public class DocStoreQueryV1Test {
     assertDocsAndSizeEqualWithoutOrder(
         datastoreName,
         List.of(document1, document2).iterator(),
-        2,
-        "query/atomic_update_response_get_new_document.json");
+        "query/atomic_update_response_get_new_document.json",
+        2);
     assertDocsAndSizeEqual(
         datastoreName,
         collection.find(
@@ -1906,8 +1911,8 @@ public class DocStoreQueryV1Test {
     assertDocsAndSizeEqualWithoutOrder(
         datastoreName,
         List.of(document1, document2).iterator(),
-        2,
-        "query/atomic_update_same_document_response.json");
+        "query/atomic_update_same_document_response.json",
+        2);
     assertDocsAndSizeEqual(
         datastoreName,
         collection.find(
@@ -1977,8 +1982,98 @@ public class DocStoreQueryV1Test {
     assertDocsAndSizeEqualWithoutOrder(
         datastoreName,
         collection.find(Query.builder().build()),
-        9,
-        "query/updatable_collection_data_without_selection.json");
+        "query/updatable_collection_data_without_selection.json",
+        9);
+  }
+
+  @Nested
+  class UpdateOperatorTest {
+    @ParameterizedTest
+    @ArgumentsSource(MongoProvider.class)
+    void testUpdateWithAllOperators(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate set =
+          SubDocumentUpdate.builder()
+              .subDocument("props.new_property.deep.nested.value")
+              .updateOperator(SET)
+              .subDocumentValue(SubDocumentValue.of("new_value"))
+              .build();
+      final SubDocumentUpdate unset =
+          SubDocumentUpdate.builder().subDocument("sales").updateOperator(UNSET).build();
+      final SubDocumentUpdate add =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.set")
+              .updateOperator(ADD)
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .build();
+      final SubDocumentUpdate another_add =
+          SubDocumentUpdate.builder()
+              .subDocument("props.planets")
+              .updateOperator(ADD)
+              .subDocumentValue(SubDocumentValue.of(new String[] {"Neptune", "Pluto"}))
+              .build();
+      final SubDocumentUpdate append =
+          SubDocumentUpdate.builder()
+              .subDocument("props.appended.list")
+              .updateOperator(APPEND)
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {1, 2}))
+              .build();
+      final SubDocumentUpdate remove =
+          SubDocumentUpdate.builder()
+              .subDocument("props.removed.list")
+              .updateOperator(REMOVE)
+              .subDocumentValue(SubDocumentValue.of(new String[] {"Hello"}))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(set, unset, add, another_add, append, remove);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator, "query/update_operator/updated1.json", 9);
+
+      final SubDocumentUpdate set_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.sales")
+              .updateOperator(SET)
+              .subDocumentValue(SubDocumentValue.of("new_value"))
+              .build();
+      final SubDocumentUpdate unset_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.new_property.deep.nested")
+              .updateOperator(UNSET)
+              .build();
+      final SubDocumentUpdate add_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.set")
+              .updateOperator(ADD)
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {3, 1, 1000}))
+              .build();
+      final SubDocumentUpdate append_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.appended.list")
+              .updateOperator(APPEND)
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {8, 2}))
+              .build();
+      final SubDocumentUpdate remove_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.planets")
+              .updateOperator(REMOVE)
+              .subDocumentValue(SubDocumentValue.of(new String[] {"Pluto", "Mars"}))
+              .build();
+      final List<SubDocumentUpdate> new_updates =
+          List.of(set_new, unset_new, add_new, append_new, remove_new);
+
+      final CloseableIterator<Document> iterator_new =
+          collection.bulkUpdate(
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator_new, "query/update_operator/updated2.json", 9);
+    }
   }
 
   @Nested
