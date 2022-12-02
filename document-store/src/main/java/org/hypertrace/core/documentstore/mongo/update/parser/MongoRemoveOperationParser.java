@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.update.parser;
 
-import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.merge;
 
 import com.mongodb.BasicDBObject;
@@ -14,7 +14,7 @@ public class MongoRemoveOperationParser extends MongoOperationParser {
 
   @Override
   public UpdateOperator operator() {
-    return REMOVE;
+    return REMOVE_ALL_FROM_LIST;
   }
 
   @Override

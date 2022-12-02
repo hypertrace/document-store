@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.update.parser;
 
-import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.merge;
 
 import com.mongodb.BasicDBObject;
@@ -14,7 +14,7 @@ public class MongoAddOperationParser extends MongoOperationParser {
 
   @Override
   public UpdateOperator operator() {
-    return ADD;
+    return ADD_TO_LIST_IF_ABSENT;
   }
 
   @Override

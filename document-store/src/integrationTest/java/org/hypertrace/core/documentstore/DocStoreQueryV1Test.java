@@ -27,9 +27,9 @@ import static org.hypertrace.core.documentstore.expression.operators.SortOrder.D
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
-import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
-import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND;
-import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET;
 import static org.hypertrace.core.documentstore.utils.Utils.MONGO_STORE;
@@ -2005,25 +2005,25 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate add =
           SubDocumentUpdate.builder()
               .subDocument("props.added.set")
-              .operator(ADD)
+              .operator(ADD_TO_LIST_IF_ABSENT)
               .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
               .build();
       final SubDocumentUpdate another_add =
           SubDocumentUpdate.builder()
               .subDocument("props.planets")
-              .operator(ADD)
+              .operator(ADD_TO_LIST_IF_ABSENT)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Neptune", "Pluto"}))
               .build();
       final SubDocumentUpdate append =
           SubDocumentUpdate.builder()
               .subDocument("props.appended.list")
-              .operator(APPEND)
+              .operator(APPEND_TO_LIST)
               .subDocumentValue(SubDocumentValue.of(new Integer[] {1, 2}))
               .build();
       final SubDocumentUpdate remove =
           SubDocumentUpdate.builder()
               .subDocument("props.removed.list")
-              .operator(REMOVE)
+              .operator(REMOVE_ALL_FROM_LIST)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Hello"}))
               .build();
 
@@ -2050,19 +2050,19 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate add_new =
           SubDocumentUpdate.builder()
               .subDocument("props.added.set")
-              .operator(ADD)
+              .operator(ADD_TO_LIST_IF_ABSENT)
               .subDocumentValue(SubDocumentValue.of(new Integer[] {3, 1, 1000}))
               .build();
       final SubDocumentUpdate append_new =
           SubDocumentUpdate.builder()
               .subDocument("props.appended.list")
-              .operator(APPEND)
+              .operator(APPEND_TO_LIST)
               .subDocumentValue(SubDocumentValue.of(new Integer[] {8, 2}))
               .build();
       final SubDocumentUpdate remove_new =
           SubDocumentUpdate.builder()
               .subDocument("props.planets")
-              .operator(REMOVE)
+              .operator(REMOVE_ALL_FROM_LIST)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Pluto", "Mars"}))
               .build();
       final List<SubDocumentUpdate> new_updates =

@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.update.parser;
 
-import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.merge;
 
 import com.mongodb.BasicDBObject;
@@ -14,7 +14,7 @@ public class MongoAppendOperationParser extends MongoOperationParser {
 
   @Override
   public UpdateOperator operator() {
-    return APPEND;
+    return APPEND_TO_LIST;
   }
 
   @Override
