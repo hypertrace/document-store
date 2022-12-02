@@ -2074,6 +2074,85 @@ public class DocStoreQueryV1Test {
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName, iterator_new, "query/update_operator/updated2.json", 9);
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testRemoveAllFromIntegerList(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate unset =
+          SubDocumentUpdate.builder().subDocument("sales").operator(UNSET).build();
+      final SubDocumentUpdate add =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.list")
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(add, unset);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
+
+      final SubDocumentUpdate remove =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.list")
+              .operator(REMOVE_ALL_FROM_LIST)
+              .subDocumentValue(SubDocumentValue.of(5))
+              .build();
+      final List<SubDocumentUpdate> new_updates = List.of(remove);
+
+      final CloseableIterator<Document> iterator_new =
+          collection.bulkUpdate(
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          iterator_new,
+          "query/update_operator/updated_removes_all_integers_from_list.json",
+          9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAddToListIfAbsentDoesNotDeduplicateTheExistingList(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate unset =
+          SubDocumentUpdate.builder().subDocument("sales").operator(UNSET).build();
+      final SubDocumentUpdate add =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.list")
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(add, unset);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
+
+      final SubDocumentUpdate remove =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.list")
+              .operator(ADD_TO_LIST_IF_ABSENT)
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {3, 1, 4}))
+              .build();
+      final List<SubDocumentUpdate> new_updates = List.of(remove);
+
+      final CloseableIterator<Document> iterator_new =
+          collection.bulkUpdate(
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          iterator_new,
+          "query/update_operator/updated_add_to_list_if_absent_does_not_deduplicate_existing_list.json",
+          9);
+    }
   }
 
   @Nested

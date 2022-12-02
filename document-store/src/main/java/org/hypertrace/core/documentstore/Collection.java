@@ -86,7 +86,11 @@ public interface Collection {
    *
    * @param request bullk array value update request
    * @return the bulk update result
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
+  @Deprecated(forRemoval = true)
   BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) throws Exception;
 
   /**
@@ -146,7 +150,11 @@ public interface Collection {
    * @param key Unique key of the document in the collection
    * @param subDocPath Path to the sub document that needs to be updated
    * @return True if the sub document was deleted
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
+  @Deprecated(forRemoval = true)
   boolean deleteSubDoc(Key key, String subDocPath);
 
   /**

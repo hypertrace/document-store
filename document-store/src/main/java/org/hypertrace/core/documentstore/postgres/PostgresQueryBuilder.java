@@ -93,24 +93,10 @@ public class PostgresQueryBuilder {
     if (path.length == 0) {
       switch (update.getOperator()) {
         case APPEND_TO_LIST:
-          return getNewDocumentFor(baseField, value, valueParser);
+          return getNewDocumentForAppendToList(baseField, value, valueParser);
 
         case ADD_TO_LIST_IF_ABSENT:
-          final Object[] values1 =
-              Arrays.stream((Object[]) value.accept(subDocArrayGetter)).distinct().toArray();
-          final StringBuilder builder1 =
-              new StringBuilder(String.format("COALESCE(%s, '[]')", baseField));
-
-          for (final Object singleVal : values1) {
-            paramBuilder.addObjectParam(singleVal);
-            paramBuilder.addObjectParam(singleVal);
-            builder1.append(
-                String.format(
-                    " || CASE WHEN %s @> to_jsonb(?) THEN '[]'::jsonb ELSE jsonb_build_array(?) END",
-                    baseField));
-          }
-
-          return builder1.toString();
+          return getNewDocumentForAddToListIfAbsent(baseField, paramBuilder, value);
       }
     }
 
@@ -118,45 +104,100 @@ public class PostgresQueryBuilder {
 
     if (path.length == 1) {
       if (update.getOperator() == SET) {
-        paramBuilder.addObjectParam(formatSubDocPath(path[0]));
-        return String.format(
-            "jsonb_set(COALESCE(%s, '{}'), ?::text[], %s)", baseField, value.accept(valueParser));
+        return getNewDocumentForSetLeafValue(baseField, value, valueParser, path[0], paramBuilder);
       } else if (update.getOperator() == REMOVE_ALL_FROM_LIST) {
-        final Object[] values = value.accept(subDocArrayGetter);
-        paramBuilder.addObjectParam(formatSubDocPath(path[0]));
-        Arrays.stream(values).forEach(paramBuilder::addObjectParam);
-
-        final String filter =
-            IntStream.range(0, values.length).mapToObj(i -> "to_jsonb(?)").collect(joining(", "));
-        return String.format(
-            "jsonb_set(%s, ?::text[], "
-                + "(SELECT jsonb_agg(value) "
-                + "FROM jsonb_array_elements(%s) t(value) "
-                + "WHERE value NOT IN (%s)))",
-            baseField, fieldAccess, filter);
+        return getNewDocumentForRemoveAllFromListLeafValue(
+            baseField, path[0], paramBuilder, value, fieldAccess);
       }
     }
 
-    final String[] pathExcludingFirst = Arrays.stream(path).skip(1).toArray(String[]::new);
-
     if (update.getOperator() == REMOVE_ALL_FROM_LIST) {
-      paramBuilder.addObjectParam(path[0]);
-      paramBuilder.addObjectParam(formatSubDocPath(path[0]));
-      final String nestedSetQuery =
-          getNewDocument(fieldAccess, pathExcludingFirst, update, paramBuilder);
-      return String.format(
-          "CASE WHEN %s ?? ? THEN jsonb_set(%s, ?::text[], %s) ELSE %s END",
-          baseField, baseField, nestedSetQuery, baseField);
+      return getNewDocumentForRemoveAllFromListInternalValue(
+          baseField, path, update, paramBuilder, fieldAccess);
     } else {
-      paramBuilder.addObjectParam(formatSubDocPath(path[0]));
-      final String nestedSetQuery =
-          getNewDocument(fieldAccess, pathExcludingFirst, update, paramBuilder);
-      return String.format(
-          "jsonb_set(COALESCE(%s, '{}'), ?::text[], %s)", baseField, nestedSetQuery);
+      return getNewDocumentForSetInternalValue(baseField, path, update, paramBuilder, fieldAccess);
     }
   }
 
-  private String getNewDocumentFor(
+  private String getNewDocumentForSetInternalValue(
+      String baseField,
+      String[] path,
+      SubDocumentUpdate update,
+      Builder paramBuilder,
+      String fieldAccess) {
+    final String[] pathExcludingFirst = Arrays.stream(path).skip(1).toArray(String[]::new);
+    paramBuilder.addObjectParam(formatSubDocPath(path[0]));
+    final String nestedSetQuery =
+        getNewDocument(fieldAccess, pathExcludingFirst, update, paramBuilder);
+    return String.format("jsonb_set(COALESCE(%s, '{}'), ?::text[], %s)", baseField, nestedSetQuery);
+  }
+
+  private String getNewDocumentForSetLeafValue(
+      String baseField,
+      SubDocumentValue value,
+      PostgresSubDocumentValueParser valueParser,
+      String subDocPath,
+      Builder paramBuilder) {
+    paramBuilder.addObjectParam(formatSubDocPath(subDocPath));
+    return String.format(
+        "jsonb_set(COALESCE(%s, '{}'), ?::text[], %s)", baseField, value.accept(valueParser));
+  }
+
+  private String getNewDocumentForRemoveAllFromListInternalValue(
+      String baseField,
+      String[] path,
+      SubDocumentUpdate update,
+      Builder paramBuilder,
+      String fieldAccess) {
+    final String[] pathExcludingFirst = Arrays.stream(path).skip(1).toArray(String[]::new);
+    paramBuilder.addObjectParam(path[0]);
+    paramBuilder.addObjectParam(formatSubDocPath(path[0]));
+    final String nestedSetQuery =
+        getNewDocument(fieldAccess, pathExcludingFirst, update, paramBuilder);
+    return String.format(
+        "CASE WHEN %s ?? ? THEN jsonb_set(%s, ?::text[], %s) ELSE %s END",
+        baseField, baseField, nestedSetQuery, baseField);
+  }
+
+  private String getNewDocumentForRemoveAllFromListLeafValue(
+      String baseField,
+      String subDocPath,
+      Builder paramBuilder,
+      SubDocumentValue value,
+      String fieldAccess) {
+    final Object[] values = value.accept(subDocArrayGetter);
+    paramBuilder.addObjectParam(formatSubDocPath(subDocPath));
+    Arrays.stream(values).forEach(paramBuilder::addObjectParam);
+
+    final String filter =
+        IntStream.range(0, values.length).mapToObj(i -> "to_jsonb(?)").collect(joining(", "));
+    return String.format(
+        "jsonb_set(%s, ?::text[], "
+            + "(SELECT jsonb_agg(value) "
+            + "FROM jsonb_array_elements(%s) t(value) "
+            + "WHERE value NOT IN (%s)))",
+        baseField, fieldAccess, filter);
+  }
+
+  private String getNewDocumentForAddToListIfAbsent(
+      String baseField, Builder paramBuilder, SubDocumentValue value) {
+    final Object[] values =
+        Arrays.stream((Object[]) value.accept(subDocArrayGetter)).distinct().toArray();
+    final StringBuilder builder = new StringBuilder(String.format("COALESCE(%s, '[]')", baseField));
+
+    for (final Object singleValue : values) {
+      paramBuilder.addObjectParam(singleValue);
+      paramBuilder.addObjectParam(singleValue);
+      builder.append(
+          String.format(
+              " || CASE WHEN %s @> to_jsonb(?) THEN '[]'::jsonb ELSE jsonb_build_array(?) END",
+              baseField));
+    }
+
+    return builder.toString();
+  }
+
+  private String getNewDocumentForAppendToList(
       String baseField, SubDocumentValue value, PostgresSubDocumentValueParser valueParser) {
     return String.format("COALESCE(%s, '[]') || %s", baseField, value.accept(valueParser));
   }

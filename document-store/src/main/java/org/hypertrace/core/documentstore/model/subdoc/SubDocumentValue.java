@@ -8,7 +8,7 @@ import org.hypertrace.core.documentstore.model.subdoc.visitor.SubDocumentValueVi
 
 @SuppressWarnings("UnnecessaryInterfaceModifier")
 public interface SubDocumentValue extends Hashable, Printable {
-  <T> T accept(final SubDocumentValueVisitor visitor);
+  <T> T accept(final SubDocumentValueVisitor<T> visitor);
 
   public static SubDocumentValue of(@Nonnull final Document document) {
     return new NestedSubDocumentValue(document);
@@ -24,10 +24,6 @@ public interface SubDocumentValue extends Hashable, Printable {
 
   public static SubDocumentValue of(@Nonnull final Boolean value) {
     return new PrimitiveSubDocumentValue(value);
-  }
-
-  public static SubDocumentValue of(@Nonnull final Document[] documents) {
-    return new MultiValuedNestedSubDocumentValue(documents);
   }
 
   public static SubDocumentValue of(@Nonnull final Number[] values) {

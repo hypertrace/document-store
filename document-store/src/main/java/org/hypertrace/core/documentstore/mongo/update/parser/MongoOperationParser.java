@@ -11,8 +11,6 @@ import org.hypertrace.core.documentstore.mongo.subdoc.MongoSubDocumentValueSanit
 public abstract class MongoOperationParser {
   protected static final String EACH_CLAUSE = "$each";
 
-  private final MongoSubDocumentValueSanitizer sanitizer = new MongoSubDocumentValueSanitizer();
-
   abstract UpdateOperator operator();
 
   abstract BasicDBObject wrapWithOperator(final List<BasicDBObject> parsed);
@@ -28,6 +26,7 @@ public abstract class MongoOperationParser {
   }
 
   private BasicDBObject parseUpdate(final SubDocumentUpdate update) {
+    final MongoSubDocumentValueSanitizer sanitizer = new MongoSubDocumentValueSanitizer(operator());
     final String path = update.getSubDocument().getPath();
     final Object value = update.getSubDocumentValue().accept(sanitizer);
     return parseUpdate(path, value);

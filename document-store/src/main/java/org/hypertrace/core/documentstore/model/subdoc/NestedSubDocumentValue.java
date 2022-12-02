@@ -17,7 +17,7 @@ public class NestedSubDocumentValue implements SubDocumentValue {
   }
 
   @Override
-  public <T> T accept(final SubDocumentValueVisitor visitor) {
+  public <T> T accept(final SubDocumentValueVisitor<T> visitor) {
     return visitor.visit(this);
   }
 

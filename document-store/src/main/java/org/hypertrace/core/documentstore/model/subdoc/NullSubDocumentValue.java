@@ -10,7 +10,7 @@ import org.hypertrace.core.documentstore.model.subdoc.visitor.SubDocumentValueVi
 @AllArgsConstructor(access = PACKAGE)
 public class NullSubDocumentValue implements SubDocumentValue {
   @Override
-  public <T> T accept(final SubDocumentValueVisitor visitor) {
+  public <T> T accept(final SubDocumentValueVisitor<T> visitor) {
     return visitor.visit(this);
   }
 

@@ -1,0 +1,189 @@
+[
+  {
+    "item": "Soap",
+    "price": 10,
+    "quantity": 2,
+    "date": "2014-03-01T08:00:00Z",
+    "props": {
+      "brand": "Dettol",
+      "size": "M",
+      "seller": {
+        "name": "Metro Chemicals Pvt. Ltd.",
+        "address": {
+          "city": "Mumbai",
+          "pincode": 400004
+        }
+      },
+      "added": {
+        "list": [
+          5,
+          1,
+          5,
+          3,
+          4
+        ]
+      }
+    }
+  },
+  {
+    "item": "Mirror",
+    "price": 20,
+    "quantity": 1,
+    "date": "2014-03-01T09:00:00Z",
+    "props": {
+      "added": {
+        "list": [
+          5,
+          1,
+          5,
+          3,
+          4
+        ]
+      }
+    }
+  },
+  {
+    "item": "Shampoo",
+    "price": 5,
+    "quantity": 10,
+    "date": "2014-03-15T09:00:00Z",
+    "props": {
+      "brand": "Sunsilk",
+      "size": "L",
+      "seller": {
+        "name": "Metro Chemicals Pvt. Ltd.",
+        "address": {
+          "city": "Mumbai",
+          "pincode": 400004
+        }
+      },
+      "added": {
+        "list": [
+          5,
+          1,
+          5,
+          3,
+          4
+        ]
+      }
+    }
+  },
+  {
+    "item": "Shampoo",
+    "price": 5,
+    "quantity": 20,
+    "date": "2014-04-04T11:21:39.736Z",
+    "props": {
+      "added": {
+        "list": [
+          5,
+          1,
+          5,
+          3,
+          4
+        ]
+      }
+    }
+  },
+  {
+    "item": "Soap",
+    "price": 20,
+    "quantity": 5,
+    "date": "2014-04-04T21:23:13.331Z",
+    "props": {
+      "brand": "Lifebuoy",
+      "size": "S",
+      "seller": {
+        "name": "Hans and Co.",
+        "address": {
+          "city": "Kolkata",
+          "pincode": 700007
+        }
+      },
+      "added": {
+        "list": [
+          5,
+          1,
+          5,
+          3,
+          4
+        ]
+      }
+    }
+  },
+  {
+    "item": "Comb",
+    "price": 7.5,
+    "quantity": 5,
+    "date": "2015-06-04T05:08:13Z",
+    "props": {
+      "added": {
+        "list": [
+          5,
+          1,
+          5,
+          3,
+          4
+        ]
+      }
+    }
+  },
+  {
+    "item": "Comb",
+    "price": 7.5,
+    "quantity": 10,
+    "date": "2015-09-10T08:43:00Z",
+    "props": {
+      "seller": {
+        "name": "Go Go Plastics",
+        "address": {
+          "city": "Kolkata",
+          "pincode": 700007
+        }
+      },
+      "added": {
+        "list": [
+          5,
+          1,
+          5,
+          3,
+          4
+        ]
+      }
+    }
+  },
+  {
+    "item": "Soap",
+    "price": 10,
+    "quantity": 5,
+    "date": "2016-02-06T20:20:13Z",
+    "props": {
+      "added": {
+        "list": [
+          5,
+          1,
+          5,
+          3,
+          4
+        ]
+      }
+    }
+  },
+  {
+    "item": "Soap",
+    "price": 88,
+    "quantity": 50,
+    "date": "2023-08-09T18:53:17Z",
+    "props": {
+      "added": {
+        "list": [
+          5,
+          1,
+          5,
+          3,
+          4
+        ]
+      }
+    }
+  }
+]

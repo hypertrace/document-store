@@ -16,7 +16,7 @@ public class PrimitiveSubDocumentValue implements SubDocumentValue {
   private final Object value;
 
   @Override
-  public <T> T accept(final SubDocumentValueVisitor visitor) {
+  public <T> T accept(final SubDocumentValueVisitor<T> visitor) {
     return visitor.visit(this);
   }
 }
