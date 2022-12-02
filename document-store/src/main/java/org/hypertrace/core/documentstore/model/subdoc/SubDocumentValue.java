@@ -26,15 +26,19 @@ public interface SubDocumentValue extends Hashable, Printable {
     return new PrimitiveSubDocumentValue(value);
   }
 
+  public static SubDocumentValue of(@Nonnull final Document[] documents) {
+    return new MultiValuedNestedSubDocumentValue(documents);
+  }
+
   public static SubDocumentValue of(@Nonnull final Number[] values) {
-    return new PrimitiveSubDocumentValue(values);
+    return new MultiValuedPrimitiveSubDocumentValue(values);
   }
 
   public static SubDocumentValue of(@Nonnull final String[] values) {
-    return new PrimitiveSubDocumentValue(values);
+    return new MultiValuedPrimitiveSubDocumentValue(values);
   }
 
   public static SubDocumentValue of(@Nonnull final Boolean[] values) {
-    return new PrimitiveSubDocumentValue(values);
+    return new MultiValuedPrimitiveSubDocumentValue(values);
   }
 }

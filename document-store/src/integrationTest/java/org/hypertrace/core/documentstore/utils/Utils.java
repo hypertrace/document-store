@@ -159,7 +159,15 @@ public class Utils {
     long count = expectedDocs.stream().filter(actualDocs::contains).count();
 
     assertEquals(expectedSize, actualSize);
-    assertEquals(expectedSize, count);
+
+    final ObjectMapper objectMapper = new ObjectMapper();
+    assertEquals(
+        expectedSize,
+        count,
+        String.format(
+            "Expected: %s\nActual: %s",
+            objectMapper.writeValueAsString(expectedDocs),
+            objectMapper.writeValueAsString(actualDocs)));
   }
 
   public static void assertSizeEqual(Iterator<Document> documents, String filePath)

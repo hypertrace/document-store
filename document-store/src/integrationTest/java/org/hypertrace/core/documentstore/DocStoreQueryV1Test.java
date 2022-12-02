@@ -1989,7 +1989,7 @@ public class DocStoreQueryV1Test {
   @Nested
   class UpdateOperatorTest {
     @ParameterizedTest
-    @ArgumentsSource(MongoProvider.class)
+    @ArgumentsSource(AllProvider.class)
     void testUpdateWithAllOperators(final String datastoreName) throws IOException {
       final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
       createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
@@ -1997,33 +1997,33 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate set =
           SubDocumentUpdate.builder()
               .subDocument("props.new_property.deep.nested.value")
-              .updateOperator(SET)
+              .operator(SET)
               .subDocumentValue(SubDocumentValue.of("new_value"))
               .build();
       final SubDocumentUpdate unset =
-          SubDocumentUpdate.builder().subDocument("sales").updateOperator(UNSET).build();
+          SubDocumentUpdate.builder().subDocument("sales").operator(UNSET).build();
       final SubDocumentUpdate add =
           SubDocumentUpdate.builder()
               .subDocument("props.added.set")
-              .updateOperator(ADD)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
               .build();
       final SubDocumentUpdate another_add =
           SubDocumentUpdate.builder()
               .subDocument("props.planets")
-              .updateOperator(ADD)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Neptune", "Pluto"}))
               .build();
       final SubDocumentUpdate append =
           SubDocumentUpdate.builder()
               .subDocument("props.appended.list")
-              .updateOperator(APPEND)
+              .operator(APPEND)
               .subDocumentValue(SubDocumentValue.of(new Integer[] {1, 2}))
               .build();
       final SubDocumentUpdate remove =
           SubDocumentUpdate.builder()
               .subDocument("props.removed.list")
-              .updateOperator(REMOVE)
+              .operator(REMOVE)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Hello"}))
               .build();
 
@@ -2039,30 +2039,30 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate set_new =
           SubDocumentUpdate.builder()
               .subDocument("props.sales")
-              .updateOperator(SET)
+              .operator(SET)
               .subDocumentValue(SubDocumentValue.of("new_value"))
               .build();
       final SubDocumentUpdate unset_new =
           SubDocumentUpdate.builder()
               .subDocument("props.new_property.deep.nested")
-              .updateOperator(UNSET)
+              .operator(UNSET)
               .build();
       final SubDocumentUpdate add_new =
           SubDocumentUpdate.builder()
               .subDocument("props.added.set")
-              .updateOperator(ADD)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(new Integer[] {3, 1, 1000}))
               .build();
       final SubDocumentUpdate append_new =
           SubDocumentUpdate.builder()
               .subDocument("props.appended.list")
-              .updateOperator(APPEND)
+              .operator(APPEND)
               .subDocumentValue(SubDocumentValue.of(new Integer[] {8, 2}))
               .build();
       final SubDocumentUpdate remove_new =
           SubDocumentUpdate.builder()
               .subDocument("props.planets")
-              .updateOperator(REMOVE)
+              .operator(REMOVE)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Pluto", "Mars"}))
               .build();
       final List<SubDocumentUpdate> new_updates =

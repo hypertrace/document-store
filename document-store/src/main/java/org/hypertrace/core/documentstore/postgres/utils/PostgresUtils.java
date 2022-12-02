@@ -1,5 +1,11 @@
 package org.hypertrace.core.documentstore.postgres.utils;
 
+import static java.sql.JDBCType.BIGINT;
+import static java.sql.JDBCType.DOUBLE;
+import static java.sql.JDBCType.FLOAT;
+import static java.sql.JDBCType.INTEGER;
+import static java.sql.JDBCType.VARCHAR;
+import static java.util.Map.entry;
 import static java.util.Objects.requireNonNull;
 import static org.hypertrace.core.documentstore.Collection.UNSUPPORTED_QUERY_OPERATION;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
@@ -13,12 +19,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.sql.Array;
+import java.sql.Connection;
+import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -45,6 +55,14 @@ public class PostgresUtils {
   public static final Set<String> OUTER_COLUMNS =
       new TreeSet<>(List.of(ID, CREATED_AT, UPDATED_AT));
   public static final String DOCUMENT_COLUMN = DOCUMENT;
+
+  private static final Map<Class<?>, JDBCType> TYPE_MAPPINGS =
+      Map.ofEntries(
+          entry(Integer[].class, INTEGER),
+          entry(Long[].class, BIGINT),
+          entry(Float[].class, FLOAT),
+          entry(Double[].class, DOUBLE),
+          entry(String[].class, VARCHAR));
 
   public enum Type {
     STRING,
@@ -151,7 +169,7 @@ public class PostgresUtils {
     return value;
   }
 
-  private static String prepareParameterizedStringForList(
+  public static String prepareParameterizedStringForList(
       Iterable<Object> values, Params.Builder paramsBuilder) {
     String collect =
         StreamSupport.stream(values.spliterator(), false)
@@ -482,6 +500,17 @@ public class PostgresUtils {
     return validClassez.contains(v.getClass());
   }
 
+  public static Optional<Array> createArrayIfValid(final Connection connection, final Object value)
+      throws SQLException {
+    final Optional<JDBCType> type = Optional.ofNullable(TYPE_MAPPINGS.get(value.getClass()));
+
+    if (type.isEmpty()) {
+      return Optional.empty();
+    }
+
+    return Optional.ofNullable(connection.createArrayOf(type.get().name(), (Object[]) value));
+  }
+
   private static boolean isNotIterableAndFilterObjectType(Object value) {
     if (!isValidPrimitiveType(value)
         && !(value instanceof Iterable<?>)
@@ -512,7 +541,13 @@ public class PostgresUtils {
                 if (isValidPrimitiveType(v)) {
                   preparedStatement.setObject(k, v);
                 } else {
-                  throw new UnsupportedOperationException("Un-supported object types in filter");
+                  final Optional<Array> array =
+                      createArrayIfValid(preparedStatement.getConnection(), v);
+                  if (array.isPresent()) {
+                    preparedStatement.setArray(k, array.get());
+                  } else {
+                    throw new UnsupportedOperationException("Un-supported object types in filter");
+                  }
                 }
               } catch (SQLException e) {
                 log.error("SQLException setting Param. key: {}, value: {}", k, v);

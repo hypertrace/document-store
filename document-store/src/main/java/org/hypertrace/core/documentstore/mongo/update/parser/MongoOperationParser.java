@@ -21,7 +21,7 @@ public abstract class MongoOperationParser {
     final UpdateOperator operator = operator();
     final List<BasicDBObject> parsedUpdates =
         updates.stream()
-            .filter(update -> operator.equals(update.getUpdateOperator()))
+            .filter(update -> operator.equals(update.getOperator()))
             .map(this::parseUpdate)
             .collect(toUnmodifiableList());
     return parsedUpdates.isEmpty() ? new BasicDBObject() : wrapWithOperator(parsedUpdates);

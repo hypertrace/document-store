@@ -18,7 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @AllArgsConstructor(access = PRIVATE)
 public class SubDocumentUpdate {
   @Nonnull SubDocument subDocument;
-  @Nonnull UpdateOperator updateOperator;
+  @Nonnull UpdateOperator operator;
   @Nonnull SubDocumentValue subDocumentValue;
 
   public static SubDocumentUpdate of(final String subDocumentPath, final String value) {
@@ -97,23 +97,22 @@ public class SubDocumentUpdate {
       setDefaultValueForValueNonRequiringOperators();
 
       Preconditions.checkNotNull(subDocument);
-      Preconditions.checkNotNull(updateOperator);
+      Preconditions.checkNotNull(operator);
       Preconditions.checkNotNull(subDocumentValue);
 
-      return new SubDocumentUpdate(subDocument, updateOperator, subDocumentValue);
+      return new SubDocumentUpdate(subDocument, operator, subDocumentValue);
     }
 
     private void setDefaultOperatorIfNull() {
-      if (updateOperator == null) {
-        updateOperator = DEFAULT_OPERATOR;
+      if (operator == null) {
+        operator = DEFAULT_OPERATOR;
       }
     }
 
     private void setDefaultValueForValueNonRequiringOperators() {
-      if (VALUE_NON_REQUIRING_OPERATORS.contains(updateOperator)) {
+      if (VALUE_NON_REQUIRING_OPERATORS.contains(operator)) {
         if (subDocumentValue != null) {
-          log.warn(
-              "Operator {} doesn't expect a value. Ignoring {}", updateOperator, subDocumentValue);
+          log.warn("Operator {} doesn't expect a value. Ignoring {}", operator, subDocumentValue);
         }
 
         subDocumentValue = new NullSubDocumentValue();

@@ -1,12 +1,12 @@
 package org.hypertrace.core.documentstore.mongo.subdoc;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mongodb.BasicDBObject;
-import java.util.List;
-import org.hypertrace.core.documentstore.model.subdoc.ArraySubDocumentValue;
+import java.util.Arrays;
+import org.hypertrace.core.documentstore.model.subdoc.MultiValuedNestedSubDocumentValue;
+import org.hypertrace.core.documentstore.model.subdoc.MultiValuedPrimitiveSubDocumentValue;
 import org.hypertrace.core.documentstore.model.subdoc.NestedSubDocumentValue;
 import org.hypertrace.core.documentstore.model.subdoc.NullSubDocumentValue;
 import org.hypertrace.core.documentstore.model.subdoc.PrimitiveSubDocumentValue;
@@ -20,6 +20,11 @@ public class MongoSubDocumentValueSanitizer implements SubDocumentValueVisitor {
     return value.getValue();
   }
 
+  @Override
+  public Object[] visit(final MultiValuedPrimitiveSubDocumentValue value) {
+    return value.getValues();
+  }
+
   @SuppressWarnings("unchecked")
   @Override
   public BasicDBObject visit(final NestedSubDocumentValue value) {
@@ -28,14 +33,16 @@ public class MongoSubDocumentValueSanitizer implements SubDocumentValueVisitor {
 
   @SuppressWarnings("unchecked")
   @Override
-  public String visit(final NullSubDocumentValue value) {
-    return "";
+  public BasicDBObject[] visit(final MultiValuedNestedSubDocumentValue value) {
+    return Arrays.stream(value.getJsonValues())
+        .map(this::parseDocument)
+        .toArray(BasicDBObject[]::new);
   }
 
   @SuppressWarnings("unchecked")
   @Override
-  public List<BasicDBObject> visit(final ArraySubDocumentValue value) {
-    return value.getJsonValues().stream().map(this::parseDocument).collect(toUnmodifiableList());
+  public String visit(final NullSubDocumentValue value) {
+    return "";
   }
 
   private BasicDBObject parseDocument(final String jsonValue) {
