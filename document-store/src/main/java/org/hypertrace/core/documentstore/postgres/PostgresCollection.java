@@ -67,7 +67,9 @@ import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
@@ -99,12 +101,14 @@ public class PostgresCollection implements Collection {
   private final String collectionName;
   private final PostgresSubDocumentUpdater subDocUpdater;
   private final PostgresQueryExecutor queryExecutor;
+  private final UpdateValidator updateValidator;
 
   public PostgresCollection(final PostgresClient client, final String collectionName) {
     this.client = client;
     this.collectionName = collectionName;
     this.subDocUpdater = new PostgresSubDocumentUpdater(new PostgresQueryBuilder(collectionName));
     this.queryExecutor = new PostgresQueryExecutor(collectionName);
+    this.updateValidator = new CommonUpdateValidator();
   }
 
   @Override
@@ -433,8 +437,7 @@ public class PostgresCollection implements Collection {
       final java.util.Collection<SubDocumentUpdate> updates,
       final UpdateOptions updateOptions)
       throws IOException {
-
-    ensureAtLeastOneUpdateIsPresent(updates);
+    updateValidator.validate(updates);
 
     try (final Connection connection = client.getPooledConnection()) {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
@@ -502,7 +505,7 @@ public class PostgresCollection implements Collection {
       final java.util.Collection<SubDocumentUpdate> updates,
       final UpdateOptions updateOptions)
       throws IOException {
-    ensureAtLeastOneUpdateIsPresent(updates);
+    updateValidator.validate(updates);
 
     CloseableIterator<Document> iterator = null;
 
@@ -535,13 +538,6 @@ public class PostgresCollection implements Collection {
         iterator.close();
       }
       throw new IOException(e);
-    }
-  }
-
-  private void ensureAtLeastOneUpdateIsPresent(java.util.Collection<SubDocumentUpdate> updates)
-      throws IOException {
-    if (updates.isEmpty()) {
-      throw new IOException("At least one update is required");
     }
   }
 
