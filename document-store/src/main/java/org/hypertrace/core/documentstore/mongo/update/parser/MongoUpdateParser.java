@@ -17,9 +17,9 @@ import org.hypertrace.core.documentstore.mongo.MongoUtils;
 public class MongoUpdateParser {
   private static final Set<MongoOperationParser> OPERATOR_PARSERS =
       Set.of(
-          new MongoAddOperationParser(),
-          new MongoAppendOperationParser(),
-          new MongoRemoveOperationParser(),
+          new MongoAddToSetOperationParser(),
+          new MongoPushOperationParser(),
+          new MongoPullAllOperationParser(),
           new MongoSetOperationParser(),
           new MongoUnsetOperationParser());
 

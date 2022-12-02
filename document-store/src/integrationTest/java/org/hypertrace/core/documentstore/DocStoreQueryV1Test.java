@@ -2077,7 +2077,7 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
-    void testRemoveAllFromIntegerList(final String datastoreName) throws IOException {
+    void testRemoveAllOccurrancesFromIntegerList(final String datastoreName) throws IOException {
       final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
       createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
@@ -2110,7 +2110,7 @@ public class DocStoreQueryV1Test {
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName,
           iterator_new,
-          "query/update_operator/updated_removes_all_integers_from_list.json",
+          "query/update_operator/updated_removes_all_occurrances_from_integer_list.json",
           9);
     }
 

@@ -388,11 +388,6 @@ public class MongoCollection implements Collection {
     BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, eachObject);
     return new BasicDBObject("$addToSet", subDocPathObject)
         .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
-
-    /**
-     * { "$addToSet": { "sub-doc.path": { "$each": [ sanitizedBasicDBObject1,
-     * sanitizedBasicDBObject2, ] } }, "$set": { "lastUpdatedTime": <currentTime> } }
-     */
   }
 
   private BasicDBObject getRemoveOperationObject(
@@ -400,13 +395,6 @@ public class MongoCollection implements Collection {
     BasicDBObject subDocPathObject = new BasicDBObject(subDocPath, basicDBObjects);
     return new BasicDBObject("$pullAll", subDocPathObject)
         .append("$set", new BasicDBObject(LAST_UPDATED_TIME, System.currentTimeMillis()));
-    /**
-     * { "$pullAll": { "sub-doc.path": [ sanitizedBasicDBObject1, sanitizedBasicDBObject2 ] },
-     * "$unset": { "sub-doc.path": "" }, "$addToSet": { "sub-doc.path": { "$each": [
-     * sanitizedBasicDBObject1, sanitizedBasicDBObject2, ] } }, "$push": { "sub-doc.path": {
-     * "$each": [ sanitizedBasicDBObject1, sanitizedBasicDBObject2, ] } }, "$set": {
-     * "lastUpdatedTime": <currentTime> } }
-     */
   }
 
   private BasicDBObject getSetOperationObject(

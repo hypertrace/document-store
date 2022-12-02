@@ -1,10 +1,5 @@
 package org.hypertrace.core.documentstore.model.subdoc;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-
-@AllArgsConstructor
-@Getter
 public enum UpdateOperator {
   SET,
   UNSET,

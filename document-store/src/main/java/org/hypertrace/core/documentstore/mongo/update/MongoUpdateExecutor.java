@@ -83,23 +83,23 @@ public class MongoUpdateExecutor {
     ensureAtLeastOneUpdateIsPresent(updates);
 
     final BasicDBObject filter = getFilter(query, Query::getFilter);
-    final BasicDBObject setObject = updateParser.buildUpdateClause(updates);
+    final BasicDBObject updateObject = updateParser.buildUpdateClause(updates);
     final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
     final MongoCursor<BasicDBObject> cursor;
 
     switch (returnDocumentType) {
       case BEFORE_UPDATE:
         cursor = queryExecutor.aggregate(query);
-        logAndUpdate(filter, setObject);
+        logAndUpdate(filter, updateObject);
         return Optional.of(cursor);
 
       case AFTER_UPDATE:
-        logAndUpdate(filter, setObject);
+        logAndUpdate(filter, updateObject);
         cursor = queryExecutor.aggregate(query);
         return Optional.of(cursor);
 
       case NONE:
-        logAndUpdate(filter, setObject);
+        logAndUpdate(filter, updateObject);
         return Optional.empty();
 
       default:
