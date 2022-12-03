@@ -1,0 +1,68 @@
+package org.hypertrace.core.documentstore.postgres.update.parser;
+
+import static java.util.stream.Collectors.joining;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareFieldAccessorExpr;
+
+import java.util.Arrays;
+import java.util.stream.IntStream;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentArrayGetter;
+
+public class PostgresRemoveAllFromListParser implements PostgresUpdateOperationParser {
+
+  @Override
+  public String parseInternal(final UpdateParserInput input) {
+    final String baseField = input.getBaseField();
+    final String[] path = input.getPath();
+    final SubDocumentUpdate update = input.getUpdate();
+    final Builder paramsBuilder = input.getParamsBuilder();
+
+    if (path.length == 1) {
+      return parseLeaf(input);
+    }
+
+    final String[] pathExcludingFirst = Arrays.stream(path).skip(1).toArray(String[]::new);
+    final String fieldAccess = prepareFieldAccessorExpr(path[0], baseField).toString();
+
+    paramsBuilder.addObjectParam(path[0]);
+    paramsBuilder.addObjectParam(formatSubDocPath(path[0]));
+
+    final UpdateParserInput newInput =
+        UpdateParserInput.builder()
+            .baseField(fieldAccess)
+            .path(pathExcludingFirst)
+            .update(update)
+            .paramsBuilder(paramsBuilder)
+            .build();
+
+    final String nestedSetQuery = parseInternal(newInput);
+    return String.format(
+        "CASE WHEN %s ?? ? THEN jsonb_set(%s, ?::text[], %s) ELSE %s END",
+        baseField, baseField, nestedSetQuery, baseField);
+  }
+
+  @Override
+  public String parseLeaf(final UpdateParserInput input) {
+    final String baseField = input.getBaseField();
+    final String subDocPath = input.getPath()[0];
+    final Builder paramsBuilder = input.getParamsBuilder();
+
+    final PostgresSubDocumentArrayGetter subDocArrayGetter = new PostgresSubDocumentArrayGetter();
+    final Object[] values = input.getUpdate().getSubDocumentValue().accept(subDocArrayGetter);
+    final String fieldAccess = prepareFieldAccessorExpr(subDocPath, baseField).toString();
+
+    paramsBuilder.addObjectParam(formatSubDocPath(subDocPath));
+    Arrays.stream(values).forEach(paramsBuilder::addObjectParam);
+
+    final String filter =
+        IntStream.range(0, values.length).mapToObj(i -> "to_jsonb(?)").collect(joining(", "));
+    return String.format(
+        "jsonb_set(%s, ?::text[], "
+            + "(SELECT jsonb_agg(value) "
+            + "FROM jsonb_array_elements(%s) t(value) "
+            + "WHERE value NOT IN (%s)))",
+        baseField, fieldAccess, filter);
+  }
+}

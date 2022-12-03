@@ -1,35 +1,45 @@
 package org.hypertrace.core.documentstore.postgres;
 
-import static java.util.stream.Collectors.joining;
+import static java.util.Map.entry;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCUMENT;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_PATH_SEPARATOR;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareFieldAccessorExpr;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Stack;
-import java.util.stream.IntStream;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
-import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
+import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
-import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentArrayGetter;
-import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddToListIfAbsentParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAppendToListParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresRemoveAllFromListParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresSetValueParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUnsetPathParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUpdateOperationParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUpdateOperationParser.UpdateParserInput;
 import org.hypertrace.core.documentstore.query.Query;
 
 @RequiredArgsConstructor
 public class PostgresQueryBuilder {
+  private static final Map<UpdateOperator, PostgresUpdateOperationParser> UPDATE_PARSER_MAP =
+      Map.ofEntries(
+          entry(SET, new PostgresSetValueParser()),
+          entry(UNSET, new PostgresUnsetPathParser()),
+          entry(REMOVE_ALL_FROM_LIST, new PostgresRemoveAllFromListParser()),
+          entry(ADD_TO_LIST_IF_ABSENT, new PostgresAddToListIfAbsentParser()),
+          entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
+
   @Getter private final String collectionName;
-  private final PostgresSubDocumentArrayGetter subDocArrayGetter =
-      new PostgresSubDocumentArrayGetter();
 
   public String getSubDocUpdateQuery(
       final Query query,
@@ -80,134 +90,14 @@ public class PostgresQueryBuilder {
       final String baseField,
       final String[] path,
       final SubDocumentUpdate update,
-      final Builder paramBuilder) {
-    final SubDocumentValue value = update.getSubDocumentValue();
-
-    if (update.getOperator() == UNSET) {
-      return getNewDocumentQueryForUnset(baseField, path, paramBuilder);
-    }
-
-    final PostgresSubDocumentValueParser valueParser =
-        new PostgresSubDocumentValueParser(paramBuilder);
-
-    if (path.length == 0) {
-      switch (update.getOperator()) {
-        case APPEND_TO_LIST:
-          return getNewDocumentQueryForAppendToList(baseField, value, valueParser);
-
-        case ADD_TO_LIST_IF_ABSENT:
-          return getNewDocumentQueryForAddToListIfAbsent(baseField, paramBuilder, value);
-      }
-    }
-
-    final String fieldAccess = prepareFieldAccessorExpr(path[0], baseField).toString();
-
-    if (path.length == 1) {
-      if (update.getOperator() == SET) {
-        return getNewDocumentQueryForSetLeafValue(
-            baseField, value, valueParser, path[0], paramBuilder);
-      } else if (update.getOperator() == REMOVE_ALL_FROM_LIST) {
-        return getNewDocumentQueryForRemoveAllFromListLeafValue(
-            baseField, path[0], paramBuilder, value, fieldAccess);
-      }
-    }
-
-    if (update.getOperator() == REMOVE_ALL_FROM_LIST) {
-      return getNewDocumentQueryForRemoveAllFromListInternalValue(
-          baseField, path, update, paramBuilder, fieldAccess);
-    } else {
-      return getNewDocumentQueryForSetInternalValue(
-          baseField, path, update, paramBuilder, fieldAccess);
-    }
-  }
-
-  private String getNewDocumentQueryForSetInternalValue(
-      final String baseField,
-      final String[] path,
-      final SubDocumentUpdate update,
-      final Builder paramBuilder,
-      final String fieldAccess) {
-    final String[] pathExcludingFirst = Arrays.stream(path).skip(1).toArray(String[]::new);
-    paramBuilder.addObjectParam(formatSubDocPath(path[0]));
-    final String nestedSetQuery =
-        getNewDocumentQuery(fieldAccess, pathExcludingFirst, update, paramBuilder);
-    return String.format("jsonb_set(COALESCE(%s, '{}'), ?::text[], %s)", baseField, nestedSetQuery);
-  }
-
-  private String getNewDocumentQueryForSetLeafValue(
-      final String baseField,
-      final SubDocumentValue value,
-      final PostgresSubDocumentValueParser valueParser,
-      final String subDocPath,
-      final Builder paramBuilder) {
-    paramBuilder.addObjectParam(formatSubDocPath(subDocPath));
-    return String.format(
-        "jsonb_set(COALESCE(%s, '{}'), ?::text[], %s)", baseField, value.accept(valueParser));
-  }
-
-  private String getNewDocumentQueryForRemoveAllFromListInternalValue(
-      final String baseField,
-      final String[] path,
-      final SubDocumentUpdate update,
-      final Builder paramBuilder,
-      final String fieldAccess) {
-    final String[] pathExcludingFirst = Arrays.stream(path).skip(1).toArray(String[]::new);
-    paramBuilder.addObjectParam(path[0]);
-    paramBuilder.addObjectParam(formatSubDocPath(path[0]));
-    final String nestedSetQuery =
-        getNewDocumentQuery(fieldAccess, pathExcludingFirst, update, paramBuilder);
-    return String.format(
-        "CASE WHEN %s ?? ? THEN jsonb_set(%s, ?::text[], %s) ELSE %s END",
-        baseField, baseField, nestedSetQuery, baseField);
-  }
-
-  private String getNewDocumentQueryForRemoveAllFromListLeafValue(
-      final String baseField,
-      final String subDocPath,
-      final Builder paramBuilder,
-      final SubDocumentValue value,
-      final String fieldAccess) {
-    final Object[] values = value.accept(subDocArrayGetter);
-    paramBuilder.addObjectParam(formatSubDocPath(subDocPath));
-    Arrays.stream(values).forEach(paramBuilder::addObjectParam);
-
-    final String filter =
-        IntStream.range(0, values.length).mapToObj(i -> "to_jsonb(?)").collect(joining(", "));
-    return String.format(
-        "jsonb_set(%s, ?::text[], "
-            + "(SELECT jsonb_agg(value) "
-            + "FROM jsonb_array_elements(%s) t(value) "
-            + "WHERE value NOT IN (%s)))",
-        baseField, fieldAccess, filter);
-  }
-
-  private String getNewDocumentQueryForAddToListIfAbsent(
-      final String baseField, final Builder paramBuilder, final SubDocumentValue value) {
-    final Object[] values = Arrays.stream(value.accept(subDocArrayGetter)).distinct().toArray();
-    final StringBuilder builder = new StringBuilder(String.format("COALESCE(%s, '[]')", baseField));
-
-    for (final Object singleValue : values) {
-      paramBuilder.addObjectParam(singleValue);
-      paramBuilder.addObjectParam(singleValue);
-      builder.append(
-          String.format(
-              " || CASE WHEN %s @> to_jsonb(?) THEN '[]'::jsonb ELSE jsonb_build_array(?) END",
-              baseField));
-    }
-
-    return builder.toString();
-  }
-
-  private String getNewDocumentQueryForAppendToList(
-      final String baseField,
-      final SubDocumentValue value,
-      final PostgresSubDocumentValueParser valueParser) {
-    return String.format("COALESCE(%s, '[]') || %s", baseField, value.accept(valueParser));
-  }
-
-  private String getNewDocumentQueryForUnset(
-      final String baseField, final String[] path, final Builder paramBuilder) {
-    paramBuilder.addObjectParam(formatSubDocPath(String.join(".", path)));
-    return String.format("%s #- ?::text[]", baseField);
+      final Builder paramsBuilder) {
+    final UpdateParserInput input =
+        UpdateParserInput.builder()
+            .baseField(baseField)
+            .path(path)
+            .update(update)
+            .paramsBuilder(paramsBuilder)
+            .build();
+    return UPDATE_PARSER_MAP.get(update.getOperator()).parseInternal(input);
   }
 }

@@ -2153,6 +2153,30 @@ public class DocStoreQueryV1Test {
           "query/update_operator/updated_add_to_list_if_absent_does_not_deduplicate_existing_list.json",
           9);
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testSameHierarchyUpdateThrowsException(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate unset =
+          SubDocumentUpdate.builder().subDocument("props.added").operator(UNSET).build();
+      final SubDocumentUpdate add =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.list")
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(add, unset);
+
+      assertThrows(
+          IOException.class,
+          () ->
+              collection.bulkUpdate(
+                  query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
+    }
   }
 
   @Nested
