@@ -52,7 +52,7 @@ public class PostgresAggregationFilterTypeExpressionVisitor
   public String visit(final KeyExpression expression) {
     throw new IllegalArgumentException(
         String.format(
-            "Cannot perform aggregation filtering on key: %s", expression.getKey().toString()));
+            "Cannot perform aggregation filtering on keys: %s", expression.getKeys().toString()));
   }
 
   public static Optional<String> getAggregationFilterClause(

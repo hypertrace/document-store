@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
-import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getType;
 
@@ -8,6 +9,7 @@ import java.util.Optional;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -66,7 +68,10 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   @Override
   public String visit(final KeyExpression expression) {
     return PostgresUtils.prepareParsedNonCompositeFilter(
-        ID, EQ.name(), expression.getKey().toString(), postgresQueryParser.getParamsBuilder());
+        ID,
+        IN.name(),
+        expression.getKeys().stream().map(Key::toString).collect(toUnmodifiableList()),
+        postgresQueryParser.getParamsBuilder());
   }
 
   public static Optional<String> getFilterClause(PostgresQueryParser postgresQueryParser) {

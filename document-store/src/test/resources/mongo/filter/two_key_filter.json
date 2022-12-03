@@ -1,11 +1,18 @@
 {
-  "$and":
-  [
+  "$and": [
     {
-      "_id": "tenant-id:7"
+      "_id": {
+        "$in": [
+          "tenant-id:7"
+        ]
+      }
     },
     {
-      "_id": "tenant-id:30"
+      "_id": {
+        "$in": [
+          "tenant-id:30"
+        ]
+      }
     }
   ]
 }

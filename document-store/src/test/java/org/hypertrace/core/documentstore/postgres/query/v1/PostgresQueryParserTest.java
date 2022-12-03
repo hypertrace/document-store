@@ -1243,7 +1243,7 @@ public class PostgresQueryParserTest {
             PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
     final String sql = postgresQueryParser.parse();
 
-    assertEquals("SELECT * FROM testCollection WHERE id = ?", sql);
+    assertEquals("SELECT * FROM testCollection WHERE id IN (?)", sql);
 
     final Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
@@ -1266,7 +1266,7 @@ public class PostgresQueryParserTest {
             PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
     final String sql = postgresQueryParser.parse();
 
-    assertEquals("SELECT * FROM testCollection WHERE (id = ?) OR (id = ?)", sql);
+    assertEquals("SELECT * FROM testCollection WHERE (id IN (?)) OR (id IN (?))", sql);
 
     final Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(2, params.getObjectParams().size());
@@ -1290,7 +1290,8 @@ public class PostgresQueryParserTest {
             PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
     final String sql = postgresQueryParser.parse();
 
-    assertEquals("SELECT * FROM testCollection WHERE (id = ?) AND (document->>'item' != ?)", sql);
+    assertEquals(
+        "SELECT * FROM testCollection WHERE (id IN (?)) AND (document->>'item' != ?)", sql);
 
     final Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(2, params.getObjectParams().size());
