@@ -43,6 +43,8 @@ public class PostgresSetValueParser implements PostgresUpdateOperationParser {
             .paramsBuilder(paramsBuilder)
             .build();
 
+    // Since the neither the || operator nor the 'create_missing' (4th argument to jsonb_set)
+    // performs a recursive concatenation, we build the query recursively
     final String nestedSetQuery = parseInternal(newInput);
     return String.format("jsonb_set(COALESCE(%s, '{}'), ?::text[], %s)", baseField, nestedSetQuery);
   }

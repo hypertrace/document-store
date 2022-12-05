@@ -17,6 +17,7 @@ public class PostgresAppendToListParser implements PostgresUpdateOperationParser
     final PostgresSubDocumentValueParser valueParser =
         new PostgresSubDocumentValueParser(input.getParamsBuilder());
 
+    // Concatenate with an empty array if the original field does not exist
     return String.format("COALESCE(%s, '[]') || %s", baseField, value.accept(valueParser));
   }
 }

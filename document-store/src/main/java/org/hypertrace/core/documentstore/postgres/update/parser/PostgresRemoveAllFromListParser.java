@@ -37,6 +37,8 @@ public class PostgresRemoveAllFromListParser implements PostgresUpdateOperationP
             .paramsBuilder(paramsBuilder)
             .build();
 
+    // If the baseField exists, then set the recursively removed value, otherwise set the baseField
+    // itself (simulating a no-op)
     final String nestedQuery = parseInternal(newInput);
     // Double question mark (??) is to escape the element existence operator (?) so that it is not
     // considered as a parameter placeholder
