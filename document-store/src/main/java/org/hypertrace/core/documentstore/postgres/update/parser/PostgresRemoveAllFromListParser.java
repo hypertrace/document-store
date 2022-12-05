@@ -37,10 +37,12 @@ public class PostgresRemoveAllFromListParser implements PostgresUpdateOperationP
             .paramsBuilder(paramsBuilder)
             .build();
 
-    final String nestedSetQuery = parseInternal(newInput);
+    final String nestedQuery = parseInternal(newInput);
+    // Double question mark (??) is to escape the element existence operator (?) so that it is not
+    // considered as a parameter placeholder
     return String.format(
         "CASE WHEN %s ?? ? THEN jsonb_set(%s, ?::text[], %s) ELSE %s END",
-        baseField, baseField, nestedSetQuery, baseField);
+        baseField, baseField, nestedQuery, baseField);
   }
 
   @Override
