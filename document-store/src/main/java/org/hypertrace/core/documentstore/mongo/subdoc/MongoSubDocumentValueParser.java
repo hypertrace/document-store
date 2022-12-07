@@ -17,8 +17,8 @@ import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.model.subdoc.visitor.SubDocumentValueVisitor;
 
 @AllArgsConstructor
-public class MongoSubDocumentValueSanitizer implements SubDocumentValueVisitor<Object> {
-  private static final Set<UpdateOperator> ARRAY_OPERATOR =
+public class MongoSubDocumentValueParser implements SubDocumentValueVisitor<Object> {
+  private static final Set<UpdateOperator> ARRAY_OPERATORS =
       Set.of(ADD_TO_LIST_IF_ABSENT, REMOVE_ALL_FROM_LIST, APPEND_TO_LIST);
 
   private final UpdateOperator operator;
@@ -26,7 +26,7 @@ public class MongoSubDocumentValueSanitizer implements SubDocumentValueVisitor<O
   @Override
   public Object visit(final PrimitiveSubDocumentValue value) {
     final Object primitiveValue = value.getValue();
-    return ARRAY_OPERATOR.contains(operator) ? new Object[] {primitiveValue} : primitiveValue;
+    return ARRAY_OPERATORS.contains(operator) ? new Object[] {primitiveValue} : primitiveValue;
   }
 
   @Override
@@ -36,19 +36,15 @@ public class MongoSubDocumentValueSanitizer implements SubDocumentValueVisitor<O
 
   @Override
   public Object visit(final NestedSubDocumentValue value) {
-    return parseDocument(value.getJsonValue());
+    try {
+      return BasicDBObject.parse(sanitizeJsonString(value.getJsonValue()));
+    } catch (final JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   @Override
   public Object visit(final NullSubDocumentValue value) {
     return "";
-  }
-
-  private BasicDBObject parseDocument(final String jsonValue) {
-    try {
-      return BasicDBObject.parse(sanitizeJsonString(jsonValue));
-    } catch (final JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
   }
 }

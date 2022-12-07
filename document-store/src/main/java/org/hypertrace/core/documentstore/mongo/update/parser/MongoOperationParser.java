@@ -6,7 +6,7 @@ import com.mongodb.BasicDBObject;
 import java.util.List;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
-import org.hypertrace.core.documentstore.mongo.subdoc.MongoSubDocumentValueSanitizer;
+import org.hypertrace.core.documentstore.mongo.subdoc.MongoSubDocumentValueParser;
 
 public abstract class MongoOperationParser {
   protected static final String EACH_CLAUSE = "$each";
@@ -26,7 +26,7 @@ public abstract class MongoOperationParser {
   }
 
   private BasicDBObject parseUpdate(final SubDocumentUpdate update) {
-    final MongoSubDocumentValueSanitizer sanitizer = new MongoSubDocumentValueSanitizer(operator());
+    final MongoSubDocumentValueParser sanitizer = new MongoSubDocumentValueParser(operator());
     final String path = update.getSubDocument().getPath();
     final Object value = update.getSubDocumentValue().accept(sanitizer);
     return parseUpdate(path, value);
