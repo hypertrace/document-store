@@ -9,7 +9,7 @@ import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 
 @AllArgsConstructor
-public class MongoPullAllOperationParser extends MongoOperationParser {
+public class MongoRemoveAllFromListOperationParser extends MongoOperationParser {
   private static final String PULL_ALL_CLAUSE = "$pullAll";
 
   @Override

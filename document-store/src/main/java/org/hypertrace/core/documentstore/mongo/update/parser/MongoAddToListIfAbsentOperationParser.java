@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.update.parser;
 
-import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.merge;
 
 import com.mongodb.BasicDBObject;
@@ -9,17 +9,17 @@ import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 
 @AllArgsConstructor
-public class MongoPushOperationParser extends MongoOperationParser {
-  private static final String PUSH_CLAUSE = "$push";
+public class MongoAddToListIfAbsentOperationParser extends MongoOperationParser {
+  private static final String ADD_TO_SET_CLAUSE = "$addToSet";
 
   @Override
   public UpdateOperator operator() {
-    return APPEND_TO_LIST;
+    return ADD_TO_LIST_IF_ABSENT;
   }
 
   @Override
   BasicDBObject wrapWithOperator(final List<BasicDBObject> parsed) {
-    return new BasicDBObject(PUSH_CLAUSE, merge(parsed));
+    return new BasicDBObject(ADD_TO_SET_CLAUSE, merge(parsed));
   }
 
   @Override

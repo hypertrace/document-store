@@ -33,9 +33,11 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final KeyExpression expression) {
-    return Map.of(
-        ID_KEY,
-        Map.of("$in", expression.getKeys().stream().map(Key::toString).toArray(String[]::new)));
+    return expression.getKeys().size() == 1
+        ? Map.of(ID_KEY, expression.getKeys().get(0).toString())
+        : Map.of(
+            ID_KEY,
+            Map.of("$in", expression.getKeys().stream().map(Key::toString).toArray(String[]::new)));
   }
 
   public static BasicDBObject getFilterClause(

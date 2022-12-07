@@ -246,18 +246,21 @@ public interface Collection {
    *
    * @param query The query specifying the desired filter and sorting criteria along with the
    *     necessary selections
-   * @param updates The list of sub-document updates to be performed atomically
+   * @param updates The collection of sub-document updates to be performed atomically in any order.
    * @param updateOptions Options for updating/returning the document
    * @return The old (before update) or new (after update) document optional if one exists and
    *     requested, otherwise an empty optional.
-   * @throws IOException if there was any error in updating/fetching the document or the updates is
-   *     empty
+   * @throws IOException if there was any error in updating/fetching the document or argument
+   *     validation failed (like no updates passed)
    * @implSpec The definition of an update here is
    *     <ol>
    *       <li>The existing sub-documents will be updated
    *       <li>New sub-documents will be created if they do not exist
    *       <li>None of the existing sub-documents will be removed
    *     </ol>
+   *     <p>If more than one update is modifying the same hierarchy (e.g.: a->b and a->b->c), should
+   *     throw an {@link IOException} since the order of application of the updates is an
+   *     implementation detail to avoid non-compatible results.
    */
   Optional<Document> update(
       final org.hypertrace.core.documentstore.query.Query query,
@@ -282,18 +285,21 @@ public interface Collection {
    * documents would match.
    *
    * @param query The query to be executed. Also, contains the filter for updating
-   * @param updates The list of sub-document updates to be performed
+   * @param updates The collection of sub-document updates to be performed in any order
    * @param updateOptions Options for updating/returning the document
    * @return A closeable iterator to the old (before update) or new (after update) documents if
    *     requested, otherwise an empty iterator.
-   * @throws IOException if there was any error in updating/fetching the documents or the updates is
-   *     empty
+   * @throws IOException if there was any error in updating/fetching the documents or argument
+   *     validation failed (like no updates passed)
    * @implSpec The definition of an update here is
    *     <ol>
    *       <li>The existing sub-documents will be updated
    *       <li>New sub-documents will be created if they do not exist
    *       <li>None of the existing sub-documents will be removed
    *     </ol>
+   *     <p>If more than one update is modifying the same hierarchy (e.g.: a->b and a->b->c), should
+   *     throw an {@link IOException} since the order of application of the updates is an
+   *     implementation detail to avoid non-compatible results.
    */
   CloseableIterator<Document> bulkUpdate(
       final org.hypertrace.core.documentstore.query.Query query,
