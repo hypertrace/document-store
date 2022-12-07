@@ -2083,14 +2083,15 @@ public class DocStoreQueryV1Test {
 
       final SubDocumentUpdate unset =
           SubDocumentUpdate.builder().subDocument("sales").operator(UNSET).build();
-      final SubDocumentUpdate add =
+      final SubDocumentUpdate set =
           SubDocumentUpdate.builder()
               .subDocument("props.added.list")
+              .operator(SET)
               .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
               .build();
 
       final Query query = Query.builder().build();
-      final List<SubDocumentUpdate> updates = List.of(add, unset);
+      final List<SubDocumentUpdate> updates = List.of(set, unset);
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
