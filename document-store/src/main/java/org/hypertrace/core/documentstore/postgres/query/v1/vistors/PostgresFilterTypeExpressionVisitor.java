@@ -1,13 +1,17 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getType;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareParsedNonCompositeFilter;
 
 import java.util.Optional;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -17,7 +21,6 @@ import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
-import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
 
@@ -58,15 +61,24 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
                 postgresQueryParser, getType(value)));
 
     final String parseResult = lhs.accept(lhsVisitor);
-    return PostgresUtils.prepareParsedNonCompositeFilter(
+    return prepareParsedNonCompositeFilter(
         parseResult, operator.toString(), value, postgresQueryParser.getParamsBuilder());
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final KeyExpression expression) {
-    return PostgresUtils.prepareParsedNonCompositeFilter(
-        ID, EQ.name(), expression.getKey().toString(), postgresQueryParser.getParamsBuilder());
+    return expression.getKeys().size() == 1
+        ? prepareParsedNonCompositeFilter(
+            ID,
+            EQ.name(),
+            expression.getKeys().get(0).toString(),
+            postgresQueryParser.getParamsBuilder())
+        : prepareParsedNonCompositeFilter(
+            ID,
+            IN.name(),
+            expression.getKeys().stream().map(Key::toString).collect(toUnmodifiableList()),
+            postgresQueryParser.getParamsBuilder());
   }
 
   public static Optional<String> getFilterClause(PostgresQueryParser postgresQueryParser) {

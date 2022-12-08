@@ -151,7 +151,7 @@ public class PostgresUtils {
     return value;
   }
 
-  private static String prepareParameterizedStringForList(
+  public static String prepareParameterizedStringForList(
       Iterable<Object> values, Params.Builder paramsBuilder) {
     String collect =
         StreamSupport.stream(values.spliterator(), false)

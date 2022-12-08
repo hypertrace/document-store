@@ -1,43 +1,45 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static java.util.Map.entry;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCUMENT;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOC_PATH_SEPARATOR;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.formatSubDocPath;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareFieldAccessorExpr;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Stack;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
-import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
+import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
-import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueGetter;
-import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddToListIfAbsentParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAppendToListParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresRemoveAllFromListParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresSetValueParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUnsetPathParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUpdateOperationParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUpdateOperationParser.UpdateParserInput;
 import org.hypertrace.core.documentstore.query.Query;
 
 @RequiredArgsConstructor
 public class PostgresQueryBuilder {
+  private static final Map<UpdateOperator, PostgresUpdateOperationParser> UPDATE_PARSER_MAP =
+      Map.ofEntries(
+          entry(SET, new PostgresSetValueParser()),
+          entry(UNSET, new PostgresUnsetPathParser()),
+          entry(REMOVE_ALL_FROM_LIST, new PostgresRemoveAllFromListParser()),
+          entry(ADD_TO_LIST_IF_ABSENT, new PostgresAddToListIfAbsentParser()),
+          entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
+
   @Getter private final String collectionName;
-  private final PostgresSubDocumentValueParser subDocValueParser =
-      new PostgresSubDocumentValueParser();
-  private final PostgresSubDocumentValueGetter subDocValueGetter =
-      new PostgresSubDocumentValueGetter();
-
-  public String getSubDocUpdateQuery(
-      final SubDocumentUpdate update, final String id, final Params.Builder paramBuilder) {
-    final String[] path = update.getSubDocument().getPath().split(DOC_PATH_SEPARATOR);
-    final String setCommand =
-        getJsonbSetCall(DOCUMENT, path, update.getSubDocumentValue(), paramBuilder);
-    paramBuilder.addObjectParam(id);
-
-    return String.format(
-        "UPDATE %s SET %s=%s WHERE %s=?", collectionName, DOCUMENT, setCommand, ID);
-  }
 
   public String getSubDocUpdateQuery(
       final Query query,
@@ -61,11 +63,10 @@ public class PostgresQueryBuilder {
       paramsStack.push(paramsBuilder);
 
       final String baseField = String.format("t%d.%s", i, DOCUMENT);
-      final String setCommand =
-          getJsonbSetCall(baseField, path, update.getSubDocumentValue(), paramsBuilder);
+      final String newDocument = getNewDocumentQuery(baseField, path, update, paramsBuilder);
       selectQuery =
           String.format(
-              "(SELECT %s, %s AS %s FROM %s AS t%d)", ID, setCommand, DOCUMENT, selectQuery, i);
+              "(SELECT %s, %s AS %s FROM %s AS t%d)", ID, newDocument, DOCUMENT, selectQuery, i);
     }
 
     // Since the sub-query is present in the FROM-clause, the parameters should be processed in the
@@ -85,24 +86,18 @@ public class PostgresQueryBuilder {
         selectQuery, collectionName, DOCUMENT, DOCUMENT, collectionName, ID, ID);
   }
 
-  private String getJsonbSetCall(
+  private String getNewDocumentQuery(
       final String baseField,
       final String[] path,
-      final SubDocumentValue value,
-      final Builder paramBuilder) {
-    if (path.length == 1) {
-      paramBuilder.addObjectParam(formatSubDocPath(path[0]));
-      paramBuilder.addObjectParam(value.accept(subDocValueGetter));
-      return String.format(
-          "jsonb_set(COALESCE(%s, '{}'), ?::text[], %s)",
-          baseField, value.accept(subDocValueParser));
-    }
-
-    final String[] pathExcludingFirst = Arrays.stream(path).skip(1).toArray(String[]::new);
-    paramBuilder.addObjectParam(formatSubDocPath(path[0]));
-    final String fieldAccess = prepareFieldAccessorExpr(path[0], baseField).toString();
-    final String nestedSetQuery =
-        getJsonbSetCall(fieldAccess, pathExcludingFirst, value, paramBuilder);
-    return String.format("jsonb_set(COALESCE(%s, '{}'), ?::text[], %s)", baseField, nestedSetQuery);
+      final SubDocumentUpdate update,
+      final Builder paramsBuilder) {
+    final UpdateParserInput input =
+        UpdateParserInput.builder()
+            .baseField(baseField)
+            .path(path)
+            .update(update)
+            .paramsBuilder(paramsBuilder)
+            .build();
+    return UPDATE_PARSER_MAP.get(update.getOperator()).parseInternal(input);
   }
 }

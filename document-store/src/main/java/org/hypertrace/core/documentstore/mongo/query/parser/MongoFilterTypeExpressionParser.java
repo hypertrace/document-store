@@ -6,6 +6,7 @@ import com.mongodb.BasicDBObject;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -32,7 +33,11 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final KeyExpression expression) {
-    return Map.of(ID_KEY, expression.getKey().toString());
+    return expression.getKeys().size() == 1
+        ? Map.of(ID_KEY, expression.getKeys().get(0).toString())
+        : Map.of(
+            ID_KEY,
+            Map.of("$in", expression.getKeys().stream().map(Key::toString).toArray(String[]::new)));
   }
 
   public static BasicDBObject getFilterClause(

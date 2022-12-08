@@ -16,6 +16,8 @@ import java.util.Collection;
 import java.util.Optional;
 import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
+import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -29,11 +31,13 @@ public class MongoUpdateExecutor {
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
   private final MongoUpdateParser updateParser;
   private final MongoQueryExecutor queryExecutor;
+  private final UpdateValidator updateValidator;
 
   public MongoUpdateExecutor(final MongoCollection<BasicDBObject> collection) {
     this.collection = collection;
     this.updateParser = new MongoUpdateParser(Clock.systemUTC());
     this.queryExecutor = new MongoQueryExecutor(collection);
+    this.updateValidator = new CommonUpdateValidator();
   }
 
   public Optional<Document> update(
@@ -42,7 +46,7 @@ public class MongoUpdateExecutor {
       final UpdateOptions updateOptions)
       throws IOException {
 
-    ensureAtLeastOneUpdateIsPresent(updates);
+    updateValidator.validate(updates);
 
     try {
       final BasicDBObject selections = getSelections(query);
@@ -61,15 +65,14 @@ public class MongoUpdateExecutor {
       }
 
       final BasicDBObject filter = getFilter(query, Query::getFilter);
-
-      final BasicDBObject setObject = updateParser.buildSetClause(updates);
+      final BasicDBObject updateObject = updateParser.buildUpdateClause(updates);
 
       if (returnDocumentType == NONE) {
-        collection.findOneAndUpdate(filter, setObject, options);
+        collection.findOneAndUpdate(filter, updateObject, options);
         return Optional.empty();
       }
 
-      return Optional.ofNullable(collection.findOneAndUpdate(filter, setObject, options))
+      return Optional.ofNullable(collection.findOneAndUpdate(filter, updateObject, options))
           .map(MongoUtils::dbObjectToDocument);
     } catch (final Exception e) {
       throw new IOException(e);
@@ -81,26 +84,26 @@ public class MongoUpdateExecutor {
       final Collection<SubDocumentUpdate> updates,
       final UpdateOptions updateOptions)
       throws IOException {
-    ensureAtLeastOneUpdateIsPresent(updates);
+    updateValidator.validate(updates);
 
     final BasicDBObject filter = getFilter(query, Query::getFilter);
-    final BasicDBObject setObject = updateParser.buildSetClause(updates);
+    final BasicDBObject updateObject = updateParser.buildUpdateClause(updates);
     final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
     final MongoCursor<BasicDBObject> cursor;
 
     switch (returnDocumentType) {
       case BEFORE_UPDATE:
         cursor = queryExecutor.aggregate(query);
-        logAndUpdate(filter, setObject);
+        logAndUpdate(filter, updateObject);
         return Optional.of(cursor);
 
       case AFTER_UPDATE:
-        logAndUpdate(filter, setObject);
+        logAndUpdate(filter, updateObject);
         cursor = queryExecutor.aggregate(query);
         return Optional.of(cursor);
 
       case NONE:
-        logAndUpdate(filter, setObject);
+        logAndUpdate(filter, updateObject);
         return Optional.empty();
 
       default:
@@ -111,12 +114,5 @@ public class MongoUpdateExecutor {
   private void logAndUpdate(final BasicDBObject filter, final BasicDBObject setObject) {
     log.debug("Updating {} using {} with filter {}", collection.getNamespace(), setObject, filter);
     collection.updateMany(filter, setObject);
-  }
-
-  private void ensureAtLeastOneUpdateIsPresent(Collection<SubDocumentUpdate> updates)
-      throws IOException {
-    if (updates.isEmpty()) {
-      throw new IOException("At least one update is required");
-    }
   }
 }

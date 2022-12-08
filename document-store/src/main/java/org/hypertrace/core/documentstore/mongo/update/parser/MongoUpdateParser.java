@@ -1,15 +1,27 @@
 package org.hypertrace.core.documentstore.mongo.update.parser;
 
-import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
+import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.toUnmodifiableList;
 
 import com.mongodb.BasicDBObject;
 import java.time.Clock;
 import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Stream;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocument;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
-import org.hypertrace.core.documentstore.mongo.subdoc.MongoSubDocumentValueSanitizer;
+import org.hypertrace.core.documentstore.mongo.MongoUtils;
 
 public class MongoUpdateParser {
-  private static final String SET_CLAUSE = "$set";
+  private static final Set<MongoOperationParser> OPERATOR_PARSERS =
+      Set.of(
+          new MongoAddToListIfAbsentOperationParser(),
+          new MongoAppendToListOperationParser(),
+          new MongoRemoveAllFromListOperationParser(),
+          new MongoSetOperationParser(),
+          new MongoUnsetOperationParser());
 
   private final Clock clock;
 
@@ -17,30 +29,17 @@ public class MongoUpdateParser {
     this.clock = clock;
   }
 
-  public BasicDBObject buildSetClause(final Collection<SubDocumentUpdate> updates) {
-    final BasicDBObject updateObject = parseUpdates(updates);
-    addLastUpdatedTimeUpdate(updateObject);
-    return getSetClause(updateObject);
+  public BasicDBObject buildUpdateClause(final Collection<SubDocumentUpdate> updates) {
+    final List<SubDocumentUpdate> allUpdates =
+        Stream.concat(updates.stream(), Stream.of(getLastUpdatedTimeUpdate()))
+            .collect(toUnmodifiableList());
+    return OPERATOR_PARSERS.stream()
+        .map(parser -> parser.parse(allUpdates))
+        .filter(not(BasicDBObject::isEmpty))
+        .collect(collectingAndThen(toUnmodifiableList(), MongoUtils::merge));
   }
 
-  private BasicDBObject parseUpdates(final Collection<SubDocumentUpdate> updates) {
-    final BasicDBObject updateObject = new BasicDBObject();
-    final MongoSubDocumentValueSanitizer sanitizer = new MongoSubDocumentValueSanitizer();
-
-    for (final SubDocumentUpdate update : updates) {
-      final String path = update.getSubDocument().getPath();
-      final Object value = update.getSubDocumentValue().accept(sanitizer);
-      updateObject.put(path, value);
-    }
-
-    return updateObject;
-  }
-
-  private void addLastUpdatedTimeUpdate(final BasicDBObject updates) {
-    updates.append(LAST_UPDATED_TIME, clock.millis());
-  }
-
-  private BasicDBObject getSetClause(final BasicDBObject updates) {
-    return new BasicDBObject(SET_CLAUSE, updates);
+  private SubDocumentUpdate getLastUpdatedTimeUpdate() {
+    return SubDocumentUpdate.of(SubDocument.implicitUpdatedTime(), clock.millis());
   }
 }

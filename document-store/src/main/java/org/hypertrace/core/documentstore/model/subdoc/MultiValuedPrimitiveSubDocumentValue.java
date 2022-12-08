@@ -12,8 +12,8 @@ import org.hypertrace.core.documentstore.model.subdoc.visitor.SubDocumentValueVi
 @AllArgsConstructor(access = PACKAGE)
 @Getter
 @ToString
-public class PrimitiveSubDocumentValue implements SubDocumentValue {
-  private final Object value;
+public class MultiValuedPrimitiveSubDocumentValue implements SubDocumentValue {
+  private final Object[] values;
 
   @Override
   public <T> T accept(final SubDocumentValueVisitor<T> visitor) {

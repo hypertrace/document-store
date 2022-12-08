@@ -3,6 +3,8 @@ package org.hypertrace.core.documentstore.mongo;
 import static com.mongodb.client.model.ReturnDocument.AFTER;
 import static com.mongodb.client.model.ReturnDocument.BEFORE;
 import static java.util.Map.entry;
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
@@ -17,9 +19,11 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.client.model.ReturnDocument;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
@@ -64,6 +68,15 @@ public final class MongoUtils {
     // escape "." and "$" in field names since Mongo DB does not like them
     final JsonNode sanitizedJsonNode = recursiveClone(jsonNode, MongoUtils::encodeKey);
     return MAPPER.writeValueAsString(sanitizedJsonNode);
+  }
+
+  public static BasicDBObject merge(final List<BasicDBObject> basicDbObjects) {
+    return basicDbObjects.stream()
+        .map(Map::entrySet)
+        .flatMap(Set::stream)
+        .collect(
+            collectingAndThen(
+                toUnmodifiableMap(Entry::getKey, Entry::getValue), BasicDBObject::new));
   }
 
   public static JsonNode recursiveClone(JsonNode src, Function<String, String> function) {
