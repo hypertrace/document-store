@@ -7,8 +7,10 @@ import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonStr
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mongodb.BasicDBObject;
+import java.util.Arrays;
 import java.util.Set;
 import lombok.AllArgsConstructor;
+import org.hypertrace.core.documentstore.model.subdoc.MultiValuedNestedSubDocumentValue;
 import org.hypertrace.core.documentstore.model.subdoc.MultiValuedPrimitiveSubDocumentValue;
 import org.hypertrace.core.documentstore.model.subdoc.NestedSubDocumentValue;
 import org.hypertrace.core.documentstore.model.subdoc.NullSubDocumentValue;
@@ -36,15 +38,25 @@ public class MongoSubDocumentValueParser implements SubDocumentValueVisitor<Obje
 
   @Override
   public Object visit(final NestedSubDocumentValue value) {
-    try {
-      return BasicDBObject.parse(sanitizeJsonString(value.getJsonValue()));
-    } catch (final JsonProcessingException e) {
-      throw new RuntimeException(e);
-    }
+    final Object parsedValue = parse(value.getJsonValue());
+    return ARRAY_OPERATORS.contains(operator) ? new Object[] {parsedValue} : parsedValue;
+  }
+
+  @Override
+  public Object visit(final MultiValuedNestedSubDocumentValue value) {
+    return Arrays.stream(value.getJsonValues()).map(this::parse).toArray();
   }
 
   @Override
   public Object visit(final NullSubDocumentValue value) {
     return "";
+  }
+
+  private BasicDBObject parse(final String jsonValue) {
+    try {
+      return BasicDBObject.parse(sanitizeJsonString(jsonValue));
+    } catch (final JsonProcessingException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

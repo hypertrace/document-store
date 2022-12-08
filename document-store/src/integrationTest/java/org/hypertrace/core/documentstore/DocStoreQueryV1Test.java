@@ -2077,6 +2077,123 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
+    void testUpdateWithAllOperatorsOnObject(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate set =
+          SubDocumentUpdate.builder()
+              .subDocument("props.new_property.deep.nested")
+              .operator(SET)
+              .subDocumentValue(SubDocumentValue.of(new JSONDocument(Map.of("value", "new_value"))))
+              .build();
+      final SubDocumentUpdate unset =
+          SubDocumentUpdate.builder().subDocument("sales").operator(UNSET).build();
+      final SubDocumentUpdate add =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.set")
+              .operator(ADD_TO_LIST_IF_ABSENT)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new Document[] {
+                        new JSONDocument(Map.of("key", 1)),
+                        new JSONDocument(Map.of("key", 2)),
+                        new JSONDocument(Map.of("key", 1))
+                      }))
+              .build();
+      final SubDocumentUpdate another_add =
+          SubDocumentUpdate.builder()
+              .subDocument("props.planets")
+              .operator(ADD_TO_LIST_IF_ABSENT)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new Document[] {
+                        new JSONDocument(Map.of("name", "Neptune")),
+                        new JSONDocument(Map.of("name", "Pluto"))
+                      }))
+              .build();
+      final SubDocumentUpdate append =
+          SubDocumentUpdate.builder()
+              .subDocument("props.appended.list")
+              .operator(APPEND_TO_LIST)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new Document[] {
+                        new JSONDocument(Map.of("key", 1)), new JSONDocument(Map.of("key", 2))
+                      }))
+              .build();
+      final SubDocumentUpdate remove =
+          SubDocumentUpdate.builder()
+              .subDocument("props.removed.list")
+              .operator(REMOVE_ALL_FROM_LIST)
+              .subDocumentValue(
+                  SubDocumentValue.of(new Document[] {new JSONDocument(Map.of("Hello", "world!"))}))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(set, unset, add, another_add, append, remove);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator, "query/update_operator/object_updated1.json", 9);
+
+      final SubDocumentUpdate set_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.sales")
+              .operator(SET)
+              .subDocumentValue(
+                  SubDocumentValue.of(new Document[] {new JSONDocument(Map.of("count", 789))}))
+              .build();
+      final SubDocumentUpdate unset_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.new_property.deep.nested")
+              .operator(UNSET)
+              .build();
+      final SubDocumentUpdate add_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.set")
+              .operator(ADD_TO_LIST_IF_ABSENT)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new Document[] {
+                        new JSONDocument(Map.of("key", 3)), new JSONDocument(Map.of("key", 1))
+                      }))
+              .build();
+      final SubDocumentUpdate append_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.appended.list")
+              .operator(APPEND_TO_LIST)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new Document[] {
+                        new JSONDocument(Map.of("key", 8)), new JSONDocument(Map.of("key", 2))
+                      }))
+              .build();
+      final SubDocumentUpdate remove_new =
+          SubDocumentUpdate.builder()
+              .subDocument("props.planets")
+              .operator(REMOVE_ALL_FROM_LIST)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new Document[] {
+                        new JSONDocument(Map.of("name", "Pluto")),
+                        new JSONDocument(Map.of("name", "Mars"))
+                      }))
+              .build();
+      final List<SubDocumentUpdate> new_updates =
+          List.of(set_new, unset_new, add_new, append_new, remove_new);
+
+      final CloseableIterator<Document> iterator_new =
+          collection.bulkUpdate(
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator_new, "query/update_operator/object_updated2.json", 9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
     void testRemoveAllOccurrancesFromIntegerList(final String datastoreName) throws IOException {
       final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
       createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);

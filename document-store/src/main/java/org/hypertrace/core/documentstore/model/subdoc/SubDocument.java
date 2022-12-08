@@ -21,6 +21,7 @@ public class SubDocument {
 
   String path;
 
+  @SuppressWarnings("unused")
   public static SubDocument implicitCreatedTime() {
     return new SubDocument(CREATED_TIME);
   }
@@ -29,6 +30,7 @@ public class SubDocument {
     return new SubDocument(LAST_UPDATED_TIME);
   }
 
+  @SuppressWarnings("unused")
   public static class SubDocumentBuilder {
     public SubDocument build() {
       validatePath();
