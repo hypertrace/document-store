@@ -164,6 +164,19 @@ public class PostgresUtils {
     return "(" + collect + ")";
   }
 
+  public static String prepareParameterizedStringForJsonList(
+      Iterable<Object> values, Params.Builder paramsBuilder) {
+    String collect =
+        StreamSupport.stream(values.spliterator(), false)
+            .map(
+                val -> {
+                  paramsBuilder.addObjectParam(val);
+                  return QUESTION_MARK + "::jsonb";
+                })
+            .collect(Collectors.joining(", "));
+    return "(" + collect + ")";
+  }
+
   public static String parseNonCompositeFilterWithCasting(
       String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
     String parsedExpression =

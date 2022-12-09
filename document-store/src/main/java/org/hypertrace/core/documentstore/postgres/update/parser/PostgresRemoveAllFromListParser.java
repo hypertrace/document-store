@@ -9,6 +9,8 @@ import java.util.stream.IntStream;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentArrayGetter;
+import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentArrayGetter.SubDocumentArray;
+import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentArrayGetter.Type;
 
 public class PostgresRemoveAllFromListParser implements PostgresUpdateOperationParser {
 
@@ -54,14 +56,17 @@ public class PostgresRemoveAllFromListParser implements PostgresUpdateOperationP
     final Builder paramsBuilder = input.getParamsBuilder();
 
     final PostgresSubDocumentArrayGetter subDocArrayGetter = new PostgresSubDocumentArrayGetter();
-    final Object[] values = input.getUpdate().getSubDocumentValue().accept(subDocArrayGetter);
+    final SubDocumentArray array =
+        input.getUpdate().getSubDocumentValue().accept(subDocArrayGetter);
+    final Object[] values = array.values();
+    final Type type = array.type();
     final String fieldAccess = prepareFieldAccessorExpr(subDocPath, baseField).toString();
 
     paramsBuilder.addObjectParam(formatSubDocPath(subDocPath));
     Arrays.stream(values).forEach(paramsBuilder::addObjectParam);
 
     final String filter =
-        IntStream.range(0, values.length).mapToObj(i -> "to_jsonb(?)").collect(joining(", "));
+        IntStream.range(0, values.length).mapToObj(i -> type.parsed()).collect(joining(", "));
     return String.format(
         "jsonb_set(%s, ?::text[], "
             + "(SELECT jsonb_agg(value) "

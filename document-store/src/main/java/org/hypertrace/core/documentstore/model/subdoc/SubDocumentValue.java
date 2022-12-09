@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.model.subdoc;
 
+import java.util.Collection;
 import javax.annotation.Nonnull;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.model.Hashable;
@@ -36,5 +37,13 @@ public interface SubDocumentValue extends Hashable, Printable {
 
   public static SubDocumentValue of(@Nonnull final Boolean[] values) {
     return new MultiValuedPrimitiveSubDocumentValue(values);
+  }
+
+  public static SubDocumentValue of(@Nonnull final Document[] documents) {
+    return new MultiValuedNestedSubDocumentValue(documents);
+  }
+
+  public static SubDocumentValue of(@Nonnull final Collection<Document> documents) {
+    return new MultiValuedNestedSubDocumentValue(documents.toArray(Document[]::new));
   }
 }
