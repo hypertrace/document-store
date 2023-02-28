@@ -15,7 +15,6 @@ dependencies {
   implementation("org.mongodb:mongodb-driver-sync:4.6.0")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.14.1")
   implementation("org.slf4j:slf4j-api:1.7.36")
-  implementation("com.google.guava:guava-annotations:r03")
   implementation("org.apache.commons:commons-lang3:3.12.0")
   implementation("net.jodah:failsafe:2.4.4")
   implementation("com.google.guava:guava:31.1-jre")
