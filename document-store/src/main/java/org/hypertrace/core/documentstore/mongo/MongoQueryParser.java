@@ -60,14 +60,13 @@ class MongoQueryParser {
         case CONTAINS:
           map.put(
               filter.getFieldName(),
-              new BasicDBObject("$elemMatch", new BasicDBObject("$eq", filter.getValue())));
+              new BasicDBObject("$elemMatch", new BasicDBObject("$eq", value)));
           break;
         case NOT_CONTAINS:
           map.put(
               filter.getFieldName(),
               new BasicDBObject(
-                  "$not",
-                  new BasicDBObject("$elemMatch", new BasicDBObject("$eq", filter.getValue()))));
+                  "$not", new BasicDBObject("$elemMatch", new BasicDBObject("$eq", value))));
           break;
         case GT:
           map.put(filter.getFieldName(), new BasicDBObject("$gt", value));
