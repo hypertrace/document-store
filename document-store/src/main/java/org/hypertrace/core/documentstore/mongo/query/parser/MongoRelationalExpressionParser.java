@@ -16,6 +16,9 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.mongodb.BasicDBObject;
 import java.util.EnumMap;
 import java.util.Map;
@@ -24,8 +27,13 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class MongoRelationalExpressionParser {
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(MongoRelationalExpressionParser.class);
+
   private static final String EXPR = "$expr";
   private static final String REGEX = "$regex";
   private static final String OPTIONS = "$options";
@@ -91,6 +99,16 @@ final class MongoRelationalExpressionParser {
     return (lhs, rhs) -> {
       final String parsedLhs = lhs.accept(identifierParser);
       final Object parsedRhs = rhs.accept(rhsParser);
+      Map<String, String> parsedObject = Map.of();
+      if (parsedRhs instanceof String) {
+        final ObjectReader objectReader = new ObjectMapper().readerFor(Map.class);
+        try {
+          parsedObject = objectReader.readValue((String) parsedRhs);
+          return Map.of(parsedLhs, new BasicDBObject(PREFIX + op, parsedObject));
+        } catch (JsonProcessingException e) {
+          LOGGER.error("Parsing error for converting string to map for contains operator", e);
+        }
+      }
       return Map.of(parsedLhs, new BasicDBObject(PREFIX + op, parsedRhs));
     };
   }

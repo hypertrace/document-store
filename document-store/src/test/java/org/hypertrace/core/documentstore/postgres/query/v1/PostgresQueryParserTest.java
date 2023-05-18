@@ -1315,4 +1315,40 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals("[\"a\"]", params.getObjectParams().get(1));
   }
+
+  @Test
+  void testContainsAndUnnestFilters() {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.medium"))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(false)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium"),
+                            CONTAINS,
+                            ConstantExpression.of("{\"type\": \"retail\",\"volume\": 500}")))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+    String sql = postgresQueryParser.parse();
+
+    assertEquals(
+        "With \n"
+            + "table0 as (SELECT * from testCollection),\n"
+            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales))\n"
+            + "SELECT document->'item' AS item, sales->'medium' AS sales_dot_medium FROM table1 WHERE sales->'medium' @> ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals(
+        "[{\"type\":\"retail\",\"volume\":500}]",
+        params.getObjectParams().get(1));
+  }
 }

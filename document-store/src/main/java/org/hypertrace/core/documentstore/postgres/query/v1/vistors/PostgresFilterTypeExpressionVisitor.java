@@ -7,6 +7,10 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getType;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareParsedNonCompositeFilter;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -21,8 +25,12 @@ import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(PostgresFilterTypeExpressionVisitor.class);
 
   protected PostgresQueryParser postgresQueryParser;
 
@@ -64,6 +72,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
                     postgresQueryParser, getType(value)));
 
     final String parseResult = lhs.accept(lhsVisitor);
+    value = isOperatorNeedsFieldAccessor(operator) ? convertStringValueToMap(value) : value;
     return prepareParsedNonCompositeFilter(
         parseResult, operator.toString(), value, postgresQueryParser.getParamsBuilder());
   }
@@ -113,5 +122,17 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
       default:
         return false;
     }
+  }
+
+  private Object convertStringValueToMap(Object value) {
+    if (value instanceof String) {
+      final ObjectReader objectReader = new ObjectMapper().readerFor(Map.class);
+      try {
+        return objectReader.readValue((String) value);
+      } catch (JsonProcessingException e) {
+        LOGGER.error("Parsing error for converting string to map for contains operator", e);
+      }
+    }
+    return value;
   }
 }
