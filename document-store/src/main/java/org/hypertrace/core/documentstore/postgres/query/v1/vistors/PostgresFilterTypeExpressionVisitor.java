@@ -56,9 +56,12 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     Object value = rhs.accept(rhsVisitor);
 
     PostgresSelectTypeExpressionVisitor lhsVisitor =
-        new PostgresFunctionExpressionVisitor(
-            new PostgresDataAccessorIdentifierExpressionVisitor(
-                postgresQueryParser, getType(value)));
+        isOperatorNeedsFieldAccessor(operator)
+            ? new PostgresFunctionExpressionVisitor(
+                new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser))
+            : new PostgresFunctionExpressionVisitor(
+                new PostgresDataAccessorIdentifierExpressionVisitor(
+                    postgresQueryParser, getType(value)));
 
     final String parseResult = lhs.accept(lhsVisitor);
     return prepareParsedNonCompositeFilter(
@@ -101,5 +104,14 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     }
     throw new UnsupportedOperationException(
         String.format("Query operation:%s not supported", operator));
+  }
+
+  private boolean isOperatorNeedsFieldAccessor(RelationalOperator operator) {
+    switch (operator) {
+      case CONTAINS:
+        return true;
+      default:
+        return false;
+    }
   }
 }

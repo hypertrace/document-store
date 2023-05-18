@@ -13,6 +13,7 @@ import static org.hypertrace.core.documentstore.expression.operators.FunctionOpe
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
@@ -1296,5 +1297,22 @@ public class PostgresQueryParserTest {
     assertEquals(2, params.getObjectParams().size());
     assertEquals(TENANT_ID + ":7", params.getObjectParams().get(1));
     assertEquals("Comb", params.getObjectParams().get(2));
+  }
+
+  @Test
+  void testContainsFilter() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("sales"), CONTAINS, ConstantExpression.of("a")))
+            .build();
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM testCollection WHERE document->'sales' @> ?::jsonb", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals("[\"a\"]", params.getObjectParams().get(1));
   }
 }

@@ -381,6 +381,7 @@ public class PostgresUtils {
     StringBuilder filterString = new StringBuilder(preparedExpression);
     String sqlOperator;
     boolean isMultiValued = false;
+    boolean isContainsOp = false;
     switch (op) {
       case "EQ":
       case "=":
@@ -437,6 +438,10 @@ public class PostgresUtils {
         sqlOperator = " != ";
         break;
       case "CONTAINS":
+        isContainsOp = true;
+        value = prepareValueForContainsOp(value);
+        sqlOperator = " @> ";
+        break;
       case "NOT_CONTAINS":
         // For now, both contains and not_contains are not supported in aggregation filter.
       default:
@@ -447,6 +452,10 @@ public class PostgresUtils {
     if (value != null) {
       if (isMultiValued) {
         filterString.append(value);
+      } else if (isContainsOp) {
+        filterString.append(QUESTION_MARK);
+        filterString.append("::jsonb");
+        paramsBuilder.addObjectParam(value);
       } else {
         filterString.append(QUESTION_MARK);
         paramsBuilder.addObjectParam(value);
