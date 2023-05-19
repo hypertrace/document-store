@@ -11,7 +11,9 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDA
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -351,6 +353,24 @@ public class PostgresUtils {
     return filterString.toString();
   }
 
+  private static Object prepareJsonValueForContainsOp(final Object value) {
+    if (value instanceof Document) {
+      try {
+        final Document document = (Document) value;
+        final JsonNode node = OBJECT_MAPPER.readTree(document.toJson());
+        if (node.isArray()) {
+          return document.toJson();
+        } else {
+          return "[" + document.toJson() + "]";
+        }
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+    } else {
+      return prepareValueForContainsOp(value);
+    }
+  }
+
   private static Object prepareValueForContainsOp(Object value) {
     String transformedValue = null;
     try {
@@ -439,7 +459,7 @@ public class PostgresUtils {
         break;
       case "CONTAINS":
         isContainsOp = true;
-        value = prepareValueForContainsOp(value);
+        value = prepareJsonValueForContainsOp(value);
         sqlOperator = " @> ";
         break;
       case "NOT_CONTAINS":

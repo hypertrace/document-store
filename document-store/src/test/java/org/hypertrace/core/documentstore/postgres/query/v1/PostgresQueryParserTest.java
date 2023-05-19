@@ -1347,8 +1347,6 @@ public class PostgresQueryParserTest {
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
-    assertEquals(
-        "[{\"type\":\"retail\",\"volume\":500}]",
-        params.getObjectParams().get(1));
+    assertEquals("[{\"type\":\"retail\",\"volume\":500}]", params.getObjectParams().get(1));
   }
 }

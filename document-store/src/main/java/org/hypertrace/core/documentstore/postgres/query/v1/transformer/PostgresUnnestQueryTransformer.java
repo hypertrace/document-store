@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
@@ -188,6 +189,11 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
 
     @Override
     public List<String> visit(ConstantExpression expression) {
+      return List.of();
+    }
+
+    @Override
+    public List<String> visit(DocumentConstantExpression expression) {
       return List.of();
     }
 

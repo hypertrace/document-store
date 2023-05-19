@@ -72,7 +72,6 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
                     postgresQueryParser, getType(value)));
 
     final String parseResult = lhs.accept(lhsVisitor);
-    value = isOperatorNeedsFieldAccessor(operator) ? convertStringValueToMap(value) : value;
     return prepareParsedNonCompositeFilter(
         parseResult, operator.toString(), value, postgresQueryParser.getParamsBuilder());
   }

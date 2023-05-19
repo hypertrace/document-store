@@ -6,6 +6,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
@@ -95,6 +96,11 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
     }
 
     @Override
+    public Boolean visit(DocumentConstantExpression expression) {
+      return false;
+    }
+
+    @Override
     public Boolean visit(FunctionExpression expression) {
       return false;
     }
@@ -114,6 +120,11 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
 
     @Override
     public Boolean visit(ConstantExpression expression) {
+      return false;
+    }
+
+    @Override
+    public Boolean visit(DocumentConstantExpression expression) {
       return false;
     }
 

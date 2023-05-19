@@ -1501,7 +1501,8 @@ public class DocStoreQueryV1Test {
                         RelationalExpression.of(
                             IdentifierExpression.of("sales.medium"),
                             CONTAINS,
-                            ConstantExpression.of("{\"type\": \"retail\",\"volume\": 500}")))
+                            ConstantExpression.of(
+                                new JSONDocument("{\"type\": \"retail\",\"volume\": 500}"))))
                     .build())
             .build();
     Iterator<Document> iterator = collection.aggregate(query);

@@ -4,6 +4,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
@@ -22,6 +23,11 @@ public class PostgresDefaultSelectTypeExpressionVisitor
   @Override
   public <T> T visit(final ConstantExpression expression) {
     throw new UnsupportedOperationException(String.valueOf(expression));
+  }
+
+  @Override
+  public <T> T visit(final DocumentConstantExpression expression) {
+    throw new UnsupportedOperationException(expression.getValue().toJson());
   }
 
   @Override

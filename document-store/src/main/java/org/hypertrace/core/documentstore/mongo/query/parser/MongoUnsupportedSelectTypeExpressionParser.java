@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
@@ -21,6 +22,11 @@ public class MongoUnsupportedSelectTypeExpressionParser extends MongoSelectTypeE
 
   @Override
   public <T> T visit(final ConstantExpression expression) {
+    throw getUnsupportedOperationException(expression);
+  }
+
+  @Override
+  public <T> T visit(final DocumentConstantExpression expression) {
     throw getUnsupportedOperationException(expression);
   }
 
