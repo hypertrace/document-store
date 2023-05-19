@@ -462,6 +462,7 @@ public class PostgresUtils {
         sqlOperator = " @> ";
         break;
       case "NOT_CONTAINS":
+      case "NOT CONTAINS":
         isContainsOp = true;
         filterString = filterString.append(" IS NULL OR NOT ").append(preparedExpression);
         value = prepareJsonValueForContainsOp(value);
