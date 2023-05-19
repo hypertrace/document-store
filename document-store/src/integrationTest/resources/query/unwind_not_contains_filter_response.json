@@ -1,0 +1,25 @@
+[
+  {
+    "item":"Soap",
+    "sales":{
+      "medium":[
+        {
+          "type":"distributionChannel",
+          "volume":300
+        },
+        {
+          "type":"online",
+          "volume":2000
+        }
+      ]
+    }
+  },
+  {
+    "item":"Mirror",
+    "sales":{
+      "medium":[
+
+      ]
+    }
+  }
+]

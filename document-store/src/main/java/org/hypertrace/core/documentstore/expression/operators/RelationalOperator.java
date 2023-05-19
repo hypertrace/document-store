@@ -12,6 +12,7 @@ public enum RelationalOperator {
   LTE("<="),
   IN("IN"),
   CONTAINS("CONTAINS"),
+  NOT_CONTAINS("NOT_CONTAINS"),
   EXISTS("EXISTS"),
   NOT_EXISTS("NOT EXISTS"),
   LIKE("~"),

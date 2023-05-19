@@ -20,11 +20,14 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.io.IOException;
 import java.util.List;
+import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
@@ -1300,12 +1303,14 @@ public class PostgresQueryParserTest {
   }
 
   @Test
-  void testContainsFilter() {
+  void testContainsFilter() throws IOException {
     Query query =
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    IdentifierExpression.of("sales"), CONTAINS, ConstantExpression.of("a")))
+                    IdentifierExpression.of("sales"),
+                    CONTAINS,
+                    ConstantExpression.of(new JSONDocument("\"a\""))))
             .build();
     PostgresQueryParser postgresQueryParser =
         new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
@@ -1317,7 +1322,7 @@ public class PostgresQueryParserTest {
   }
 
   @Test
-  void testContainsAndUnnestFilters() {
+  void testContainsAndUnnestFilters() throws IOException {
     org.hypertrace.core.documentstore.query.Query query =
         org.hypertrace.core.documentstore.query.Query.builder()
             .addSelection(IdentifierExpression.of("item"))
@@ -1330,7 +1335,8 @@ public class PostgresQueryParserTest {
                         RelationalExpression.of(
                             IdentifierExpression.of("sales.medium"),
                             CONTAINS,
-                            ConstantExpression.of("{\"type\": \"retail\",\"volume\": 500}")))
+                            ConstantExpression.of(
+                                new JSONDocument("{\"type\": \"retail\",\"volume\": 500}"))))
                     .build())
             .build();
 
@@ -1343,6 +1349,41 @@ public class PostgresQueryParserTest {
             + "table0 as (SELECT * from testCollection),\n"
             + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales))\n"
             + "SELECT document->'item' AS item, sales->'medium' AS sales_dot_medium FROM table1 WHERE sales->'medium' @> ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals("[{\"type\":\"retail\",\"volume\":500}]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testNotContainsAndUnnestFilters() throws IOException {
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.medium"))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(false)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium"),
+                            NOT_CONTAINS,
+                            ConstantExpression.of(
+                                new JSONDocument("{\"type\": \"retail\",\"volume\": 500}"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+    String sql = postgresQueryParser.parse();
+
+    assertEquals(
+        "With \n"
+            + "table0 as (SELECT * from testCollection),\n"
+            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales))\n"
+            + "SELECT document->'item' AS item, sales->'medium' AS sales_dot_medium FROM table1 WHERE sales->'medium' IS NULL OR NOT sales->'medium' @> ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();

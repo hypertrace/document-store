@@ -13,7 +13,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -463,7 +462,11 @@ public class PostgresUtils {
         sqlOperator = " @> ";
         break;
       case "NOT_CONTAINS":
-        // For now, both contains and not_contains are not supported in aggregation filter.
+        isContainsOp = true;
+        filterString = filterString.append(" IS NULL OR NOT ").append(preparedExpression);
+        value = prepareJsonValueForContainsOp(value);
+        sqlOperator = " @> ";
+        break;
       default:
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     }

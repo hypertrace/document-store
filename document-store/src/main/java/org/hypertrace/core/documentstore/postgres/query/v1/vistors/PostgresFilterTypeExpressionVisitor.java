@@ -117,6 +117,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   private boolean isOperatorNeedsFieldAccessor(RelationalOperator operator) {
     switch (operator) {
       case CONTAINS:
+      case NOT_CONTAINS:
         return true;
       default:
         return false;
