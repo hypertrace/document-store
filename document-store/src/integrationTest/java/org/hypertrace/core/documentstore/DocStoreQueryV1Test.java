@@ -14,6 +14,7 @@ import static org.hypertrace.core.documentstore.expression.operators.FunctionOpe
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
@@ -21,6 +22,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
@@ -1481,6 +1483,58 @@ public class DocStoreQueryV1Test {
     Iterator<Document> iterator = collection.aggregate(query);
     assertDocsAndSizeEqual(
         dataStoreName, iterator, "query/unwind_preserve_with_regular_filter_first_level.json", 3);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  void testContainsAndUnnestFilters(String dataStoreName) throws IOException {
+    Collection collection = getCollection(dataStoreName);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.medium"))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(false)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium"),
+                            CONTAINS,
+                            ConstantExpression.of(
+                                new JSONDocument("{\"type\": \"retail\",\"volume\": 500}"))))
+                    .build())
+            .build();
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsAndSizeEqual(
+        dataStoreName, iterator, "query/unwind_contains_filter_response.json", 3);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  void testNotContainsAndUnnestFilters(String dataStoreName) throws IOException {
+    Collection collection = getCollection(dataStoreName);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("sales.medium"))
+            .addFromClause(
+                UnnestExpression.builder()
+                    .identifierExpression(IdentifierExpression.of("sales"))
+                    .preserveNullAndEmptyArrays(false)
+                    .filterTypeExpression(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("sales.medium"),
+                            NOT_CONTAINS,
+                            ConstantExpression.of(
+                                new JSONDocument("{\"type\": \"retail\",\"volume\": 500}"))))
+                    .build())
+            .build();
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsAndSizeEqual(
+        dataStoreName, iterator, "query/unwind_not_contains_filter_response.json", 2);
   }
 
   @ParameterizedTest

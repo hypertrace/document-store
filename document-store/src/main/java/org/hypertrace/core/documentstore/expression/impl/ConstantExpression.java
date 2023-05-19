@@ -4,8 +4,10 @@ import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
+import lombok.experimental.NonFinal;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
@@ -19,10 +21,11 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
  *  </code>
  */
 @Value
+@NonFinal
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ConstantExpression implements SelectTypeExpression {
 
-  Object value;
+  protected Object value;
 
   public static ConstantExpression of(final String value) {
     return new ConstantExpression(value);
@@ -34,6 +37,10 @@ public class ConstantExpression implements SelectTypeExpression {
 
   public static ConstantExpression of(final Boolean value) {
     return new ConstantExpression(value);
+  }
+
+  public static ConstantExpression of(final Document value) {
+    return new DocumentConstantExpression(value);
   }
 
   public static ConstantExpression ofStrings(final List<String> values) {
@@ -67,5 +74,26 @@ public class ConstantExpression implements SelectTypeExpression {
     return value instanceof String
         ? StringUtils.wrap(value.toString(), "'")
         : String.valueOf(value);
+  }
+
+  public static class DocumentConstantExpression extends ConstantExpression {
+    private DocumentConstantExpression(final Document value) {
+      super(value);
+    }
+
+    @Override
+    public <T> T accept(final SelectTypeExpressionVisitor visitor) {
+      return visitor.visit(this);
+    }
+
+    @Override
+    public Document getValue() {
+      return (Document) value;
+    }
+
+    @Override
+    public String toString() {
+      return "JSON(" + StringUtils.wrap(getValue().toJson(), "'") + ")";
+    }
   }
 }

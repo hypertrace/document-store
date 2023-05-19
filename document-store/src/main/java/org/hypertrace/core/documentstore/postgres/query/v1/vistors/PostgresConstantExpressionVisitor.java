@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 
 @NoArgsConstructor
@@ -22,6 +23,11 @@ public class PostgresConstantExpressionVisitor extends PostgresSelectTypeExpress
 
   @Override
   public Object visit(final ConstantExpression expression) {
+    return expression.getValue();
+  }
+
+  @Override
+  public Object visit(final DocumentConstantExpression expression) {
     return expression.getValue();
   }
 }

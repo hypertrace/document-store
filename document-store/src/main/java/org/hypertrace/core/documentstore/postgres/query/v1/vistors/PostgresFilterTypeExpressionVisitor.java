@@ -21,8 +21,12 @@ import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(PostgresFilterTypeExpressionVisitor.class);
 
   protected PostgresQueryParser postgresQueryParser;
 
@@ -56,9 +60,12 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     Object value = rhs.accept(rhsVisitor);
 
     PostgresSelectTypeExpressionVisitor lhsVisitor =
-        new PostgresFunctionExpressionVisitor(
-            new PostgresDataAccessorIdentifierExpressionVisitor(
-                postgresQueryParser, getType(value)));
+        isOperatorNeedsFieldAccessor(operator)
+            ? new PostgresFunctionExpressionVisitor(
+                new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser))
+            : new PostgresFunctionExpressionVisitor(
+                new PostgresDataAccessorIdentifierExpressionVisitor(
+                    postgresQueryParser, getType(value)));
 
     final String parseResult = lhs.accept(lhsVisitor);
     return prepareParsedNonCompositeFilter(
@@ -101,5 +108,15 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     }
     throw new UnsupportedOperationException(
         String.format("Query operation:%s not supported", operator));
+  }
+
+  private boolean isOperatorNeedsFieldAccessor(RelationalOperator operator) {
+    switch (operator) {
+      case CONTAINS:
+      case NOT_CONTAINS:
+        return true;
+      default:
+        return false;
+    }
   }
 }

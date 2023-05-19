@@ -11,6 +11,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
@@ -24,8 +25,13 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class MongoRelationalExpressionParser {
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(MongoRelationalExpressionParser.class);
+
   private static final String EXPR = "$expr";
   private static final String REGEX = "$regex";
   private static final String OPTIONS = "$options";
@@ -46,6 +52,7 @@ final class MongoRelationalExpressionParser {
                   put(LTE, expressionHandler("lte"));
                   put(IN, handler("in"));
                   put(CONTAINS, handler("elemMatch"));
+                  put(NOT_CONTAINS, notContainsHandler());
                   put(EXISTS, handler("exists"));
                   put(NOT_EXISTS, handler("exists"));
                   put(LIKE, likeHandler());
@@ -123,6 +130,16 @@ final class MongoRelationalExpressionParser {
       unknownHandler(final RelationalOperator operator) {
     return (lhs, rhs) -> {
       throw getUnsupportedOperationException(operator);
+    };
+  }
+
+  private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
+      notContainsHandler() {
+    return (lhs, rhs) -> {
+      final String parsedLhs = lhs.accept(identifierParser);
+      final Object parsedRhs = rhs.accept(rhsParser);
+      return Map.of(
+          parsedLhs, new BasicDBObject("$not", new BasicDBObject(PREFIX + "elemMatch", parsedRhs)));
     };
   }
 }

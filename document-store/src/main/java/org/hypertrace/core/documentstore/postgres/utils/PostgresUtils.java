@@ -11,6 +11,7 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDA
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.sql.PreparedStatement;
@@ -351,6 +352,24 @@ public class PostgresUtils {
     return filterString.toString();
   }
 
+  private static Object prepareJsonValueForContainsOp(final Object value) {
+    if (value instanceof Document) {
+      try {
+        final Document document = (Document) value;
+        final JsonNode node = OBJECT_MAPPER.readTree(document.toJson());
+        if (node.isArray()) {
+          return document.toJson();
+        } else {
+          return "[" + document.toJson() + "]";
+        }
+      } catch (JsonProcessingException e) {
+        throw new RuntimeException(e);
+      }
+    } else {
+      return prepareValueForContainsOp(value);
+    }
+  }
+
   private static Object prepareValueForContainsOp(Object value) {
     String transformedValue = null;
     try {
@@ -381,6 +400,7 @@ public class PostgresUtils {
     StringBuilder filterString = new StringBuilder(preparedExpression);
     String sqlOperator;
     boolean isMultiValued = false;
+    boolean isContainsOp = false;
     switch (op) {
       case "EQ":
       case "=":
@@ -437,8 +457,17 @@ public class PostgresUtils {
         sqlOperator = " != ";
         break;
       case "CONTAINS":
+        isContainsOp = true;
+        value = prepareJsonValueForContainsOp(value);
+        sqlOperator = " @> ";
+        break;
       case "NOT_CONTAINS":
-        // For now, both contains and not_contains are not supported in aggregation filter.
+      case "NOT CONTAINS":
+        isContainsOp = true;
+        filterString = filterString.append(" IS NULL OR NOT ").append(preparedExpression);
+        value = prepareJsonValueForContainsOp(value);
+        sqlOperator = " @> ";
+        break;
       default:
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     }
@@ -447,6 +476,10 @@ public class PostgresUtils {
     if (value != null) {
       if (isMultiValued) {
         filterString.append(value);
+      } else if (isContainsOp) {
+        filterString.append(QUESTION_MARK);
+        filterString.append("::jsonb");
+        paramsBuilder.addObjectParam(value);
       } else {
         filterString.append(QUESTION_MARK);
         paramsBuilder.addObjectParam(value);

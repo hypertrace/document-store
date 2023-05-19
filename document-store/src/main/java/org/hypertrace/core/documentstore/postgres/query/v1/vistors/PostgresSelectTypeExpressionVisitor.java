@@ -7,6 +7,7 @@ import lombok.AllArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
@@ -45,6 +46,11 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
 
   @Override
   public <T> T visit(final ConstantExpression expression) {
+    return baseVisitor.visit(expression);
+  }
+
+  @Override
+  public <T> T visit(final DocumentConstantExpression expression) {
     return baseVisitor.visit(expression);
   }
 
