@@ -6,4 +6,5 @@ public enum UpdateOperator {
   REMOVE_ALL_FROM_LIST,
   ADD_TO_LIST_IF_ABSENT,
   APPEND_TO_LIST,
+  INCREMENT
 }

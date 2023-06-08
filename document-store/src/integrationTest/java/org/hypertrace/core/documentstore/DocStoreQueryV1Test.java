@@ -31,6 +31,7 @@ import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.INCREMENT;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET;
@@ -2080,9 +2081,16 @@ public class DocStoreQueryV1Test {
               .operator(REMOVE_ALL_FROM_LIST)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Hello"}))
               .build();
+      final SubDocumentUpdate increment =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(INCREMENT)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
 
       final Query query = Query.builder().build();
-      final List<SubDocumentUpdate> updates = List.of(set, unset, add, another_add, append, remove);
+      final List<SubDocumentUpdate> updates =
+          List.of(set, unset, add, another_add, append, remove, increment);
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
@@ -2119,8 +2127,14 @@ public class DocStoreQueryV1Test {
               .operator(REMOVE_ALL_FROM_LIST)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Pluto", "Mars"}))
               .build();
+      final SubDocumentUpdate decrement =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(INCREMENT)
+              .subDocumentValue(SubDocumentValue.of(-1))
+              .build();
       final List<SubDocumentUpdate> new_updates =
-          List.of(set_new, unset_new, add_new, append_new, remove_new);
+          List.of(set_new, unset_new, add_new, append_new, remove_new, decrement);
 
       final CloseableIterator<Document> iterator_new =
           collection.bulkUpdate(
@@ -2183,9 +2197,16 @@ public class DocStoreQueryV1Test {
               .subDocumentValue(
                   SubDocumentValue.of(new Document[] {new JSONDocument(Map.of("Hello", "world!"))}))
               .build();
+      final SubDocumentUpdate increment =
+          SubDocumentUpdate.builder()
+              .subDocument("props.revenue")
+              .operator(INCREMENT)
+              .subDocumentValue(SubDocumentValue.of(1000000))
+              .build();
 
       final Query query = Query.builder().build();
-      final List<SubDocumentUpdate> updates = List.of(set, unset, add, another_add, append, remove);
+      final List<SubDocumentUpdate> updates =
+          List.of(set, unset, add, another_add, append, remove, increment);
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
@@ -2236,8 +2257,15 @@ public class DocStoreQueryV1Test {
                         new JSONDocument(Map.of("name", "Mars"))
                       }))
               .build();
+      final SubDocumentUpdate decrement =
+          SubDocumentUpdate.builder()
+              .subDocument("props.revenue")
+              .operator(INCREMENT)
+              .subDocumentValue(SubDocumentValue.of(-1))
+              .build();
+
       final List<SubDocumentUpdate> new_updates =
-          List.of(set_new, unset_new, add_new, append_new, remove_new);
+          List.of(set_new, unset_new, add_new, append_new, remove_new, decrement);
 
       final CloseableIterator<Document> iterator_new =
           collection.bulkUpdate(
@@ -2383,6 +2411,12 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
       final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
       final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(INCREMENT)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
       final SubDocumentUpdate addProperty =
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
@@ -2391,7 +2425,7 @@ public class DocStoreQueryV1Test {
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(NONE).build());
 
       assertFalse(docIterator.hasNext());
@@ -2441,6 +2475,12 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
       final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
       final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(INCREMENT)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
       final SubDocumentUpdate addProperty =
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
@@ -2449,7 +2489,7 @@ public class DocStoreQueryV1Test {
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
       // Since the date is updated to conflict with the filter, there will not be any documents
@@ -2491,6 +2531,12 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
       final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
       final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(INCREMENT)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
       final SubDocumentUpdate addProperty =
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
@@ -2499,7 +2545,7 @@ public class DocStoreQueryV1Test {
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
       assertDocsAndSizeEqual(
@@ -2548,11 +2594,17 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
               SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(INCREMENT)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
 
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
       assertDocsAndSizeEqual(
@@ -2603,11 +2655,17 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
               SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(INCREMENT)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
 
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
       assertFalse(docIterator.hasNext());
