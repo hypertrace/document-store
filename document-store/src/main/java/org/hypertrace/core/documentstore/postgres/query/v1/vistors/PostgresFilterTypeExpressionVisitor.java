@@ -21,13 +21,8 @@ import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
-  private static final Logger LOGGER =
-      LoggerFactory.getLogger(PostgresFilterTypeExpressionVisitor.class);
-
   protected PostgresQueryParser postgresQueryParser;
 
   public PostgresFilterTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {

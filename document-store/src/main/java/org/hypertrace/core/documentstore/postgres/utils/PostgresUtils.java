@@ -464,9 +464,15 @@ public class PostgresUtils {
       case "NOT_CONTAINS":
       case "NOT CONTAINS":
         isContainsOp = true;
-        filterString = filterString.append(" IS NULL OR NOT ").append(preparedExpression);
+        filterString.append(" IS NULL OR NOT ").append(preparedExpression);
         value = prepareJsonValueForContainsOp(value);
         sqlOperator = " @> ";
+        break;
+      case "STARTS_WITH":
+      case "STARTS WITH":
+        sqlOperator = " ^@ ";
+        // Add explicit cast to string since starts with can only be applied on string fields
+        filterString.append("::text");
         break;
       default:
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
