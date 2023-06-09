@@ -30,9 +30,6 @@ dependencies {
   integrationTestImplementation("org.testcontainers:testcontainers:1.17.6")
   integrationTestImplementation("org.testcontainers:junit-jupiter:1.17.6")
 }
-repositories {
-  mavenCentral()
-}
 
 tasks.test {
   useJUnitPlatform()
