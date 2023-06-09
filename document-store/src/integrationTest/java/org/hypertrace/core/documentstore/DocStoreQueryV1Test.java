@@ -29,9 +29,9 @@ import static org.hypertrace.core.documentstore.expression.operators.SortOrder.D
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
-import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.INCREMENT;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET;
@@ -2084,7 +2084,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate increment =
           SubDocumentUpdate.builder()
               .subDocument("price")
-              .operator(INCREMENT)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(1))
               .build();
 
@@ -2130,7 +2130,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate decrement =
           SubDocumentUpdate.builder()
               .subDocument("price")
-              .operator(INCREMENT)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(-1))
               .build();
       final List<SubDocumentUpdate> new_updates =
@@ -2200,7 +2200,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate increment =
           SubDocumentUpdate.builder()
               .subDocument("props.revenue")
-              .operator(INCREMENT)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(1000000))
               .build();
 
@@ -2260,7 +2260,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate decrement =
           SubDocumentUpdate.builder()
               .subDocument("props.revenue")
-              .operator(INCREMENT)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(-1))
               .build();
 
@@ -2377,6 +2377,71 @@ public class DocStoreQueryV1Test {
               collection.bulkUpdate(
                   query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAddOperatorThrowExceptionForNonNumericValue(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      // assert exception for string
+      final SubDocumentUpdate addString =
+          SubDocumentUpdate.builder()
+              .subDocument("item")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of("Comb"))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(addString);
+      assertExceptionForNonNumericValues(collection, datastoreName, query, updates);
+
+      // assert exception for list
+      final SubDocumentUpdate addList =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.list")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .build();
+      final Query query_addList = Query.builder().build();
+      final List<SubDocumentUpdate> updates_addList = List.of(addList);
+      assertExceptionForNonNumericValues(collection, datastoreName, query_addList, updates_addList);
+
+      // assert exception for Object
+      final SubDocumentUpdate addObject =
+          SubDocumentUpdate.builder()
+              .subDocument("props.newObject")
+              .operator(ADD)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new Document[] {
+                        new JSONDocument(Map.of("name", "Pluto")),
+                        new JSONDocument(Map.of("name", "Mars"))
+                      }))
+              .build();
+      final Query query_addObject = Query.builder().build();
+      final List<SubDocumentUpdate> updates_addObject = List.of(addObject);
+      assertExceptionForNonNumericValues(
+          collection, datastoreName, query_addObject, updates_addObject);
+    }
+
+    private void assertExceptionForNonNumericValues(
+        Collection collection, String datastoreName, Query query, List<SubDocumentUpdate> updates) {
+      if (MONGO_STORE.equals(datastoreName)) {
+        assertThrows(
+            com.mongodb.MongoWriteException.class,
+            () ->
+                collection.bulkUpdate(
+                    query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
+      } else {
+        assertThrows(
+            IOException.class,
+            () ->
+                collection.bulkUpdate(
+                    query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
+      }
+    }
   }
 
   @Nested
@@ -2414,7 +2479,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate priceUpdate =
           SubDocumentUpdate.builder()
               .subDocument("price")
-              .operator(INCREMENT)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(1))
               .build();
       final SubDocumentUpdate addProperty =
@@ -2478,7 +2543,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate priceUpdate =
           SubDocumentUpdate.builder()
               .subDocument("price")
-              .operator(INCREMENT)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(1))
               .build();
       final SubDocumentUpdate addProperty =
@@ -2534,7 +2599,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate priceUpdate =
           SubDocumentUpdate.builder()
               .subDocument("price")
-              .operator(INCREMENT)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(1))
               .build();
       final SubDocumentUpdate addProperty =
@@ -2597,7 +2662,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate priceUpdate =
           SubDocumentUpdate.builder()
               .subDocument("price")
-              .operator(INCREMENT)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(1))
               .build();
 
@@ -2658,7 +2723,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate priceUpdate =
           SubDocumentUpdate.builder()
               .subDocument("price")
-              .operator(INCREMENT)
+              .operator(ADD)
               .subDocumentValue(SubDocumentValue.of(1))
               .build();
 

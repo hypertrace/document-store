@@ -21,7 +21,7 @@ public class MongoUpdateParser {
           new MongoAppendToListOperationParser(),
           new MongoRemoveAllFromListOperationParser(),
           new MongoSetOperationParser(),
-          new MongoIncrementOperationParser(),
+          new MongoAddOperationParser(),
           new MongoUnsetOperationParser());
 
   private final Clock clock;

@@ -5,7 +5,7 @@ import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.for
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
 
-public class PostgresIncrementValueParser implements PostgresUpdateOperationParser {
+public class PostgresAddValueParser implements PostgresUpdateOperationParser {
   @Override
   public String parseInternal(UpdateParserInput input) {
     return new PostgresSetValueParser(this, 1).parseInternal(input);
