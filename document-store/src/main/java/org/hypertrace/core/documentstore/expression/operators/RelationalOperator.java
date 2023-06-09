@@ -11,12 +11,13 @@ public enum RelationalOperator {
   GTE(">="),
   LTE("<="),
   IN("IN"),
+  NOT_IN("NOT IN"),
   CONTAINS("CONTAINS"),
   NOT_CONTAINS("NOT CONTAINS"),
   EXISTS("EXISTS"),
   NOT_EXISTS("NOT EXISTS"),
   LIKE("~"),
-  NOT_IN("NOT IN"),
+  STARTS_WITH("STARTS WITH"),
   ;
 
   private final String displaySymbol;

@@ -14,6 +14,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.STARTS_WITH;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
@@ -25,17 +26,13 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 final class MongoRelationalExpressionParser {
-  private static final Logger LOGGER =
-      LoggerFactory.getLogger(MongoRelationalExpressionParser.class);
-
   private static final String EXPR = "$expr";
   private static final String REGEX = "$regex";
   private static final String OPTIONS = "$options";
   private static final String IGNORE_CASE_OPTION = "i";
+  private static final String STARTS_WITH_PREFIX = "^";
 
   private static final Map<
           RelationalOperator,
@@ -51,12 +48,13 @@ final class MongoRelationalExpressionParser {
                   put(GTE, expressionHandler("gte"));
                   put(LTE, expressionHandler("lte"));
                   put(IN, handler("in"));
+                  put(NOT_IN, handler("nin"));
                   put(CONTAINS, handler("elemMatch"));
                   put(NOT_CONTAINS, notContainsHandler());
                   put(EXISTS, handler("exists"));
                   put(NOT_EXISTS, handler("exists"));
                   put(LIKE, likeHandler());
-                  put(NOT_IN, handler("nin"));
+                  put(STARTS_WITH, startsWithHandler());
                 }
               });
 
@@ -123,6 +121,17 @@ final class MongoRelationalExpressionParser {
       final Object parsedRhs = rhs.accept(rhsParser);
       return Map.of(
           parsedLhs, new BasicDBObject(REGEX, parsedRhs).append(OPTIONS, IGNORE_CASE_OPTION));
+    };
+  }
+
+  private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
+      startsWithHandler() {
+    return (lhs, rhs) -> {
+      final String parsedLhs = lhs.accept(identifierParser);
+      final Object parsedRhs = rhs.accept(rhsParser);
+      // Since starts with makes sense only for string values, the RHS is converted to a string
+      final String rhsValue = STARTS_WITH_PREFIX + parsedRhs;
+      return Map.of(parsedLhs, new BasicDBObject(REGEX, rhsValue));
     };
   }
 
