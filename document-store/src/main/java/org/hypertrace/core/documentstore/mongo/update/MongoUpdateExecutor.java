@@ -111,8 +111,14 @@ public class MongoUpdateExecutor {
     }
   }
 
-  private void logAndUpdate(final BasicDBObject filter, final BasicDBObject setObject) {
-    log.debug("Updating {} using {} with filter {}", collection.getNamespace(), setObject, filter);
-    collection.updateMany(filter, setObject);
+  private void logAndUpdate(final BasicDBObject filter, final BasicDBObject setObject)
+      throws IOException {
+    try {
+      log.debug(
+          "Updating {} using {} with filter {}", collection.getNamespace(), setObject, filter);
+      collection.updateMany(filter, setObject);
+    } catch (Exception e) {
+      throw new IOException("Error while uploading", e);
+    }
   }
 }

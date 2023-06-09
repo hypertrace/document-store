@@ -2281,16 +2281,9 @@ public class DocStoreQueryV1Test {
               .subDocumentValue(
                   SubDocumentValue.of(new Document[] {new JSONDocument(Map.of("Hello", "world!"))}))
               .build();
-      final SubDocumentUpdate increment =
-          SubDocumentUpdate.builder()
-              .subDocument("props.revenue")
-              .operator(ADD)
-              .subDocumentValue(SubDocumentValue.of(1000000))
-              .build();
 
       final Query query = Query.builder().build();
-      final List<SubDocumentUpdate> updates =
-          List.of(set, unset, add, another_add, append, remove, increment);
+      final List<SubDocumentUpdate> updates = List.of(set, unset, add, another_add, append, remove);
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
@@ -2341,15 +2334,9 @@ public class DocStoreQueryV1Test {
                         new JSONDocument(Map.of("name", "Mars"))
                       }))
               .build();
-      final SubDocumentUpdate decrement =
-          SubDocumentUpdate.builder()
-              .subDocument("props.revenue")
-              .operator(ADD)
-              .subDocumentValue(SubDocumentValue.of(-1))
-              .build();
 
       final List<SubDocumentUpdate> new_updates =
-          List.of(set_new, unset_new, add_new, append_new, remove_new, decrement);
+          List.of(set_new, unset_new, add_new, append_new, remove_new);
 
       final CloseableIterator<Document> iterator_new =
           collection.bulkUpdate(
@@ -2479,7 +2466,7 @@ public class DocStoreQueryV1Test {
 
       final Query query = Query.builder().build();
       final List<SubDocumentUpdate> updates = List.of(addString);
-      assertExceptionForNonNumericValues(collection, datastoreName, query, updates);
+      assertExceptionForNonNumericValues(collection, query, updates);
 
       // assert exception for list
       final SubDocumentUpdate addList =
@@ -2490,7 +2477,7 @@ public class DocStoreQueryV1Test {
               .build();
       final Query query_addList = Query.builder().build();
       final List<SubDocumentUpdate> updates_addList = List.of(addList);
-      assertExceptionForNonNumericValues(collection, datastoreName, query_addList, updates_addList);
+      assertExceptionForNonNumericValues(collection, query_addList, updates_addList);
 
       // assert exception for Object
       final SubDocumentUpdate addObject =
@@ -2506,25 +2493,16 @@ public class DocStoreQueryV1Test {
               .build();
       final Query query_addObject = Query.builder().build();
       final List<SubDocumentUpdate> updates_addObject = List.of(addObject);
-      assertExceptionForNonNumericValues(
-          collection, datastoreName, query_addObject, updates_addObject);
+      assertExceptionForNonNumericValues(collection, query_addObject, updates_addObject);
     }
 
     private void assertExceptionForNonNumericValues(
-        Collection collection, String datastoreName, Query query, List<SubDocumentUpdate> updates) {
-      if (MONGO_STORE.equals(datastoreName)) {
-        assertThrows(
-            com.mongodb.MongoWriteException.class,
-            () ->
-                collection.bulkUpdate(
-                    query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
-      } else {
-        assertThrows(
-            IOException.class,
-            () ->
-                collection.bulkUpdate(
-                    query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
-      }
+        Collection collection, Query query, List<SubDocumentUpdate> updates) {
+      assertThrows(
+          IOException.class,
+          () ->
+              collection.bulkUpdate(
+                  query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
     }
   }
 

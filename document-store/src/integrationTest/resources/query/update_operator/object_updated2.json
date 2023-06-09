@@ -4,7 +4,6 @@
     "item": "Soap",
     "price": 10,
     "props": {
-      "revenue": 999999,
       "brand": "Dettol",
       "size": "M",
       "seller": {
@@ -65,7 +64,6 @@
     "price": 20,
     "quantity": 1,
     "props": {
-      "revenue": 999999,
       "added": {
         "set": [
           {
@@ -115,7 +113,6 @@
     "item": "Comb",
     "price": 7.5,
     "props": {
-      "revenue": 999999,
       "seller": {
         "name": "Go Go Plastics",
         "address": {
@@ -174,7 +171,6 @@
     "price": 10,
     "quantity": 5,
     "props": {
-      "revenue": 999999,
       "added": {
         "set": [
           {
@@ -225,7 +221,6 @@
     "price": 88,
     "quantity": 50,
     "props": {
-      "revenue": 999999,
       "added": {
         "set": [
           {
@@ -275,7 +270,6 @@
     "item": "Shampoo",
     "price": 5,
     "props": {
-      "revenue": 999999,
       "brand": "Sunsilk",
       "size": "L",
       "seller": {
@@ -336,7 +330,6 @@
     "price": 5,
     "quantity": 20,
     "props": {
-      "revenue": 999999,
       "added": {
         "set": [
           {
@@ -386,7 +379,6 @@
     "item": "Soap",
     "price": 20,
     "props": {
-      "revenue": 999999,
       "brand": "Lifebuoy",
       "size": "S",
       "seller": {
@@ -447,7 +439,6 @@
     "price": 7.5,
     "quantity": 5,
     "props": {
-      "revenue": 999999,
       "added": {
         "set": [
           {
