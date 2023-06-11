@@ -118,7 +118,7 @@ public class MongoUpdateExecutor {
           "Updating {} using {} with filter {}", collection.getNamespace(), setObject, filter);
       collection.updateMany(filter, setObject);
     } catch (Exception e) {
-      throw new IOException("Error while uploading", e);
+      throw new IOException("Error while updating", e);
     }
   }
 }
