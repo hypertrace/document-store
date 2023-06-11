@@ -24,6 +24,6 @@ public class PostgresAddValueParser implements PostgresUpdateOperationParser {
         prepareFieldDataAccessorExpr(input.getPath()[0], input.getBaseField());
     return String.format(
         "jsonb_set(%s, ?::text[], (COALESCE(%s, '0')::float + %s::float)::text::jsonb)",
-        input.getBaseField(), input.getBaseField(), fieldAccess, parsedValue);
+        input.getBaseField(), fieldAccess, parsedValue);
   }
 }
