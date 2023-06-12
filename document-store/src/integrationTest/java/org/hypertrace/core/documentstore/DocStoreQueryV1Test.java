@@ -24,11 +24,13 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.STARTS_WITH;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
@@ -1218,6 +1220,83 @@ public class DocStoreQueryV1Test {
         dataStoreName, resultDocs, "query/test_aggr_filter_and_where_filter_result.json", 2);
   }
 
+  @Nested
+  class StartsWithOperatorTest {
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testWithUnnestingAndRegularFilters(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName);
+
+      final org.hypertrace.core.documentstore.query.Query query =
+          org.hypertrace.core.documentstore.query.Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("sales.city"))
+              .addSelection(IdentifierExpression.of("sales.medium.type"))
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .filterTypeExpression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("sales.medium.type"),
+                              STARTS_WITH,
+                              ConstantExpression.of("distribution")))
+                      .identifierExpression(IdentifierExpression.of("sales.medium"))
+                      .preserveNullAndEmptyArrays(false)
+                      .build())
+              .setFilter(
+                  Filter.builder()
+                      .expression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"),
+                              STARTS_WITH,
+                              ConstantExpression.of("S")))
+                      .build())
+              .build();
+
+      final Iterator<Document> resultDocs = collection.aggregate(query);
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, resultDocs, "query/starts_with_filter_response.json", 4);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testRequirementForUsingIndex_ShouldBeCaseSensitive(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName);
+
+      final org.hypertrace.core.documentstore.query.Query query =
+          org.hypertrace.core.documentstore.query.Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("sales.city"))
+              .addSelection(IdentifierExpression.of("sales.medium.type"))
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("sales"), false))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .filterTypeExpression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("sales.medium.type"),
+                              STARTS_WITH,
+                              ConstantExpression.of("distriBUTION")))
+                      .identifierExpression(IdentifierExpression.of("sales.medium"))
+                      .preserveNullAndEmptyArrays(false)
+                      .build())
+              .setFilter(
+                  Filter.builder()
+                      .expression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"),
+                              STARTS_WITH,
+                              ConstantExpression.of("S")))
+                      .build())
+              .build();
+
+      final Iterator<Document> resultDocs = collection.aggregate(query);
+      assertDocsAndSizeEqualWithoutOrder(datastoreName, resultDocs, "query/empty_response.json", 0);
+    }
+  }
+
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
   public void testUnnestWithoutPreserveNullAndEmptyArrays(String dataStoreName) throws IOException {
@@ -1603,441 +1682,447 @@ public class DocStoreQueryV1Test {
         datastoreName, resultDocs, "query/filter_with_sorting_and_pagination_response.json", 3);
   }
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testFindWithSingleKey(final String datastoreName) throws IOException {
-    final Collection collection = getCollection(datastoreName);
-    final org.hypertrace.core.documentstore.query.Filter filter =
-        org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(KeyExpression.of(new SingleValueKey(TENANT_ID, "7")))
-            .build();
+  @Nested
+  class KeyFilterTest {
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testFindWithSingleKey(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName);
+      final org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(KeyExpression.of(new SingleValueKey(TENANT_ID, "7")))
+              .build();
 
-    final Iterator<Document> resultDocs =
-        collection.find(Query.builder().setFilter(filter).build());
-    assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
+      final Iterator<Document> resultDocs =
+          collection.find(Query.builder().setFilter(filter).build());
+      assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testFindWithDuplicateKeys(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName);
+      final org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  and(
+                      KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                      KeyExpression.of(new SingleValueKey(TENANT_ID, "7"))))
+              .build();
+
+      final Iterator<Document> resultDocs =
+          collection.find(Query.builder().setFilter(filter).build());
+      assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testFindWithConflictingKeys(final String datastoreName) {
+      final Collection collection = getCollection(datastoreName);
+      final org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  and(
+                      KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                      KeyExpression.of(new SingleValueKey(TENANT_ID, "8"))))
+              .build();
+
+      final Iterator<Document> resultDocs =
+          collection.find(Query.builder().setFilter(filter).build());
+      assertFalse(resultDocs.hasNext());
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testFindWithMultipleKeys(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName);
+      final org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  or(
+                      KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                      KeyExpression.of(new SingleValueKey(TENANT_ID, "3"))))
+              .build();
+
+      final Iterator<Document> resultDocs =
+          collection.find(Query.builder().setFilter(filter).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, resultDocs, "query/key_filter_multiple_response.json", 2);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testFindWithNonExistingKeys(final String datastoreName) {
+      final Collection collection = getCollection(datastoreName);
+      final org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(KeyExpression.of(new SingleValueKey(TENANT_ID, "30")))
+              .build();
+
+      final Iterator<Document> resultDocs =
+          collection.find(Query.builder().setFilter(filter).build());
+      assertFalse(resultDocs.hasNext());
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testFindWithKeyAndMatchingRelationalFilter(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName);
+      final org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  and(
+                      KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                      RelationalExpression.of(
+                          IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Soap"))))
+              .build();
+
+      final Iterator<Document> resultDocs =
+          collection.find(Query.builder().setFilter(filter).build());
+      assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testFindWithKeyAndNonMatchingRelationalFilter(final String datastoreName) {
+      final Collection collection = getCollection(datastoreName);
+      final org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  and(
+                      KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                      RelationalExpression.of(
+                          IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Comb"))))
+              .build();
+
+      final Iterator<Document> resultDocs =
+          collection.find(Query.builder().setFilter(filter).build());
+      assertFalse(resultDocs.hasNext());
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testFindWithMultipleKeysAndPartiallyMatchingRelationalFilter(
+        final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName);
+      final org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  and(
+                      or(
+                          KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
+                          KeyExpression.of(new SingleValueKey(TENANT_ID, "3"))),
+                      RelationalExpression.of(
+                          IdentifierExpression.of("item"), EQ, ConstantExpression.of("Comb"))))
+              .build();
+
+      final Iterator<Document> resultDocs =
+          collection.find(Query.builder().setFilter(filter).build());
+      assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testAggregateWithSingleKey(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName);
+      final org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(KeyExpression.of(new SingleValueKey(TENANT_ID, "7")))
+              .build();
+
+      final Iterator<Document> resultDocs =
+          collection.aggregate(Query.builder().setFilter(filter).build());
+      assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
+    }
   }
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testFindWithDuplicateKeys(final String datastoreName) throws IOException {
-    final Collection collection = getCollection(datastoreName);
-    final org.hypertrace.core.documentstore.query.Filter filter =
-        org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(
-                and(
-                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
-                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7"))))
-            .build();
+  @Nested
+  class AtomicUpdateTest {
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testAtomicUpdateWithFilter(final String datastoreName)
+        throws IOException, ExecutionException, InterruptedException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-    final Iterator<Document> resultDocs =
-        collection.find(Query.builder().setFilter(filter).build());
-    assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
-  }
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              LT,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate =
+          SubDocumentUpdate.of(
+              "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testFindWithConflictingKeys(final String datastoreName) {
-    final Collection collection = getCollection(datastoreName);
-    final org.hypertrace.core.documentstore.query.Filter filter =
-        org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(
-                and(
-                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
-                    KeyExpression.of(new SingleValueKey(TENANT_ID, "8"))))
-            .build();
+      final Random random = new Random();
+      final Callable<Optional<Document>> callable =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.update(
+                query,
+                List.of(dateUpdate, quantityUpdate, propsUpdate),
+                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+          };
 
-    final Iterator<Document> resultDocs =
-        collection.find(Query.builder().setFilter(filter).build());
-    assertFalse(resultDocs.hasNext());
-  }
+      final ExecutorService executor = Executors.newFixedThreadPool(2);
+      final Future<Optional<Document>> future1 = executor.submit(callable);
+      final Future<Optional<Document>> future2 = executor.submit(callable);
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testFindWithMultipleKeys(final String datastoreName) throws IOException {
-    final Collection collection = getCollection(datastoreName);
-    final org.hypertrace.core.documentstore.query.Filter filter =
-        org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(
-                or(
-                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
-                    KeyExpression.of(new SingleValueKey(TENANT_ID, "3"))))
-            .build();
+      final Optional<Document> doc1Optional = future1.get();
+      final Optional<Document> doc2Optional = future2.get();
 
-    final Iterator<Document> resultDocs =
-        collection.find(Query.builder().setFilter(filter).build());
-    assertDocsAndSizeEqualWithoutOrder(
-        datastoreName, resultDocs, "query/key_filter_multiple_response.json", 2);
-  }
+      assertTrue(doc1Optional.isPresent());
+      assertTrue(doc2Optional.isPresent());
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testFindWithNonExistingKeys(final String datastoreName) {
-    final Collection collection = getCollection(datastoreName);
-    final org.hypertrace.core.documentstore.query.Filter filter =
-        org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(KeyExpression.of(new SingleValueKey(TENANT_ID, "30")))
-            .build();
+      final Document document1 = doc1Optional.get();
+      final Document document2 = doc2Optional.get();
 
-    final Iterator<Document> resultDocs =
-        collection.find(Query.builder().setFilter(filter).build());
-    assertFalse(resultDocs.hasNext());
-  }
+      assertNotEquals(document1, document2);
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          List.of(document1, document2).iterator(),
+          "query/atomic_update_response.json",
+          2);
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props.brand"), "brand")
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/updatable_collection_data_after_atomic_update.json",
+          9);
+    }
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testFindWithKeyAndMatchingRelationalFilter(final String datastoreName)
-      throws IOException {
-    final Collection collection = getCollection(datastoreName);
-    final org.hypertrace.core.documentstore.query.Filter filter =
-        org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(
-                and(
-                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
-                    RelationalExpression.of(
-                        IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Soap"))))
-            .build();
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testAtomicUpdateWithFilterAndGetNewDocument(final String datastoreName)
+        throws IOException, ExecutionException, InterruptedException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-    final Iterator<Document> resultDocs =
-        collection.find(Query.builder().setFilter(filter).build());
-    assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
-  }
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              LT,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testFindWithKeyAndNonMatchingRelationalFilter(final String datastoreName) {
-    final Collection collection = getCollection(datastoreName);
-    final org.hypertrace.core.documentstore.query.Filter filter =
-        org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(
-                and(
-                    KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
-                    RelationalExpression.of(
-                        IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Comb"))))
-            .build();
+      final Random random = new Random();
+      final Callable<Optional<Document>> callable =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.update(
+                query,
+                List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+                UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+          };
 
-    final Iterator<Document> resultDocs =
-        collection.find(Query.builder().setFilter(filter).build());
-    assertFalse(resultDocs.hasNext());
-  }
+      final ExecutorService executor = Executors.newFixedThreadPool(2);
+      final Future<Optional<Document>> future1 = executor.submit(callable);
+      final Future<Optional<Document>> future2 = executor.submit(callable);
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testFindWithMultipleKeysAndPartiallyMatchingRelationalFilter(
-      final String datastoreName) throws IOException {
-    final Collection collection = getCollection(datastoreName);
-    final org.hypertrace.core.documentstore.query.Filter filter =
-        org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(
-                and(
-                    or(
-                        KeyExpression.of(new SingleValueKey(TENANT_ID, "7")),
-                        KeyExpression.of(new SingleValueKey(TENANT_ID, "3"))),
-                    RelationalExpression.of(
-                        IdentifierExpression.of("item"), EQ, ConstantExpression.of("Comb"))))
-            .build();
+      final Optional<Document> doc1Optional = future1.get();
+      final Optional<Document> doc2Optional = future2.get();
 
-    final Iterator<Document> resultDocs =
-        collection.find(Query.builder().setFilter(filter).build());
-    assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
-  }
+      assertTrue(doc1Optional.isPresent());
+      assertTrue(doc2Optional.isPresent());
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testAggregateWithSingleKey(final String datastoreName) throws IOException {
-    final Collection collection = getCollection(datastoreName);
-    final org.hypertrace.core.documentstore.query.Filter filter =
-        org.hypertrace.core.documentstore.query.Filter.builder()
-            .expression(KeyExpression.of(new SingleValueKey(TENANT_ID, "7")))
-            .build();
+      final Document document1 = doc1Optional.get();
+      final Document document2 = doc2Optional.get();
 
-    final Iterator<Document> resultDocs =
-        collection.aggregate(Query.builder().setFilter(filter).build());
-    assertDocsAndSizeEqual(datastoreName, resultDocs, "query/key_filter_response.json", 1);
-  }
+      assertNotEquals(document1, document2);
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          List.of(document1, document2).iterator(),
+          "query/atomic_update_response_get_new_document.json",
+          2);
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props"))
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/updatable_collection_data_after_atomic_update_selecting_all_props.json",
+          9);
+    }
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testAtomicUpdateWithFilter(final String datastoreName)
-      throws IOException, ExecutionException, InterruptedException {
-    final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-    createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testAtomicUpdateSameDocumentWithFilter(final String datastoreName)
+        throws IOException, ExecutionException, InterruptedException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-    final Query query =
-        Query.builder()
-            .setFilter(
-                LogicalExpression.builder()
-                    .operator(AND)
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("date"),
-                            LT,
-                            ConstantExpression.of("2022-08-09T18:53:17Z")))
-                    .build())
-            .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-            .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
-            .addSelection(IdentifierExpression.of("quantity"))
-            .addSelection(IdentifierExpression.of("price"))
-            .addSelection(IdentifierExpression.of("date"))
-            .addSelection(IdentifierExpression.of("props"))
-            .build();
-    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-    final SubDocumentUpdate propsUpdate =
-        SubDocumentUpdate.of(
-            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate =
+          SubDocumentUpdate.of(
+              "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
 
-    final Random random = new Random();
-    final Callable<Optional<Document>> callable =
-        () -> {
-          MILLISECONDS.sleep(random.nextInt(1000));
-          return collection.update(
-              query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate),
-              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
-        };
+      final Random random = new Random();
+      final Callable<Optional<Document>> callable =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.update(
+                query,
+                List.of(dateUpdate, quantityUpdate, propsUpdate),
+                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+          };
 
-    final ExecutorService executor = Executors.newFixedThreadPool(2);
-    final Future<Optional<Document>> future1 = executor.submit(callable);
-    final Future<Optional<Document>> future2 = executor.submit(callable);
+      final ExecutorService executor = Executors.newFixedThreadPool(2);
+      final Future<Optional<Document>> future1 = executor.submit(callable);
+      final Future<Optional<Document>> future2 = executor.submit(callable);
 
-    final Optional<Document> doc1Optional = future1.get();
-    final Optional<Document> doc2Optional = future2.get();
+      final Optional<Document> doc1Optional = future1.get();
+      final Optional<Document> doc2Optional = future2.get();
 
-    assertTrue(doc1Optional.isPresent());
-    assertTrue(doc2Optional.isPresent());
+      assertTrue(doc1Optional.isPresent());
+      assertTrue(doc2Optional.isPresent());
 
-    final Document document1 = doc1Optional.get();
-    final Document document2 = doc2Optional.get();
+      final Document document1 = doc1Optional.get();
+      final Document document2 = doc2Optional.get();
 
-    assertNotEquals(document1, document2);
-    assertDocsAndSizeEqualWithoutOrder(
-        datastoreName,
-        List.of(document1, document2).iterator(),
-        "query/atomic_update_response.json",
-        2);
-    assertDocsAndSizeEqual(
-        datastoreName,
-        collection.find(
-            Query.builder()
-                .addSelection(IdentifierExpression.of("item"))
-                .addSelection(IdentifierExpression.of("price"))
-                .addSelection(IdentifierExpression.of("quantity"))
-                .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props.brand"), "brand")
-                .addSort(IdentifierExpression.of("_id"), ASC)
-                .build()),
-        "query/updatable_collection_data_after_atomic_update.json",
-        9);
-  }
+      assertNotEquals(document1, document2);
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          List.of(document1, document2).iterator(),
+          "query/atomic_update_same_document_response.json",
+          2);
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props.brand"), "brand")
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/updatable_collection_data_after_atomic_update_same_document.json",
+          9);
+    }
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testAtomicUpdateWithFilterAndGetNewDocument(final String datastoreName)
-      throws IOException, ExecutionException, InterruptedException {
-    final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-    createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testAtomicUpdateDocumentWithoutSelections(final String datastoreName)
+        throws IOException, ExecutionException, InterruptedException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-    final Query query =
-        Query.builder()
-            .setFilter(
-                LogicalExpression.builder()
-                    .operator(AND)
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("date"),
-                            LT,
-                            ConstantExpression.of("2022-08-09T18:53:17Z")))
-                    .build())
-            .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-            .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
-            .addSelection(IdentifierExpression.of("quantity"))
-            .addSelection(IdentifierExpression.of("price"))
-            .addSelection(IdentifierExpression.of("date"))
-            .addSelection(IdentifierExpression.of("props"))
-            .build();
-    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-    final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
-    final SubDocumentUpdate addProperty =
-        SubDocumentUpdate.of(
-            "props.new_property.deep.nested.value",
-            SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              LT,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .build();
 
-    final Random random = new Random();
-    final Callable<Optional<Document>> callable =
-        () -> {
-          MILLISECONDS.sleep(random.nextInt(1000));
-          return collection.update(
-              query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
-              UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
-        };
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
 
-    final ExecutorService executor = Executors.newFixedThreadPool(2);
-    final Future<Optional<Document>> future1 = executor.submit(callable);
-    final Future<Optional<Document>> future2 = executor.submit(callable);
+      final Random random = new Random();
+      final Callable<Optional<Document>> callable =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.update(
+                query,
+                List.of(dateUpdate),
+                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+          };
 
-    final Optional<Document> doc1Optional = future1.get();
-    final Optional<Document> doc2Optional = future2.get();
+      final ExecutorService executor = Executors.newFixedThreadPool(2);
+      final Future<Optional<Document>> future1 = executor.submit(callable);
+      final Future<Optional<Document>> future2 = executor.submit(callable);
 
-    assertTrue(doc1Optional.isPresent());
-    assertTrue(doc2Optional.isPresent());
+      final Optional<Document> doc1Optional = future1.get();
+      final Optional<Document> doc2Optional = future2.get();
 
-    final Document document1 = doc1Optional.get();
-    final Document document2 = doc2Optional.get();
+      assertTrue(doc1Optional.isPresent());
+      assertTrue(doc2Optional.isPresent());
 
-    assertNotEquals(document1, document2);
-    assertDocsAndSizeEqualWithoutOrder(
-        datastoreName,
-        List.of(document1, document2).iterator(),
-        "query/atomic_update_response_get_new_document.json",
-        2);
-    assertDocsAndSizeEqual(
-        datastoreName,
-        collection.find(
-            Query.builder()
-                .addSelection(IdentifierExpression.of("item"))
-                .addSelection(IdentifierExpression.of("price"))
-                .addSelection(IdentifierExpression.of("quantity"))
-                .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props"))
-                .addSort(IdentifierExpression.of("_id"), ASC)
-                .build()),
-        "query/updatable_collection_data_after_atomic_update_selecting_all_props.json",
-        9);
-  }
+      final Document document1 = doc1Optional.get();
+      final Document document2 = doc2Optional.get();
 
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testAtomicUpdateSameDocumentWithFilter(final String datastoreName)
-      throws IOException, ExecutionException, InterruptedException {
-    final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-    createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
-
-    final Query query =
-        Query.builder()
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-            .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-            .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
-            .addSelection(IdentifierExpression.of("quantity"))
-            .addSelection(IdentifierExpression.of("price"))
-            .addSelection(IdentifierExpression.of("date"))
-            .addSelection(IdentifierExpression.of("props"))
-            .build();
-    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-    final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-    final SubDocumentUpdate propsUpdate =
-        SubDocumentUpdate.of(
-            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
-
-    final Random random = new Random();
-    final Callable<Optional<Document>> callable =
-        () -> {
-          MILLISECONDS.sleep(random.nextInt(1000));
-          return collection.update(
-              query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate),
-              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
-        };
-
-    final ExecutorService executor = Executors.newFixedThreadPool(2);
-    final Future<Optional<Document>> future1 = executor.submit(callable);
-    final Future<Optional<Document>> future2 = executor.submit(callable);
-
-    final Optional<Document> doc1Optional = future1.get();
-    final Optional<Document> doc2Optional = future2.get();
-
-    assertTrue(doc1Optional.isPresent());
-    assertTrue(doc2Optional.isPresent());
-
-    final Document document1 = doc1Optional.get();
-    final Document document2 = doc2Optional.get();
-
-    assertNotEquals(document1, document2);
-    assertDocsAndSizeEqualWithoutOrder(
-        datastoreName,
-        List.of(document1, document2).iterator(),
-        "query/atomic_update_same_document_response.json",
-        2);
-    assertDocsAndSizeEqual(
-        datastoreName,
-        collection.find(
-            Query.builder()
-                .addSelection(IdentifierExpression.of("item"))
-                .addSelection(IdentifierExpression.of("price"))
-                .addSelection(IdentifierExpression.of("quantity"))
-                .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props.brand"), "brand")
-                .addSort(IdentifierExpression.of("_id"), ASC)
-                .build()),
-        "query/updatable_collection_data_after_atomic_update_same_document.json",
-        9);
-  }
-
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
-  public void testAtomicUpdateDocumentWithoutSelections(final String datastoreName)
-      throws IOException, ExecutionException, InterruptedException {
-    final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-    createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
-
-    final Query query =
-        Query.builder()
-            .setFilter(
-                LogicalExpression.builder()
-                    .operator(AND)
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-                    .operand(
-                        RelationalExpression.of(
-                            IdentifierExpression.of("date"),
-                            LT,
-                            ConstantExpression.of("2022-08-09T18:53:17Z")))
-                    .build())
-            .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-            .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
-            .build();
-
-    final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-
-    final Random random = new Random();
-    final Callable<Optional<Document>> callable =
-        () -> {
-          MILLISECONDS.sleep(random.nextInt(1000));
-          return collection.update(
-              query,
-              List.of(dateUpdate),
-              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
-        };
-
-    final ExecutorService executor = Executors.newFixedThreadPool(2);
-    final Future<Optional<Document>> future1 = executor.submit(callable);
-    final Future<Optional<Document>> future2 = executor.submit(callable);
-
-    final Optional<Document> doc1Optional = future1.get();
-    final Optional<Document> doc2Optional = future2.get();
-
-    assertTrue(doc1Optional.isPresent());
-    assertTrue(doc2Optional.isPresent());
-
-    final Document document1 = doc1Optional.get();
-    final Document document2 = doc2Optional.get();
-
-    assertNotEquals(document1, document2);
-    assertDocsAndSizeEqualWithoutOrder(
-        datastoreName,
-        collection.find(Query.builder().build()),
-        "query/updatable_collection_data_without_selection.json",
-        9);
+      assertNotEquals(document1, document2);
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          collection.find(Query.builder().build()),
+          "query/updatable_collection_data_without_selection.json",
+          9);
+    }
   }
 
   @Nested
@@ -2080,9 +2165,16 @@ public class DocStoreQueryV1Test {
               .operator(REMOVE_ALL_FROM_LIST)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Hello"}))
               .build();
+      final SubDocumentUpdate increment =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
 
       final Query query = Query.builder().build();
-      final List<SubDocumentUpdate> updates = List.of(set, unset, add, another_add, append, remove);
+      final List<SubDocumentUpdate> updates =
+          List.of(set, unset, add, another_add, append, remove, increment);
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
@@ -2119,8 +2211,14 @@ public class DocStoreQueryV1Test {
               .operator(REMOVE_ALL_FROM_LIST)
               .subDocumentValue(SubDocumentValue.of(new String[] {"Pluto", "Mars"}))
               .build();
+      final SubDocumentUpdate decrement =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(-1))
+              .build();
       final List<SubDocumentUpdate> new_updates =
-          List.of(set_new, unset_new, add_new, append_new, remove_new);
+          List.of(set_new, unset_new, add_new, append_new, remove_new, decrement);
 
       final CloseableIterator<Document> iterator_new =
           collection.bulkUpdate(
@@ -2236,6 +2334,7 @@ public class DocStoreQueryV1Test {
                         new JSONDocument(Map.of("name", "Mars"))
                       }))
               .build();
+
       final List<SubDocumentUpdate> new_updates =
           List.of(set_new, unset_new, add_new, append_new, remove_new);
 
@@ -2349,6 +2448,62 @@ public class DocStoreQueryV1Test {
               collection.bulkUpdate(
                   query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAddOperatorThrowExceptionForNonNumericValue(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      // assert exception for string
+      final SubDocumentUpdate addString =
+          SubDocumentUpdate.builder()
+              .subDocument("item")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of("Comb"))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(addString);
+      assertExceptionForNonNumericValues(collection, query, updates);
+
+      // assert exception for list
+      final SubDocumentUpdate addList =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.list")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .build();
+      final Query query_addList = Query.builder().build();
+      final List<SubDocumentUpdate> updates_addList = List.of(addList);
+      assertExceptionForNonNumericValues(collection, query_addList, updates_addList);
+
+      // assert exception for Object
+      final SubDocumentUpdate addObject =
+          SubDocumentUpdate.builder()
+              .subDocument("props.newObject")
+              .operator(ADD)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new Document[] {
+                        new JSONDocument(Map.of("name", "Pluto")),
+                        new JSONDocument(Map.of("name", "Mars"))
+                      }))
+              .build();
+      final Query query_addObject = Query.builder().build();
+      final List<SubDocumentUpdate> updates_addObject = List.of(addObject);
+      assertExceptionForNonNumericValues(collection, query_addObject, updates_addObject);
+    }
+
+    private void assertExceptionForNonNumericValues(
+        Collection collection, Query query, List<SubDocumentUpdate> updates) {
+      assertThrows(
+          IOException.class,
+          () ->
+              collection.bulkUpdate(
+                  query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
+    }
   }
 
   @Nested
@@ -2383,6 +2538,12 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
       final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
       final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
       final SubDocumentUpdate addProperty =
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
@@ -2391,7 +2552,7 @@ public class DocStoreQueryV1Test {
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(NONE).build());
 
       assertFalse(docIterator.hasNext());
@@ -2441,6 +2602,12 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
       final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
       final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
       final SubDocumentUpdate addProperty =
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
@@ -2449,7 +2616,7 @@ public class DocStoreQueryV1Test {
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
       // Since the date is updated to conflict with the filter, there will not be any documents
@@ -2491,6 +2658,12 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
       final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
       final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
       final SubDocumentUpdate addProperty =
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
@@ -2499,7 +2672,7 @@ public class DocStoreQueryV1Test {
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
       assertDocsAndSizeEqual(
@@ -2548,11 +2721,17 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
               SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
 
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
       assertDocsAndSizeEqual(
@@ -2603,11 +2782,17 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.of(
               "props.new_property.deep.nested.value",
               SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
 
       final CloseableIterator<Document> docIterator =
           collection.bulkUpdate(
               query,
-              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
               UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
       assertFalse(docIterator.hasNext());

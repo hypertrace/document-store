@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Map.entry;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
@@ -21,6 +22,7 @@ import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddToListIfAbsentParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddValueParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAppendToListParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresRemoveAllFromListParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresSetValueParser;
@@ -35,6 +37,7 @@ public class PostgresQueryBuilder {
       Map.ofEntries(
           entry(SET, new PostgresSetValueParser()),
           entry(UNSET, new PostgresUnsetPathParser()),
+          entry(ADD, new PostgresAddValueParser()),
           entry(REMOVE_ALL_FROM_LIST, new PostgresRemoveAllFromListParser()),
           entry(ADD_TO_LIST_IF_ABSENT, new PostgresAddToListIfAbsentParser()),
           entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
