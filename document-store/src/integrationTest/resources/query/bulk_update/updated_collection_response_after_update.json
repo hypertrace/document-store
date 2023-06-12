@@ -1,7 +1,7 @@
 [
   {
     "date": "2022-08-09T18:53:17Z",
-    "price": 10,
+    "price": 11,
     "quantity": 1000,
     "props": {
       "brand": "Dettol",
@@ -26,7 +26,7 @@
   },
   {
     "date": "2022-08-09T18:53:17Z",
-    "price": 10,
+    "price": 11,
     "quantity": 1000,
     "props": {
       "brand": "Dettol",
@@ -43,7 +43,7 @@
   },
   {
     "date": "2022-08-09T18:53:17Z",
-    "price": 20,
+    "price": 21,
     "quantity": 1000,
     "props": {
       "brand": "Dettol",
@@ -67,7 +67,7 @@
     }
   },
   {
-    "price": 88,
+    "price": 89,
     "quantity": 1000,
     "date": "2022-08-09T18:53:17Z",
     "props": {
