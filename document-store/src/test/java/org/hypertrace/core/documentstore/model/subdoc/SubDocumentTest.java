@@ -39,7 +39,7 @@ class SubDocumentTest {
   }
 
   @ParameterizedTest
-  @MethodSource("inValidPathsProvider")
+  @MethodSource("invalidPathsProvider")
   void testInvalidSubDocumentPaths(String invalidPath) {
     assertThrows(
         IllegalArgumentException.class, () -> SubDocument.builder().path(invalidPath).build());
