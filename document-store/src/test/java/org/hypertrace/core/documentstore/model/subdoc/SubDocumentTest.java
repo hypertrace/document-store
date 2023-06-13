@@ -22,7 +22,7 @@ class SubDocumentTest {
   }
 
   @MethodSource
-  private static Stream<Arguments> inValidPathsProvider() {
+  private static Stream<Arguments> invalidPathsProvider() {
     return Stream.of(
         Arguments.of("price::quantity"),
         Arguments.of("{hello_world"),
@@ -40,9 +40,9 @@ class SubDocumentTest {
 
   @ParameterizedTest
   @MethodSource("inValidPathsProvider")
-  void testInvalidSubDocumentPaths(String inValidPath) {
+  void testInvalidSubDocumentPaths(String invalidPath) {
     assertThrows(
-        IllegalArgumentException.class, () -> SubDocument.builder().path(inValidPath).build());
+        IllegalArgumentException.class, () -> SubDocument.builder().path(invalidPath).build());
   }
 
   @Test
