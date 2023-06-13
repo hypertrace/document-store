@@ -17,7 +17,8 @@ public class SubDocument {
   public static final String PATH_SEPARATOR = ".";
 
   private static final Set<String> IMPLICIT_PATHS = Set.of(CREATED_TIME, LAST_UPDATED_TIME);
-  private static final Pattern ALLOWED_CHARACTERS = Pattern.compile("^[a-zA-Z_]+(.[a-zA-Z_]+)*$");
+  private static final Pattern ALLOWED_CHARACTERS =
+      Pattern.compile("^[a-zA-Z0-9_]+(.[a-zA-Z0-9_]+)*$");
 
   String path;
 
