@@ -7,7 +7,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
-import com.mongodb.MongoClientSettings.Builder;
 import com.mongodb.MongoCommandException;
 import com.mongodb.MongoCredential;
 import com.mongodb.client.MongoClient;
@@ -17,7 +16,6 @@ import com.typesafe.config.Config;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
@@ -48,14 +46,13 @@ public class MongoDatastore implements Datastore {
       connString = new ConnectionString("mongodb://" + hostName + ":" + port);
     }
 
-    final MongoClientSettings.Builder clientSettingsBuilder = MongoClientSettings.builder().applyConnectionString(connString)
-        .retryWrites(true);
+    final MongoClientSettings.Builder clientSettingsBuilder =
+        MongoClientSettings.builder().applyConnectionString(connString).retryWrites(true);
 
     addCredentialsIfAvailable(clientSettingsBuilder);
     addAppNameIfAvailable(clientSettingsBuilder);
 
-    final MongoClientSettings settings =
-        clientSettingsBuilder.build();
+    final MongoClientSettings settings = clientSettingsBuilder.build();
     client = MongoClients.create(settings);
 
     database = client.getDatabase(DEFAULT_DB_NAME);
