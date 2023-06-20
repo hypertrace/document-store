@@ -1,12 +1,15 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.apache.commons.lang3.StringUtils.isNotBlank;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoClientSettings.Builder;
 import com.mongodb.MongoCommandException;
+import com.mongodb.MongoCredential;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
@@ -14,6 +17,7 @@ import com.typesafe.config.Config;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
@@ -23,7 +27,13 @@ import org.slf4j.LoggerFactory;
 public class MongoDatastore implements Datastore {
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoDatastore.class);
 
+  private static final String ADMIN_DB_NAME = "admin";
   private static final String DEFAULT_DB_NAME = "default_db";
+
+  private static final String MONGODB_USERNAME_KEY = "MONGODB_USERNAME";
+  private static final String MONGODB_PASSWORD_KEY = "MONGODB_PASSWORD";
+  private static final String SERVICE_NAME_KEY = "SERVICE_NAME";
+
   private MongoClient client;
   private MongoDatabase database;
 
@@ -38,8 +48,14 @@ public class MongoDatastore implements Datastore {
       connString = new ConnectionString("mongodb://" + hostName + ":" + port);
     }
 
-    MongoClientSettings settings =
-        MongoClientSettings.builder().applyConnectionString(connString).retryWrites(true).build();
+    final MongoClientSettings.Builder clientSettingsBuilder = MongoClientSettings.builder().applyConnectionString(connString)
+        .retryWrites(true);
+
+    addCredentialsIfAvailable(clientSettingsBuilder);
+    addAppNameIfAvailable(clientSettingsBuilder);
+
+    final MongoClientSettings settings =
+        clientSettingsBuilder.build();
     client = MongoClients.create(settings);
 
     database = client.getDatabase(DEFAULT_DB_NAME);
@@ -90,5 +106,23 @@ public class MongoDatastore implements Datastore {
   @VisibleForTesting
   MongoClient getMongoClient() {
     return client;
+  }
+
+  private void addCredentialsIfAvailable(final MongoClientSettings.Builder clientSettingsBuilder) {
+    final String username = System.getenv(MONGODB_USERNAME_KEY);
+    final String password = System.getenv(MONGODB_PASSWORD_KEY);
+
+    if (isNotBlank(username) && isNotBlank(password)) {
+      clientSettingsBuilder.credential(
+          MongoCredential.createCredential(username, ADMIN_DB_NAME, password.toCharArray()));
+    }
+  }
+
+  private void addAppNameIfAvailable(final MongoClientSettings.Builder clientSettingsBuilder) {
+    final String serviceName = System.getenv(SERVICE_NAME_KEY);
+
+    if (isNotBlank(serviceName)) {
+      clientSettingsBuilder.applicationName(serviceName);
+    }
   }
 }
