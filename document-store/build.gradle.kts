@@ -14,10 +14,10 @@ dependencies {
   implementation("org.postgresql:postgresql:42.5.4")
   implementation("org.mongodb:mongodb-driver-sync:4.9.0")
   implementation("com.fasterxml.jackson.core:jackson-databind:2.15.1")
-  implementation("org.slf4j:slf4j-api:2.0.5")
+  implementation("org.slf4j:slf4j-api:1.7.36")
   implementation("org.apache.commons:commons-lang3:3.12.0")
   implementation("net.jodah:failsafe:2.4.4")
-  implementation("com.google.guava:guava:31.1-jre")
+  implementation("com.google.guava:guava:32.0.1-jre")
   implementation("org.apache.commons:commons-dbcp2:2.9.0")
 
   testImplementation("org.junit.jupiter:junit-jupiter:5.9.2")
