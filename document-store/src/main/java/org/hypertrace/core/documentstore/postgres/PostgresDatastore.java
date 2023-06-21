@@ -6,7 +6,6 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
 import com.typesafe.config.Config;
-import com.typesafe.config.ConfigBeanFactory;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
@@ -18,6 +17,9 @@ import java.util.Map;
 import java.util.Set;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.DatabaseType;
+import org.hypertrace.core.documentstore.model.config.TypesafeConfigConnectionConfigExtractor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,18 +34,41 @@ public class PostgresDatastore implements Datastore {
   @Override
   public boolean init(Config config) {
     try {
-      DriverManager.registerDriver(new org.postgresql.Driver());
-      final PostgresConfig postgresConfig = ConfigBeanFactory.create(config, PostgresConfig.class);
+      final ConnectionConfig connectionConfig =
+          TypesafeConfigConnectionConfigExtractor.from(config, DatabaseType.POSTGRES)
+              .hostKey("host")
+              .portKey("port")
+              .usernameKey("user")
+              .passwordKey("password")
+              .databaseKey("database")
+              .applicationNameKey("applicationName")
+              .poolMaxConnectionsKey("connectionPool.maxConnections")
+              .poolConnectionAccessTimeoutKey("connectionPool.maxWaitTime")
+              .poolConnectionSurrenderTimeoutKey("connectionPool.removeAbandonedTimeout")
+              .extract();
 
-      client = new PostgresClient(postgresConfig);
-      database = postgresConfig.getDatabase();
+      init(connectionConfig);
+      return true;
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Unable to instantiate PostgresClient with config:%s", config), e);
-    } catch (SQLException e) {
+    }
+  }
+
+  @Override
+  public void init(final ConnectionConfig connectionConfig) {
+    try {
+      DriverManager.registerDriver(new org.postgresql.Driver());
+
+      client = new PostgresClient(connectionConfig);
+      database = connectionConfig.database();
+    } catch (final IllegalArgumentException e) {
+      throw new IllegalArgumentException(
+          String.format("Unable to instantiate PostgresClient with config:%s", connectionConfig),
+          e);
+    } catch (final SQLException e) {
       throw new RuntimeException("PostgresClient SQLException", e);
     }
-    return true;
   }
 
   /** @return Returns Tables for a particular database */

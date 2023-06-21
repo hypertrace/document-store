@@ -3,11 +3,8 @@ package org.hypertrace.core.documentstore.postgres;
 import java.time.Duration;
 
 public interface PostgresDefaults {
-  String DEFAULT_USER = "postgres";
-  String DEFAULT_PASSWORD = "postgres";
-  String DEFAULT_DB_NAME = "postgres";
 
-  int DEFAULT_MAX_CONNECTION_ATTEMPTS = 200;
+  int DEFAULT_MAX_CONNECTION_ATTEMPTS = 5;
   Duration DEFAULT_CONNECTION_RETRY_BACKOFF = Duration.ofSeconds(5);
 
   int DEFAULT_MAX_CONNECTIONS = 16;

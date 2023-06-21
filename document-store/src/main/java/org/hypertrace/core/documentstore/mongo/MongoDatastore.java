@@ -7,6 +7,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCommandException;
+import com.mongodb.MongoCredential;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
@@ -17,6 +18,8 @@ import java.util.Set;
 import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +47,31 @@ public class MongoDatastore implements Datastore {
 
     database = client.getDatabase(DEFAULT_DB_NAME);
     return true;
+  }
+
+  @Override
+  public void init(final ConnectionConfig connectionConfig) {
+    final ConnectionString connectionString =
+        new ConnectionString(
+            String.format(
+                "mongodb://%s:%d/%s",
+                connectionConfig.host(), connectionConfig.port(), connectionConfig.database()));
+    final ConnectionCredentials credentials = connectionConfig.credentials();
+
+    final MongoClientSettings settings =
+        MongoClientSettings.builder()
+            .applyConnectionString(connectionString)
+            .credential(
+                MongoCredential.createCredential(
+                    credentials.username(),
+                    credentials.authDatabase().orElseThrow(),
+                    credentials.password().toCharArray()))
+            .applicationName(connectionConfig.applicationName())
+            .retryWrites(true)
+            .build();
+    client = MongoClients.create(settings);
+
+    database = client.getDatabase(DEFAULT_DB_NAME);
   }
 
   @Override

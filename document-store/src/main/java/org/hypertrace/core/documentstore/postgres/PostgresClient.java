@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static org.hypertrace.core.documentstore.postgres.PostgresPropertiesBuilder.buildProperties;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -7,6 +9,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,22 +18,20 @@ class PostgresClient {
   private static final Logger log = LoggerFactory.getLogger(PostgresClient.class);
   private static final int VALIDATION_QUERY_TIMEOUT_SECONDS = 5;
 
-  private final String url;
-  private final String user;
-  private final String password;
   private final int maxConnectionAttempts;
   private final Duration connectionRetryBackoff;
   private final PostgresConnectionPool connectionPool;
+  private final ConnectionConfig connectionConfig;
+  private final PostgresConnectionStringBuilder connectionStringBuilder;
 
   private int count = 0;
   private Connection connection;
 
-  public PostgresClient(final PostgresConfig config) {
-    this.url = config.getConnectionString();
-    this.user = config.getUser();
-    this.password = config.getPassword();
-    this.maxConnectionAttempts = config.getMaxConnectionAttempts();
-    this.connectionRetryBackoff = config.getConnectionRetryBackoff();
+  public PostgresClient(final ConnectionConfig config) {
+    this.connectionConfig = config;
+    this.connectionStringBuilder = new PostgresConnectionStringBuilder(config);
+    this.maxConnectionAttempts = PostgresDefaults.DEFAULT_MAX_CONNECTION_ATTEMPTS;
+    this.connectionRetryBackoff = PostgresDefaults.DEFAULT_CONNECTION_RETRY_BACKOFF;
     this.connectionPool = new PostgresConnectionPool(config);
   }
 
@@ -75,8 +76,15 @@ class PostgresClient {
     while (attempts < maxConnectionAttempts) {
       try {
         ++attempts;
-        log.info("Attempting(attempt #{}) to open connection #{} to {}", attempts, count, url);
-        connection = DriverManager.getConnection(url, user, password);
+        final String connectionString = connectionStringBuilder.getConnectionString();
+
+        log.info(
+            "Attempting(attempt #{}) to open connection #{} to {}",
+            attempts,
+            count,
+            connectionString);
+        connection =
+            DriverManager.getConnection(connectionString, buildProperties(connectionConfig));
         return;
       } catch (SQLException sqle) {
         attempts++;
@@ -103,7 +111,8 @@ class PostgresClient {
   private void close() {
     if (connection != null) {
       try {
-        log.info("Closing connection #{} to {}", count, url);
+        log.info(
+            "Closing connection #{} to {}", count, connectionStringBuilder.getConnectionString());
         connection.close();
       } catch (SQLException sqle) {
         log.warn("Ignoring error closing connection", sqle);
