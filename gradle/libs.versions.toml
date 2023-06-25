@@ -5,30 +5,30 @@ org-mockito = "5.2.0"
 org-testcontainers = "1.17.6"
 
 [libraries]
-com-fasterxml-jackson-core-jackson-databind = "com.fasterxml.jackson.core:jackson-databind:2.15.1"
-com-github-java-json-tools-json-patch = "com.github.java-json-tools:json-patch:1.13"
-com-google-guava = "com.google.guava:guava:32.0.1-jre"
-com-typesafe-config = "com.typesafe:config:1.4.2"
-net-jodah-failsafe = "net.jodah:failsafe:2.4.4"
-org-apache-commons-commons-collections4 = "org.apache.commons:commons-collections4:4.4"
-org-apache-commons-commons-dbcp2 = "org.apache.commons:commons-dbcp2:2.9.0"
-org-apache-commons-commons-lang3 = "org.apache.commons:commons-lang3:3.12.0"
-org-apache-logging-log4j-log4j-core = "org.apache.logging.log4j:log4j-core:2.17.1"
+com-fasterxml-jackson-core-jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version = "2.15.1" }
+com-github-java-json-tools-json-patch = { module = "com.github.java-json-tools:json-patch", version = "1.13" }
+com-google-guava = { module = "com.google.guava:guava", version = "32.0.1-jre" }
+com-typesafe-config = { module = "com.typesafe:config", version = "1.4.2" }
+net-jodah-failsafe = { module = "net.jodah:failsafe", version = "2.4.4" }
+org-apache-commons-commons-collections4 = { module = "org.apache.commons:commons-collections4", version = "4.4" }
+org-apache-commons-commons-dbcp2 = { module = "org.apache.commons:commons-dbcp2", version = "2.9.0" }
+org-apache-commons-commons-lang3 = { module = "org.apache.commons:commons-lang3", version = "3.12.0" }
+org-apache-logging-log4j-log4j-core = { module = "org.apache.logging.log4j:log4j-core", version = "2.17.1" }
 org-jacoco-org-jacoco-agent = { module = "org.jacoco:org.jacoco.agent", version.ref = "org-jacoco" }
 org-jacoco-org-jacoco-ant = { module = "org.jacoco:org.jacoco.ant", version.ref = "org-jacoco" }
-org-jetbrains-annotations = "org.jetbrains:annotations:13.0"
+org-jetbrains-annotations = { module = "org.jetbrains:annotations", version = "13.0" }
 org-jetbrains-kotlin-kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "org-jetbrains-kotlin" }
 org-jetbrains-kotlin-kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "org-jetbrains-kotlin" }
 org-jetbrains-kotlin-kotlin-stdlib-common = { module = "org.jetbrains.kotlin:kotlin-stdlib-common", version.ref = "org-jetbrains-kotlin" }
 org-jetbrains-kotlin-kotlin-stdlib-jdk7 = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk7", version.ref = "org-jetbrains-kotlin" }
 org-jetbrains-kotlin-kotlin-stdlib-jdk8 = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "org-jetbrains-kotlin" }
-org-junit-jupiter-junit-jupiter = "org.junit.jupiter:junit-jupiter:5.9.2"
+org-junit-jupiter-junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version = "5.9.2" }
 org-mockito-mockito-core = { module = "org.mockito:mockito-core", version.ref = "org-mockito" }
 org-mockito-mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "org-mockito" }
 org-mockito-mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "org-mockito" }
-org-mongodb-mongodb-driver-sync = "org.mongodb:mongodb-driver-sync:4.9.0"
-org-postgresql = "org.postgresql:postgresql:42.5.4"
-org-projectlombok-lombok = "org.projectlombok:lombok:1.18.26"
-org-slf4j-slf4j-api = "org.slf4j:slf4j-api:1.7.36"
+org-mongodb-mongodb-driver-sync = { module = "org.mongodb:mongodb-driver-sync", version = "4.9.0" }
+org-postgresql = { module = "org.postgresql:postgresql", version = "42.5.4" }
+org-projectlombok-lombok = { module = "org.projectlombok:lombok", version = "1.18.26" }
+org-slf4j-slf4j-api = { module = "org.slf4j:slf4j-api", version = "1.7.36" }
 org-testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "org-testcontainers" }
 org-testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter", version.ref = "org-testcontainers" }
