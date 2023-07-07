@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.model.config.mongo.MongoDefaults.DEFAULT_DB_NAME;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -26,7 +27,6 @@ import org.slf4j.LoggerFactory;
 public class MongoDatastore implements Datastore {
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoDatastore.class);
 
-  private static final String DEFAULT_DB_NAME = "default_db";
   private MongoClient client;
   private MongoDatabase database;
 

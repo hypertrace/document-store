@@ -1,26 +1,25 @@
-package org.hypertrace.core.documentstore.model.config;
+package org.hypertrace.core.documentstore.model.config.mongo;
 
 import java.util.Optional;
 import javax.annotation.Nullable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.NonNull;
 import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import lombok.experimental.NonFinal;
+import lombok.experimental.SuperBuilder;
+import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 
 @Value
-@Builder
-@NonFinal
+@SuperBuilder
 @Accessors(fluent = true)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ConnectionCredentials {
-  @NonNull String username;
-
-  @NonNull @ToString.Exclude String password;
-
+@ToString(callSuper = true)
+@EqualsAndHashCode(callSuper = true)
+public class MongoConnectionCredentials extends ConnectionCredentials {
   @Nullable @Builder.Default String authDatabase = null;
 
   @SuppressWarnings("ConstantConditions")

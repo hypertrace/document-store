@@ -8,11 +8,15 @@ import lombok.Builder;
 import lombok.NonNull;
 import lombok.Value;
 import lombok.experimental.Accessors;
+import lombok.experimental.NonFinal;
+import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionPoolConfig;
 
 @Value
 @Builder
+@NonFinal
 @Accessors(fluent = true)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class ConnectionConfig {
   @NonNull DatabaseType type;
 
@@ -26,13 +30,21 @@ public class ConnectionConfig {
 
   @NonNull String applicationName;
 
-  @NonNull @Builder.Default
-  ConnectionPoolConfig connectionPoolConfig = ConnectionPoolConfig.builder().build();
+  private static ConnectionConfigBuilder builder() {
+    throw new IllegalArgumentException("type is required");
+  }
 
-  @SuppressWarnings("unused")
+  public static ConnectionConfigBuilder builderFor(final String type) {
+    return builder().type(type);
+  }
+
+  public static ConnectionConfigBuilder builderFor(final DatabaseType type) {
+    return builder().type(type);
+  }
+
   public static class ConnectionConfigBuilder {
-    private final ConnectionPoolConfig connectionPoolConfig =
-        ConnectionPoolConfig.builder().build();
+    private final PostgresConnectionPoolConfig connectionPoolConfig =
+        PostgresConnectionPoolConfig.builder().build();
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;
@@ -44,19 +56,13 @@ public class ConnectionConfig {
     }
 
     public ConnectionConfig build() {
-      validateMongoProperties();
-      return new ConnectionConfig(
-          type, host, port, credentials, database, applicationName, connectionPoolConfig);
-    }
-
-    private void validateMongoProperties() {
-      if (DatabaseType.MONGO != type) {
-        return;
+      if (DatabaseType.MONGO == type) {
+        return new MongoConnectionConfig(
+            type, host, port, credentials, database, applicationName);
       }
 
-      Preconditions.checkArgument(
-          credentials.authDatabase().isPresent(),
-          "Authentication database is mandatory for MongoDB");
+      return new ConnectionConfig(
+          type, host, port, credentials, database, applicationName, connectionPoolConfig);
     }
   }
 }

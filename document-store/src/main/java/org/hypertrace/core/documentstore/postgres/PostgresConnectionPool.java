@@ -16,7 +16,7 @@ import org.apache.commons.dbcp2.PoolingDataSource;
 import org.apache.commons.pool2.impl.AbandonedConfig;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
-import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionPoolConfig;
 
 class PostgresConnectionPool {
   private static final String VALIDATION_QUERY = "SELECT 1";
@@ -46,7 +46,7 @@ class PostgresConnectionPool {
     final GenericObjectPool<PoolableConnection> connectionPool =
         new GenericObjectPool<>(poolableConnectionFactory);
 
-    final ConnectionPoolConfig poolConfig = config.connectionPoolConfig();
+    final PostgresConnectionPoolConfig poolConfig = config.connectionPoolConfig();
     setPoolProperties(connectionPool, poolConfig);
     setFactoryProperties(poolableConnectionFactory, connectionPool);
 
@@ -55,7 +55,7 @@ class PostgresConnectionPool {
 
   private void setPoolProperties(
       final GenericObjectPool<PoolableConnection> connectionPool,
-      final ConnectionPoolConfig poolConfig) {
+      final PostgresConnectionPoolConfig poolConfig) {
     final AbandonedConfig abandonedConfig = getAbandonedConfig(poolConfig);
     final int maxConnections = poolConfig.maxConnections();
     connectionPool.setMaxTotal(maxConnections);
@@ -80,7 +80,7 @@ class PostgresConnectionPool {
     poolableConnectionFactory.setPoolStatements(false);
   }
 
-  private AbandonedConfig getAbandonedConfig(final ConnectionPoolConfig poolConfig) {
+  private AbandonedConfig getAbandonedConfig(final PostgresConnectionPoolConfig poolConfig) {
     final AbandonedConfig abandonedConfig = new AbandonedConfig();
     abandonedConfig.setLogAbandoned(true);
     abandonedConfig.setRemoveAbandonedOnBorrow(true);

@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.model.config;
+package org.hypertrace.core.documentstore.model.config.postgres;
 
 import java.time.Duration;
 import javax.annotation.Nonnegative;
@@ -13,7 +13,7 @@ import lombok.experimental.Accessors;
 @Builder
 @Accessors(fluent = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ConnectionPoolConfig {
+public class PostgresConnectionPoolConfig {
   @NonNull @Nonnegative @Builder.Default Integer maxConnections = 1;
 
   // Time duration to wait for obtaining a connection from the pool

@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.postgres;
+package org.hypertrace.core.documentstore.model.config.postgres;
 
 import java.time.Duration;
 
