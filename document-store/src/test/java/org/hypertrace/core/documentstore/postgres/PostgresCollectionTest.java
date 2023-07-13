@@ -88,10 +88,10 @@ class PostgresCollectionTest {
     final String selectQuery =
         String.format(
             "SELECT "
-                + "document->'quantity' AS quantity, "
-                + "document->'price' AS price, "
-                + "document->'date' AS date, "
-                + "document->'props' AS props, "
+                + "document->'quantity' AS \"quantity\", "
+                + "document->'price' AS \"price\", "
+                + "document->'date' AS \"date\", "
+                + "document->'props' AS \"props\", "
                 + "id AS _implicit_id "
                 + "FROM %s "
                 + "WHERE (document->>'item' = ?) "
@@ -188,10 +188,10 @@ class PostgresCollectionTest {
     final String selectQuery =
         String.format(
             "SELECT "
-                + "document->'quantity' AS quantity, "
-                + "document->'price' AS price, "
-                + "document->'date' AS date, "
-                + "document->'props' AS props, "
+                + "document->'quantity' AS \"quantity\", "
+                + "document->'price' AS \"price\", "
+                + "document->'date' AS \"date\", "
+                + "document->'props' AS \"props\", "
                 + "id AS _implicit_id "
                 + "FROM %s "
                 + "WHERE (document->>'item' = ?) "
@@ -284,10 +284,10 @@ class PostgresCollectionTest {
     final String selectQuery =
         String.format(
             "SELECT "
-                + "document->'quantity' AS quantity, "
-                + "document->'price' AS price, "
-                + "document->'date' AS date, "
-                + "document->'props' AS props, "
+                + "document->'quantity' AS \"quantity\", "
+                + "document->'price' AS \"price\", "
+                + "document->'date' AS \"date\", "
+                + "document->'props' AS \"props\", "
                 + "id AS _implicit_id "
                 + "FROM %s "
                 + "WHERE (document->>'item' = ?) "
@@ -334,10 +334,10 @@ class PostgresCollectionTest {
     final String selectQuery =
         String.format(
             "SELECT "
-                + "document->'quantity' AS quantity, "
-                + "document->'price' AS price, "
-                + "document->'date' AS date, "
-                + "document->'props' AS props, "
+                + "document->'quantity' AS \"quantity\", "
+                + "document->'price' AS \"price\", "
+                + "document->'date' AS \"date\", "
+                + "document->'props' AS \"props\", "
                 + "id AS _implicit_id "
                 + "FROM %s "
                 + "WHERE (document->>'item' = ?) "
@@ -439,10 +439,10 @@ class PostgresCollectionTest {
     final String selectQuery =
         String.format(
             "SELECT "
-                + "document->'quantity' AS quantity, "
-                + "document->'price' AS price, "
-                + "document->'date' AS date, "
-                + "document->'props' AS props "
+                + "document->'quantity' AS \"quantity\", "
+                + "document->'price' AS \"price\", "
+                + "document->'date' AS \"date\", "
+                + "document->'props' AS \"props\" "
                 + "FROM %s "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
@@ -608,10 +608,10 @@ class PostgresCollectionTest {
     final String selectQuery =
         String.format(
             "SELECT "
-                + "document->'quantity' AS quantity, "
-                + "document->'price' AS price, "
-                + "document->'date' AS date, "
-                + "document->'props' AS props "
+                + "document->'quantity' AS \"quantity\", "
+                + "document->'price' AS \"price\", "
+                + "document->'date' AS \"date\", "
+                + "document->'props' AS \"props\" "
                 + "FROM %s "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
@@ -701,10 +701,10 @@ class PostgresCollectionTest {
     final String selectQuery =
         String.format(
             "SELECT "
-                + "document->'quantity' AS quantity, "
-                + "document->'price' AS price, "
-                + "document->'date' AS date, "
-                + "document->'props' AS props "
+                + "document->'quantity' AS \"quantity\", "
+                + "document->'price' AS \"price\", "
+                + "document->'date' AS \"date\", "
+                + "document->'props' AS \"props\" "
                 + "FROM %s "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
@@ -740,10 +740,10 @@ class PostgresCollectionTest {
     final String selectQuery =
         String.format(
             "SELECT "
-                + "document->'quantity' AS quantity, "
-                + "document->'price' AS price, "
-                + "document->'date' AS date, "
-                + "document->'props' AS props "
+                + "document->'quantity' AS \"quantity\", "
+                + "document->'price' AS \"price\", "
+                + "document->'date' AS \"date\", "
+                + "document->'props' AS \"props\" "
                 + "FROM %s "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "

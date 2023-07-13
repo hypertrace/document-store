@@ -112,10 +112,11 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
   private static String getAlias(
       SelectionSpec selectionSpec,
       PostgresIdentifierExpressionVisitor identifierExpressionVisitor) {
-    return !StringUtils.isEmpty(selectionSpec.getAlias())
-        ? PostgresUtils.wrapAliasWithDoubleQuotes(selectionSpec.getAlias())
-        : PostgresUtils.encodeAliasForNestedField(
-            selectionSpec.getExpression().accept(identifierExpressionVisitor));
+    return PostgresUtils.wrapAliasWithDoubleQuotes(
+        !StringUtils.isEmpty(selectionSpec.getAlias())
+            ? selectionSpec.getAlias()
+            : PostgresUtils.encodeAliasForNestedField(
+                selectionSpec.getExpression().accept(identifierExpressionVisitor)));
   }
 
   private static void memorizedSelectionForUserDefinedAlias(
