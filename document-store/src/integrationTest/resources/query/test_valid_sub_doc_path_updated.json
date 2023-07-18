@@ -1,0 +1,52 @@
+[
+  {
+    "item": "Soap",
+    "price": 10,
+    "quantity": 2,
+    "date": "2014-03-01T08:00:00Z",
+    "props": {
+      "brand": "Dettol",
+      "size": "M",
+      "seller": {
+        "name": "Metro Chemicals Pvt. Ltd.",
+        "alias name": "metro.in",
+        "address": {
+          "city": "Mumbai",
+          "pincode": 400004
+        }
+      }
+    },
+    "sales": [
+      {
+        "city": "delhi",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 1000
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 1000
+          }
+        ]
+      },
+      {
+        "city": "pune",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 300
+          },
+          {
+            "type": "online",
+            "volume": 2000
+          }
+        ]
+      }
+    ]
+  }
+]

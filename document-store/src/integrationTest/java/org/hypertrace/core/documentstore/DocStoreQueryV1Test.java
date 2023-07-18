@@ -1837,6 +1837,34 @@ public class DocStoreQueryV1Test {
     }
   }
 
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  void testValidSubDocumentPathsWithUpdate(final String datastoreName) throws IOException {
+    final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+    createCollectionData("query/test_valid_sub_doc_path.json", UPDATABLE_COLLECTION_NAME);
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props.seller.name"),
+                    EQ,
+                    ConstantExpression.of("Metro Chemicals Pvt. Ltd.")))
+            .build();
+
+    List<SubDocumentUpdate> updates =
+        List.of(
+            SubDocumentUpdate.builder()
+                .subDocument("props.seller.alias name")
+                .operator(SET)
+                .subDocumentValue(SubDocumentValue.of("metro.in"))
+                .build());
+    final CloseableIterator<Document> iterator =
+        collection.bulkUpdate(
+            query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+    assertDocsAndSizeEqualWithoutOrder(
+        datastoreName, iterator, "query/test_valid_sub_doc_path_updated.json", 1);
+  }
+
   @Nested
   class AtomicUpdateTest {
     @ParameterizedTest
