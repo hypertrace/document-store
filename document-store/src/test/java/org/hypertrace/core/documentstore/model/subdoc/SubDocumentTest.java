@@ -18,7 +18,9 @@ class SubDocumentTest {
         Arguments.of("1234567890"),
         Arguments.of("price.quantity"),
         Arguments.of("67aa7623-fc40-4112-b958-cbd6d4c077b1"),
-        Arguments.of("first_name"));
+        Arguments.of("first_name"),
+        Arguments.of(
+            "apiResponseSummaryDetails.Post /workshop/api/shop/orders/return_order.responseCodeCount.0"));
   }
 
   @MethodSource
