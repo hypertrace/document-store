@@ -2229,6 +2229,55 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
+    void testUpdateWithOnlyAddUpdateOperator(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate increment =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+      final SubDocumentUpdate incrementNested =
+          SubDocumentUpdate.builder()
+              .subDocument("itemCategory.item1.item2.item3.itemValue")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(increment, incrementNested);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator, "query/update_operator/add_updated1.json", 9);
+
+      final SubDocumentUpdate decrement =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(-1))
+              .build();
+      final SubDocumentUpdate decrementNested =
+          SubDocumentUpdate.builder()
+              .subDocument("itemCategory.item1.item2.item3.itemValue")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(-1))
+              .build();
+      final List<SubDocumentUpdate> new_updates = List.of(decrement, decrementNested);
+
+      final CloseableIterator<Document> iterator_new =
+          collection.bulkUpdate(
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator_new, "query/update_operator/add_updated2.json", 9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
     void testUpdateWithAllOperatorsOnObject(final String datastoreName) throws IOException {
       final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
       createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
