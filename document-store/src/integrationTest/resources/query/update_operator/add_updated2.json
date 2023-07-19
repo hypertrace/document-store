@@ -1,0 +1,202 @@
+[
+  {
+    "date": "2014-03-01T08:00:00Z",
+    "item": "Soap",
+    "itemCategory": {
+      "item1": { "item2":  {"item3":  {"itemValue":  0}}}
+    },
+    "price": 10,
+    "props": {
+      "brand": "Dettol",
+      "seller": {
+        "address": {
+          "city": "Mumbai",
+          "pincode": 400004
+        },
+        "name": "Metro Chemicals Pvt. Ltd."
+      },
+      "size": "M"
+    },
+    "quantity": 2,
+    "sales": [
+      {
+        "city": "delhi",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 1000
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 1000
+          }
+        ]
+      },
+      {
+        "city": "pune",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 300
+          },
+          {
+            "type": "online",
+            "volume": 2000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "date": "2014-03-01T09:00:00Z",
+    "item": "Mirror",
+    "itemCategory": {
+      "item1": { "item2":  {"item3":  {"itemValue":  0}}}
+    },
+    "price": 20,
+    "quantity": 1,
+    "sales": [
+      {
+        "city": "delhi",
+        "medium": [
+        ]
+      }
+    ]
+  },
+  {
+    "date": "2015-09-10T08:43:00Z",
+    "item": "Comb",
+    "itemCategory": {
+      "item1": { "item2":  {"item3":  {"itemValue":  0}}}
+    },
+    "price": 7.5,
+    "props": {
+      "seller": {
+        "address": {
+          "city": "Kolkata",
+          "pincode": 700007
+        },
+        "name": "Go Go Plastics"
+      }
+    },
+    "quantity": 10
+  },
+  {
+    "date": "2016-02-06T20:20:13Z",
+    "item": "Soap",
+    "itemCategory": {
+      "item1": { "item2":  {"item3":  {"itemValue":  0}}}
+    },
+    "price": 10,
+    "quantity": 5
+  },
+  {
+    "date": "2023-08-09T18:53:17Z",
+    "item": "Soap",
+    "itemCategory": {
+      "item1": { "item2":  {"item3":  {"itemValue":  0}}}
+    },
+    "price": 88,
+    "quantity": 50
+  },
+  {
+    "date": "2014-03-15T09:00:00Z",
+    "item": "Shampoo",
+    "itemCategory": {
+      "item1": { "item2":  {"item3":  {"itemValue":  0}}}
+    },
+    "price": 5,
+    "props": {
+      "brand": "Sunsilk",
+      "seller": {
+        "address": {
+          "city": "Mumbai",
+          "pincode": 400004
+        },
+        "name": "Metro Chemicals Pvt. Ltd."
+      },
+      "size": "L"
+    },
+    "quantity": 10,
+    "sales": [
+      {
+        "city": "delhi",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 3000
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 1000
+          }
+        ]
+      },
+      {
+        "city": "mumbai",
+        "medium": [
+          {
+            "type": "distributionChannel",
+            "volume": 700
+          },
+          {
+            "type": "retail",
+            "volume": 500
+          },
+          {
+            "type": "online",
+            "volume": 5000
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "date": "2014-04-04T11:21:39.736Z",
+    "item": "Shampoo",
+    "itemCategory": {
+      "item1": { "item2":  {"item3":  {"itemValue":  0}}}
+    },
+    "price": 5,
+    "quantity": 20,
+    "sales": [
+    ]
+  },
+  {
+    "date": "2014-04-04T21:23:13.331Z",
+    "item": "Soap",
+    "itemCategory": {
+      "item1": { "item2":  {"item3":  {"itemValue":  0}}}
+    },
+    "price": 20,
+    "props": {
+      "brand": "Lifebuoy",
+      "seller": {
+        "address": {
+          "city": "Kolkata",
+          "pincode": 700007
+        },
+        "name": "Hans and Co."
+      },
+      "size": "S"
+    },
+    "quantity": 5
+  },
+  {
+    "date": "2015-06-04T05:08:13Z",
+    "item": "Comb",
+    "itemCategory": {
+      "item1": { "item2":  {"item3":  {"itemValue":  0}}}
+    },
+    "price": 7.5,
+    "quantity": 5
+  }
+]
