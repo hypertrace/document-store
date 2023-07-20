@@ -109,6 +109,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     switch (operator) {
       case CONTAINS:
       case NOT_CONTAINS:
+      case EXISTS:
+      case NOT_EXISTS:
         return true;
       default:
         return false;
