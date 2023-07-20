@@ -357,36 +357,36 @@ public class DocStoreTest {
 
     // size field with integer value, isCostly boolean field
     collection.upsert(
-            new SingleValueKey("default", "testKey1"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey1"),
-                    ImmutablePair.of("name", "abc1"),
-                    ImmutablePair.of("size", -10),
-                    ImmutablePair.of("isCostly", false)));
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10),
+            ImmutablePair.of("isCostly", false)));
 
     collection.upsert(
-            new SingleValueKey("default", "testKey2"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey2"),
-                    ImmutablePair.of("name", "abc2"),
-                    ImmutablePair.of("size", -20),
-                    ImmutablePair.of("isCostly", false)));
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", -20),
+            ImmutablePair.of("isCostly", false)));
 
     collection.upsert(
-            new SingleValueKey("default", "testKey3"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey3"),
-                    ImmutablePair.of("name", "abc3"),
-                    ImmutablePair.of("size", 5),
-                    ImmutablePair.of("isCostly", true)));
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 5),
+            ImmutablePair.of("isCostly", true)));
 
     collection.upsert(
-            new SingleValueKey("default", "testKey4"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey4"),
-                    ImmutablePair.of("name", "abc4"),
-                    ImmutablePair.of("size", 10),
-                    ImmutablePair.of("isCostly", true)));
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 10),
+            ImmutablePair.of("isCostly", true)));
 
     // query exists
     Query queryExists = new Query();
@@ -430,7 +430,6 @@ public class DocStoreTest {
     }
     Assertions.assertEquals(4, documents.size());
 
-
     datastore.deleteCollection(COLLECTION_NAME);
   }
 
@@ -443,41 +442,42 @@ public class DocStoreTest {
 
     // size field with integer value, isCostly boolean field
     collection.upsert(
-            new SingleValueKey("default", "testKey1"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey1"),
-                    ImmutablePair.of("name", "abc1"),
-                    ImmutablePair.of("size", -10),
-                    ImmutablePair.of("isCostly", false)));
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10),
+            ImmutablePair.of("isCostly", false)));
 
     collection.upsert(
-            new SingleValueKey("default", "testKey2"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey2"),
-                    ImmutablePair.of("name", "abc2"),
-                    ImmutablePair.of("size", -20),
-                    ImmutablePair.of("isCostly", false)));
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", -20),
+            ImmutablePair.of("isCostly", false)));
 
     collection.upsert(
-            new SingleValueKey("default", "testKey3"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey3"),
-                    ImmutablePair.of("name", "abc3"),
-                    ImmutablePair.of("size", 5),
-                    ImmutablePair.of("isCostly", true)));
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 5),
+            ImmutablePair.of("isCostly", true)));
 
     collection.upsert(
-            new SingleValueKey("default", "testKey4"),
-            Utils.createDocument(
-                    ImmutablePair.of("id", "testKey4"),
-                    ImmutablePair.of("name", "abc4"),
-                    ImmutablePair.of("size", 10),
-                    ImmutablePair.of("isCostly", true)));
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 10),
+            ImmutablePair.of("isCostly", true)));
 
     org.hypertrace.core.documentstore.query.Query.QueryBuilder queryBuilder;
     // query exists
     queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
-    queryBuilder.setFilter(RelationalExpression.of(
+    queryBuilder.setFilter(
+        RelationalExpression.of(
             IdentifierExpression.of("name"),
             RelationalOperator.EXISTS,
             ConstantExpression.of("true")));
@@ -489,7 +489,8 @@ public class DocStoreTest {
     Assertions.assertEquals(4, documents.size());
 
     queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
-    queryBuilder.setFilter(RelationalExpression.of(
+    queryBuilder.setFilter(
+        RelationalExpression.of(
             IdentifierExpression.of("junkKey"),
             RelationalOperator.EXISTS,
             ConstantExpression.of("true")));
@@ -502,7 +503,8 @@ public class DocStoreTest {
 
     // queryBuilder not exists
     queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
-    queryBuilder.setFilter(RelationalExpression.of(
+    queryBuilder.setFilter(
+        RelationalExpression.of(
             IdentifierExpression.of("name"),
             RelationalOperator.NOT_EXISTS,
             ConstantExpression.of("true")));
@@ -514,7 +516,8 @@ public class DocStoreTest {
     Assertions.assertEquals(0, documents.size());
 
     queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
-    queryBuilder.setFilter(RelationalExpression.of(
+    queryBuilder.setFilter(
+        RelationalExpression.of(
             IdentifierExpression.of("junkKey"),
             RelationalOperator.NOT_EXISTS,
             ConstantExpression.of("true")));
