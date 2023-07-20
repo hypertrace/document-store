@@ -43,6 +43,10 @@ import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
@@ -334,12 +338,192 @@ public class DocStoreTest {
     Query queryStringField = new Query();
     filter = new Filter(Op.GT, "name", "abc1");
     queryStringField.setFilter(filter);
-    results = collection.search(queryBooleanField);
+    results = collection.search(queryStringField);
     documents = new ArrayList<>();
     while (results.hasNext()) {
       documents.add(results.next());
     }
-    Assertions.assertEquals(2, documents.size());
+    Assertions.assertEquals(3, documents.size());
+
+    datastore.deleteCollection(COLLECTION_NAME);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testExistsOperatorWithSearch(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // size field with integer value, isCostly boolean field
+    collection.upsert(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey1"),
+                    ImmutablePair.of("name", "abc1"),
+                    ImmutablePair.of("size", -10),
+                    ImmutablePair.of("isCostly", false)));
+
+    collection.upsert(
+            new SingleValueKey("default", "testKey2"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey2"),
+                    ImmutablePair.of("name", "abc2"),
+                    ImmutablePair.of("size", -20),
+                    ImmutablePair.of("isCostly", false)));
+
+    collection.upsert(
+            new SingleValueKey("default", "testKey3"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey3"),
+                    ImmutablePair.of("name", "abc3"),
+                    ImmutablePair.of("size", 5),
+                    ImmutablePair.of("isCostly", true)));
+
+    collection.upsert(
+            new SingleValueKey("default", "testKey4"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey4"),
+                    ImmutablePair.of("name", "abc4"),
+                    ImmutablePair.of("size", 10),
+                    ImmutablePair.of("isCostly", true)));
+
+    // query exists
+    Query queryExists = new Query();
+    Filter filter = new Filter(Op.EXISTS, "name", true);
+    queryExists.setFilter(filter);
+    Iterator<Document> results = collection.search(queryExists);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(4, documents.size());
+
+    queryExists = new Query();
+    filter = new Filter(Op.EXISTS, "junkKey", true);
+    queryExists.setFilter(filter);
+    results = collection.search(queryExists);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(0, documents.size());
+
+    // query not exists
+    Query queryNotExists = new Query();
+    filter = new Filter(Op.NOT_EXISTS, "name", true);
+    queryNotExists.setFilter(filter);
+    results = collection.search(queryNotExists);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(0, documents.size());
+
+    queryNotExists = new Query();
+    filter = new Filter(Op.NOT_EXISTS, "junkKey", true);
+    queryNotExists.setFilter(filter);
+    results = collection.search(queryNotExists);
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(4, documents.size());
+
+
+    datastore.deleteCollection(COLLECTION_NAME);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testExistsOperatorWithFind(String dataStoreName) throws Exception {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    datastore.createCollection(COLLECTION_NAME, null);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+
+    // size field with integer value, isCostly boolean field
+    collection.upsert(
+            new SingleValueKey("default", "testKey1"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey1"),
+                    ImmutablePair.of("name", "abc1"),
+                    ImmutablePair.of("size", -10),
+                    ImmutablePair.of("isCostly", false)));
+
+    collection.upsert(
+            new SingleValueKey("default", "testKey2"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey2"),
+                    ImmutablePair.of("name", "abc2"),
+                    ImmutablePair.of("size", -20),
+                    ImmutablePair.of("isCostly", false)));
+
+    collection.upsert(
+            new SingleValueKey("default", "testKey3"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey3"),
+                    ImmutablePair.of("name", "abc3"),
+                    ImmutablePair.of("size", 5),
+                    ImmutablePair.of("isCostly", true)));
+
+    collection.upsert(
+            new SingleValueKey("default", "testKey4"),
+            Utils.createDocument(
+                    ImmutablePair.of("id", "testKey4"),
+                    ImmutablePair.of("name", "abc4"),
+                    ImmutablePair.of("size", 10),
+                    ImmutablePair.of("isCostly", true)));
+
+    org.hypertrace.core.documentstore.query.Query.QueryBuilder queryBuilder;
+    // query exists
+    queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
+    queryBuilder.setFilter(RelationalExpression.of(
+            IdentifierExpression.of("name"),
+            RelationalOperator.EXISTS,
+            ConstantExpression.of("true")));
+    Iterator<Document> results = collection.find(queryBuilder.build());
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(4, documents.size());
+
+    queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
+    queryBuilder.setFilter(RelationalExpression.of(
+            IdentifierExpression.of("junkKey"),
+            RelationalOperator.EXISTS,
+            ConstantExpression.of("true")));
+    results = collection.find(queryBuilder.build());
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(0, documents.size());
+
+    // queryBuilder not exists
+    queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
+    queryBuilder.setFilter(RelationalExpression.of(
+            IdentifierExpression.of("name"),
+            RelationalOperator.NOT_EXISTS,
+            ConstantExpression.of("true")));
+    results = collection.find(queryBuilder.build());
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(0, documents.size());
+
+    queryBuilder = org.hypertrace.core.documentstore.query.Query.builder();
+    queryBuilder.setFilter(RelationalExpression.of(
+            IdentifierExpression.of("junkKey"),
+            RelationalOperator.NOT_EXISTS,
+            ConstantExpression.of("true")));
+    results = collection.find(queryBuilder.build());
+    documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(4, documents.size());
 
     datastore.deleteCollection(COLLECTION_NAME);
   }
