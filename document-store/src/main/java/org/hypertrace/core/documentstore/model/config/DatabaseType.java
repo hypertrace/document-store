@@ -14,7 +14,7 @@ public enum DatabaseType {
 
   String type;
 
-  static DatabaseType getType(final String type) {
+  public static DatabaseType getType(final String type) {
     return Arrays.stream(DatabaseType.values())
         .filter(databaseType -> type.equalsIgnoreCase(databaseType.type))
         .findFirst()

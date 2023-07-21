@@ -8,7 +8,6 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCommandException;
-import com.mongodb.MongoCredential;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
@@ -20,7 +19,6 @@ import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
-import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.MongoConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,30 +51,14 @@ public class MongoDatastore implements Datastore {
   @Override
   public void init(final ConnectionConfig connectionConfig) {
     if (!(connectionConfig instanceof MongoConnectionConfig)) {
-      throw new IllegalArgumentException(String.format("Can't pass %s to %s", connectionConfig.getClass().getSimpleName(), this.getClass().getSimpleName()));
+      throw new IllegalArgumentException(
+          String.format(
+              "Can't pass %s to %s",
+              connectionConfig.getClass().getSimpleName(), this.getClass().getSimpleName()));
     }
 
     final MongoConnectionConfig mongoConfig = (MongoConnectionConfig) connectionConfig;
-    final ConnectionString connectionString =
-        new ConnectionString(
-            String.format(
-                "mongodb://%s:%d/%s",
-                mongoConfig.host(), mongoConfig.port(), mongoConfig.database()));
-    final ConnectionCredentials credentials = mongoConfig.credentials();
-
-    final MongoClientSettings settings =
-        MongoClientSettings.builder()
-            .applyConnectionString(connectionString)
-            .credential(
-                MongoCredential.createCredential(
-                    credentials.username(),
-                    credentials.authDatabase().orElseThrow(),
-                    credentials.password().toCharArray()))
-            .applicationName(mongoConfig.applicationName())
-            .retryWrites(true)
-            .build();
-    client = MongoClients.create(settings);
-
+    client = MongoClients.create(mongoConfig.toSettings());
     database = client.getDatabase(mongoConfig.database());
   }
 

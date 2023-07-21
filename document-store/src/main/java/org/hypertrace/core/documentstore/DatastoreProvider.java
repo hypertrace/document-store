@@ -1,68 +1,56 @@
 package org.hypertrace.core.documentstore;
 
+import static java.util.Map.entry;
+
 import com.typesafe.config.Config;
-import java.lang.reflect.Constructor;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
+import java.util.function.Supplier;
+import javax.annotation.Nonnull;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 
 public class DatastoreProvider {
-
-  private static final Map<String, Class<? extends Datastore>> registry = new ConcurrentHashMap<>();
-  private static final Map<DatabaseType, Class<? extends Datastore>> typeRegistry =
-      new ConcurrentHashMap<>();
-
-  static {
-    DatastoreProvider.register("Mongo", MongoDatastore.class);
-    DatastoreProvider.register("Postgres", PostgresDatastore.class);
-  }
+  private static final Map<DatabaseType, Supplier<Datastore>> DATASTORE_MAPPING =
+      Map.ofEntries(
+          entry(DatabaseType.MONGO, MongoDatastore::new),
+          entry(DatabaseType.POSTGRES, PostgresDatastore::new));
 
   /**
-   * Creates a DocDatastore, currently it creates a new client/connection on every invocation. We
-   * might add pooling later
-   *
-   * @return {@link Datastore}
+   * @deprecated Use {@link
+   *     DatastoreProvider#getDatastore(org.hypertrace.core.documentstore.model.config.ConnectionConfig)}
+   *     instead
    */
   @Deprecated
   public static Datastore getDatastore(String type, Config config) {
-
-    Class<? extends Datastore> clazz = registry.get(type.toLowerCase());
-    try {
-      Constructor<? extends Datastore> constructor = clazz.getConstructor();
-      Datastore instance = constructor.newInstance();
-      instance.init(config);
-      return instance;
-    } catch (Exception e) {
-      throw new IllegalArgumentException("Exception creating DocDatastore", e);
-    }
+    return Optional.ofNullable(type)
+        .map(DatabaseType::getType)
+        .map(DATASTORE_MAPPING::get)
+        .map(Supplier::get)
+        .map(store -> initialize(store, config))
+        .orElseThrow(() -> new IllegalArgumentException("Unknown database type: " + type));
   }
 
-  @Deprecated
-  public static Datastore getDatastore(final ConnectionConfig connectionConfig) {
-
-    final Class<? extends Datastore> clazz = typeRegistry.get(connectionConfig.type());
-    try {
-      Constructor<? extends Datastore> constructor = clazz.getConstructor();
-      Datastore instance = constructor.newInstance();
-      instance.init(connectionConfig);
-      return instance;
-    } catch (Exception e) {
-      throw new IllegalArgumentException("Exception creating DocDatastore", e);
-    }
+  @SuppressWarnings("unused")
+  public static Datastore getDatastore(@Nonnull final ConnectionConfig connectionConfig) {
+    return Optional.ofNullable(DATASTORE_MAPPING.get(connectionConfig.type()))
+        .map(Supplier::get)
+        .map(store -> initialize(store, connectionConfig))
+        .orElseThrow(
+            () ->
+                new IllegalArgumentException("Unknown database type: " + connectionConfig.type()));
   }
 
-  /**
-   * Register various possible implementations. Expects a constructor with no-args and an init
-   * method that takes in ParamsMap
-   */
-  public static void register(String type, Class<? extends Datastore> clazz) {
-    registry.put(type.toLowerCase(), clazz);
+  private static Datastore initialize(
+      final Datastore datastore, final ConnectionConfig connectionConfig) {
+    datastore.init(connectionConfig);
+    return datastore;
   }
 
-  public static void register(final DatabaseType type, final Class<? extends Datastore> clazz) {
-    typeRegistry.put(type, clazz);
+  private static Datastore initialize(final Datastore datastore, final Config config) {
+    datastore.init(config);
+    return datastore;
   }
 }

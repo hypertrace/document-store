@@ -1,29 +1,46 @@
 package org.hypertrace.core.documentstore.model.config;
 
 import com.google.common.base.Preconditions;
+import javax.annotation.Nonnegative;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.Value;
 import lombok.experimental.Accessors;
-import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
+import lombok.experimental.FieldDefaults;
+import lombok.experimental.NonFinal;
 
+@Value
+@NonFinal
+@Accessors(fluent = true)
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class ConnectionConfig {
+  @Nonnull DatabaseType type;
+  @Nonnull String host;
+  @Nonnull @Nonnegative Integer port;
+  @Nonnull String database;
+  @Nullable ConnectionCredentials credentials;
 
   private static final String DEFAULT_HOST = "localhost";
   private static final String DEFAULT_APP_NAME = "document-store";
 
-  public static ConnectionConfigBuilder newBuilder() {
+  public static ConnectionConfigBuilder builder() {
     return new ConnectionConfigBuilder();
   }
 
   @Getter
   @Setter
   @Accessors(fluent = true, chain = true)
+  @FieldDefaults(level = AccessLevel.PRIVATE)
   public static class ConnectionConfigBuilder {
     DatabaseType type;
     String host = DEFAULT_HOST;
     Integer port;
-    ConnectionCredentials credentials = ConnectionCredentials.builder().build();
     String database;
+    ConnectionCredentials credentials;
     String applicationName = DEFAULT_APP_NAME;
     ConnectionPoolConfig connectionPoolConfig;
 
@@ -41,23 +58,11 @@ public class ConnectionConfig {
 
       switch (type) {
         case MONGO:
-          return MongoConnectionConfig.builder()
-              .host(host)
-              .port(port)
-              .database(database)
-              .credentials(credentials)
-              .applicationName(applicationName)
-              .build();
+          return new MongoConnectionConfig(host, port, database, credentials, applicationName);
 
         case POSTGRES:
-          return PostgresConnectionConfig.builder()
-              .host(host)
-              .port(port)
-              .database(database)
-              .credentials(credentials)
-              .applicationName(applicationName)
-              .connectionPoolConfig(connectionPoolConfig)
-              .build();
+          return new PostgresConnectionConfig(
+              host, port, database, credentials, applicationName, connectionPoolConfig);
       }
 
       throw new IllegalArgumentException("Unsupported database type: " + type);

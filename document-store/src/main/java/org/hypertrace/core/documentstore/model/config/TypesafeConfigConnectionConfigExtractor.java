@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.model.config;
 
 import com.typesafe.config.Config;
-import lombok.NonNull;
+import javax.annotation.Nonnull;
 import lombok.Value;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig.ConnectionConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials.ConnectionCredentialsBuilder;
@@ -9,23 +9,23 @@ import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.Conne
 
 @Value
 public class TypesafeConfigConnectionConfigExtractor {
-  @NonNull Config config;
+  @Nonnull Config config;
   ConnectionConfigBuilder connectionConfigBuilder;
   ConnectionCredentialsBuilder connectionCredentialsBuilder;
   ConnectionPoolConfigBuilder connectionPoolConfigBuilder;
 
   private TypesafeConfigConnectionConfigExtractor(
-      @NonNull final Config config, @NonNull final String typeKey) {
+      @Nonnull final Config config, @Nonnull final String typeKey) {
     this.config = config.getConfig(typeKey);
-    this.connectionConfigBuilder = ConnectionConfig.newBuilder().type(config.getString(typeKey));
+    this.connectionConfigBuilder = ConnectionConfig.builder().type(config.getString(typeKey));
     this.connectionCredentialsBuilder = ConnectionCredentials.builder();
     this.connectionPoolConfigBuilder = ConnectionPoolConfig.builder();
   }
 
   private TypesafeConfigConnectionConfigExtractor(
-      @NonNull final Config config, @NonNull final DatabaseType type) {
+      @Nonnull final Config config, @Nonnull final DatabaseType type) {
     this.config = config;
-    this.connectionConfigBuilder = ConnectionConfig.newBuilder().type(type);
+    this.connectionConfigBuilder = ConnectionConfig.builder().type(type);
     this.connectionCredentialsBuilder = ConnectionCredentials.builder();
     this.connectionPoolConfigBuilder = ConnectionPoolConfig.builder();
   }
@@ -40,44 +40,56 @@ public class TypesafeConfigConnectionConfigExtractor {
     return new TypesafeConfigConnectionConfigExtractor(config, type);
   }
 
-  public TypesafeConfigConnectionConfigExtractor hostKey(@NonNull final String key) {
-    connectionConfigBuilder.host(config.getString(key));
+  public TypesafeConfigConnectionConfigExtractor hostKey(@Nonnull final String key) {
+    if (config.hasPath(key)) {
+      connectionConfigBuilder.host(config.getString(key));
+    }
     return this;
   }
 
-  public TypesafeConfigConnectionConfigExtractor portKey(@NonNull final String key) {
-    connectionConfigBuilder.port(config.getInt(key));
+  public TypesafeConfigConnectionConfigExtractor portKey(@Nonnull final String key) {
+    if (config.hasPath(key)) {
+      connectionConfigBuilder.port(config.getInt(key));
+    }
     return this;
   }
 
-  public TypesafeConfigConnectionConfigExtractor usernameKey(@NonNull final String key) {
-    connectionCredentialsBuilder.username(config.getString(key));
+  public TypesafeConfigConnectionConfigExtractor usernameKey(@Nonnull final String key) {
+    if (config.hasPath(key)) {
+      connectionCredentialsBuilder.username(config.getString(key));
+    }
     return this;
   }
 
-  public TypesafeConfigConnectionConfigExtractor passwordKey(@NonNull final String key) {
-    connectionCredentialsBuilder.password(config.getString(key));
+  public TypesafeConfigConnectionConfigExtractor passwordKey(@Nonnull final String key) {
+    if (config.hasPath(key)) {
+      connectionCredentialsBuilder.password(config.getString(key));
+    }
     return this;
   }
 
-  public TypesafeConfigConnectionConfigExtractor authDatabaseKey(@NonNull final String key) {
+  public TypesafeConfigConnectionConfigExtractor authDatabaseKey(@Nonnull final String key) {
     if (config.hasPath(key)) {
       connectionCredentialsBuilder.authDatabase(config.getString(key));
     }
     return this;
   }
 
-  public TypesafeConfigConnectionConfigExtractor databaseKey(@NonNull final String key) {
-    connectionConfigBuilder.database(config.getString(key));
+  public TypesafeConfigConnectionConfigExtractor databaseKey(@Nonnull final String key) {
+    if (config.hasPath(key)) {
+      connectionConfigBuilder.database(config.getString(key));
+    }
     return this;
   }
 
-  public TypesafeConfigConnectionConfigExtractor applicationNameKey(@NonNull final String key) {
-    connectionConfigBuilder.applicationName(config.getString(key));
+  public TypesafeConfigConnectionConfigExtractor applicationNameKey(@Nonnull final String key) {
+    if (config.hasPath(key)) {
+      connectionConfigBuilder.applicationName(config.getString(key));
+    }
     return this;
   }
 
-  public TypesafeConfigConnectionConfigExtractor poolMaxConnectionsKey(@NonNull final String key) {
+  public TypesafeConfigConnectionConfigExtractor poolMaxConnectionsKey(@Nonnull final String key) {
     if (config.hasPath(key)) {
       connectionPoolConfigBuilder.maxConnections(config.getInt(key));
     }
@@ -85,7 +97,7 @@ public class TypesafeConfigConnectionConfigExtractor {
   }
 
   public TypesafeConfigConnectionConfigExtractor poolConnectionAccessTimeoutKey(
-      @NonNull final String key) {
+      @Nonnull final String key) {
     if (config.hasPath(key)) {
       connectionPoolConfigBuilder.connectionAccessTimeout(config.getDuration(key));
     }
@@ -93,7 +105,7 @@ public class TypesafeConfigConnectionConfigExtractor {
   }
 
   public TypesafeConfigConnectionConfigExtractor poolConnectionSurrenderTimeoutKey(
-      @NonNull final String key) {
+      @Nonnull final String key) {
     if (config.hasPath(key)) {
       connectionPoolConfigBuilder.connectionSurrenderTimeout(config.getDuration(key));
     }

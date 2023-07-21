@@ -1,39 +1,81 @@
 package org.hypertrace.core.documentstore.model.config;
 
-import javax.annotation.Nonnegative;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Builder.Default;
+import static java.util.function.Predicate.not;
+import static org.hypertrace.core.documentstore.model.config.DatabaseType.POSTGRES;
+
+import java.util.Optional;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import lombok.EqualsAndHashCode;
-import lombok.NonNull;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
 
 @Value
-@Builder
 @Accessors(fluent = true)
 @EqualsAndHashCode(callSuper = true)
-@AllArgsConstructor(access = AccessLevel.PACKAGE)
 public class PostgresConnectionConfig extends ConnectionConfig {
-  @NonNull String host;
 
-  @Default @NonNull @Nonnegative Integer port = 5432;
+  private static final ConnectionCredentials DEFAULT_CREDENTIALS =
+      ConnectionCredentials.builder()
+          .username(PostgresDefaults.DEFAULT_USER)
+          .password(PostgresDefaults.DEFAULT_PASSWORD)
+          .build();
 
-  @Default @NonNull ConnectionCredentials credentials = ConnectionCredentials.builder()
-      .username(PostgresDefaults.DEFAULT_USER)
-      .password(PostgresDefaults.DEFAULT_PASSWORD)
-      .build();
+  private static final ConnectionPoolConfig DEFAULT_CONNECTION_POOL_CONFIG =
+      ConnectionPoolConfig.builder()
+          .maxConnections(PostgresDefaults.DEFAULT_MAX_CONNECTIONS)
+          .connectionAccessTimeout(PostgresDefaults.DEFAULT_MAX_WAIT_TIME)
+          .connectionSurrenderTimeout(PostgresDefaults.DEFAULT_REMOVE_ABANDONED_TIMEOUT)
+          .build();
 
-  @Default @NonNull String database = PostgresDefaults.DEFAULT_DB_NAME;
+  @Nonnull String applicationName;
+  @Nonnull ConnectionPoolConfig connectionPoolConfig;
 
-  @NonNull String applicationName;
+  public PostgresConnectionConfig(
+      @Nonnull final String host,
+      @Nullable final Integer port,
+      @Nullable final String database,
+      @Nullable final ConnectionCredentials credentials,
+      @Nonnull final String applicationName,
+      @Nullable final ConnectionPoolConfig connectionPoolConfig) {
+    super(
+        POSTGRES,
+        host,
+        getPortOrDefault(port),
+        getDatabaseOrDefault(database),
+        getCredentialsOrDefault(credentials));
+    this.applicationName = applicationName;
+    this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);
+  }
 
-  @NonNull @Default
-  ConnectionPoolConfig connectionPoolConfig = ConnectionPoolConfig.builder()
-      .maxConnections(PostgresDefaults.DEFAULT_MAX_CONNECTIONS)
-      .connectionAccessTimeout(PostgresDefaults.DEFAULT_MAX_WAIT_TIME)
-      .connectionSurrenderTimeout(PostgresDefaults.DEFAULT_REMOVE_ABANDONED_TIMEOUT)
-      .build();
+  public String toConnectionString() {
+    return String.format("jdbc:postgresql://%s:%d/%s", host(), port(), database());
+  }
+
+  @Nonnull
+  private static Integer getPortOrDefault(@Nullable final Integer port) {
+    return Optional.ofNullable(port).orElse(PostgresDefaults.DEFAULT_PORT);
+  }
+
+  @Nonnull
+  private static String getDatabaseOrDefault(@Nullable final String database) {
+    return Optional.ofNullable(database).orElse(PostgresDefaults.DEFAULT_DB_NAME);
+  }
+
+  @Nonnull
+  private static ConnectionCredentials getCredentialsOrDefault(
+      @Nullable final ConnectionCredentials credentials) {
+    return Optional.ofNullable(credentials)
+        .filter(not(ConnectionCredentials.builder().build()::equals))
+        .orElse(DEFAULT_CREDENTIALS);
+  }
+
+  @Nonnull
+  private ConnectionPoolConfig getConnectionPoolConfigOrDefault(
+      @Nullable final ConnectionPoolConfig connectionPoolConfig) {
+    return Optional.ofNullable(connectionPoolConfig)
+        .filter(not(ConnectionPoolConfig.builder().build()::equals))
+        .orElse(DEFAULT_CONNECTION_POOL_CONFIG);
+  }
 }

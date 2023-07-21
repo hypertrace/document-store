@@ -15,8 +15,8 @@ import org.apache.commons.dbcp2.PoolableConnectionFactory;
 import org.apache.commons.dbcp2.PoolingDataSource;
 import org.apache.commons.pool2.impl.AbandonedConfig;
 import org.apache.commons.pool2.impl.GenericObjectPool;
-import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
+import org.hypertrace.core.documentstore.model.config.PostgresConnectionConfig;
 
 class PostgresConnectionPool {
   private static final String VALIDATION_QUERY = "SELECT 1";
@@ -24,7 +24,7 @@ class PostgresConnectionPool {
 
   private final DataSource dataSource;
 
-  PostgresConnectionPool(final ConnectionConfig config) {
+  PostgresConnectionPool(final PostgresConnectionConfig config) {
     this.dataSource = createPooledDataSource(config);
   }
 
@@ -32,15 +32,11 @@ class PostgresConnectionPool {
     return dataSource.getConnection();
   }
 
-  private DataSource createPooledDataSource(final ConnectionConfig config) {
+  private DataSource createPooledDataSource(final PostgresConnectionConfig config) {
     final Properties properties = buildProperties(config);
 
-    final PostgresConnectionStringBuilder connectionStringBuilder =
-        new PostgresConnectionStringBuilder(config);
-
     final ConnectionFactory connectionFactory =
-        new DriverManagerConnectionFactory(
-            connectionStringBuilder.getConnectionString(), properties);
+        new DriverManagerConnectionFactory(config.toConnectionString(), properties);
     final PoolableConnectionFactory poolableConnectionFactory =
         new PoolableConnectionFactory(connectionFactory, null);
     final GenericObjectPool<PoolableConnection> connectionPool =

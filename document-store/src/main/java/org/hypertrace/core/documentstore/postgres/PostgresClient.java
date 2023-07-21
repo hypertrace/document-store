@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.PostgresConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,18 +23,22 @@ class PostgresClient {
   private final int maxConnectionAttempts;
   private final Duration connectionRetryBackoff;
   private final PostgresConnectionPool connectionPool;
-  private final ConnectionConfig connectionConfig;
-  private final PostgresConnectionStringBuilder connectionStringBuilder;
+  private final PostgresConnectionConfig connectionConfig;
 
   private int count = 0;
   private Connection connection;
 
   public PostgresClient(final ConnectionConfig config) {
-    this.connectionConfig = config;
-    this.connectionStringBuilder = new PostgresConnectionStringBuilder(config);
+    if (!(config instanceof PostgresConnectionConfig)) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot pass %s as config to %s",
+              config.getClass().getSimpleName(), this.getClass().getSimpleName()));
+    }
+    this.connectionConfig = (PostgresConnectionConfig) config;
     this.maxConnectionAttempts = PostgresDefaults.DEFAULT_MAX_CONNECTION_ATTEMPTS;
     this.connectionRetryBackoff = PostgresDefaults.DEFAULT_CONNECTION_RETRY_BACKOFF;
-    this.connectionPool = new PostgresConnectionPool(config);
+    this.connectionPool = new PostgresConnectionPool(connectionConfig);
   }
 
   public synchronized Connection getConnection() {
@@ -77,7 +82,7 @@ class PostgresClient {
     while (attempts < maxConnectionAttempts) {
       try {
         ++attempts;
-        final String connectionString = connectionStringBuilder.getConnectionString();
+        final String connectionString = connectionConfig.toConnectionString();
 
         log.info(
             "Attempting(attempt #{}) to open connection #{} to {}",
@@ -112,8 +117,7 @@ class PostgresClient {
   private void close() {
     if (connection != null) {
       try {
-        log.info(
-            "Closing connection #{} to {}", count, connectionStringBuilder.getConnectionString());
+        log.info("Closing connection #{} to {}", count, connectionConfig.toConnectionString());
         connection.close();
       } catch (SQLException sqle) {
         log.warn("Ignoring error closing connection", sqle);

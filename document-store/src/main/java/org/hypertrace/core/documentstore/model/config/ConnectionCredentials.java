@@ -1,11 +1,12 @@
 package org.hypertrace.core.documentstore.model.config;
 
 import java.util.Optional;
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.NonNull;
+import lombok.Builder.Default;
 import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
@@ -15,9 +16,9 @@ import lombok.experimental.Accessors;
 @Accessors(fluent = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ConnectionCredentials {
-  @NonNull String username;
+  @Default @Nonnull String username = "";
 
-  @NonNull @ToString.Exclude String password;
+  @Default @Nonnull @ToString.Exclude String password = "";
 
   @Nullable @Builder.Default String authDatabase = null;
 
