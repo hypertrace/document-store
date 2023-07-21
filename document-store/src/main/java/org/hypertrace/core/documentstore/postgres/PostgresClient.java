@@ -1,7 +1,5 @@
 package org.hypertrace.core.documentstore.postgres;
 
-import static org.hypertrace.core.documentstore.postgres.PostgresPropertiesBuilder.buildProperties;
-
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
@@ -90,7 +88,7 @@ class PostgresClient {
             count,
             connectionString);
         connection =
-            DriverManager.getConnection(connectionString, buildProperties(connectionConfig));
+            DriverManager.getConnection(connectionString, connectionConfig.buildProperties());
         return;
       } catch (SQLException sqle) {
         attempts++;

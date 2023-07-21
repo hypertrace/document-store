@@ -18,6 +18,6 @@ public enum DatabaseType {
     return Arrays.stream(DatabaseType.values())
         .filter(databaseType -> type.equalsIgnoreCase(databaseType.type))
         .findFirst()
-        .orElseThrow();
+        .orElseThrow(() -> new IllegalArgumentException("Invalid database type: " + type));
   }
 }

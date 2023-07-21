@@ -6,25 +6,27 @@ import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
 import java.util.Optional;
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.EqualsAndHashCode;
+import lombok.NonNull;
+import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoDefaults;
 
 @Value
 @Accessors(fluent = true)
+@ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class MongoConnectionConfig extends ConnectionConfig {
-  @Nonnull String applicationName;
+  @NonNull String applicationName;
 
   public MongoConnectionConfig(
-      @Nonnull final String host,
+      @NonNull final String host,
       @Nullable final Integer port,
       @Nullable final String database,
       @Nullable final ConnectionCredentials credentials,
-      @Nonnull final String applicationName) {
+      @NonNull final String applicationName) {
     super(
         MONGO,
         host,
@@ -57,12 +59,12 @@ public class MongoConnectionConfig extends ConnectionConfig {
     return settingsBuilder.build();
   }
 
-  @Nonnull
+  @NonNull
   private static Integer getPortOrDefault(@Nullable final Integer port) {
     return Optional.ofNullable(port).orElse(MongoDefaults.DEFAULT_PORT);
   }
 
-  @Nonnull
+  @NonNull
   private static String getDatabaseOrDefault(@Nullable final String database) {
     return Optional.ofNullable(database).orElse(MongoDefaults.DEFAULT_DB_NAME);
   }
@@ -70,9 +72,11 @@ public class MongoConnectionConfig extends ConnectionConfig {
   @Nullable
   private static ConnectionCredentials getCredentialsOrDefault(
       @Nullable final ConnectionCredentials credentials, @Nullable final String database) {
-    if (credentials == null
-        || ConnectionCredentials.builder().build().equals(credentials)
-        || credentials.authDatabase().isPresent()) {
+    if (credentials == null || ConnectionCredentials.builder().build().equals(credentials)) {
+      return null;
+    }
+
+    if (credentials.authDatabase().isPresent()) {
       return credentials;
     }
 

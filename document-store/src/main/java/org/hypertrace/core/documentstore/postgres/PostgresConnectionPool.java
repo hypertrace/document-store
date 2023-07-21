@@ -1,12 +1,10 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import static java.sql.Connection.TRANSACTION_READ_COMMITTED;
-import static org.hypertrace.core.documentstore.postgres.PostgresPropertiesBuilder.buildProperties;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
-import java.util.Properties;
 import javax.sql.DataSource;
 import org.apache.commons.dbcp2.ConnectionFactory;
 import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
@@ -33,10 +31,8 @@ class PostgresConnectionPool {
   }
 
   private DataSource createPooledDataSource(final PostgresConnectionConfig config) {
-    final Properties properties = buildProperties(config);
-
     final ConnectionFactory connectionFactory =
-        new DriverManagerConnectionFactory(config.toConnectionString(), properties);
+        new DriverManagerConnectionFactory(config.toConnectionString(), config.buildProperties());
     final PoolableConnectionFactory poolableConnectionFactory =
         new PoolableConnectionFactory(connectionFactory, null);
     final GenericObjectPool<PoolableConnection> connectionPool =

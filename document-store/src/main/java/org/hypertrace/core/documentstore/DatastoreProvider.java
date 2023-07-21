@@ -6,7 +6,7 @@ import com.typesafe.config.Config;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
-import javax.annotation.Nonnull;
+import lombok.NonNull;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
@@ -34,7 +34,7 @@ public class DatastoreProvider {
   }
 
   @SuppressWarnings("unused")
-  public static Datastore getDatastore(@Nonnull final ConnectionConfig connectionConfig) {
+  public static Datastore getDatastore(@NonNull final ConnectionConfig connectionConfig) {
     return Optional.ofNullable(DATASTORE_MAPPING.get(connectionConfig.type()))
         .map(Supplier::get)
         .map(store -> initialize(store, connectionConfig))

@@ -2,11 +2,11 @@ package org.hypertrace.core.documentstore.model.config;
 
 import com.google.common.base.Preconditions;
 import javax.annotation.Nonnegative;
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NonNull;
 import lombok.Setter;
 import lombok.Value;
 import lombok.experimental.Accessors;
@@ -18,14 +18,14 @@ import lombok.experimental.NonFinal;
 @Accessors(fluent = true)
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class ConnectionConfig {
-  @Nonnull DatabaseType type;
-  @Nonnull String host;
-  @Nonnull @Nonnegative Integer port;
-  @Nonnull String database;
-  @Nullable ConnectionCredentials credentials;
-
   private static final String DEFAULT_HOST = "localhost";
   private static final String DEFAULT_APP_NAME = "document-store";
+
+  @NonNull DatabaseType type;
+  @NonNull String host;
+  @NonNull @Nonnegative Integer port;
+  @NonNull String database;
+  @Nullable ConnectionCredentials credentials;
 
   public static ConnectionConfigBuilder builder() {
     return new ConnectionConfigBuilder();

@@ -4,15 +4,19 @@ import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.model.config.DatabaseType.POSTGRES;
 
 import java.util.Optional;
-import javax.annotation.Nonnull;
+import java.util.Properties;
 import javax.annotation.Nullable;
 import lombok.EqualsAndHashCode;
+import lombok.NonNull;
+import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
+import org.postgresql.PGProperty;
 
 @Value
 @Accessors(fluent = true)
+@ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class PostgresConnectionConfig extends ConnectionConfig {
 
@@ -29,15 +33,15 @@ public class PostgresConnectionConfig extends ConnectionConfig {
           .connectionSurrenderTimeout(PostgresDefaults.DEFAULT_REMOVE_ABANDONED_TIMEOUT)
           .build();
 
-  @Nonnull String applicationName;
-  @Nonnull ConnectionPoolConfig connectionPoolConfig;
+  @NonNull String applicationName;
+  @NonNull ConnectionPoolConfig connectionPoolConfig;
 
   public PostgresConnectionConfig(
-      @Nonnull final String host,
+      @NonNull final String host,
       @Nullable final Integer port,
       @Nullable final String database,
       @Nullable final ConnectionCredentials credentials,
-      @Nonnull final String applicationName,
+      @NonNull final String applicationName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig) {
     super(
         POSTGRES,
@@ -53,17 +57,31 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     return String.format("jdbc:postgresql://%s:%d/%s", host(), port(), database());
   }
 
-  @Nonnull
+  public Properties buildProperties() {
+    final Properties properties = new Properties();
+    final ConnectionCredentials credentials = credentials();
+
+    if (credentials != null) {
+      properties.setProperty(PGProperty.USER.getName(), credentials.username());
+      properties.setProperty(PGProperty.PASSWORD.getName(), credentials.password());
+    }
+
+    properties.setProperty(PGProperty.APPLICATION_NAME.getName(), applicationName());
+
+    return properties;
+  }
+
+  @NonNull
   private static Integer getPortOrDefault(@Nullable final Integer port) {
     return Optional.ofNullable(port).orElse(PostgresDefaults.DEFAULT_PORT);
   }
 
-  @Nonnull
+  @NonNull
   private static String getDatabaseOrDefault(@Nullable final String database) {
     return Optional.ofNullable(database).orElse(PostgresDefaults.DEFAULT_DB_NAME);
   }
 
-  @Nonnull
+  @NonNull
   private static ConnectionCredentials getCredentialsOrDefault(
       @Nullable final ConnectionCredentials credentials) {
     return Optional.ofNullable(credentials)
@@ -71,7 +89,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
         .orElse(DEFAULT_CREDENTIALS);
   }
 
-  @Nonnull
+  @NonNull
   private ConnectionPoolConfig getConnectionPoolConfigOrDefault(
       @Nullable final ConnectionPoolConfig connectionPoolConfig) {
     return Optional.ofNullable(connectionPoolConfig)
