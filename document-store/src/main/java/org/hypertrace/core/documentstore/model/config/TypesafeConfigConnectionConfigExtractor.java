@@ -5,8 +5,7 @@ import lombok.NonNull;
 import lombok.Value;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig.ConnectionConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials.ConnectionCredentialsBuilder;
-import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionPoolConfig;
-import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionPoolConfig.ConnectionPoolConfigBuilder;
+import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.ConnectionPoolConfigBuilder;
 
 @Value
 public class TypesafeConfigConnectionConfigExtractor {
@@ -20,7 +19,7 @@ public class TypesafeConfigConnectionConfigExtractor {
     this.config = config.getConfig(typeKey);
     this.connectionConfigBuilder = ConnectionConfig.builder().type(config.getString(typeKey));
     this.connectionCredentialsBuilder = ConnectionCredentials.builder();
-    this.connectionPoolConfigBuilder = PostgresConnectionPoolConfig.builder();
+    this.connectionPoolConfigBuilder = ConnectionPoolConfig.builder();
   }
 
   private TypesafeConfigConnectionConfigExtractor(
@@ -28,7 +27,7 @@ public class TypesafeConfigConnectionConfigExtractor {
     this.config = config;
     this.connectionConfigBuilder = ConnectionConfig.builder().type(type);
     this.connectionCredentialsBuilder = ConnectionCredentials.builder();
-    this.connectionPoolConfigBuilder = PostgresConnectionPoolConfig.builder();
+    this.connectionPoolConfigBuilder = ConnectionPoolConfig.builder();
   }
 
   public static TypesafeConfigConnectionConfigExtractor from(
