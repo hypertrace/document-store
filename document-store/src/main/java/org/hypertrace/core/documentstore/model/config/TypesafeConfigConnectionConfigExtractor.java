@@ -17,7 +17,7 @@ public class TypesafeConfigConnectionConfigExtractor {
   private TypesafeConfigConnectionConfigExtractor(
       @NonNull final Config config, @NonNull final String typeKey) {
     this.config = config.getConfig(typeKey);
-    this.connectionConfigBuilder = ConnectionConfig.builder().type(config.getString(typeKey));
+    this.connectionConfigBuilder = ConnectionConfig.newBuilder().type(config.getString(typeKey));
     this.connectionCredentialsBuilder = ConnectionCredentials.builder();
     this.connectionPoolConfigBuilder = ConnectionPoolConfig.builder();
   }
@@ -25,7 +25,7 @@ public class TypesafeConfigConnectionConfigExtractor {
   private TypesafeConfigConnectionConfigExtractor(
       @NonNull final Config config, @NonNull final DatabaseType type) {
     this.config = config;
-    this.connectionConfigBuilder = ConnectionConfig.builder().type(type);
+    this.connectionConfigBuilder = ConnectionConfig.newBuilder().type(type);
     this.connectionCredentialsBuilder = ConnectionCredentials.builder();
     this.connectionPoolConfigBuilder = ConnectionPoolConfig.builder();
   }

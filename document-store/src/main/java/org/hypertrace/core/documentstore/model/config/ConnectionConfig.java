@@ -1,38 +1,31 @@
 package org.hypertrace.core.documentstore.model.config;
 
 import com.google.common.base.Preconditions;
-import javax.annotation.Nonnegative;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.NonNull;
-import lombok.Value;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.experimental.Accessors;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
 
-@Value
-@Builder
-@Accessors(fluent = true)
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ConnectionConfig {
-  @NonNull DatabaseType type;
 
-  @NonNull String host;
+  private static final String DEFAULT_HOST = "localhost";
+  private static final String DEFAULT_APP_NAME = "document-store";
 
-  @NonNull @Nonnegative Integer port;
+  public static ConnectionConfigBuilder newBuilder() {
+    return new ConnectionConfigBuilder();
+  }
 
-  @NonNull ConnectionCredentials credentials;
-
-  @NonNull String database;
-
-  @NonNull String applicationName;
-
-  @NonNull @Builder.Default
-  ConnectionPoolConfig connectionPoolConfig = ConnectionPoolConfig.builder().build();
-
-  @SuppressWarnings("unused")
+  @Getter
+  @Setter
+  @Accessors(fluent = true, chain = true)
   public static class ConnectionConfigBuilder {
-    private final ConnectionPoolConfig connectionPoolConfig =
-        ConnectionPoolConfig.builder().build();
+    DatabaseType type;
+    String host = DEFAULT_HOST;
+    Integer port;
+    ConnectionCredentials credentials = ConnectionCredentials.builder().build();
+    String database;
+    String applicationName = DEFAULT_APP_NAME;
+    ConnectionPoolConfig connectionPoolConfig;
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;
@@ -44,19 +37,30 @@ public class ConnectionConfig {
     }
 
     public ConnectionConfig build() {
-      validateMongoProperties();
-      return new ConnectionConfig(
-          type, host, port, credentials, database, applicationName, connectionPoolConfig);
-    }
+      Preconditions.checkArgument(type != null, "The database type is mandatory");
 
-    private void validateMongoProperties() {
-      if (DatabaseType.MONGO != type) {
-        return;
+      switch (type) {
+        case MONGO:
+          return MongoConnectionConfig.builder()
+              .host(host)
+              .port(port)
+              .database(database)
+              .credentials(credentials)
+              .applicationName(applicationName)
+              .build();
+
+        case POSTGRES:
+          return PostgresConnectionConfig.builder()
+              .host(host)
+              .port(port)
+              .database(database)
+              .credentials(credentials)
+              .applicationName(applicationName)
+              .connectionPoolConfig(connectionPoolConfig)
+              .build();
       }
 
-      Preconditions.checkArgument(
-          credentials.authDatabase().isPresent(),
-          "Authentication database is mandatory for MongoDB");
+      throw new IllegalArgumentException("Unsupported database type: " + type);
     }
   }
 }

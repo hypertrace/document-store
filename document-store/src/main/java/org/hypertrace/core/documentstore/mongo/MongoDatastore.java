@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults.DEFAULT_DB_NAME;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -20,13 +21,13 @@ import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
+import org.hypertrace.core.documentstore.model.config.MongoConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MongoDatastore implements Datastore {
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoDatastore.class);
 
-  private static final String DEFAULT_DB_NAME = "default_db";
   private MongoClient client;
   private MongoDatabase database;
 
@@ -51,12 +52,17 @@ public class MongoDatastore implements Datastore {
 
   @Override
   public void init(final ConnectionConfig connectionConfig) {
+    if (!(connectionConfig instanceof MongoConnectionConfig)) {
+      throw new IllegalArgumentException(String.format("Can't pass %s to %s", connectionConfig.getClass().getSimpleName(), this.getClass().getSimpleName()));
+    }
+
+    final MongoConnectionConfig mongoConfig = (MongoConnectionConfig) connectionConfig;
     final ConnectionString connectionString =
         new ConnectionString(
             String.format(
                 "mongodb://%s:%d/%s",
-                connectionConfig.host(), connectionConfig.port(), connectionConfig.database()));
-    final ConnectionCredentials credentials = connectionConfig.credentials();
+                mongoConfig.host(), mongoConfig.port(), mongoConfig.database()));
+    final ConnectionCredentials credentials = mongoConfig.credentials();
 
     final MongoClientSettings settings =
         MongoClientSettings.builder()
@@ -66,12 +72,12 @@ public class MongoDatastore implements Datastore {
                     credentials.username(),
                     credentials.authDatabase().orElseThrow(),
                     credentials.password().toCharArray()))
-            .applicationName(connectionConfig.applicationName())
+            .applicationName(mongoConfig.applicationName())
             .retryWrites(true)
             .build();
     client = MongoClients.create(settings);
 
-    database = client.getDatabase(DEFAULT_DB_NAME);
+    database = client.getDatabase(mongoConfig.database());
   }
 
   @Override

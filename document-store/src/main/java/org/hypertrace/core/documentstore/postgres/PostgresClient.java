@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
