@@ -334,12 +334,12 @@ public class DocStoreTest {
     Query queryStringField = new Query();
     filter = new Filter(Op.GT, "name", "abc1");
     queryStringField.setFilter(filter);
-    results = collection.search(queryBooleanField);
+    results = collection.search(queryStringField);
     documents = new ArrayList<>();
     while (results.hasNext()) {
       documents.add(results.next());
     }
-    Assertions.assertEquals(2, documents.size());
+    Assertions.assertEquals(3, documents.size());
 
     datastore.deleteCollection(COLLECTION_NAME);
   }
@@ -1957,7 +1957,7 @@ public class DocStoreTest {
 
   @ParameterizedTest
   @MethodSource("databaseContextProvider")
-  public void testExistsFilter(String dataStoreName) throws IOException {
+  public void testExistsFilterWithBooleanRhs(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     collection.upsert(
@@ -1992,6 +1992,51 @@ public class DocStoreTest {
             ImmutablePair.of("city", null)));
     Query query = new Query();
     query.setFilter(new Filter(Op.EXISTS, "city", true));
+    Iterator<Document> results = collection.search(query);
+    List<Document> documents = new ArrayList<>();
+    while (results.hasNext()) {
+      documents.add(results.next());
+    }
+    Assertions.assertEquals(documents.size(), 2);
+  }
+
+  @ParameterizedTest
+  @MethodSource("databaseContextProvider")
+  public void testExistsFilterWithStringRhs(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    collection.upsert(
+        new SingleValueKey("default", "testKey1"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey1"),
+            ImmutablePair.of("name", "abc1"),
+            ImmutablePair.of("size", -10.2),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey2"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey2"),
+            ImmutablePair.of("name", "abc2"),
+            ImmutablePair.of("size", 10.4),
+            ImmutablePair.of("isCostly", false)));
+    collection.upsert(
+        new SingleValueKey("default", "testKey3"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey3"),
+            ImmutablePair.of("name", "abc3"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", "bangalore")));
+    collection.upsert(
+        new SingleValueKey("default", "testKey4"),
+        Utils.createDocument(
+            ImmutablePair.of("id", "testKey4"),
+            ImmutablePair.of("name", "abc4"),
+            ImmutablePair.of("size", 30),
+            ImmutablePair.of("isCostly", false),
+            ImmutablePair.of("city", null)));
+    Query query = new Query();
+    query.setFilter(new Filter(Op.EXISTS, "city", "true"));
     Iterator<Document> results = collection.search(query);
     List<Document> documents = new ArrayList<>();
     while (results.hasNext()) {

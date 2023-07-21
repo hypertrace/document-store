@@ -16,6 +16,7 @@ import static org.hypertrace.core.documentstore.expression.operators.LogicalOper
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
@@ -23,6 +24,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_CONTAINS;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.STARTS_WITH;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
@@ -2229,6 +2231,55 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
+    void testUpdateWithOnlyAddUpdateOperator(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate increment =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+      final SubDocumentUpdate incrementNested =
+          SubDocumentUpdate.builder()
+              .subDocument("itemCategory.item1.item2.item3.itemValue")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(increment, incrementNested);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator, "query/update_operator/add_updated1.json", 9);
+
+      final SubDocumentUpdate decrement =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(-1))
+              .build();
+      final SubDocumentUpdate decrementNested =
+          SubDocumentUpdate.builder()
+              .subDocument("itemCategory.item1.item2.item3.itemValue")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(-1))
+              .build();
+      final List<SubDocumentUpdate> new_updates = List.of(decrement, decrementNested);
+
+      final CloseableIterator<Document> iterator_new =
+          collection.bulkUpdate(
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator_new, "query/update_operator/add_updated2.json", 9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
     void testUpdateWithAllOperatorsOnObject(final String datastoreName) throws IOException {
       final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
       createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
@@ -2802,6 +2853,110 @@ public class DocStoreQueryV1Test {
           "query/bulk_update/updatable_collection_data_no_update.json",
           9);
     }
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testExistsOperatorWithFindUsingStringRhs(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props"), EXISTS, ConstantExpression.of("true")))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/exists_filter_response.json", 4);
+
+    testCountApi(dataStoreName, query, "query/exists_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testExistsOperatorWithFindUsingBooleanRhs(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props"), EXISTS, ConstantExpression.of(true)))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/exists_filter_response.json", 4);
+
+    testCountApi(dataStoreName, query, "query/exists_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testNotExistsOperatorWithFindUsingStringRhs(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props"), NOT_EXISTS, ConstantExpression.of("true")))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/not_exists_filter_response.json", 4);
+
+    testCountApi(dataStoreName, query, "query/not_exists_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testNotExistsOperatorWithFindUsingBooleanRhs(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props"), NOT_EXISTS, ConstantExpression.of(true)))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/not_exists_filter_response.json", 4);
+
+    testCountApi(dataStoreName, query, "query/not_exists_filter_response.json");
   }
 
   private static Collection getCollection(final String dataStoreName) {
