@@ -94,12 +94,13 @@ public interface Collection {
   BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) throws Exception;
 
   /**
-   * Search for documents matching the query. For advanced functionalities like selecting summing
-   * column values, sorting by expressions, etc., ref. {@link #find}
+   * Search for documents matching the query.
    *
+   * @deprecated Use {@link #aggregate(org.hypertrace.core.documentstore.query.Query)} instead
    * @param query filter to query matching documents
    * @return {@link CloseableIterator} of matching documents
    */
+  @Deprecated(forRemoval = true)
   CloseableIterator<Document> search(Query query);
 
   /**
@@ -107,8 +108,8 @@ public interface Collection {
    * #search(Query)}
    *
    * @param query The query definition to find
-   * @return {@link CloseableIterator} of matching documents @Deprecated use {@link
-   *     #aggregate(org.hypertrace.core.documentstore.query.Query)} instead
+   * @return {@link CloseableIterator} of matching documents
+   * @deprecated Use {@link #aggregate(org.hypertrace.core.documentstore.query.Query)} instead
    */
   @Deprecated(forRemoval = true)
   CloseableIterator<Document> find(final org.hypertrace.core.documentstore.query.Query query);

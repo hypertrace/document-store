@@ -54,7 +54,6 @@ public class PostgresDocStoreTest {
     postgres.start();
 
     connectionUrl = String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
-    DatastoreProvider.register("POSTGRES", PostgresDatastore.class);
 
     Map<String, String> postgresConfig = new HashMap<>();
     postgresConfig.putIfAbsent("url", connectionUrl);
