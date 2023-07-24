@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.time.Duration;
 import java.util.Properties;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.junit.jupiter.api.Test;
 import org.postgresql.PGProperty;
 

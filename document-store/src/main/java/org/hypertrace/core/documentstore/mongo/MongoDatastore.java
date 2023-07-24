@@ -19,7 +19,7 @@ import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
-import org.hypertrace.core.documentstore.model.config.MongoConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

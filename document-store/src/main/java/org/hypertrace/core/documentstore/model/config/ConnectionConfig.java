@@ -12,6 +12,8 @@ import lombok.Value;
 import lombok.experimental.Accessors;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
+import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 
 @Value
 @NonFinal

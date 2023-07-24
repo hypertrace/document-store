@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.model.config;
+package org.hypertrace.core.documentstore.model.config.mongo;
 
 import static org.hypertrace.core.documentstore.model.config.DatabaseType.MONGO;
 
@@ -12,7 +12,8 @@ import lombok.NonNull;
 import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
-import org.hypertrace.core.documentstore.model.config.mongo.MongoDefaults;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 
 @Value
 @Accessors(fluent = true)

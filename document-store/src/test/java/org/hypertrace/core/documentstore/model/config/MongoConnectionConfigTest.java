@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
+import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.junit.jupiter.api.Test;
 
 class MongoConnectionConfigTest {

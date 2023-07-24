@@ -14,7 +14,7 @@ import org.apache.commons.dbcp2.PoolingDataSource;
 import org.apache.commons.pool2.impl.AbandonedConfig;
 import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
-import org.hypertrace.core.documentstore.model.config.PostgresConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 
 class PostgresConnectionPool {
   private static final String VALIDATION_QUERY = "SELECT 1";

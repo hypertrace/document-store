@@ -1,4 +1,4 @@
-package org.hypertrace.core.documentstore.model.config;
+package org.hypertrace.core.documentstore.model.config.postgres;
 
 import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.model.config.DatabaseType.POSTGRES;
@@ -11,7 +11,9 @@ import lombok.NonNull;
 import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
-import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
+import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
 import org.postgresql.PGProperty;
 
 @Value

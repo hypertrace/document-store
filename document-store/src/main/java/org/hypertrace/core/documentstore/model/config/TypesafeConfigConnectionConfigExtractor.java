@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.model.config;
 
 import com.typesafe.config.Config;
+import java.util.Optional;
 import lombok.NonNull;
 import lombok.Value;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig.ConnectionConfigBuilder;
@@ -16,10 +17,14 @@ public class TypesafeConfigConnectionConfigExtractor {
 
   private TypesafeConfigConnectionConfigExtractor(
       @NonNull final Config config, @NonNull final String typeKey) {
-    this.config = config.getConfig(typeKey);
-    this.connectionConfigBuilder = ConnectionConfig.builder().type(config.getString(typeKey));
-    this.connectionCredentialsBuilder = ConnectionCredentials.builder();
-    this.connectionPoolConfigBuilder = ConnectionPoolConfig.builder();
+    this(
+        config,
+        Optional.of(typeKey)
+            .filter(config::hasPath)
+            .map(config::getString)
+            .map(DatabaseType::getType)
+            .orElseThrow(
+                () -> new IllegalArgumentException("Missing or invalid type key: " + typeKey)));
   }
 
   private TypesafeConfigConnectionConfigExtractor(
