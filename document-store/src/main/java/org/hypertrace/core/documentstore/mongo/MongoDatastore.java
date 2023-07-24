@@ -1,6 +1,5 @@
 package org.hypertrace.core.documentstore.mongo;
 
-import static org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults.DEFAULT_DB_NAME;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -20,6 +19,7 @@ import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.mongo.MongoDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +44,7 @@ public class MongoDatastore implements Datastore {
         MongoClientSettings.builder().applyConnectionString(connString).retryWrites(true).build();
     client = MongoClients.create(settings);
 
-    database = client.getDatabase(DEFAULT_DB_NAME);
+    database = client.getDatabase(MongoDefaults.DEFAULT_DB_NAME);
     return true;
   }
 

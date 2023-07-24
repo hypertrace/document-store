@@ -93,8 +93,8 @@ public class PostgresDocStoreTest {
 
     try {
       DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();
-      Assertions.assertEquals(metaData.getURL(), connectionUrl + database);
-      Assertions.assertEquals(metaData.getUserName(), user);
+      Assertions.assertEquals(connectionUrl + database, metaData.getURL());
+      Assertions.assertEquals(user, metaData.getUserName());
     } catch (SQLException e) {
       System.out.println("Exception executing init test with user and password");
       Assertions.fail();

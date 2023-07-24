@@ -20,6 +20,7 @@ import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.TypesafeConfigConnectionConfigExtractor;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,20 +35,35 @@ public class PostgresDatastore implements Datastore {
   @Override
   public boolean init(Config config) {
     try {
-      final ConnectionConfig connectionConfig =
-          TypesafeConfigConnectionConfigExtractor.from(config, DatabaseType.POSTGRES)
-              .hostKey("host")
-              .portKey("port")
-              .usernameKey("user")
-              .passwordKey("password")
-              .databaseKey("database")
-              .applicationNameKey("applicationName")
-              .poolMaxConnectionsKey("connectionPool.maxConnections")
-              .poolConnectionAccessTimeoutKey("connectionPool.maxWaitTime")
-              .poolConnectionSurrenderTimeoutKey("connectionPool.removeAbandonedTimeout")
-              .extract();
+      final PostgresConnectionConfig connectionConfig =
+          (PostgresConnectionConfig)
+              TypesafeConfigConnectionConfigExtractor.from(config, DatabaseType.POSTGRES)
+                  .hostKey("host")
+                  .portKey("port")
+                  .usernameKey("user")
+                  .passwordKey("password")
+                  .databaseKey("database")
+                  .applicationNameKey("applicationName")
+                  .poolMaxConnectionsKey("connectionPool.maxConnections")
+                  .poolConnectionAccessTimeoutKey("connectionPool.maxWaitTime")
+                  .poolConnectionSurrenderTimeoutKey("connectionPool.removeAbandonedTimeout")
+                  .extract();
 
-      init(connectionConfig);
+      init(
+          new PostgresConnectionConfig(
+              connectionConfig.host(),
+              connectionConfig.port(),
+              connectionConfig.database(),
+              connectionConfig.credentials(),
+              connectionConfig.applicationName(),
+              connectionConfig.connectionPoolConfig()) {
+            @Override
+            public String toConnectionString() {
+              return config.hasPath("url")
+                  ? config.getString("url") + connectionConfig.database()
+                  : super.toConnectionString();
+            }
+          });
       return true;
     } catch (IllegalArgumentException e) {
       throw new IllegalArgumentException(
