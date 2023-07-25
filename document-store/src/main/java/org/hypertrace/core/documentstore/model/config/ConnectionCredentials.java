@@ -20,7 +20,7 @@ public class ConnectionCredentials {
 
   @Default @NonNull @ToString.Exclude String password = "";
 
-  @Nullable @Builder.Default String authDatabase = null;
+  @Default @Nullable String authDatabase = null;
 
   @SuppressWarnings("ConstantConditions")
   public Optional<String> authDatabase() {
