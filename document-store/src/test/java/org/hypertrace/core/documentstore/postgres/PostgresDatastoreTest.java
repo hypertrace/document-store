@@ -9,6 +9,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.Map;
 import java.util.Properties;
+import org.hypertrace.core.documentstore.DatastoreProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -34,8 +35,8 @@ class PostgresDatastoreTest {
                 entry("maxConnectionAttempts", "7"),
                 entry("applicationName", "app1"),
                 entry("connectionRetryBackoff", "2 minutes")));
-    final PostgresDatastore datastore = new PostgresDatastore();
-    datastore.init(config);
+    PostgresDatastore datastore =
+        (PostgresDatastore) DatastoreProvider.getDatastore("postgres", config);
 
     final Properties properties = new Properties();
     properties.setProperty(PGProperty.USER.getName(), "u1");

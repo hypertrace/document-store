@@ -4,8 +4,6 @@ import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR
 
 import com.google.common.annotations.VisibleForTesting;
 import com.mongodb.BasicDBObject;
-import com.mongodb.ConnectionString;
-import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCommandException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
@@ -17,39 +15,21 @@ import java.util.Set;
 import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
+import org.hypertrace.core.documentstore.model.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
-import org.hypertrace.core.documentstore.model.config.mongo.MongoDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class MongoDatastore implements Datastore {
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoDatastore.class);
 
-  private MongoClient client;
-  private MongoDatabase database;
+  private final MongoClient client;
+  private final MongoDatabase database;
 
-  @Override
-  public boolean init(Config config) {
-    ConnectionString connString;
-    if (config.hasPath("url")) {
-      connString = new ConnectionString(config.getString("url"));
-    } else {
-      String hostName = config.getString("host");
-      int port = config.getInt("port");
-      connString = new ConnectionString("mongodb://" + hostName + ":" + port);
-    }
+  public MongoDatastore(final DatastoreConfig datastoreConfig) {
+    final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
 
-    MongoClientSettings settings =
-        MongoClientSettings.builder().applyConnectionString(connString).retryWrites(true).build();
-    client = MongoClients.create(settings);
-
-    database = client.getDatabase(MongoDefaults.DEFAULT_DB_NAME);
-    return true;
-  }
-
-  @Override
-  public void init(final ConnectionConfig connectionConfig) {
     if (!(connectionConfig instanceof MongoConnectionConfig)) {
       throw new IllegalArgumentException(
           String.format(
@@ -60,6 +40,11 @@ public class MongoDatastore implements Datastore {
     final MongoConnectionConfig mongoConfig = (MongoConnectionConfig) connectionConfig;
     client = MongoClients.create(mongoConfig.toSettings());
     database = client.getDatabase(mongoConfig.database());
+  }
+
+  @Override
+  public boolean init(Config config) {
+    throw new UnsupportedOperationException("Method marked for removal");
   }
 
   @Override

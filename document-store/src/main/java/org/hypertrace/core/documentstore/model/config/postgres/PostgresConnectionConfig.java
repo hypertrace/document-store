@@ -1,7 +1,6 @@
 package org.hypertrace.core.documentstore.model.config.postgres;
 
 import static java.util.function.Predicate.not;
-import static org.hypertrace.core.documentstore.model.config.DatabaseType.POSTGRES;
 
 import java.util.Optional;
 import java.util.Properties;
@@ -48,7 +47,6 @@ public class PostgresConnectionConfig extends ConnectionConfig {
       @NonNull final String applicationName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig) {
     super(
-        POSTGRES,
         host,
         getPortOrDefault(port),
         getDatabaseOrDefault(database),

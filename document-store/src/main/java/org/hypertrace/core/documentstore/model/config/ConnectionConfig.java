@@ -23,7 +23,6 @@ public class ConnectionConfig {
   private static final String DEFAULT_HOST = "localhost";
   private static final String DEFAULT_APP_NAME = "document-store";
 
-  @NonNull DatabaseType type;
   @NonNull String host;
   @NonNull @Nonnegative Integer port;
   @NonNull String database;

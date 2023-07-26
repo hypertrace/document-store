@@ -11,8 +11,6 @@ public interface Datastore {
   @Deprecated(forRemoval = true)
   boolean init(Config datastoreConfig);
 
-  void init(final ConnectionConfig connectionConfig);
-
   Set<String> listCollections();
 
   boolean createCollection(String collectionName, Map<String, String> options);

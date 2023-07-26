@@ -78,7 +78,6 @@ public class PostgresDocStoreTest {
 
   @Test
   public void testInitWithDatabase() {
-    PostgresDatastore datastore = new PostgresDatastore();
     Properties properties = new Properties();
     String user = "postgres";
     String password = "postgres";
@@ -89,7 +88,8 @@ public class PostgresDocStoreTest {
     properties.put("password", password);
     properties.put("database", database);
     Config config = ConfigFactory.parseProperties(properties);
-    datastore.init(config);
+    PostgresDatastore datastore =
+        (PostgresDatastore) DatastoreProvider.getDatastore("mongo", config);
 
     try {
       DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();

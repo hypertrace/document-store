@@ -1,7 +1,5 @@
 package org.hypertrace.core.documentstore.model.config.mongo;
 
-import static org.hypertrace.core.documentstore.model.config.DatabaseType.MONGO;
-
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
@@ -31,7 +29,6 @@ public class MongoConnectionConfig extends ConnectionConfig {
       @Nullable final ConnectionCredentials credentials,
       @NonNull final String applicationName) {
     super(
-        MONGO,
         host,
         getPortOrDefault(port),
         getDatabaseOrDefault(database),
