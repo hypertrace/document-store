@@ -52,9 +52,4 @@ public class DatastoreProvider {
         .orElseThrow(
             () -> new IllegalArgumentException("Unknown database type: " + datastoreConfig.type()));
   }
-
-  private static Datastore initialize(final Datastore datastore, final Config config) {
-    datastore.init(config);
-    return datastore;
-  }
 }
