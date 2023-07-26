@@ -5,7 +5,6 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCU
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
-import com.typesafe.config.Config;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
@@ -45,11 +44,6 @@ public class PostgresDatastore implements Datastore {
     } catch (final SQLException e) {
       throw new RuntimeException("PostgresClient SQLException", e);
     }
-  }
-
-  @Override
-  public boolean init(Config config) {
-    throw new UnsupportedOperationException("Method marked for removal");
   }
 
   /** @return Returns Tables for a particular database */

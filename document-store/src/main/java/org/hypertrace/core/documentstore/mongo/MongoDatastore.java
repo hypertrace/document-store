@@ -8,7 +8,6 @@ import com.mongodb.MongoCommandException;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoClients;
 import com.mongodb.client.MongoDatabase;
-import com.typesafe.config.Config;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -40,11 +39,6 @@ public class MongoDatastore implements Datastore {
     final MongoConnectionConfig mongoConfig = (MongoConnectionConfig) connectionConfig;
     client = MongoClients.create(mongoConfig.toSettings());
     database = client.getDatabase(mongoConfig.database());
-  }
-
-  @Override
-  public boolean init(Config config) {
-    throw new UnsupportedOperationException("Method marked for removal");
   }
 
   @Override
