@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
 
 @Getter
 @Setter

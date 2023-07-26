@@ -44,8 +44,6 @@ import org.bson.codecs.configuration.CodecConfigurationException;
 import org.hypertrace.core.documentstore.Filter.Op;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
-import org.hypertrace.core.documentstore.mongo.MongoDatastore;
-import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread;
 import org.hypertrace.core.documentstore.utils.CreateUpdateTestThread.Operation;
 import org.hypertrace.core.documentstore.utils.Utils;
@@ -78,8 +76,6 @@ public class DocStoreTest {
             .waitingFor(Wait.forListeningPort());
     mongo.start();
 
-    DatastoreProvider.register("MONGO", MongoDatastore.class);
-
     Map<String, String> mongoConfig = new HashMap<>();
     mongoConfig.putIfAbsent("host", "localhost");
     mongoConfig.putIfAbsent("port", mongo.getMappedPort(27017).toString());
@@ -98,7 +94,6 @@ public class DocStoreTest {
 
     String postgresConnectionUrl =
         String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
-    DatastoreProvider.register("POSTGRES", PostgresDatastore.class);
 
     Map<String, String> postgresConfig = new HashMap<>();
     postgresConfig.putIfAbsent("url", postgresConnectionUrl);

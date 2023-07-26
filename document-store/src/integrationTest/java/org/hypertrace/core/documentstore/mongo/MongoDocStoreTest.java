@@ -80,8 +80,6 @@ public class MongoDocStoreTest {
             .waitingFor(Wait.forListeningPort());
     mongo.start();
 
-    DatastoreProvider.register("MONGO", MongoDatastore.class);
-
     Map<String, String> mongoConfig = new HashMap<>();
     mongoConfig.putIfAbsent("host", "localhost");
     mongoConfig.putIfAbsent("port", mongo.getMappedPort(27017).toString());

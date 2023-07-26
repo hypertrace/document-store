@@ -1,45 +1,55 @@
 package org.hypertrace.core.documentstore;
 
+import static java.util.Map.entry;
+
 import com.typesafe.config.Config;
-import java.lang.reflect.Constructor;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import lombok.NonNull;
+import org.hypertrace.core.documentstore.TypesafeDatastoreConfigAdapter.MongoTypesafeDatastoreConfigAdapter;
+import org.hypertrace.core.documentstore.TypesafeDatastoreConfigAdapter.PostgresTypesafeDatastoreConfigAdapter;
+import org.hypertrace.core.documentstore.model.DatastoreConfig;
+import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 
 public class DatastoreProvider {
+  private static final Map<DatabaseType, Function<DatastoreConfig, Datastore>> DATASTORE_MAPPING =
+      Map.ofEntries(
+          entry(DatabaseType.MONGO, MongoDatastore::new),
+          entry(DatabaseType.POSTGRES, PostgresDatastore::new));
 
-  private static Map<String, Class<? extends Datastore>> registry = new ConcurrentHashMap<>();
+  // NOTE: The adapter mapping is only for maintaining backward compatibility.
+  // Going forward, we SHOULD NOT be adding more adapters here.
+  // Instead, we should migrate the client code to be invoking the non-deprecated methods.
+  private static final Map<DatabaseType, Supplier<TypesafeDatastoreConfigAdapter>> ADAPTER_MAP =
+      Map.ofEntries(
+          entry(DatabaseType.MONGO, MongoTypesafeDatastoreConfigAdapter::new),
+          entry(DatabaseType.POSTGRES, PostgresTypesafeDatastoreConfigAdapter::new));
 
-  static {
-    DatastoreProvider.register("Mongo", MongoDatastore.class);
-    DatastoreProvider.register("Postgres", PostgresDatastore.class);
-  }
-
-  /**
-   * Creates a DocDatastore, currently it creates a new client/connection on every invocation. We
-   * might add pooling later
-   *
-   * @return {@link Datastore}
-   */
+  /** @deprecated Use {@link DatastoreProvider#getDatastore(DatastoreConfig)} instead */
+  @Deprecated
   public static Datastore getDatastore(String type, Config config) {
-
-    Class<? extends Datastore> clazz = registry.get(type.toLowerCase());
-    try {
-      Constructor<? extends Datastore> constructor = clazz.getConstructor();
-      Datastore instance = constructor.newInstance();
-      instance.init(config);
-      return instance;
-    } catch (Exception e) {
-      throw new IllegalArgumentException("Exception creating DocDatastore", e);
-    }
+    return Optional.ofNullable(type)
+        .map(DatabaseType::getType)
+        .map(ADAPTER_MAP::get)
+        .map(Supplier::get)
+        .map(adapter -> adapter.convert(config))
+        .map(DatastoreProvider::getDatastore)
+        .orElseThrow(
+            () ->
+                new IllegalArgumentException(
+                    "No adapter found for %s. Please migrate to invoke the non-deprecated methods"
+                        + type));
   }
 
-  /**
-   * Register various possible implementations. Expects a constructor with no-args and an init
-   * method that takes in ParamsMap
-   */
-  public static void register(String type, Class<? extends Datastore> clazz) {
-    registry.put(type.toLowerCase(), clazz);
+  @SuppressWarnings("unused")
+  public static Datastore getDatastore(@NonNull final DatastoreConfig datastoreConfig) {
+    return Optional.ofNullable(DATASTORE_MAPPING.get(datastoreConfig.type()))
+        .map(constructor -> constructor.apply(datastoreConfig))
+        .orElseThrow(
+            () -> new IllegalArgumentException("Unknown database type: " + datastoreConfig.type()));
   }
 }

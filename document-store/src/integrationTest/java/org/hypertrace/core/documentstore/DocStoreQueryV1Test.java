@@ -77,8 +77,6 @@ import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
-import org.hypertrace.core.documentstore.mongo.MongoDatastore;
-import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -121,8 +119,6 @@ public class DocStoreQueryV1Test {
             .waitingFor(Wait.forListeningPort());
     mongo.start();
 
-    DatastoreProvider.register("MONGO", MongoDatastore.class);
-
     Map<String, String> mongoConfig = new HashMap<>();
     mongoConfig.putIfAbsent("host", "localhost");
     mongoConfig.putIfAbsent("port", mongo.getMappedPort(27017).toString());
@@ -141,7 +137,6 @@ public class DocStoreQueryV1Test {
 
     String postgresConnectionUrl =
         String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
-    DatastoreProvider.register("POSTGRES", PostgresDatastore.class);
 
     Map<String, String> postgresConfig = new HashMap<>();
     postgresConfig.putIfAbsent("url", postgresConnectionUrl);

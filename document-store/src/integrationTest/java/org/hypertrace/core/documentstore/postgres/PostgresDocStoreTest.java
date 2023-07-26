@@ -54,7 +54,6 @@ public class PostgresDocStoreTest {
     postgres.start();
 
     connectionUrl = String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
-    DatastoreProvider.register("POSTGRES", PostgresDatastore.class);
 
     Map<String, String> postgresConfig = new HashMap<>();
     postgresConfig.putIfAbsent("url", connectionUrl);
@@ -79,7 +78,6 @@ public class PostgresDocStoreTest {
 
   @Test
   public void testInitWithDatabase() {
-    PostgresDatastore datastore = new PostgresDatastore();
     Properties properties = new Properties();
     String user = "postgres";
     String password = "postgres";
@@ -90,12 +88,13 @@ public class PostgresDocStoreTest {
     properties.put("password", password);
     properties.put("database", database);
     Config config = ConfigFactory.parseProperties(properties);
-    datastore.init(config);
+    PostgresDatastore datastore =
+        (PostgresDatastore) DatastoreProvider.getDatastore("postgres", config);
 
     try {
       DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();
-      Assertions.assertEquals(metaData.getURL(), connectionUrl + database);
-      Assertions.assertEquals(metaData.getUserName(), user);
+      Assertions.assertEquals(connectionUrl + database, metaData.getURL());
+      Assertions.assertEquals(user, metaData.getUserName());
     } catch (SQLException e) {
       System.out.println("Exception executing init test with user and password");
       Assertions.fail();

@@ -13,6 +13,8 @@ import org.apache.commons.dbcp2.PoolableConnectionFactory;
 import org.apache.commons.dbcp2.PoolingDataSource;
 import org.apache.commons.pool2.impl.AbandonedConfig;
 import org.apache.commons.pool2.impl.GenericObjectPool;
+import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 
 class PostgresConnectionPool {
   private static final String VALIDATION_QUERY = "SELECT 1";
@@ -20,7 +22,7 @@ class PostgresConnectionPool {
 
   private final DataSource dataSource;
 
-  PostgresConnectionPool(final PostgresConfig config) {
+  PostgresConnectionPool(final PostgresConnectionConfig config) {
     this.dataSource = createPooledDataSource(config);
   }
 
@@ -28,16 +30,15 @@ class PostgresConnectionPool {
     return dataSource.getConnection();
   }
 
-  private DataSource createPooledDataSource(final PostgresConfig config) {
+  private DataSource createPooledDataSource(final PostgresConnectionConfig config) {
     final ConnectionFactory connectionFactory =
-        new DriverManagerConnectionFactory(
-            config.getConnectionString(), config.getUser(), config.getPassword());
+        new DriverManagerConnectionFactory(config.toConnectionString(), config.buildProperties());
     final PoolableConnectionFactory poolableConnectionFactory =
         new PoolableConnectionFactory(connectionFactory, null);
     final GenericObjectPool<PoolableConnection> connectionPool =
         new GenericObjectPool<>(poolableConnectionFactory);
 
-    final PostgresConnectionPoolConfig poolConfig = config.getConnectionPool();
+    final ConnectionPoolConfig poolConfig = config.connectionPoolConfig();
     setPoolProperties(connectionPool, poolConfig);
     setFactoryProperties(poolableConnectionFactory, connectionPool);
 
@@ -46,16 +47,16 @@ class PostgresConnectionPool {
 
   private void setPoolProperties(
       final GenericObjectPool<PoolableConnection> connectionPool,
-      final PostgresConnectionPoolConfig poolConfig) {
+      final ConnectionPoolConfig poolConfig) {
     final AbandonedConfig abandonedConfig = getAbandonedConfig(poolConfig);
-    final int maxConnections = poolConfig.getMaxConnections();
+    final int maxConnections = poolConfig.maxConnections();
     connectionPool.setMaxTotal(maxConnections);
     // max idle connections are 20% of max connections
     connectionPool.setMaxIdle(getPercentOf(20, maxConnections));
     // min idle connections are 10% of max connections
     connectionPool.setMinIdle(getPercentOf(10, maxConnections));
     connectionPool.setBlockWhenExhausted(true);
-    connectionPool.setMaxWaitMillis(poolConfig.getMaxWaitTime().toMillis());
+    connectionPool.setMaxWaitMillis(poolConfig.connectionAccessTimeout().toMillis());
     connectionPool.setAbandonedConfig(abandonedConfig);
   }
 
@@ -71,12 +72,12 @@ class PostgresConnectionPool {
     poolableConnectionFactory.setPoolStatements(false);
   }
 
-  private AbandonedConfig getAbandonedConfig(PostgresConnectionPoolConfig poolConfig) {
+  private AbandonedConfig getAbandonedConfig(final ConnectionPoolConfig poolConfig) {
     final AbandonedConfig abandonedConfig = new AbandonedConfig();
     abandonedConfig.setLogAbandoned(true);
     abandonedConfig.setRemoveAbandonedOnBorrow(true);
     abandonedConfig.setRequireFullStackTrace(true);
-    abandonedConfig.setRemoveAbandonedTimeout(poolConfig.getRemoveAbandonedTimeout());
+    abandonedConfig.setRemoveAbandonedTimeout(poolConfig.connectionSurrenderTimeout());
     return abandonedConfig;
   }
 

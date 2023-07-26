@@ -5,8 +5,6 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.DOCU
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.UPDATED_AT;
 
-import com.typesafe.config.Config;
-import com.typesafe.config.ConfigBeanFactory;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
@@ -16,8 +14,11 @@ import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import lombok.NonNull;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
+import org.hypertrace.core.documentstore.model.DatastoreConfig;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,24 +27,23 @@ public class PostgresDatastore implements Datastore {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresDatastore.class);
 
-  private PostgresClient client;
-  private String database;
+  private final PostgresClient client;
+  private final String database;
 
-  @Override
-  public boolean init(Config config) {
+  public PostgresDatastore(@NonNull final DatastoreConfig datastoreConfig) {
+    final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
     try {
       DriverManager.registerDriver(new org.postgresql.Driver());
-      final PostgresConfig postgresConfig = ConfigBeanFactory.create(config, PostgresConfig.class);
 
-      client = new PostgresClient(postgresConfig);
-      database = postgresConfig.getDatabase();
-    } catch (IllegalArgumentException e) {
+      client = new PostgresClient(connectionConfig);
+      database = connectionConfig.database();
+    } catch (final IllegalArgumentException e) {
       throw new IllegalArgumentException(
-          String.format("Unable to instantiate PostgresClient with config:%s", config), e);
-    } catch (SQLException e) {
+          String.format("Unable to instantiate PostgresClient with config:%s", connectionConfig),
+          e);
+    } catch (final SQLException e) {
       throw new RuntimeException("PostgresClient SQLException", e);
     }
-    return true;
   }
 
   /** @return Returns Tables for a particular database */
