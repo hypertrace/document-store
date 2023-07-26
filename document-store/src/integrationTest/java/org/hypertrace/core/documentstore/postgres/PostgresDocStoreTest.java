@@ -89,7 +89,7 @@ public class PostgresDocStoreTest {
     properties.put("database", database);
     Config config = ConfigFactory.parseProperties(properties);
     PostgresDatastore datastore =
-        (PostgresDatastore) DatastoreProvider.getDatastore("mongo", config);
+        (PostgresDatastore) DatastoreProvider.getDatastore("postgres", config);
 
     try {
       DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();
