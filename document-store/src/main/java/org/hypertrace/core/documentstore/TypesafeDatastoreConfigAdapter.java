@@ -4,7 +4,7 @@ import com.mongodb.ConnectionString;
 import com.typesafe.config.Config;
 import org.hypertrace.core.documentstore.model.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
-import org.hypertrace.core.documentstore.model.config.TypesafeConfigConnectionConfigExtractor;
+import org.hypertrace.core.documentstore.model.config.TypesafeConfigDatastoreConfigExtractor;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 
@@ -18,7 +18,7 @@ interface TypesafeDatastoreConfigAdapter {
     public DatastoreConfig convert(final Config config) {
       final MongoConnectionConfig connectionConfig =
           (MongoConnectionConfig)
-              TypesafeConfigConnectionConfigExtractor.from(config, DatabaseType.MONGO)
+              TypesafeConfigDatastoreConfigExtractor.from(config, DatabaseType.MONGO)
                   .hostKey("host")
                   .portKey("port")
                   .usernameKey("user")
@@ -26,7 +26,8 @@ interface TypesafeDatastoreConfigAdapter {
                   .databaseKey("database")
                   .authDatabaseKey("authDatabase")
                   .applicationNameKey("applicationName")
-                  .extract();
+                  .extract()
+                  .connectionConfig();
 
       final MongoConnectionConfig overridingConnectionConfig =
           new MongoConnectionConfig(
@@ -60,7 +61,7 @@ interface TypesafeDatastoreConfigAdapter {
     public DatastoreConfig convert(final Config config) {
       final PostgresConnectionConfig connectionConfig =
           (PostgresConnectionConfig)
-              TypesafeConfigConnectionConfigExtractor.from(config, DatabaseType.POSTGRES)
+              TypesafeConfigDatastoreConfigExtractor.from(config, DatabaseType.POSTGRES)
                   .hostKey("host")
                   .portKey("port")
                   .usernameKey("user")
@@ -70,7 +71,8 @@ interface TypesafeDatastoreConfigAdapter {
                   .poolMaxConnectionsKey("connectionPool.maxConnections")
                   .poolConnectionAccessTimeoutKey("connectionPool.maxWaitTime")
                   .poolConnectionSurrenderTimeoutKey("connectionPool.removeAbandonedTimeout")
-                  .extract();
+                  .extract()
+                  .connectionConfig();
 
       final PostgresConnectionConfig overridingConnectionConfig =
           new PostgresConnectionConfig(
