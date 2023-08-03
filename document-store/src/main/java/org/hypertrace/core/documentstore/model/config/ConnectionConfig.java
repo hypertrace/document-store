@@ -1,13 +1,17 @@
 package org.hypertrace.core.documentstore.model.config;
 
+import static java.util.Collections.unmodifiableList;
+
 import com.google.common.base.Preconditions;
-import javax.annotation.Nonnegative;
+import java.util.ArrayList;
+import java.util.List;
 import javax.annotation.Nullable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NonNull;
 import lombok.Setter;
+import lombok.Singular;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import lombok.experimental.FieldDefaults;
@@ -20,11 +24,9 @@ import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectio
 @Accessors(fluent = true)
 @AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class ConnectionConfig {
-  private static final String DEFAULT_HOST = "localhost";
   private static final String DEFAULT_APP_NAME = "document-store";
 
-  @NonNull String host;
-  @NonNull @Nonnegative Integer port;
+  @Singular @NonNull List<@NonNull Endpoint> endpoints;
   @NonNull String database;
   @Nullable ConnectionCredentials credentials;
 
@@ -38,11 +40,11 @@ public class ConnectionConfig {
   @FieldDefaults(level = AccessLevel.PRIVATE)
   public static class ConnectionConfigBuilder {
     DatabaseType type;
-    String host = DEFAULT_HOST;
-    Integer port;
+    List<Endpoint> endpoints = new ArrayList<>();
     String database;
     ConnectionCredentials credentials;
     String applicationName = DEFAULT_APP_NAME;
+    String replicaSet;
     ConnectionPoolConfig connectionPoolConfig;
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
@@ -54,16 +56,26 @@ public class ConnectionConfig {
       return type(DatabaseType.getType(type));
     }
 
+    public ConnectionConfigBuilder addEndpoint(final Endpoint endpoint) {
+      endpoints.add(endpoint);
+      return this;
+    }
+
     public ConnectionConfig build() {
       Preconditions.checkArgument(type != null, "The database type is mandatory");
 
       switch (type) {
         case MONGO:
-          return new MongoConnectionConfig(host, port, database, credentials, applicationName);
+          return new MongoConnectionConfig(
+              unmodifiableList(endpoints), database, credentials, applicationName, replicaSet);
 
         case POSTGRES:
           return new PostgresConnectionConfig(
-              host, port, database, credentials, applicationName, connectionPoolConfig);
+              unmodifiableList(endpoints),
+              database,
+              credentials,
+              applicationName,
+              connectionPoolConfig);
       }
 
       throw new IllegalArgumentException("Unsupported database type: " + type);
