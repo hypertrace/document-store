@@ -40,14 +40,14 @@ class TypesafeConfigConnectionConfigExtractorTest {
   void testMandatoryFields() {
     assertThrows(
         NullPointerException.class,
-        () -> TypesafeConfigConnectionConfigExtractor.from(null, "type"));
+        () -> TypesafeConfigDatastoreConfigExtractor.from(null, "type"));
     assertThrows(
         NullPointerException.class,
-        () -> TypesafeConfigConnectionConfigExtractor.from(ConfigFactory.empty(), (String) null));
+        () -> TypesafeConfigDatastoreConfigExtractor.from(ConfigFactory.empty(), (String) null));
     assertThrows(
         NullPointerException.class,
         () ->
-            TypesafeConfigConnectionConfigExtractor.from(
+            TypesafeConfigDatastoreConfigExtractor.from(
                 ConfigFactory.empty(), (DatabaseType) null));
   }
 
@@ -55,11 +55,11 @@ class TypesafeConfigConnectionConfigExtractorTest {
   void testInvalidTypeKey() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> TypesafeConfigConnectionConfigExtractor.from(ConfigFactory.empty(), TYPE_KEY));
+        () -> TypesafeConfigDatastoreConfigExtractor.from(ConfigFactory.empty(), TYPE_KEY));
     assertThrows(
         IllegalArgumentException.class,
         () ->
-            TypesafeConfigConnectionConfigExtractor.from(
+            TypesafeConfigDatastoreConfigExtractor.from(
                 ConfigFactory.parseMap(Map.of(TYPE_KEY, "invalid")), TYPE_KEY));
   }
 
@@ -67,7 +67,9 @@ class TypesafeConfigConnectionConfigExtractorTest {
   @EnumSource(value = DatabaseType.class)
   void testAllEmpty(final DatabaseType type) {
     final ConnectionConfig config =
-        TypesafeConfigConnectionConfigExtractor.from(ConfigFactory.empty(), type).extract();
+        TypesafeConfigDatastoreConfigExtractor.from(ConfigFactory.empty(), type)
+            .extract()
+            .connectionConfig();
     final ConnectionConfig expected = ConnectionConfig.builder().type(type).build();
 
     assertEquals(expected, config);
@@ -76,7 +78,7 @@ class TypesafeConfigConnectionConfigExtractorTest {
   @Test
   void testBuildMongo() {
     final ConnectionConfig config =
-        TypesafeConfigConnectionConfigExtractor.from(buildConfigMap(), DatabaseType.MONGO)
+        TypesafeConfigDatastoreConfigExtractor.from(buildConfigMap(), DatabaseType.MONGO)
             .hostKey(HOST_KEY)
             .portKey(PORT_KEY)
             .databaseKey(DATABASE_KEY)
@@ -87,7 +89,8 @@ class TypesafeConfigConnectionConfigExtractorTest {
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
-            .extract();
+            .extract()
+            .connectionConfig();
     final ConnectionConfig expected =
         ConnectionConfig.builder()
             .type(DatabaseType.MONGO)
@@ -109,7 +112,7 @@ class TypesafeConfigConnectionConfigExtractorTest {
   @Test
   void testBuildPostgres() {
     final ConnectionConfig config =
-        TypesafeConfigConnectionConfigExtractor.from(buildConfigMap(), DatabaseType.POSTGRES)
+        TypesafeConfigDatastoreConfigExtractor.from(buildConfigMap(), DatabaseType.POSTGRES)
             .hostKey(HOST_KEY)
             .portKey(PORT_KEY)
             .databaseKey(DATABASE_KEY)
@@ -120,7 +123,8 @@ class TypesafeConfigConnectionConfigExtractorTest {
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
-            .extract();
+            .extract()
+            .connectionConfig();
     final ConnectionConfig expected =
         ConnectionConfig.builder()
             .type(DatabaseType.POSTGRES)
@@ -148,7 +152,7 @@ class TypesafeConfigConnectionConfigExtractorTest {
   @Test
   void testBuildMongoUsingTypeKey() {
     final ConnectionConfig config =
-        TypesafeConfigConnectionConfigExtractor.from(buildConfigMap("mongo"), TYPE_KEY)
+        TypesafeConfigDatastoreConfigExtractor.from(buildConfigMap("mongo"), TYPE_KEY)
             .hostKey(HOST_KEY)
             .portKey(PORT_KEY)
             .databaseKey(DATABASE_KEY)
@@ -159,7 +163,8 @@ class TypesafeConfigConnectionConfigExtractorTest {
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
-            .extract();
+            .extract()
+            .connectionConfig();
     final ConnectionConfig expected =
         ConnectionConfig.builder()
             .type(DatabaseType.MONGO)
@@ -181,7 +186,7 @@ class TypesafeConfigConnectionConfigExtractorTest {
   @Test
   void testBuildPostgresUsingTypeKey() {
     final ConnectionConfig config =
-        TypesafeConfigConnectionConfigExtractor.from(buildConfigMap("postgres"), TYPE_KEY)
+        TypesafeConfigDatastoreConfigExtractor.from(buildConfigMap("postgres"), TYPE_KEY)
             .hostKey(HOST_KEY)
             .portKey(PORT_KEY)
             .databaseKey(DATABASE_KEY)
@@ -192,7 +197,8 @@ class TypesafeConfigConnectionConfigExtractorTest {
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
-            .extract();
+            .extract()
+            .connectionConfig();
     final ConnectionConfig expected =
         ConnectionConfig.builder()
             .type(DatabaseType.POSTGRES)
