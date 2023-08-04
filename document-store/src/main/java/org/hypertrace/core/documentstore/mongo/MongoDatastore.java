@@ -17,9 +17,9 @@ import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.metric.exporter.CommonMetricExporter;
 import org.hypertrace.core.documentstore.metric.exporter.DBMetricExporter;
 import org.hypertrace.core.documentstore.metric.exporter.MetricExporter;
-import org.hypertrace.core.documentstore.metric.exporter.mongo.MongoConnectionCountMetricValueProvider;
-import org.hypertrace.core.documentstore.model.DatastoreConfig;
+import org.hypertrace.core.documentstore.metric.exporter.mongo.MongoMetricValuesProvider;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -95,7 +95,9 @@ public class MongoDatastore implements Datastore {
 
   private void startMetricExporters(
       final DatastoreConfig datastoreConfig, final MongoConnectionConfig mongoConfig) {
-    getMetricExporters(datastoreConfig, mongoConfig).forEach(MetricExporter::reportMetrics);
+    if (datastoreConfig.metricExporterConfig().exportingEnabled()) {
+      getMetricExporters(datastoreConfig, mongoConfig).forEach(MetricExporter::reportMetrics);
+    }
   }
 
   private Set<MetricExporter> getMetricExporters(
@@ -107,7 +109,7 @@ public class MongoDatastore implements Datastore {
   private MetricExporter getDBSpecificExporter(
       final DatastoreConfig datastoreConfig, final MongoConnectionConfig mongoConfig) {
     return new DBMetricExporter(
-        Set.of(new MongoConnectionCountMetricValueProvider(mongoConfig, client)), datastoreConfig);
+        Set.of(new MongoMetricValuesProvider(mongoConfig, client)), datastoreConfig);
   }
 
   private MetricExporter getCommonExporter(final DatastoreConfig datastoreConfig) {

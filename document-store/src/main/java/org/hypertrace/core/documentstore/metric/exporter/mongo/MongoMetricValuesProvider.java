@@ -9,20 +9,22 @@ import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
-import org.hypertrace.core.documentstore.metric.exporter.DBCustomMetricValueProvider;
+import org.hypertrace.core.documentstore.metric.exporter.DBCustomMetricValuesProvider;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 
 @Slf4j
-public class MongoConnectionCountMetricValueProvider implements DBCustomMetricValueProvider {
+public class MongoMetricValuesProvider implements DBCustomMetricValuesProvider {
   private static final String NUM_ACTIVE_CONNECTIONS_METRIC_NAME = "num.active.mongo.connections";
+  private static final String APP_NAME_LABEL = "app_name";
 
   private final MongoDatabase database;
   private final String applicationNameInCurrentConnection;
 
-  public MongoConnectionCountMetricValueProvider(
+  public MongoMetricValuesProvider(
       final MongoConnectionConfig connectionConfig, final MongoClient client) {
     database = client.getDatabase(ADMIN_DATABASE);
     applicationNameInCurrentConnection = connectionConfig.applicationName();
+    log.info("Started MongoDB metrics reporter");
   }
 
   @Override
@@ -30,9 +32,19 @@ public class MongoConnectionCountMetricValueProvider implements DBCustomMetricVa
     return NUM_ACTIVE_CONNECTIONS_METRIC_NAME;
   }
 
-  @SuppressWarnings("unchecked")
   @Override
   public List<Metric> getMetrics() {
+    final Metric connectionCountMetric = getConnectionCountMetric();
+    return List.of(connectionCountMetric);
+  }
+
+  @Override
+  public Duration reportingInterval() {
+    return Duration.ofDays(1);
+  }
+
+  @SuppressWarnings("unchecked")
+  private Metric getConnectionCountMetric() {
     final Document document =
         database.runCommand(new Document("currentOp", 1)).append("$all", true);
     final List<Map<String, Object>> processes = document.get("inprog", List.class);
@@ -45,11 +57,6 @@ public class MongoConnectionCountMetricValueProvider implements DBCustomMetricVa
       }
     }
 
-    return List.of(new Metric(count, Map.of("app_name", applicationNameInCurrentConnection)));
-  }
-
-  @Override
-  public Duration reportingInterval() {
-    return Duration.ofDays(1);
+    return new Metric(count, Map.of(APP_NAME_LABEL, applicationNameInCurrentConnection));
   }
 }

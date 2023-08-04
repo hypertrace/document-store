@@ -20,8 +20,6 @@ dependencies {
   implementation(libs.com.google.guava)
   implementation(libs.org.apache.commons.commons.dbcp2)
   implementation(libs.hypertrace.service.framework.metrics)
-  implementation(libs.javax.inject)
-  implementation(libs.google.guice)
 
   testImplementation(libs.org.junit.jupiter.junit.jupiter)
   testImplementation(libs.org.mockito.mockito.core)

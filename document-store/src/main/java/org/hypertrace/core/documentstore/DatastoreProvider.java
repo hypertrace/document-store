@@ -10,8 +10,8 @@ import java.util.function.Supplier;
 import lombok.NonNull;
 import org.hypertrace.core.documentstore.TypesafeDatastoreConfigAdapter.MongoTypesafeDatastoreConfigAdapter;
 import org.hypertrace.core.documentstore.TypesafeDatastoreConfigAdapter.PostgresTypesafeDatastoreConfigAdapter;
-import org.hypertrace.core.documentstore.model.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
+import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 

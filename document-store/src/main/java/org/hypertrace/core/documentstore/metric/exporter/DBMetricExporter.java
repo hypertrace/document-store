@@ -6,33 +6,34 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
-import org.hypertrace.core.documentstore.metric.exporter.DBCustomMetricValueProvider.Metric;
-import org.hypertrace.core.documentstore.model.DatastoreConfig;
+import org.hypertrace.core.documentstore.metric.exporter.DBCustomMetricValuesProvider.Metric;
+import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.serviceframework.metrics.PlatformMetricsRegistry;
 
 @Slf4j
 public class DBMetricExporter implements MetricExporter {
-  private final Set<DBCustomMetricValueProvider> reporters;
+  private final Set<DBCustomMetricValuesProvider> reporters;
   private final ScheduledExecutorService executorService;
 
-  @Inject
   public DBMetricExporter(
-      final Set<DBCustomMetricValueProvider> reporters, final DatastoreConfig datastoreConfig) {
+      final Set<DBCustomMetricValuesProvider> reporters, final DatastoreConfig datastoreConfig) {
     this.reporters = reporters;
-    executorService = Executors.newScheduledThreadPool(datastoreConfig.numMetricReporterThreads());
+    executorService =
+        Executors.newScheduledThreadPool(
+            datastoreConfig.metricExporterConfig().numMetricReporterThreads());
+    log.info("Started database-specific metric exporter");
   }
 
   @Override
   public void reportMetrics() {
-    for (final DBCustomMetricValueProvider reporter : reporters) {
+    for (final DBCustomMetricValuesProvider reporter : reporters) {
       executorService.scheduleAtFixedRate(
           () -> safeReport(reporter), 60, reporter.reportingInterval().toSeconds(), SECONDS);
     }
   }
 
-  private void safeReport(final DBCustomMetricValueProvider reporter) {
+  private void safeReport(final DBCustomMetricValuesProvider reporter) {
     try {
       report(reporter);
     } catch (final Exception e) {
@@ -40,7 +41,7 @@ public class DBMetricExporter implements MetricExporter {
     }
   }
 
-  private void report(final DBCustomMetricValueProvider reporter) {
+  private void report(final DBCustomMetricValuesProvider reporter) {
     final String metricName = reporter.metricName();
     final List<Metric> metrics = reporter.getMetrics();
 

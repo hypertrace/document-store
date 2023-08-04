@@ -11,8 +11,6 @@ com-github-java-json-tools-json-patch = { module = "com.github.java-json-tools:j
 com-google-guava = { module = "com.google.guava:guava", version = "32.0.1-jre" }
 com-typesafe-config = { module = "com.typesafe:config", version = "1.4.2" }
 net-jodah-failsafe = { module = "net.jodah:failsafe", version = "2.4.4" }
-google-guice = "com.google.inject:guice:6.0.0"
-javax-inject = "javax.inject:javax.inject:1"
 
 hypertrace-service-framework-metrics = { module = "org.hypertrace.core.serviceframework:platform-metrics", version.ref = "hypertrace-service-framework" }
 

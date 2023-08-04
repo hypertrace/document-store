@@ -2,8 +2,8 @@ package org.hypertrace.core.documentstore;
 
 import com.mongodb.ConnectionString;
 import com.typesafe.config.Config;
-import org.hypertrace.core.documentstore.model.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
+import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.TypesafeConfigDatastoreConfigExtractor;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;

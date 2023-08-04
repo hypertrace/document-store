@@ -20,9 +20,9 @@ import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.metric.exporter.CommonMetricExporter;
 import org.hypertrace.core.documentstore.metric.exporter.DBMetricExporter;
 import org.hypertrace.core.documentstore.metric.exporter.MetricExporter;
-import org.hypertrace.core.documentstore.metric.exporter.postgres.PostgresConnectionCountMetricValueProvider;
-import org.hypertrace.core.documentstore.model.DatastoreConfig;
+import org.hypertrace.core.documentstore.metric.exporter.postgres.PostgresMetricValuesProvider;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -140,7 +140,9 @@ public class PostgresDatastore implements Datastore {
 
   private void startMetricExporters(
       final DatastoreConfig datastoreConfig, final PostgresConnectionConfig postgresConfig) {
-    getMetricExporters(datastoreConfig, postgresConfig).forEach(MetricExporter::reportMetrics);
+    if (datastoreConfig.metricExporterConfig().exportingEnabled()) {
+      getMetricExporters(datastoreConfig, postgresConfig).forEach(MetricExporter::reportMetrics);
+    }
   }
 
   private Set<MetricExporter> getMetricExporters(
@@ -152,8 +154,7 @@ public class PostgresDatastore implements Datastore {
   private MetricExporter getDBSpecificExporter(
       final DatastoreConfig datastoreConfig, final PostgresConnectionConfig postgresConfig) {
     return new DBMetricExporter(
-        Set.of(new PostgresConnectionCountMetricValueProvider(postgresConfig, client)),
-        datastoreConfig);
+        Set.of(new PostgresMetricValuesProvider(postgresConfig, client)), datastoreConfig);
   }
 
   private MetricExporter getCommonExporter(final DatastoreConfig datastoreConfig) {
