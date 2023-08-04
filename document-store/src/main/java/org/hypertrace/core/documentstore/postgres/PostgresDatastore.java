@@ -47,6 +47,7 @@ public class PostgresDatastore implements Datastore {
 
     final PostgresConnectionConfig postgresConnectionConfig =
         (PostgresConnectionConfig) connectionConfig;
+
     try {
       DriverManager.registerDriver(new org.postgresql.Driver());
 

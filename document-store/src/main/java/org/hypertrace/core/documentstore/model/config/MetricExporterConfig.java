@@ -6,7 +6,6 @@ import java.util.Set;
 import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.NonNull;
-import lombok.Singular;
 import lombok.Value;
 import lombok.experimental.Accessors;
 
@@ -16,5 +15,5 @@ import lombok.experimental.Accessors;
 public class MetricExporterConfig {
   @Default boolean exportingEnabled = false;
   @Default int numMetricReporterThreads = 1;
-  @NonNull @Singular Set<CustomMetricConfig> customMetricConfigs = emptySet();
+  @NonNull @Default Set<CustomMetricConfig> customMetricConfigs = emptySet();
 }
