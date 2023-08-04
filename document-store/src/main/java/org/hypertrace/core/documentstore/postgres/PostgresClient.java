@@ -7,13 +7,12 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
-import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class PostgresClient {
+public class PostgresClient {
 
   private static final Logger log = LoggerFactory.getLogger(PostgresClient.class);
   private static final int VALIDATION_QUERY_TIMEOUT_SECONDS = 5;
@@ -26,14 +25,8 @@ class PostgresClient {
   private int count = 0;
   private Connection connection;
 
-  public PostgresClient(final ConnectionConfig config) {
-    if (!(config instanceof PostgresConnectionConfig)) {
-      throw new IllegalArgumentException(
-          String.format(
-              "Cannot pass %s as config to %s",
-              config.getClass().getSimpleName(), this.getClass().getSimpleName()));
-    }
-    this.connectionConfig = (PostgresConnectionConfig) config;
+  public PostgresClient(final PostgresConnectionConfig config) {
+    this.connectionConfig = config;
     this.maxConnectionAttempts = PostgresDefaults.DEFAULT_MAX_CONNECTION_ATTEMPTS;
     this.connectionRetryBackoff = PostgresDefaults.DEFAULT_CONNECTION_RETRY_BACKOFF;
     this.connectionPool = new PostgresConnectionPool(connectionConfig);

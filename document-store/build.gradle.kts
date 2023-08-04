@@ -2,8 +2,8 @@ plugins {
   `java-library`
   jacoco
   id("org.hypertrace.publish-plugin")
-  id("org.hypertrace.jacoco-report-plugin") version "0.2.0"
-  id("org.hypertrace.integration-test-plugin") version "0.2.0"
+  id("org.hypertrace.jacoco-report-plugin")
+  id("org.hypertrace.integration-test-plugin")
 }
 
 dependencies {
@@ -19,6 +19,9 @@ dependencies {
   implementation(libs.net.jodah.failsafe)
   implementation(libs.com.google.guava)
   implementation(libs.org.apache.commons.commons.dbcp2)
+  implementation(libs.hypertrace.service.framework.metrics)
+  implementation(libs.javax.inject)
+  implementation(libs.google.guice)
 
   testImplementation(libs.org.junit.jupiter.junit.jupiter)
   testImplementation(libs.org.mockito.mockito.core)
