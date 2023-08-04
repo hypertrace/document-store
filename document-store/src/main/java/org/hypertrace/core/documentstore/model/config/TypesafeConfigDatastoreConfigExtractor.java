@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.model.config;
 
 import com.typesafe.config.Config;
+import java.util.List;
 import java.util.Optional;
 import lombok.NonNull;
 import lombok.Value;
@@ -8,6 +9,7 @@ import org.hypertrace.core.documentstore.model.config.ConnectionConfig.Connectio
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials.ConnectionCredentialsBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.ConnectionPoolConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig.DatastoreConfigBuilder;
+import org.hypertrace.core.documentstore.model.config.Endpoint.EndpointBuilder;
 
 @Value
 public class TypesafeConfigDatastoreConfigExtractor {
@@ -16,6 +18,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
   ConnectionConfigBuilder connectionConfigBuilder;
   ConnectionCredentialsBuilder connectionCredentialsBuilder;
   ConnectionPoolConfigBuilder connectionPoolConfigBuilder;
+  EndpointBuilder endpointBuilder;
 
   private TypesafeConfigDatastoreConfigExtractor(
       @NonNull final Config config, @NonNull final String typeKey) {
@@ -36,6 +39,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
     this.connectionCredentialsBuilder = ConnectionCredentials.builder();
     this.connectionPoolConfigBuilder = ConnectionPoolConfig.builder();
     this.datastoreConfigBuilder = DatastoreConfig.builder().type(type);
+    this.endpointBuilder = Endpoint.builder();
   }
 
   public static TypesafeConfigDatastoreConfigExtractor from(
@@ -48,16 +52,41 @@ public class TypesafeConfigDatastoreConfigExtractor {
     return new TypesafeConfigDatastoreConfigExtractor(config, type);
   }
 
+  public TypesafeConfigDatastoreConfigExtractor keysForEndpoints(
+      @NonNull final String endpointsBaseKey,
+      @NonNull final String hostKey,
+      @NonNull final String portKey) {
+    if (!config.hasPath(endpointsBaseKey)) {
+      return this;
+    }
+
+    for (final Config endpointConfig : config.getConfigList(endpointsBaseKey)) {
+      final Endpoint.EndpointBuilder builder = Endpoint.builder();
+
+      if (endpointConfig.hasPath(hostKey)) {
+        builder.host(endpointConfig.getString(hostKey));
+      }
+
+      if (endpointConfig.hasPath(portKey)) {
+        builder.port(endpointConfig.getInt(portKey));
+      }
+
+      connectionConfigBuilder.addEndpoint(builder.build());
+    }
+
+    return this;
+  }
+
   public TypesafeConfigDatastoreConfigExtractor hostKey(@NonNull final String key) {
     if (config.hasPath(key)) {
-      connectionConfigBuilder.host(config.getString(key));
+      endpointBuilder.host(config.getString(key));
     }
     return this;
   }
 
   public TypesafeConfigDatastoreConfigExtractor portKey(@NonNull final String key) {
     if (config.hasPath(key)) {
-      connectionConfigBuilder.port(config.getInt(key));
+      endpointBuilder.port(config.getInt(key));
     }
     return this;
   }
@@ -97,6 +126,14 @@ public class TypesafeConfigDatastoreConfigExtractor {
     return this;
   }
 
+  public TypesafeConfigDatastoreConfigExtractor replicaSetKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionConfigBuilder.replicaSet(config.getString(key));
+    }
+
+    return this;
+  }
+
   public TypesafeConfigDatastoreConfigExtractor poolMaxConnectionsKey(@NonNull final String key) {
     if (config.hasPath(key)) {
       connectionPoolConfigBuilder.maxConnections(config.getInt(key));
@@ -121,6 +158,11 @@ public class TypesafeConfigDatastoreConfigExtractor {
   }
 
   public DatastoreConfig extract() {
+    if (connectionConfigBuilder.endpoints().isEmpty()
+        && !Endpoint.builder().build().equals(endpointBuilder.build())) {
+      connectionConfigBuilder.endpoints(List.of(endpointBuilder.build()));
+    }
+
     return datastoreConfigBuilder
         .connectionConfig(
             connectionConfigBuilder

@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.model.config.postgres;
 
 import static java.util.function.Predicate.not;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import javax.annotation.Nullable;
@@ -14,6 +15,7 @@ import lombok.experimental.NonFinal;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
+import org.hypertrace.core.documentstore.model.config.Endpoint;
 import org.postgresql.PGProperty;
 
 @Value
@@ -40,15 +42,13 @@ public class PostgresConnectionConfig extends ConnectionConfig {
   @NonNull ConnectionPoolConfig connectionPoolConfig;
 
   public PostgresConnectionConfig(
-      @NonNull final String host,
-      @Nullable final Integer port,
+      @NonNull final List<Endpoint> endpoints,
       @Nullable final String database,
       @Nullable final ConnectionCredentials credentials,
       @NonNull final String applicationName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig) {
     super(
-        host,
-        getPortOrDefault(port),
+        ensureSingleEndpoint(endpoints),
         getDatabaseOrDefault(database),
         getCredentialsOrDefault(credentials));
     this.applicationName = applicationName;
@@ -56,7 +56,9 @@ public class PostgresConnectionConfig extends ConnectionConfig {
   }
 
   public String toConnectionString() {
-    return String.format("jdbc:postgresql://%s:%d/%s", host(), port(), database());
+    return String.format(
+        "jdbc:postgresql://%s:%d/%s",
+        endpoints().get(0).host(), endpoints().get(0).port(), database());
   }
 
   public Properties buildProperties() {
@@ -74,8 +76,21 @@ public class PostgresConnectionConfig extends ConnectionConfig {
   }
 
   @NonNull
-  private static Integer getPortOrDefault(@Nullable final Integer port) {
-    return Optional.ofNullable(port).orElse(PostgresDefaults.DEFAULT_PORT);
+  private static List<Endpoint> ensureSingleEndpoint(@NonNull final List<Endpoint> endpoints) {
+    final int numEndpoints = endpoints.size();
+
+    switch (numEndpoints) {
+      case 0:
+        return List.of(Endpoint.builder().port(PostgresDefaults.DEFAULT_PORT).build());
+
+      case 1:
+        return endpoints;
+
+      default:
+        throw new IllegalArgumentException(
+            String.format(
+                "Cannot have more than 1 endpoint for Postgres. Found: %d", numEndpoints));
+    }
   }
 
   @NonNull

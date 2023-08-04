@@ -2,9 +2,11 @@ package org.hypertrace.core.documentstore.model.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
+import com.mongodb.ServerAddress;
+import com.mongodb.connection.ClusterSettings;
+import java.util.List;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.junit.jupiter.api.Test;
 
@@ -17,9 +19,15 @@ class MongoConnectionConfigTest {
 
     final MongoClientSettings expected =
         MongoClientSettings.builder()
-            .applyConnectionString(new ConnectionString("mongodb://localhost:27017/default_db"))
             .applicationName("document-store")
             .retryWrites(true)
+            .applyToClusterSettings(
+                builder ->
+                    builder.applySettings(
+                        ClusterSettings.builder()
+                            .requiredReplicaSetName(null)
+                            .hosts(List.of(new ServerAddress()))
+                            .build()))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
@@ -37,8 +45,7 @@ class MongoConnectionConfigTest {
         (MongoConnectionConfig)
             ConnectionConfig.builder()
                 .type(DatabaseType.MONGO)
-                .host("the.red.giant.com")
-                .port(31707)
+                .addEndpoint(Endpoint.builder().host("the.red.giant.com").port(37017).build())
                 .database("test_db")
                 .credentials(
                     ConnectionCredentials.builder()
@@ -51,11 +58,16 @@ class MongoConnectionConfigTest {
 
     final MongoClientSettings expected =
         MongoClientSettings.builder()
-            .applyConnectionString(
-                new ConnectionString("mongodb://the.red.giant.com:31707/test_db"))
             .applicationName(applicationName)
             .retryWrites(true)
             .credential(MongoCredential.createCredential(username, authDb, password.toCharArray()))
+            .applyToClusterSettings(
+                builder ->
+                    builder.applySettings(
+                        ClusterSettings.builder()
+                            .requiredReplicaSetName(null)
+                            .hosts(List.of(new ServerAddress("the.red.giant.com", 37017)))
+                            .build()))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
@@ -68,14 +80,15 @@ class MongoConnectionConfigTest {
     final String username = "user-from-Mars";
     final String password = "encrypted-message-from-Mars";
     final String database = "test_db";
+    final String replicaSetName = "replica-set";
 
     final MongoConnectionConfig mongoConnectionConfig =
         (MongoConnectionConfig)
             ConnectionConfig.builder()
                 .type(DatabaseType.MONGO)
-                .host("the.red.giant.com")
-                .port(31707)
+                .addEndpoint(Endpoint.builder().host("the.red.giant.com").port(37017).build())
                 .database(database)
+                .replicaSet(replicaSetName)
                 .credentials(
                     ConnectionCredentials.builder().username(username).password(password).build())
                 .applicationName(applicationName)
@@ -83,12 +96,17 @@ class MongoConnectionConfigTest {
 
     final MongoClientSettings expected =
         MongoClientSettings.builder()
-            .applyConnectionString(
-                new ConnectionString("mongodb://the.red.giant.com:31707/test_db"))
             .applicationName(applicationName)
             .retryWrites(true)
             .credential(
                 MongoCredential.createCredential(username, database, password.toCharArray()))
+            .applyToClusterSettings(
+                builder ->
+                    builder.applySettings(
+                        ClusterSettings.builder()
+                            .requiredReplicaSetName(replicaSetName)
+                            .hosts(List.of(new ServerAddress("the.red.giant.com", 37017)))
+                            .build()))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
@@ -103,8 +121,7 @@ class MongoConnectionConfigTest {
         (MongoConnectionConfig)
             ConnectionConfig.builder()
                 .type(DatabaseType.MONGO)
-                .host("the.red.giant.com")
-                .port(31707)
+                .addEndpoint(Endpoint.builder().host("the.red.giant.com").port(37017).build())
                 .database("test_db")
                 .credentials(ConnectionCredentials.builder().build())
                 .applicationName(applicationName)
@@ -112,10 +129,15 @@ class MongoConnectionConfigTest {
 
     final MongoClientSettings expected =
         MongoClientSettings.builder()
-            .applyConnectionString(
-                new ConnectionString("mongodb://the.red.giant.com:31707/test_db"))
             .applicationName(applicationName)
             .retryWrites(true)
+            .applyToClusterSettings(
+                builder ->
+                    builder.applySettings(
+                        ClusterSettings.builder()
+                            .requiredReplicaSetName(null)
+                            .hosts(List.of(new ServerAddress("the.red.giant.com", 37017)))
+                            .build()))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
