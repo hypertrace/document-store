@@ -1,8 +1,11 @@
 package org.hypertrace.core.documentstore;
 
 import com.mongodb.ConnectionString;
+import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoCredential;
 import com.typesafe.config.Config;
 import org.hypertrace.core.documentstore.model.DatastoreConfig;
+import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.TypesafeConfigDatastoreConfigExtractor;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
@@ -31,13 +34,32 @@ interface TypesafeDatastoreConfigAdapter {
 
       final MongoConnectionConfig overridingConnectionConfig =
           new MongoConnectionConfig(
-              connectionConfig.host(),
-              connectionConfig.port(),
+              connectionConfig.endpoints(),
               connectionConfig.database(),
               connectionConfig.credentials(),
-              connectionConfig.applicationName()) {
-            @Override
-            public ConnectionString toConnectionString() {
+              connectionConfig.applicationName(),
+              null) {
+            public MongoClientSettings toSettings() {
+              final MongoClientSettings.Builder settingsBuilder =
+                  MongoClientSettings.builder()
+                      .applyConnectionString(toConnectionString())
+                      .applicationName(applicationName())
+                      .retryWrites(true);
+
+              final ConnectionCredentials credentials = credentials();
+              if (credentials != null) {
+                final MongoCredential credential =
+                    MongoCredential.createCredential(
+                        credentials.username(),
+                        credentials.authDatabase().orElseThrow(),
+                        credentials.password().toCharArray());
+                settingsBuilder.credential(credential);
+              }
+
+              return settingsBuilder.build();
+            }
+
+            private ConnectionString toConnectionString() {
               if (config.hasPath("url")) {
                 return new ConnectionString(config.getString("url"));
               } else {
@@ -76,8 +98,7 @@ interface TypesafeDatastoreConfigAdapter {
 
       final PostgresConnectionConfig overridingConnectionConfig =
           new PostgresConnectionConfig(
-              connectionConfig.host(),
-              connectionConfig.port(),
+              connectionConfig.endpoints(),
               connectionConfig.database(),
               connectionConfig.credentials(),
               connectionConfig.applicationName(),

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -16,26 +17,32 @@ class TypesafeConfigConnectionConfigExtractorTest {
   private static final String TYPE_KEY = "database_type";
   private static final String HOST_KEY = "hostname";
   private static final String PORT_KEY = "port_number";
+  private static final String ENDPOINTS_KEY = "endpoints";
   private static final String DATABASE_KEY = "database_name";
   private static final String USER_KEY = "username";
   private static final String PASSWORD_KEY = "pword";
   private static final String AUTH_DB_KEY = "authenticationDatabaseName";
   private static final String APP_NAME_KEY = "applicationNameInFull";
+  private static final String REPLICA_SET_KEY = "replicaSetName";
   private static final String MAX_CONNECTIONS_KEY = "maxConnectionsKey";
   private static final String CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
   private static final String CONNECTION_SURRENDER_TIMEOUT_KEY = "connectionSurrenderTimeout";
 
   private static final String host = "red.planet";
+  private static final String host1 = "RED_PLANET";
+  private static final String host2 = "THE_FUTURE_WORLD";
   private static final int port = 4;
   private static final String database = "planets";
   private static final String user = "Martian";
   private static final String password = ".--..-";
   private static final String authDb = "sun_planets";
   private static final String appName = "the_solar_system";
+  private static final String replicaSet = "Milky_way";
   private static final int maxConnections = 7;
   private static final Duration accessTimeout = Duration.ofSeconds(67);
   private static final Duration surrenderTimeout = Duration.ofSeconds(56);
 
+  @SuppressWarnings("ConstantConditions")
   @Test
   void testMandatoryFields() {
     assertThrows(
@@ -86,6 +93,7 @@ class TypesafeConfigConnectionConfigExtractorTest {
             .passwordKey(PASSWORD_KEY)
             .authDatabaseKey(AUTH_DB_KEY)
             .applicationNameKey(APP_NAME_KEY)
+            .replicaSetKey(REPLICA_SET_KEY)
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
@@ -94,9 +102,9 @@ class TypesafeConfigConnectionConfigExtractorTest {
     final ConnectionConfig expected =
         ConnectionConfig.builder()
             .type(DatabaseType.MONGO)
-            .host(host)
-            .port(port)
+            .addEndpoint(Endpoint.builder().host(host).port(port).build())
             .database(database)
+            .replicaSet(replicaSet)
             .credentials(
                 ConnectionCredentials.builder()
                     .username(user)
@@ -120,6 +128,7 @@ class TypesafeConfigConnectionConfigExtractorTest {
             .passwordKey(PASSWORD_KEY)
             .authDatabaseKey(AUTH_DB_KEY)
             .applicationNameKey(APP_NAME_KEY)
+            .replicaSetKey(REPLICA_SET_KEY)
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
@@ -128,8 +137,7 @@ class TypesafeConfigConnectionConfigExtractorTest {
     final ConnectionConfig expected =
         ConnectionConfig.builder()
             .type(DatabaseType.POSTGRES)
-            .host(host)
-            .port(port)
+            .addEndpoint(Endpoint.builder().host(host).port(port).build())
             .database(database)
             .credentials(
                 ConnectionCredentials.builder()
@@ -152,14 +160,15 @@ class TypesafeConfigConnectionConfigExtractorTest {
   @Test
   void testBuildMongoUsingTypeKey() {
     final ConnectionConfig config =
-        TypesafeConfigDatastoreConfigExtractor.from(buildConfigMap("mongo"), TYPE_KEY)
-            .hostKey(HOST_KEY)
-            .portKey(PORT_KEY)
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildMongoConfigMapUsingEndpointsKey(), TYPE_KEY)
+            .keysForEndpoints(ENDPOINTS_KEY, HOST_KEY, PORT_KEY)
             .databaseKey(DATABASE_KEY)
             .usernameKey(USER_KEY)
             .passwordKey(PASSWORD_KEY)
             .authDatabaseKey(AUTH_DB_KEY)
             .applicationNameKey(APP_NAME_KEY)
+            .replicaSetKey(REPLICA_SET_KEY)
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
@@ -168,8 +177,8 @@ class TypesafeConfigConnectionConfigExtractorTest {
     final ConnectionConfig expected =
         ConnectionConfig.builder()
             .type(DatabaseType.MONGO)
-            .host(host)
-            .port(port)
+            .addEndpoint(Endpoint.builder().host(host1).port(27017).build())
+            .addEndpoint(Endpoint.builder().host(host2).port(port).build())
             .database(database)
             .credentials(
                 ConnectionCredentials.builder()
@@ -178,6 +187,7 @@ class TypesafeConfigConnectionConfigExtractorTest {
                     .authDatabase(authDb)
                     .build())
             .applicationName(appName)
+            .replicaSet(replicaSet)
             .build();
 
     assertEquals(expected, config);
@@ -186,14 +196,15 @@ class TypesafeConfigConnectionConfigExtractorTest {
   @Test
   void testBuildPostgresUsingTypeKey() {
     final ConnectionConfig config =
-        TypesafeConfigDatastoreConfigExtractor.from(buildConfigMap("postgres"), TYPE_KEY)
-            .hostKey(HOST_KEY)
-            .portKey(PORT_KEY)
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildPostgresConfigMapUsingEndpointsKey(), TYPE_KEY)
+            .keysForEndpoints(ENDPOINTS_KEY, HOST_KEY, PORT_KEY)
             .databaseKey(DATABASE_KEY)
             .usernameKey(USER_KEY)
             .passwordKey(PASSWORD_KEY)
             .authDatabaseKey(AUTH_DB_KEY)
             .applicationNameKey(APP_NAME_KEY)
+            .replicaSetKey(REPLICA_SET_KEY)
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
@@ -202,8 +213,7 @@ class TypesafeConfigConnectionConfigExtractorTest {
     final ConnectionConfig expected =
         ConnectionConfig.builder()
             .type(DatabaseType.POSTGRES)
-            .host(host)
-            .port(port)
+            .addEndpoint(Endpoint.builder().host(host).port(port).build())
             .database(database)
             .credentials(
                 ConnectionCredentials.builder()
@@ -233,22 +243,41 @@ class TypesafeConfigConnectionConfigExtractorTest {
             entry(PASSWORD_KEY, password),
             entry(AUTH_DB_KEY, authDb),
             entry(APP_NAME_KEY, appName),
+            entry(REPLICA_SET_KEY, replicaSet),
             entry(MAX_CONNECTIONS_KEY, maxConnections),
             entry(CONNECTION_ACCESS_TIMEOUT_KEY, accessTimeout),
             entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout)));
   }
 
-  private Config buildConfigMap(final String databaseType) {
+  private Config buildPostgresConfigMapUsingEndpointsKey() {
     return ConfigFactory.parseMap(
         Map.ofEntries(
-            entry(TYPE_KEY, databaseType),
-            entry(HOST_KEY, host),
-            entry(PORT_KEY, port),
+            entry(TYPE_KEY, "postgres"),
+            entry(ENDPOINTS_KEY, List.of(Map.of(HOST_KEY, host, PORT_KEY, port))),
             entry(DATABASE_KEY, database),
             entry(USER_KEY, user),
             entry(PASSWORD_KEY, password),
             entry(AUTH_DB_KEY, authDb),
             entry(APP_NAME_KEY, appName),
+            entry(REPLICA_SET_KEY, replicaSet),
+            entry(MAX_CONNECTIONS_KEY, maxConnections),
+            entry(CONNECTION_ACCESS_TIMEOUT_KEY, accessTimeout),
+            entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout)));
+  }
+
+  private Config buildMongoConfigMapUsingEndpointsKey() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(TYPE_KEY, "mongo"),
+            entry(
+                ENDPOINTS_KEY,
+                List.of(Map.of(HOST_KEY, host1), Map.of(HOST_KEY, host2, PORT_KEY, port))),
+            entry(DATABASE_KEY, database),
+            entry(USER_KEY, user),
+            entry(PASSWORD_KEY, password),
+            entry(AUTH_DB_KEY, authDb),
+            entry(APP_NAME_KEY, appName),
+            entry(REPLICA_SET_KEY, replicaSet),
             entry(MAX_CONNECTIONS_KEY, maxConnections),
             entry(CONNECTION_ACCESS_TIMEOUT_KEY, accessTimeout),
             entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout)));
