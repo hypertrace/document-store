@@ -7,10 +7,12 @@ import lombok.Builder;
 import lombok.Builder.Default;
 import lombok.NonNull;
 import lombok.Value;
+import lombok.experimental.Accessors;
 import org.checkerframework.checker.index.qual.NonNegative;
 
 @Value
 @Builder(toBuilder = true)
+@Accessors(fluent = true)
 public class DocStoreMetric {
   @NonNull String name;
   @Default @NonNegative long value = 0;
