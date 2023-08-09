@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
-class TypesafeConfigConnectionConfigExtractorTest {
+class TypesafeConfigDatastoreConfigExtractorTest {
   private static final String TYPE_KEY = "database_type";
   private static final String HOST_KEY = "hostname";
   private static final String PORT_KEY = "port_number";
