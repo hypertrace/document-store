@@ -5,6 +5,7 @@ import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
 import com.typesafe.config.Config;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
+import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.TypesafeConfigDatastoreConfigExtractor;
