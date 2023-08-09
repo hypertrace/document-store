@@ -8,11 +8,11 @@ import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
-import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.metric.BaseMetricStoreImpl;
 import org.hypertrace.core.documentstore.metric.Metric;
 import org.hypertrace.core.documentstore.metric.MetricStore;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
+import org.hypertrace.core.documentstore.mongo.MongoDatastore;
 
 @Slf4j
 public class MongoMetricStore extends BaseMetricStoreImpl implements MetricStore {
@@ -23,7 +23,7 @@ public class MongoMetricStore extends BaseMetricStoreImpl implements MetricStore
   private final String applicationNameInCurrentConnection;
 
   public MongoMetricStore(
-      final Datastore dataStore,
+      final MongoDatastore dataStore,
       final MongoConnectionConfig connectionConfig,
       final MongoClient client) {
     super(dataStore);
@@ -42,7 +42,10 @@ public class MongoMetricStore extends BaseMetricStoreImpl implements MetricStore
 
       for (final Map<String, Object> process : processes) {
         final String appName = process.getOrDefault("appName", "").toString();
-        if (appName.equals(applicationNameInCurrentConnection)) {
+        final boolean isActive =
+            Boolean.parseBoolean(process.getOrDefault("active", "false").toString());
+
+        if (appName.equals(applicationNameInCurrentConnection) && isActive) {
           count++;
         }
       }
@@ -57,7 +60,10 @@ public class MongoMetricStore extends BaseMetricStoreImpl implements MetricStore
       return metric;
     } catch (final Exception e) {
       log.error("Unable to capture {}", NUM_ACTIVE_CONNECTIONS_METRIC_NAME, e);
-      return Metric.builder().name(NUM_ACTIVE_CONNECTIONS_METRIC_NAME).build();
+      return Metric.builder()
+          .name(NUM_ACTIVE_CONNECTIONS_METRIC_NAME)
+          .labels(Map.of(APP_NAME_LABEL, applicationNameInCurrentConnection))
+          .build();
     }
   }
 }

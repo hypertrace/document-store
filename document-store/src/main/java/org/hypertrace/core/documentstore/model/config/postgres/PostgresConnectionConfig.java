@@ -17,6 +17,7 @@ import lombok.experimental.NonFinal;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
+import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.Endpoint;
 import org.postgresql.PGProperty;
 
@@ -42,6 +43,10 @@ public class PostgresConnectionConfig extends ConnectionConfig {
 
   @NonNull String applicationName;
   @NonNull ConnectionPoolConfig connectionPoolConfig;
+
+  public static ConnectionConfigBuilder builder() {
+    return ConnectionConfig.builder().type(DatabaseType.POSTGRES);
+  }
 
   public PostgresConnectionConfig(
       @NonNull final List<Endpoint> endpoints,

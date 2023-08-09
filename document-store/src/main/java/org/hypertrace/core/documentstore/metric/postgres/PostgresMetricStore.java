@@ -7,7 +7,6 @@ import static org.hypertrace.core.documentstore.model.config.CustomMetricConfig.
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
-import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -17,6 +16,7 @@ import org.hypertrace.core.documentstore.metric.Metric;
 import org.hypertrace.core.documentstore.metric.MetricStore;
 import org.hypertrace.core.documentstore.model.config.CustomMetricConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
+import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
@@ -31,7 +31,7 @@ public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricSt
   private final String applicationNameInCurrentConnection;
 
   public PostgresMetricStore(
-      final Datastore datastore, final PostgresConnectionConfig connectionConfig) {
+      final PostgresDatastore datastore, final PostgresConnectionConfig connectionConfig) {
     super(datastore);
     this.applicationNameInCurrentConnection = connectionConfig.applicationName();
   }
@@ -56,10 +56,15 @@ public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricSt
                         .build())
                 .build());
 
+    final Metric defaultMetric =
+        Metric.builder()
+            .name(NUM_ACTIVE_CONNECTIONS_METRIC_NAME)
+            .labels(Map.of(APP_NAME_LABEL, applicationNameInCurrentConnection))
+            .build();
     switch (metrics.size()) {
       case 0:
         log.error("Could not report metric {}", NUM_ACTIVE_CONNECTIONS_METRIC_NAME);
-        return Metric.builder().name(NUM_ACTIVE_CONNECTIONS_METRIC_NAME).build();
+        return defaultMetric;
 
       case 1:
         final Metric metric =
@@ -72,7 +77,7 @@ public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricSt
       default:
         log.error(
             "Found {} values for metric {}", metrics.size(), NUM_ACTIVE_CONNECTIONS_METRIC_NAME);
-        return Metric.builder().name(NUM_ACTIVE_CONNECTIONS_METRIC_NAME).build();
+        return defaultMetric;
     }
   }
 }
