@@ -11,7 +11,7 @@ import org.checkerframework.checker.index.qual.NonNegative;
 
 @Value
 @Builder(toBuilder = true)
-public class Metric {
+public class DocStoreMetric {
   @NonNull String name;
   @Default @NonNegative long value = 0;
   @Default Map<String, String> labels = emptyMap();

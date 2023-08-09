@@ -17,8 +17,8 @@ import java.util.Set;
 import lombok.NonNull;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
-import org.hypertrace.core.documentstore.metric.MetricStore;
-import org.hypertrace.core.documentstore.metric.postgres.PostgresMetricStore;
+import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
+import org.hypertrace.core.documentstore.metric.postgres.PostgresDocStoreMetricProvider;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
@@ -32,7 +32,7 @@ public class PostgresDatastore implements Datastore {
 
   private final PostgresClient client;
   private final String database;
-  private final MetricStore metricStore;
+  private final DocStoreMetricProvider docStoreMetricProvider;
 
   public PostgresDatastore(@NonNull final DatastoreConfig datastoreConfig) {
     final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
@@ -52,7 +52,7 @@ public class PostgresDatastore implements Datastore {
 
       client = new PostgresClient(postgresConnectionConfig);
       database = connectionConfig.database();
-      metricStore = new PostgresMetricStore(this, postgresConnectionConfig);
+      docStoreMetricProvider = new PostgresDocStoreMetricProvider(this, postgresConnectionConfig);
     } catch (final IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Unable to instantiate PostgresClient with config:%s", connectionConfig),
@@ -134,8 +134,8 @@ public class PostgresDatastore implements Datastore {
   }
 
   @Override
-  public MetricStore getMetricStore() {
-    return metricStore;
+  public DocStoreMetricProvider getDocStoreMetricProvider() {
+    return docStoreMetricProvider;
   }
 
   public Connection getPostgresClient() {

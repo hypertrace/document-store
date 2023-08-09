@@ -17,7 +17,7 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
-import org.hypertrace.core.documentstore.metric.Metric;
+import org.hypertrace.core.documentstore.metric.DocStoreMetric;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Query;
@@ -30,7 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class PostgresMetricStoreTest {
+class PostgresDocStoreMetricProviderTest {
 
   private final String postgresClientAppName = "PostgresClientAppName";
   private final PostgresConnectionConfig connectionConfig =
@@ -41,12 +41,13 @@ class PostgresMetricStoreTest {
   @Mock private Collection mockCollection;
   @Mock private CloseableIterator<Document> mockIterator;
 
-  private PostgresMetricStore postgresMetricStore;
+  private PostgresDocStoreMetricProvider postgresDocStoreMetricProvider;
 
   @BeforeEach
   void setUp() {
     when(mockDatastore.getCollection(anyString())).thenReturn(mockCollection);
-    postgresMetricStore = new PostgresMetricStore(mockDatastore, connectionConfig);
+    postgresDocStoreMetricProvider =
+        new PostgresDocStoreMetricProvider(mockDatastore, connectionConfig);
   }
 
   @Nested
@@ -63,8 +64,8 @@ class PostgresMetricStoreTest {
                     EQ,
                     ConstantExpression.of(postgresClientAppName)))
             .build();
-    private final Metric defaultMetric =
-        Metric.builder()
+    private final DocStoreMetric defaultMetric =
+        DocStoreMetric.builder()
             .name("num.active.postgres.connections")
             .value(0L)
             .labels(Map.ofEntries(Map.entry("app_name", postgresClientAppName)))
@@ -73,7 +74,7 @@ class PostgresMetricStoreTest {
     @Test
     void withEmptyIterator_returnsDefaultMetric() {
       when(mockCollection.aggregate(query)).thenReturn(CloseableIterator.emptyIterator());
-      final Metric result = postgresMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
@@ -83,14 +84,14 @@ class PostgresMetricStoreTest {
       when(mockIterator.hasNext()).thenReturn(true, false);
       when(mockIterator.next())
           .thenReturn(new JSONDocument(Map.of("application_name", postgresClientAppName)));
-      final Metric result = postgresMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
     @Test
     void withQueryExecutionException_returnsDefaultMetric() {
       when(mockCollection.aggregate(query)).thenThrow(new RuntimeException());
-      final Metric result = postgresMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
@@ -99,7 +100,7 @@ class PostgresMetricStoreTest {
       when(mockCollection.aggregate(query)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
       when(mockIterator.next()).thenReturn(() -> "invalid-json");
-      final Metric result = postgresMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
@@ -111,7 +112,7 @@ class PostgresMetricStoreTest {
           .thenReturn(
               new JSONDocument(
                   Map.of("application_name", postgresClientAppName, "metric_value", 1)));
-      final Metric result = postgresMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
@@ -126,13 +127,13 @@ class PostgresMetricStoreTest {
               new JSONDocument(Map.of("value_missing", postgresClientAppName)),
               new JSONDocument(
                   Map.of("application_name", postgresClientAppName, "metric_value", 1)));
-      final Metric expected =
-          Metric.builder()
+      final DocStoreMetric expected =
+          DocStoreMetric.builder()
               .name("num.active.postgres.connections")
               .value(1)
               .labels(Map.of("app_name", postgresClientAppName))
               .build();
-      final Metric result = postgresMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(expected, result);
     }
 
@@ -144,13 +145,13 @@ class PostgresMetricStoreTest {
           .thenReturn(
               new JSONDocument(
                   Map.of("application_name", postgresClientAppName, "metric_value", 1)));
-      final Metric expected =
-          Metric.builder()
+      final DocStoreMetric expected =
+          DocStoreMetric.builder()
               .name("num.active.postgres.connections")
               .value(1)
               .labels(Map.of("app_name", postgresClientAppName))
               .build();
-      final Metric result = postgresMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(expected, result);
     }
   }

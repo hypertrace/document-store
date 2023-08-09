@@ -25,13 +25,13 @@ import org.hypertrace.core.documentstore.query.Query;
 
 @Slf4j
 @AllArgsConstructor
-public abstract class BaseMetricStoreImpl implements MetricStore {
+public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricProvider {
   private static final ObjectMapper mapper = new ObjectMapper();
 
   private final Datastore dataStore;
 
   @Override
-  public List<Metric> getCustomMetrics(final CustomMetricConfig customMetricConfig) {
+  public List<DocStoreMetric> getCustomMetrics(final CustomMetricConfig customMetricConfig) {
     try {
       final String collectionName = customMetricConfig.collectionName();
       final Query query = customMetricConfig.query();
@@ -39,7 +39,7 @@ public abstract class BaseMetricStoreImpl implements MetricStore {
       final Collection collection = dataStore.getCollection(collectionName);
       final CloseableIterator<Document> iterator = collection.aggregate(query);
 
-      final List<Metric> metrics = new ArrayList<>();
+      final List<DocStoreMetric> metrics = new ArrayList<>();
 
       while (iterator.hasNext()) {
         final Document document = iterator.next();
@@ -74,8 +74,8 @@ public abstract class BaseMetricStoreImpl implements MetricStore {
                 .filter(entry -> !VALUE_KEY.equals(entry.getKey()))
                 .collect(toUnmodifiableMap(Entry::getKey, entry -> entry.getValue().textValue()));
 
-        final Metric metric =
-            Metric.builder()
+        final DocStoreMetric metric =
+            DocStoreMetric.builder()
                 .name(customMetricConfig.metricName())
                 .value(metricValue)
                 .labels(labels)

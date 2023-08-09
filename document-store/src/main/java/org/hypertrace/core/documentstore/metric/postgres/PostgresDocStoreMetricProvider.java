@@ -11,9 +11,8 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
-import org.hypertrace.core.documentstore.metric.BaseMetricStoreImpl;
-import org.hypertrace.core.documentstore.metric.Metric;
-import org.hypertrace.core.documentstore.metric.MetricStore;
+import org.hypertrace.core.documentstore.metric.BaseDocStoreMetricProviderImpl;
+import org.hypertrace.core.documentstore.metric.DocStoreMetric;
 import org.hypertrace.core.documentstore.model.config.CustomMetricConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
@@ -21,7 +20,7 @@ import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 @Slf4j
-public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricStore {
+public class PostgresDocStoreMetricProvider extends BaseDocStoreMetricProviderImpl {
   private static final String NUM_ACTIVE_CONNECTIONS_METRIC_NAME =
       "num.active.postgres.connections";
   private static final String APP_NAME_LABEL = "app_name";
@@ -30,15 +29,15 @@ public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricSt
 
   private final String applicationNameInCurrentConnection;
 
-  public PostgresMetricStore(
+  public PostgresDocStoreMetricProvider(
       final PostgresDatastore datastore, final PostgresConnectionConfig connectionConfig) {
     super(datastore);
     this.applicationNameInCurrentConnection = connectionConfig.applicationName();
   }
 
   @Override
-  public Metric getConnectionCountMetric() {
-    final List<Metric> metrics =
+  public DocStoreMetric getConnectionCountMetric() {
+    final List<DocStoreMetric> metrics =
         getCustomMetrics(
             CustomMetricConfig.builder()
                 .metricName(NUM_ACTIVE_CONNECTIONS_METRIC_NAME)
@@ -56,8 +55,8 @@ public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricSt
                         .build())
                 .build());
 
-    final Metric defaultMetric =
-        Metric.builder()
+    final DocStoreMetric defaultMetric =
+        DocStoreMetric.builder()
             .name(NUM_ACTIVE_CONNECTIONS_METRIC_NAME)
             .labels(Map.of(APP_NAME_LABEL, applicationNameInCurrentConnection))
             .build();
@@ -67,7 +66,7 @@ public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricSt
         return defaultMetric;
 
       case 1:
-        final Metric metric =
+        final DocStoreMetric metric =
             metrics.get(0).toBuilder()
                 .labels(Map.of(APP_NAME_LABEL, applicationNameInCurrentConnection))
                 .build();

@@ -2,7 +2,7 @@ package org.hypertrace.core.documentstore;
 
 import java.util.Map;
 import java.util.Set;
-import org.hypertrace.core.documentstore.metric.MetricStore;
+import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
 
 public interface Datastore {
   Set<String> listCollections();
@@ -15,5 +15,6 @@ public interface Datastore {
 
   boolean healthCheck();
 
-  MetricStore getMetricStore();
+  @SuppressWarnings("unused")
+  DocStoreMetricProvider getDocStoreMetricProvider();
 }

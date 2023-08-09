@@ -11,7 +11,7 @@ import com.mongodb.client.MongoDatabase;
 import java.util.List;
 import java.util.Map;
 import org.bson.Document;
-import org.hypertrace.core.documentstore.metric.Metric;
+import org.hypertrace.core.documentstore.metric.DocStoreMetric;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoDefaults;
 import org.hypertrace.core.documentstore.mongo.MongoDatastore;
@@ -23,7 +23,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class MongoMetricStoreTest {
+class MongoDocumentStoreMetricProviderTest {
   private final String MONGO_CLIENT_APP_NAME = "mongo-client-app-name";
 
   private final MongoConnectionConfig mockConnectionConfig =
@@ -34,19 +34,20 @@ class MongoMetricStoreTest {
   @Mock private MongoClient mockClient;
   private MongoDatabase mockDatabase;
 
-  private MongoMetricStore mongoMetricStore;
+  private MongoDocStoreMetricProvider mongoDocStoreMetricProvider;
 
   @BeforeEach
   void setUp() {
     mockDatabase = mock(MongoDatabase.class, RETURNS_DEEP_STUBS);
     when(mockClient.getDatabase(MongoDefaults.ADMIN_DATABASE)).thenReturn(mockDatabase);
-    mongoMetricStore = new MongoMetricStore(mockDataStore, mockConnectionConfig, mockClient);
+    mongoDocStoreMetricProvider =
+        new MongoDocStoreMetricProvider(mockDataStore, mockConnectionConfig, mockClient);
   }
 
   @Nested
   class GetConnectionCountMetricTest {
-    private final Metric defaultMetric =
-        Metric.builder()
+    private final DocStoreMetric defaultMetric =
+        DocStoreMetric.builder()
             .name("num.active.mongo.connections")
             .value(0L)
             .labels(Map.ofEntries(Map.entry("app_name", MONGO_CLIENT_APP_NAME)))
@@ -56,7 +57,7 @@ class MongoMetricStoreTest {
     void withEmptyProcess_returnsDefaultMetric() {
       when(mockDatabase.runCommand(new Document("currentOp", 1)).append("$all", true))
           .thenReturn(new Document("inprog", emptyList()));
-      final Metric result = mongoMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = mongoDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
@@ -64,7 +65,7 @@ class MongoMetricStoreTest {
     void withException_returnsDefaultMetric() {
       when(mockDatabase.runCommand(new Document("currentOp", 1)).append("$all", true))
           .thenThrow(new RuntimeException());
-      final Metric result = mongoMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = mongoDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
@@ -72,7 +73,7 @@ class MongoMetricStoreTest {
     void withNoAppName_returnsDefaultMetric() {
       when(mockDatabase.runCommand(new Document("currentOp", 1)).append("$all", true))
           .thenReturn(new Document("inprog", List.of(Map.of("active", true))));
-      final Metric result = mongoMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = mongoDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
@@ -80,7 +81,7 @@ class MongoMetricStoreTest {
     void withNoActiveField_returnsDefaultMetric() {
       when(mockDatabase.runCommand(new Document("currentOp", 1)).append("$all", true))
           .thenReturn(new Document("inprog", List.of(Map.of("appName", MONGO_CLIENT_APP_NAME))));
-      final Metric result = mongoMetricStore.getConnectionCountMetric();
+      final DocStoreMetric result = mongoDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
@@ -98,9 +99,9 @@ class MongoMetricStoreTest {
                       Map.of("appName", MONGO_CLIENT_APP_NAME, "active", false),
                       Map.of("appName", MONGO_CLIENT_APP_NAME + 1, "active", true),
                       Map.of("appName", MONGO_CLIENT_APP_NAME, "active", true))));
-      final Metric result = mongoMetricStore.getConnectionCountMetric();
-      final Metric expected =
-          Metric.builder()
+      final DocStoreMetric result = mongoDocStoreMetricProvider.getConnectionCountMetric();
+      final DocStoreMetric expected =
+          DocStoreMetric.builder()
               .name("num.active.mongo.connections")
               .value(3)
               .labels(Map.ofEntries(Map.entry("app_name", MONGO_CLIENT_APP_NAME)))
