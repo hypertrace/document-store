@@ -12,7 +12,7 @@ import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class PostgresClient {
+class PostgresClient {
 
   private static final Logger log = LoggerFactory.getLogger(PostgresClient.class);
   private static final int VALIDATION_QUERY_TIMEOUT_SECONDS = 5;

@@ -10,7 +10,6 @@ com-github-java-json-tools-json-patch = { module = "com.github.java-json-tools:j
 com-google-guava = { module = "com.google.guava:guava", version = "32.0.1-jre" }
 com-typesafe-config = { module = "com.typesafe:config", version = "1.4.2" }
 net-jodah-failsafe = { module = "net.jodah:failsafe", version = "2.4.4" }
-
 org-apache-commons-commons-collections4 = { module = "org.apache.commons:commons-collections4", version = "4.4" }
 org-apache-commons-commons-dbcp2 = { module = "org.apache.commons:commons-dbcp2", version = "2.9.0" }
 org-apache-commons-commons-lang3 = { module = "org.apache.commons:commons-lang3", version = "3.12.0" }

@@ -6,7 +6,7 @@ import lombok.Value;
 import lombok.experimental.Accessors;
 
 @Value
-@Builder(toBuilder = true)
+@Builder
 @Accessors(fluent = true)
 public class DatastoreConfig {
   @NonNull DatabaseType type;
