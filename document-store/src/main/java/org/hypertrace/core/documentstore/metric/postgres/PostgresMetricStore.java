@@ -25,6 +25,8 @@ public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricSt
   private static final String NUM_ACTIVE_CONNECTIONS_METRIC_NAME =
       "num.active.postgres.connections";
   private static final String APP_NAME_LABEL = "app_name";
+  private static final String APPLICATION_COLUMN_NAME = "application_name";
+  private static final String PG_STAT_ACTIVITY_TABLE = "pg_stat_activity";
 
   private final String applicationNameInCurrentConnection;
 
@@ -40,7 +42,7 @@ public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricSt
         getCustomMetrics(
             CustomMetricConfig.builder()
                 .metricName(NUM_ACTIVE_CONNECTIONS_METRIC_NAME)
-                .collectionName("pg_stat_activity")
+                .collectionName(PG_STAT_ACTIVITY_TABLE)
                 .query(
                     Query.builder()
                         .addSelection(
@@ -48,7 +50,7 @@ public class PostgresMetricStore extends BaseMetricStoreImpl implements MetricSt
                                 AggregateExpression.of(COUNT, ConstantExpression.of(1)), VALUE_KEY))
                         .setFilter(
                             RelationalExpression.of(
-                                IdentifierExpression.of("application_name"),
+                                IdentifierExpression.of(APPLICATION_COLUMN_NAME),
                                 EQ,
                                 ConstantExpression.of(applicationNameInCurrentConnection)))
                         .build())
