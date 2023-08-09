@@ -17,10 +17,8 @@ import java.util.Set;
 import lombok.NonNull;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
-import org.hypertrace.core.documentstore.metric.exporter.CommonMetricExporter;
-import org.hypertrace.core.documentstore.metric.exporter.DBMetricExporter;
-import org.hypertrace.core.documentstore.metric.exporter.MetricExporter;
-import org.hypertrace.core.documentstore.metric.exporter.postgres.PostgresMetricValuesProvider;
+import org.hypertrace.core.documentstore.metric.MetricStore;
+import org.hypertrace.core.documentstore.metric.postgres.PostgresMetricStore;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
@@ -34,6 +32,7 @@ public class PostgresDatastore implements Datastore {
 
   private final PostgresClient client;
   private final String database;
+  private final MetricStore metricStore;
 
   public PostgresDatastore(@NonNull final DatastoreConfig datastoreConfig) {
     final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
@@ -53,8 +52,7 @@ public class PostgresDatastore implements Datastore {
 
       client = new PostgresClient(postgresConnectionConfig);
       database = connectionConfig.database();
-
-      startMetricExporters(datastoreConfig, postgresConnectionConfig);
+      metricStore = new PostgresMetricStore(this, postgresConnectionConfig);
     } catch (final IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Unable to instantiate PostgresClient with config:%s", connectionConfig),
@@ -135,30 +133,12 @@ public class PostgresDatastore implements Datastore {
     return false;
   }
 
+  @Override
+  public MetricStore getMetricStore() {
+    return metricStore;
+  }
+
   public Connection getPostgresClient() {
     return client.getConnection();
-  }
-
-  private void startMetricExporters(
-      final DatastoreConfig datastoreConfig, final PostgresConnectionConfig postgresConfig) {
-    if (datastoreConfig.metricExporterConfig().exportingEnabled()) {
-      getMetricExporters(datastoreConfig, postgresConfig).forEach(MetricExporter::reportMetrics);
-    }
-  }
-
-  private Set<MetricExporter> getMetricExporters(
-      final DatastoreConfig datastoreConfig, final PostgresConnectionConfig postgresConfig) {
-    return Set.of(
-        getDBSpecificExporter(datastoreConfig, postgresConfig), getCommonExporter(datastoreConfig));
-  }
-
-  private MetricExporter getDBSpecificExporter(
-      final DatastoreConfig datastoreConfig, final PostgresConnectionConfig postgresConfig) {
-    return new DBMetricExporter(
-        Set.of(new PostgresMetricValuesProvider(postgresConfig, client)), datastoreConfig);
-  }
-
-  private MetricExporter getCommonExporter(final DatastoreConfig datastoreConfig) {
-    return new CommonMetricExporter(this, datastoreConfig);
   }
 }

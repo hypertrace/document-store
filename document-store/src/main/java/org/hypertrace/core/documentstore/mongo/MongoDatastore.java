@@ -14,10 +14,8 @@ import java.util.Set;
 import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
-import org.hypertrace.core.documentstore.metric.exporter.CommonMetricExporter;
-import org.hypertrace.core.documentstore.metric.exporter.DBMetricExporter;
-import org.hypertrace.core.documentstore.metric.exporter.MetricExporter;
-import org.hypertrace.core.documentstore.metric.exporter.mongo.MongoMetricValuesProvider;
+import org.hypertrace.core.documentstore.metric.MetricStore;
+import org.hypertrace.core.documentstore.metric.mongo.MongoMetricStore;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
@@ -29,6 +27,7 @@ public class MongoDatastore implements Datastore {
 
   private final MongoClient client;
   private final MongoDatabase database;
+  private final MetricStore metricStore;
 
   public MongoDatastore(final DatastoreConfig datastoreConfig) {
     final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
@@ -43,8 +42,7 @@ public class MongoDatastore implements Datastore {
     final MongoConnectionConfig mongoConfig = (MongoConnectionConfig) connectionConfig;
     client = MongoClients.create(mongoConfig.toSettings());
     database = client.getDatabase(mongoConfig.database());
-
-    startMetricExporters(datastoreConfig, mongoConfig);
+    metricStore = new MongoMetricStore(this, mongoConfig, client);
   }
 
   @Override
@@ -88,31 +86,13 @@ public class MongoDatastore implements Datastore {
     return !document.isEmpty();
   }
 
+  @Override
+  public MetricStore getMetricStore() {
+    return metricStore;
+  }
+
   @VisibleForTesting
   MongoClient getMongoClient() {
     return client;
-  }
-
-  private void startMetricExporters(
-      final DatastoreConfig datastoreConfig, final MongoConnectionConfig mongoConfig) {
-    if (datastoreConfig.metricExporterConfig().exportingEnabled()) {
-      getMetricExporters(datastoreConfig, mongoConfig).forEach(MetricExporter::reportMetrics);
-    }
-  }
-
-  private Set<MetricExporter> getMetricExporters(
-      final DatastoreConfig datastoreConfig, final MongoConnectionConfig mongoConfig) {
-    return Set.of(
-        getDBSpecificExporter(datastoreConfig, mongoConfig), getCommonExporter(datastoreConfig));
-  }
-
-  private MetricExporter getDBSpecificExporter(
-      final DatastoreConfig datastoreConfig, final MongoConnectionConfig mongoConfig) {
-    return new DBMetricExporter(
-        Set.of(new MongoMetricValuesProvider(mongoConfig, client)), datastoreConfig);
-  }
-
-  private MetricExporter getCommonExporter(final DatastoreConfig datastoreConfig) {
-    return new CommonMetricExporter(this, datastoreConfig);
   }
 }

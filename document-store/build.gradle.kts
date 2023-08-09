@@ -19,7 +19,6 @@ dependencies {
   implementation(libs.net.jodah.failsafe)
   implementation(libs.com.google.guava)
   implementation(libs.org.apache.commons.commons.dbcp2)
-  implementation(libs.hypertrace.service.framework.metrics)
 
   testImplementation(libs.org.junit.jupiter.junit.jupiter)
   testImplementation(libs.org.mockito.mockito.core)

@@ -1,6 +1,5 @@
 package org.hypertrace.core.documentstore.model.config;
 
-import java.time.Duration;
 import lombok.Builder;
 import lombok.Value;
 import lombok.experimental.Accessors;
@@ -10,8 +9,9 @@ import org.hypertrace.core.documentstore.query.Query;
 @Builder
 @Accessors(fluent = true)
 public class CustomMetricConfig {
+  public static String VALUE_KEY = "metric_value";
+
   String collectionName;
   String metricName;
   Query query;
-  Duration reportingInterval;
 }
