@@ -75,7 +75,9 @@ public class PostgresDocStoreMetricProvider extends BaseDocStoreMetricProviderIm
 
       default:
         log.error(
-            "Found {} values for metric {}", metrics.size(), NUM_ACTIVE_CONNECTIONS_METRIC_NAME);
+            "Could not report metric {} since multiple values {} are found",
+            NUM_ACTIVE_CONNECTIONS_METRIC_NAME,
+            metrics);
         return defaultMetric;
     }
   }

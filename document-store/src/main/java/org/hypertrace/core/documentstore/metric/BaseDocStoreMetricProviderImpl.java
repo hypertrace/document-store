@@ -56,9 +56,9 @@ public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricPr
           continue;
         }
 
-        final long metricValue;
+        final double metricValue;
         if (node.has(VALUE_KEY)) {
-          metricValue = Double.valueOf(node.get(VALUE_KEY).doubleValue()).longValue();
+          metricValue = node.get(VALUE_KEY).doubleValue();
         } else {
           log.warn(
               "No value found in JSON document {} for metric {} with query {}",
