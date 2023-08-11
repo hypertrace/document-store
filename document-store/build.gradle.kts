@@ -2,8 +2,8 @@ plugins {
   `java-library`
   jacoco
   id("org.hypertrace.publish-plugin")
-  id("org.hypertrace.jacoco-report-plugin") version "0.2.0"
-  id("org.hypertrace.integration-test-plugin") version "0.2.0"
+  id("org.hypertrace.jacoco-report-plugin")
+  id("org.hypertrace.integration-test-plugin")
 }
 
 dependencies {

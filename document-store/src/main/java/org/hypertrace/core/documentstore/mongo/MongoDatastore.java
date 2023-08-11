@@ -14,8 +14,10 @@ import java.util.Set;
 import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
-import org.hypertrace.core.documentstore.model.DatastoreConfig;
+import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
+import org.hypertrace.core.documentstore.metric.mongo.MongoDocStoreMetricProvider;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +27,7 @@ public class MongoDatastore implements Datastore {
 
   private final MongoClient client;
   private final MongoDatabase database;
+  private final DocStoreMetricProvider docStoreMetricProvider;
 
   public MongoDatastore(final DatastoreConfig datastoreConfig) {
     final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
@@ -39,6 +42,7 @@ public class MongoDatastore implements Datastore {
     final MongoConnectionConfig mongoConfig = (MongoConnectionConfig) connectionConfig;
     client = MongoClients.create(mongoConfig.toSettings());
     database = client.getDatabase(mongoConfig.database());
+    docStoreMetricProvider = new MongoDocStoreMetricProvider(this, mongoConfig, client);
   }
 
   @Override
@@ -80,6 +84,11 @@ public class MongoDatastore implements Datastore {
   public boolean healthCheck() {
     Document document = this.database.runCommand(new Document("ping", "1"));
     return !document.isEmpty();
+  }
+
+  @Override
+  public DocStoreMetricProvider getDocStoreMetricProvider() {
+    return docStoreMetricProvider;
   }
 
   @VisibleForTesting

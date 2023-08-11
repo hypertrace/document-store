@@ -17,8 +17,11 @@ import java.util.Set;
 import lombok.NonNull;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
-import org.hypertrace.core.documentstore.model.DatastoreConfig;
+import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
+import org.hypertrace.core.documentstore.metric.postgres.PostgresDocStoreMetricProvider;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,14 +32,27 @@ public class PostgresDatastore implements Datastore {
 
   private final PostgresClient client;
   private final String database;
+  private final DocStoreMetricProvider docStoreMetricProvider;
 
   public PostgresDatastore(@NonNull final DatastoreConfig datastoreConfig) {
     final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
+
+    if (!(connectionConfig instanceof PostgresConnectionConfig)) {
+      throw new IllegalArgumentException(
+          String.format(
+              "Cannot pass %s as config to %s",
+              connectionConfig.getClass().getSimpleName(), this.getClass().getSimpleName()));
+    }
+
+    final PostgresConnectionConfig postgresConnectionConfig =
+        (PostgresConnectionConfig) connectionConfig;
+
     try {
       DriverManager.registerDriver(new org.postgresql.Driver());
 
-      client = new PostgresClient(connectionConfig);
+      client = new PostgresClient(postgresConnectionConfig);
       database = connectionConfig.database();
+      docStoreMetricProvider = new PostgresDocStoreMetricProvider(this, postgresConnectionConfig);
     } catch (final IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Unable to instantiate PostgresClient with config:%s", connectionConfig),
@@ -115,6 +131,11 @@ public class PostgresDatastore implements Datastore {
       LOGGER.error("Exception executing health check");
     }
     return false;
+  }
+
+  @Override
+  public DocStoreMetricProvider getDocStoreMetricProvider() {
+    return docStoreMetricProvider;
   }
 
   public Connection getPostgresClient() {

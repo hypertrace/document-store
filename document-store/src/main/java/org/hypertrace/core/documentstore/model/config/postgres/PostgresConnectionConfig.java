@@ -1,7 +1,9 @@
 package org.hypertrace.core.documentstore.model.config.postgres;
 
+import static java.util.Collections.unmodifiableList;
 import static java.util.function.Predicate.not;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
@@ -15,6 +17,7 @@ import lombok.experimental.NonFinal;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
+import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.Endpoint;
 import org.postgresql.PGProperty;
 
@@ -40,6 +43,10 @@ public class PostgresConnectionConfig extends ConnectionConfig {
 
   @NonNull String applicationName;
   @NonNull ConnectionPoolConfig connectionPoolConfig;
+
+  public static ConnectionConfigBuilder builder() {
+    return ConnectionConfig.builder().type(DatabaseType.POSTGRES);
+  }
 
   public PostgresConnectionConfig(
       @NonNull final List<Endpoint> endpoints,
@@ -84,13 +91,27 @@ public class PostgresConnectionConfig extends ConnectionConfig {
         return List.of(Endpoint.builder().port(PostgresDefaults.DEFAULT_PORT).build());
 
       case 1:
-        return endpoints;
+        return fillInMissingPorts(endpoints);
 
       default:
         throw new IllegalArgumentException(
             String.format(
                 "Cannot have more than 1 endpoint for Postgres. Found: %d", numEndpoints));
     }
+  }
+
+  private static List<Endpoint> fillInMissingPorts(final List<Endpoint> endpoints) {
+    final List<Endpoint> updatedEndpoints = new ArrayList<>();
+
+    for (final Endpoint endpoint : endpoints) {
+      if (endpoint.port() == null) {
+        updatedEndpoints.add(endpoint.toBuilder().port(PostgresDefaults.DEFAULT_PORT).build());
+      } else {
+        updatedEndpoints.add(endpoint);
+      }
+    }
+
+    return unmodifiableList(updatedEndpoints);
   }
 
   @NonNull

@@ -5,11 +5,10 @@ import java.util.List;
 import java.util.Optional;
 import lombok.NonNull;
 import lombok.Value;
-import org.hypertrace.core.documentstore.model.DatastoreConfig;
-import org.hypertrace.core.documentstore.model.DatastoreConfig.DatastoreConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig.ConnectionConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials.ConnectionCredentialsBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.ConnectionPoolConfigBuilder;
+import org.hypertrace.core.documentstore.model.config.DatastoreConfig.DatastoreConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.Endpoint.EndpointBuilder;
 
 @Value

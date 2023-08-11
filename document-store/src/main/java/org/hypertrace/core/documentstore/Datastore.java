@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore;
 
 import java.util.Map;
 import java.util.Set;
+import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
 
 public interface Datastore {
   Set<String> listCollections();
@@ -13,4 +14,7 @@ public interface Datastore {
   Collection getCollection(String collectionName);
 
   boolean healthCheck();
+
+  @SuppressWarnings("unused")
+  DocStoreMetricProvider getDocStoreMetricProvider();
 }

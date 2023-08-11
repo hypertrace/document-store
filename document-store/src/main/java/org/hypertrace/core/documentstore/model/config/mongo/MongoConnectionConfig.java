@@ -20,6 +20,7 @@ import lombok.experimental.Accessors;
 import lombok.experimental.NonFinal;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
+import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.Endpoint;
 
 @Value
@@ -30,6 +31,10 @@ import org.hypertrace.core.documentstore.model.config.Endpoint;
 public class MongoConnectionConfig extends ConnectionConfig {
   @NonNull String applicationName;
   @Nullable String replicaSetName;
+
+  public static ConnectionConfigBuilder builder() {
+    return ConnectionConfig.builder().type(DatabaseType.MONGO);
+  }
 
   public MongoConnectionConfig(
       @NonNull final List<Endpoint> endpoints,
