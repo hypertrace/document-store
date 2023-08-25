@@ -9,4 +9,12 @@
     <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
     <cve>CVE-2023-35116</cve>
   </suppress>
+  <suppress>
+    <notes><![CDATA[
+   file name: postgresql-42.5.4.jar
+   ]]></notes>
+    <!-- The vulnerability is in the Postgres Server -->
+    <packageUrl regex="true">^pkg:maven/org\.postgresql/postgresql@.*$</packageUrl>
+    <cpe>cpe:/a:postgresql:postgresql_jdbc_driver</cpe>
+  </suppress>
 </suppressions> 
