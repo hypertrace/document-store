@@ -1,0 +1,16 @@
+[
+  {
+    "planets": [
+      {
+        "name": "Earth",
+        "color": "Blue",
+        "humans_live": true
+      },
+      {
+        "name": "Mars",
+        "color": "Red",
+        "humans_live": "possibly in future"
+      }
+    ]
+  }
+]

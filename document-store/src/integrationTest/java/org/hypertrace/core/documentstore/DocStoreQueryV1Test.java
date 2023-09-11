@@ -60,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -1677,6 +1678,59 @@ public class DocStoreQueryV1Test {
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsAndSizeEqual(
         datastoreName, resultDocs, "query/filter_with_sorting_and_pagination_response.json", 3);
+  }
+
+  @Nested
+  class AtomicCreateOrReplaceTest {
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testAtomicCreateOrReplace(final String datastoreName)
+        throws IOException, ExecutionException, InterruptedException {
+      final Collection collection = getCollection(datastoreName);
+      final Key key = Key.from(UUID.randomUUID().toString());
+
+      final Document document1 =
+          new JSONDocument(readFileFromResource("create/document_one.json").orElseThrow());
+      final Document document2 =
+          new JSONDocument(readFileFromResource("create/document_two.json").orElseThrow());
+
+      final Random random = new Random();
+      final Callable<Boolean> callable1 =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.createOrReplace(key, document1);
+          };
+
+      final Callable<Boolean> callable2 =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.createOrReplace(key, document2);
+          };
+
+      final ExecutorService executor = Executors.newFixedThreadPool(2);
+      final Future<Boolean> future1 = executor.submit(callable1);
+      final Future<Boolean> future2 = executor.submit(callable2);
+
+      final boolean document1Created = future1.get();
+      final boolean document2Created = future2.get();
+
+      final CloseableIterator<Document> iterator =
+          collection.aggregate(
+              Query.builder()
+                  .setFilter(Filter.builder().expression(KeyExpression.of(key)).build())
+                  .build());
+
+      if (document1Created) {
+        assertFalse(document2Created);
+        // If document 1 was created, document 2 should have replaced it
+        assertDocsAndSizeEqual("", iterator, "create/document_two_response.json", 1);
+      } else {
+        assertTrue(document2Created);
+        // If document 1 was not created, document 2 should have been created and then, document 1
+        // should have replaced it
+        assertDocsAndSizeEqual("", iterator, "create/document_one_response.json", 1);
+      }
+    }
   }
 
   @Nested

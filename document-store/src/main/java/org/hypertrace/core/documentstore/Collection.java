@@ -26,11 +26,13 @@ public interface Collection {
    *     "foo1": "bar1"
    *   }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
-   * the "foo1" field is implementation specific
+   * the "foo1" field is implementation specific. Prefer using {@link #createOrReplace} if you want
+   * a consistent behavior.
    *
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
-   * @return True if this operation resulted in update of an existing document. False, otherwise.
+   * @return True if this operation resulted in an update of an existing document or creation of a
+   *     new document.
    */
   boolean upsert(Key key, Document document) throws IOException;
 
@@ -48,7 +50,8 @@ public interface Collection {
    *     "foo1": "bar1"
    *   }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
-   * the "foo1" field is implementation specific
+   * the "foo1" field is implementation specific. Prefer using {@link #createOrReplace} if you want
+   * a consistent behavior.
    *
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
@@ -216,6 +219,18 @@ public interface Collection {
    * @throws IOException if there was any other exception while creating the document
    */
   CreateResult create(Key key, Document document) throws DuplicateDocumentException, IOException;
+
+  /**
+   * Atomically create a new document if the key does not exist in the collection or, replace the
+   * existing document if the key exists in the collection
+   *
+   * @param key Unique key of the document in the collection.
+   * @param document The document to be created/replaced
+   * @return true if this operation resulted in the creation of a new document. false if an existing
+   *     document was replaced.
+   * @throws IOException If the operation could not be performed
+   */
+  boolean createOrReplace(final Key key, final Document document) throws IOException;
 
   /**
    * Updates existing documents if the corresponding Filter condition evaluates to true

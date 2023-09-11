@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -37,6 +38,7 @@ import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
+import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
@@ -49,6 +51,7 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
@@ -76,6 +79,39 @@ class PostgresCollectionTest {
       clockMock.when(Clock::systemUTC).thenReturn(mockClock);
       postgresCollection = new PostgresCollection(mockClient, COLLECTION_NAME);
     }
+  }
+
+  @Test
+  void testCreateOrReplace() throws Exception {
+    final Key key = Key.from("some_key");
+    final Document document = new JSONDocument("{\"planet\": \"Mars\"}");
+
+    when(mockClient.getConnection()).thenReturn(mockConnection);
+    when(mockConnection.prepareStatement(
+            String.format(
+                "INSERT INTO %s (id, document, created_at) "
+                    + "VALUES (?, ?::jsonb, NOW()) "
+                    + "ON CONFLICT(id) DO UPDATE SET "
+                    + "document = jsonb_set(?::jsonb, '{createdTime}', %s.document->'createdTime'), "
+                    + "updated_at = NOW() "
+                    + "RETURNING created_at = NOW() AS created_now_alias",
+                COLLECTION_NAME, COLLECTION_NAME)))
+        .thenReturn(mockUpdatePreparedStatement);
+    when(mockUpdatePreparedStatement.executeQuery()).thenReturn(mockResultSet);
+    when(mockResultSet.next()).thenReturn(true);
+    when(mockResultSet.getBoolean("created_now_alias")).thenReturn(true);
+    final boolean result = postgresCollection.createOrReplace(key, document);
+
+    assertTrue(result);
+
+    final ArgumentCaptor<String> documentJsonCaptor = ArgumentCaptor.forClass(String.class);
+
+    verify(mockUpdatePreparedStatement, times(1)).setString(1, key.toString());
+    verify(mockUpdatePreparedStatement, times(1)).setString(eq(2), documentJsonCaptor.capture());
+    verify(mockUpdatePreparedStatement, times(1)).setString(eq(3), documentJsonCaptor.capture());
+
+    assertEquals(2, documentJsonCaptor.getAllValues().size());
+    assertEquals(1, documentJsonCaptor.getAllValues().stream().distinct().count());
   }
 
   @Test

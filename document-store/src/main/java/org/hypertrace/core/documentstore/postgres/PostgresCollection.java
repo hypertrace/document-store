@@ -94,6 +94,7 @@ public class PostgresCollection implements Collection {
   public static final String CREATED_AT = "created_at";
   public static final String DOC_PATH_SEPARATOR = "\\.";
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final String CREATED_NOW_ALIAS = "created_now_alias";
   private static final CloseableIterator<Document> EMPTY_ITERATOR =
       CloseableIterator.emptyIterator();
 
@@ -185,6 +186,30 @@ public class PostgresCollection implements Collection {
       throw new IOException(e);
     } catch (SQLException e) {
       LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public boolean createOrReplace(final Key key, final Document document) throws IOException {
+    try (final PreparedStatement preparedStatement =
+        client.getConnection().prepareStatement(getCreateOrReplaceSQL())) {
+      final String jsonString = prepareDocumentForCreation(key, document);
+      preparedStatement.setString(1, key.toString());
+      preparedStatement.setString(2, jsonString);
+      preparedStatement.setString(3, jsonString);
+
+      final ResultSet resultSet = preparedStatement.executeQuery();
+
+      if (!resultSet.next()) {
+        throw new IOException("Unexpected response from Postgres DB");
+      }
+
+      final boolean result = resultSet.getBoolean(CREATED_NOW_ALIAS);
+      LOGGER.debug("Write result: {}", result);
+      return result;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
       throw new IOException(e);
     }
   }
@@ -1056,6 +1081,21 @@ public class PostgresCollection implements Collection {
     return MAPPER.writeValueAsString(jsonNode);
   }
 
+  private String prepareDocumentForCreation(final Key key, final Document document)
+      throws IOException {
+    final String jsonString = document.toJson();
+
+    final ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(jsonString);
+    jsonNode.put(DOCUMENT_ID, key.toString());
+
+    // update time fields
+    final long now = System.currentTimeMillis();
+    jsonNode.put(DocStoreConstants.CREATED_TIME, now);
+    jsonNode.put(DocStoreConstants.LAST_UPDATED_TIME, now);
+
+    return MAPPER.writeValueAsString(jsonNode);
+  }
+
   private long updateLastModifiedTime(Set<Key> keys) {
     String updateSubDocSQL =
         String.format(
@@ -1113,6 +1153,31 @@ public class PostgresCollection implements Collection {
         "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = "
             + "?::jsonb ",
         collectionName, ID, DOCUMENT, ID, DOCUMENT);
+  }
+
+  private String getCreateOrReplaceSQL() {
+    return String.format(
+        "INSERT INTO %s "
+            + "(%s, %s, %s) "
+            + "VALUES (?, ?::jsonb, NOW()) "
+            + "ON CONFLICT(%s) "
+            + "DO UPDATE SET "
+            + "%s = jsonb_set(?::jsonb, '{%s}', %s.%s->'%s'), "
+            + "%s = NOW() "
+            + "RETURNING %s = NOW() AS %s",
+        collectionName,
+        ID,
+        DOCUMENT,
+        CREATED_AT,
+        ID,
+        DOCUMENT,
+        DocStoreConstants.CREATED_TIME,
+        collectionName,
+        DOCUMENT,
+        DocStoreConstants.CREATED_TIME,
+        UPDATED_AT,
+        CREATED_AT,
+        CREATED_NOW_ALIAS);
   }
 
   private String getSubDocUpdateQuery() {

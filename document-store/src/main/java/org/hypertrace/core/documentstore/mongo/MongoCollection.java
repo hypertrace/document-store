@@ -37,6 +37,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
+import org.bson.BsonInt64;
+import org.bson.BsonString;
+import org.bson.BsonValue;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -227,6 +230,23 @@ public class MongoCollection implements Collection {
     }
   }
 
+  @Override
+  public boolean createOrReplace(final Key key, final Document document) throws IOException {
+    try {
+      final UpdateOptions options = new UpdateOptions().upsert(true);
+      final UpdateResult updateResult =
+          collection.updateOne(
+              this.selectionCriteriaForKey(key),
+              this.prepareForCreateOrReplace(key, document),
+              options);
+      LOGGER.debug("Create or replace result: {}", updateResult);
+      return updateResult.getUpsertedId() != null;
+    } catch (IOException e) {
+      LOGGER.error("Exception creating/replacing document. key: {} content:{}", key, document, e);
+      throw e;
+    }
+  }
+
   /**
    * Adds the following fields automatically: _id, _lastUpdateTime, lastUpdatedTime and created Time
    */
@@ -247,6 +267,23 @@ public class MongoCollection implements Collection {
     }
 
     return dbObjectToDocument(upsertResult);
+  }
+
+  @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
+  private List<BasicDBObject> prepareForCreateOrReplace(final Key key, final Document document)
+      throws JsonProcessingException {
+    final long now = System.currentTimeMillis();
+    final BasicDBObject project =
+        new BasicDBObject(
+            "$project",
+            new BasicDBObject(
+                CREATED_TIME,
+                new BasicDBObject(
+                    "$ifNull",
+                    new BsonValue[] {new BsonString("$" + CREATED_TIME), new BsonInt64(now)})));
+    final BasicDBObject set = new BasicDBObject("$set", prepareDocument(key, document, now));
+
+    return List.of(project, set);
   }
 
   private BasicDBObject prepareUpsert(Key key, Document document) throws JsonProcessingException {
