@@ -26,14 +26,15 @@ public interface Collection {
    *     "foo1": "bar1"
    *   }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
-   * the "foo1" field is implementation specific. Prefer using {@link #createOrReplace} if you want
-   * a consistent behavior.
+   * the "foo1" field is implementation specific
    *
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
    * @return True if this operation resulted in an update of an existing document or creation of a
    *     new document.
+   * @deprecated Use {@link #createOrReplace} for a consistent behavior.
    */
+  @Deprecated(forRemoval = true)
   boolean upsert(Key key, Document document) throws IOException;
 
   /**
@@ -50,13 +51,14 @@ public interface Collection {
    *     "foo1": "bar1"
    *   }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
-   * the "foo1" field is implementation specific. Prefer using {@link #createOrReplace} if you want
-   * a consistent behavior.
+   * the "foo1" field is implementation specific
    *
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
    * @return Returns the updated document regardless if an update occurred
+   * @deprecated Use {@link #createOrReplace} for a consistent behavior.
    */
+  @Deprecated(forRemoval = true)
   Document upsertAndReturn(Key key, Document document) throws IOException;
 
   /**
