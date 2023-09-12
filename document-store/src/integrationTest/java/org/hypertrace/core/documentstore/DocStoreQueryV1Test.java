@@ -1,6 +1,8 @@
 package org.hypertrace.core.documentstore;
 
+import static java.util.Spliterators.spliteratorUnknownSize;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.and;
 import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.or;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.AVG;
@@ -51,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
@@ -60,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Spliterator;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -67,6 +71,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -1719,16 +1725,29 @@ public class DocStoreQueryV1Test {
               Query.builder()
                   .setFilter(Filter.builder().expression(KeyExpression.of(key)).build())
                   .build());
+      final List<Document> documents =
+          StreamSupport.stream(spliteratorUnknownSize(iterator, Spliterator.ORDERED), false)
+              .collect(toUnmodifiableList());
+
+      assertEquals(1, documents.size());
+      @SuppressWarnings("unchecked")
+      final Map<String, Object> mapping =
+          new ObjectMapper().readValue(documents.get(0).toJson(), Map.class);
+      assertTrue(
+          (long) mapping.get(DocStoreConstants.LAST_UPDATED_TIME)
+              > (long) mapping.get(DocStoreConstants.CREATED_TIME));
 
       if (document1Created) {
         assertFalse(document2Created);
         // If document 1 was created, document 2 should have replaced it
-        assertDocsAndSizeEqual("", iterator, "create/document_two_response.json", 1);
+        assertDocsAndSizeEqual(
+            datastoreName, documents.iterator(), "create/document_two_response.json", 1);
       } else {
         assertTrue(document2Created);
         // If document 1 was not created, document 2 should have been created and then, document 1
         // should have replaced it
-        assertDocsAndSizeEqual("", iterator, "create/document_one_response.json", 1);
+        assertDocsAndSizeEqual(
+            datastoreName, documents.iterator(), "create/document_one_response.json", 1);
       }
     }
   }

@@ -16,7 +16,7 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpressionVisitor {
 
-  private static final String PROJECT_CLAUSE = "$project";
+  public static final String PROJECT_CLAUSE = "$project";
 
   protected final MongoSelectTypeExpressionParser baseParser;
 

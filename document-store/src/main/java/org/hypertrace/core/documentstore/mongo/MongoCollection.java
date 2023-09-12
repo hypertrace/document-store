@@ -2,8 +2,11 @@ package org.hypertrace.core.documentstore.mongo;
 
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.CREATED_TIME;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.dbObjectToDocument;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.PROJECT_CLAUSE;
+import static org.hypertrace.core.documentstore.mongo.update.parser.MongoSetOperationParser.SET_CLAUSE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mongodb.BasicDBObject;
@@ -102,6 +105,7 @@ public class MongoCollection implements Collection {
                       && allBulkWriteErrorsAreDueToDuplicateKey((MongoBulkWriteException) failure))
           .withDelay(Duration.ofMillis(DELAY_BETWEEN_RETRIES_MILLIS))
           .withMaxRetries(MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE);
+  private final String IF_NULL_CLAUSE = "$ifNull";
 
   MongoCollection(com.mongodb.client.MongoCollection<BasicDBObject> collection) {
     this.collection = collection;
@@ -273,15 +277,17 @@ public class MongoCollection implements Collection {
   private List<BasicDBObject> prepareForCreateOrReplace(final Key key, final Document document)
       throws JsonProcessingException {
     final long now = System.currentTimeMillis();
+
+    // Explicit createdTime field projection automatically unsets all the other existing fields
     final BasicDBObject project =
         new BasicDBObject(
-            "$project",
+            PROJECT_CLAUSE,
             new BasicDBObject(
                 CREATED_TIME,
                 new BasicDBObject(
-                    "$ifNull",
-                    new BsonValue[] {new BsonString("$" + CREATED_TIME), new BsonInt64(now)})));
-    final BasicDBObject set = new BasicDBObject("$set", prepareDocument(key, document, now));
+                    IF_NULL_CLAUSE,
+                    new BsonValue[] {new BsonString(PREFIX + CREATED_TIME), new BsonInt64(now)})));
+    final BasicDBObject set = new BasicDBObject(SET_CLAUSE, prepareDocument(key, document, now));
 
     return List.of(project, set);
   }
