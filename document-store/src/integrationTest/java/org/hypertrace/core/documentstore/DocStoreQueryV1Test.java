@@ -1748,6 +1748,48 @@ public class DocStoreQueryV1Test {
             datastoreName, documents.iterator(), "create/document_one_response.json", 1);
       }
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testAtomicCreateOrReplaceAndReturn(final String datastoreName)
+        throws IOException, ExecutionException, InterruptedException {
+      final Collection collection = getCollection(datastoreName);
+      final Key key = Key.from(UUID.randomUUID().toString());
+
+      final Document document1 =
+          new JSONDocument(readFileFromResource("create/document_one.json").orElseThrow());
+      final Document document2 =
+          new JSONDocument(readFileFromResource("create/document_two.json").orElseThrow());
+
+      final Random random = new Random();
+      final Callable<Document> callable1 =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.createOrReplaceAndReturn(key, document1);
+          };
+
+      final Callable<Document> callable2 =
+          () -> {
+            MILLISECONDS.sleep(random.nextInt(1000));
+            return collection.createOrReplaceAndReturn(key, document2);
+          };
+
+      final ExecutorService executor = Executors.newFixedThreadPool(2);
+
+      final Document document1Created = executor.submit(callable1).get();
+      final Document document2Created = executor.submit(callable2).get();
+
+      assertDocsAndSizeEqual(
+          datastoreName,
+          List.of(document1Created).iterator(),
+          "create/document_one_response.json",
+          1);
+      assertDocsAndSizeEqual(
+          datastoreName,
+          List.of(document2Created).iterator(),
+          "create/document_two_response.json",
+          1);
+    }
   }
 
   @Nested

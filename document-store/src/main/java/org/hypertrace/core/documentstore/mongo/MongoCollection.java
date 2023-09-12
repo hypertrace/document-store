@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static java.util.Objects.requireNonNull;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.CREATED_TIME;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
@@ -245,7 +246,26 @@ public class MongoCollection implements Collection {
               options);
       LOGGER.debug("Create or replace result: {}", updateResult);
       return updateResult.getUpsertedId() != null;
-    } catch (IOException e) {
+    } catch (final Exception e) {
+      LOGGER.error("Exception creating/replacing document. key: {} content:{}", key, document, e);
+      throw e;
+    }
+  }
+
+  @Override
+  public Document createOrReplaceAndReturn(final Key key, final Document document)
+      throws IOException {
+    try {
+      final FindOneAndUpdateOptions options =
+          new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER);
+      final BasicDBObject result =
+          collection.findOneAndUpdate(
+              this.selectionCriteriaForKey(key),
+              this.prepareForCreateOrReplace(key, document),
+              options);
+      LOGGER.debug("Create or replace result: {}", result);
+      return dbObjectToDocument(requireNonNull(result));
+    } catch (final Exception e) {
       LOGGER.error("Exception creating/replacing document. key: {} content:{}", key, document, e);
       throw e;
     }

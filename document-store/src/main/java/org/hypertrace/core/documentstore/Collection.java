@@ -56,7 +56,7 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
    * @return Returns the updated document regardless if an update occurred
-   * @deprecated Use {@link #createOrReplace} for a consistent behavior.
+   * @deprecated Use {@link #createOrReplaceAndReturn} for a consistent behavior.
    */
   @Deprecated(forRemoval = true)
   Document upsertAndReturn(Key key, Document document) throws IOException;
@@ -233,6 +233,17 @@ public interface Collection {
    * @throws IOException If the operation could not be performed
    */
   boolean createOrReplace(final Key key, final Document document) throws IOException;
+
+  /**
+   * Atomically create a new document if the key does not exist in the collection or, replace the
+   * existing document if the key exists in the collection and return the created/replaced document
+   *
+   * @param key Unique key of the document in the collection.
+   * @param document The document to be created/replaced
+   * @return The created/replaced document
+   * @throws IOException If the operation could not be performed
+   */
+  Document createOrReplaceAndReturn(final Key key, final Document document) throws IOException;
 
   /**
    * Updates existing documents if the corresponding Filter condition evaluates to true

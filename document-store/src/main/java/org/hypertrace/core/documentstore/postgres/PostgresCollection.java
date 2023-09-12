@@ -206,10 +206,36 @@ public class PostgresCollection implements Collection {
       }
 
       final boolean result = resultSet.getBoolean(CREATED_NOW_ALIAS);
-      LOGGER.debug("Write result: {}", result);
+      LOGGER.debug("Create or replace result: {}", result);
       return result;
     } catch (SQLException e) {
-      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      LOGGER.error(
+          "SQLException inserting/replacing document. key: {} content:{}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public Document createOrReplaceAndReturn(final Key key, final Document document)
+      throws IOException {
+    try (final PreparedStatement preparedStatement =
+        client.getConnection().prepareStatement(getCreateOrReplaceAndReturnSQL())) {
+      final String jsonString = prepareDocumentForCreation(key, document);
+      preparedStatement.setString(1, key.toString());
+      preparedStatement.setString(2, jsonString);
+      preparedStatement.setString(3, jsonString);
+
+      final PostgresResultIterator iterator =
+          new PostgresResultIterator(preparedStatement.executeQuery());
+
+      if (!iterator.hasNext()) {
+        throw new IOException("Unexpected response from Postgres DB");
+      }
+
+      return iterator.next();
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException inserting/replacing document. key: {} content:{}", key, document, e);
       throw new IOException(e);
     }
   }
@@ -1178,6 +1204,35 @@ public class PostgresCollection implements Collection {
         UPDATED_AT,
         CREATED_AT,
         CREATED_NOW_ALIAS);
+  }
+
+  private String getCreateOrReplaceAndReturnSQL() {
+    return String.format(
+        "INSERT INTO %s "
+            + "(%s, %s, %s) "
+            + "VALUES (?, ?::jsonb, NOW()) "
+            + "ON CONFLICT(%s) "
+            + "DO UPDATE SET "
+            + "%s = jsonb_set(?::jsonb, '{%s}', %s.%s->'%s'), "
+            + "%s = NOW() "
+            + "RETURNING %s::text AS %s, %s AS %s, %s AS %s",
+        collectionName,
+        ID,
+        DOCUMENT,
+        CREATED_AT,
+        ID,
+        DOCUMENT,
+        DocStoreConstants.CREATED_TIME,
+        collectionName,
+        DOCUMENT,
+        DocStoreConstants.CREATED_TIME,
+        UPDATED_AT,
+        DOCUMENT,
+        DOCUMENT,
+        CREATED_AT,
+        CREATED_AT,
+        UPDATED_AT,
+        UPDATED_AT);
   }
 
   private String getSubDocUpdateQuery() {
