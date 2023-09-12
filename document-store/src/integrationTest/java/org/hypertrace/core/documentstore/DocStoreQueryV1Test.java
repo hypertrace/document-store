@@ -1714,11 +1714,9 @@ public class DocStoreQueryV1Test {
           };
 
       final ExecutorService executor = Executors.newFixedThreadPool(2);
-      final Future<Boolean> future1 = executor.submit(callable1);
-      final Future<Boolean> future2 = executor.submit(callable2);
 
-      final boolean document1Created = future1.get();
-      final boolean document2Created = future2.get();
+      final boolean document1Created = executor.submit(callable1).get();
+      final boolean document2Created = executor.submit(callable2).get();
 
       final CloseableIterator<Document> iterator =
           collection.aggregate(
