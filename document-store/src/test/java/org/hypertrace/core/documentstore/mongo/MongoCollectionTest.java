@@ -20,25 +20,31 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoNamespace;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
+import org.bson.BsonString;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
+import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -53,7 +59,6 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.MockedStatic;
-import org.mockito.Mockito;
 
 /** Unit tests for utility/helper methods in {@link MongoCollection} */
 public class MongoCollectionTest {
@@ -68,7 +73,7 @@ public class MongoCollectionTest {
     collection = mock(com.mongodb.client.MongoCollection.class);
     mockClock = mock(Clock.class);
 
-    try (final MockedStatic<Clock> clockMock = Mockito.mockStatic(Clock.class)) {
+    try (final MockedStatic<Clock> clockMock = mockStatic(Clock.class)) {
       clockMock.when(Clock::systemUTC).thenReturn(mockClock);
       mongoCollection = new MongoCollection(collection);
     }
@@ -194,6 +199,31 @@ public class MongoCollectionTest {
 
     mongoCollection.search(query);
     assertEquals("{\"proj1\": 1, \"proj2\": 1}", projectionArgumentCaptor.getValue().toString());
+  }
+
+  @Nested
+  class CreateOrReplaceTest {
+    @Test
+    void testCreateOrReplace() throws IOException {
+      final Key key = Key.from("some-key");
+      final Document document = new JSONDocument("{\"planet\": \"Mars\"}");
+      @SuppressWarnings("unchecked")
+      final ArgumentCaptor<List<BasicDBObject>> valueCaptor = ArgumentCaptor.forClass(List.class);
+
+      when(collection.updateOne(
+              eq(new BasicDBObject("_id", key.toString())),
+              valueCaptor.capture(),
+              any(com.mongodb.client.model.UpdateOptions.class)))
+          .thenReturn(UpdateResult.acknowledged(0, 1L, new BsonString("some-key")));
+
+      assertTrue(mongoCollection.createOrReplace(key, document));
+      final List<BasicDBObject> value = valueCaptor.getValue();
+      final JsonNode node = new ObjectMapper().readTree(value.get(1).get("$set").toString());
+
+      assertEquals("Mars", node.get("planet").textValue());
+      assertEquals(key.toString(), node.get("_id").textValue());
+      assertTrue(node.get("lastUpdatedTime").longValue() - System.currentTimeMillis() < 1000);
+    }
   }
 
   @Nested

@@ -10,7 +10,7 @@ import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 
 @AllArgsConstructor
 public class MongoSetOperationParser extends MongoOperationParser {
-  private static final String SET_CLAUSE = "$set";
+  public static final String SET_CLAUSE = "$set";
 
   @Override
   public UpdateOperator operator() {

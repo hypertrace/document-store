@@ -1,0 +1,8 @@
+[
+  {
+    "planet_name": "Mars",
+    "planet_color": "Red",
+    "humans_live": true,
+    "settlement_since": 2099
+  }
+]

@@ -30,8 +30,11 @@ public interface Collection {
    *
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
-   * @return True if this operation resulted in update of an existing document. False, otherwise.
+   * @return True if this operation resulted in an update of an existing document or creation of a
+   *     new document.
+   * @deprecated Use {@link #createOrReplace} for a consistent behavior.
    */
+  @Deprecated(forRemoval = true)
   boolean upsert(Key key, Document document) throws IOException;
 
   /**
@@ -53,7 +56,9 @@ public interface Collection {
    * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
    * @return Returns the updated document regardless if an update occurred
+   * @deprecated Use {@link #createOrReplaceAndReturn} for a consistent behavior.
    */
+  @Deprecated(forRemoval = true)
   Document upsertAndReturn(Key key, Document document) throws IOException;
 
   /**
@@ -216,6 +221,29 @@ public interface Collection {
    * @throws IOException if there was any other exception while creating the document
    */
   CreateResult create(Key key, Document document) throws DuplicateDocumentException, IOException;
+
+  /**
+   * Atomically create a new document if the key does not exist in the collection or, replace the
+   * existing document if the key exists in the collection
+   *
+   * @param key Unique key of the document in the collection.
+   * @param document The document to be created/replaced
+   * @return true if this operation resulted in the creation of a new document. false if an existing
+   *     document was replaced.
+   * @throws IOException If the operation could not be performed
+   */
+  boolean createOrReplace(final Key key, final Document document) throws IOException;
+
+  /**
+   * Atomically create a new document if the key does not exist in the collection or, replace the
+   * existing document if the key exists in the collection and return the created/replaced document
+   *
+   * @param key Unique key of the document in the collection.
+   * @param document The document to be created/replaced
+   * @return The created/replaced document
+   * @throws IOException If the operation could not be performed
+   */
+  Document createOrReplaceAndReturn(final Key key, final Document document) throws IOException;
 
   /**
    * Updates existing documents if the corresponding Filter condition evaluates to true

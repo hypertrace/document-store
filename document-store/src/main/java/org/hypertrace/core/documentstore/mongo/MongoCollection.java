@@ -1,9 +1,13 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static java.util.Objects.requireNonNull;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.CREATED_TIME;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.dbObjectToDocument;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.PROJECT_CLAUSE;
+import static org.hypertrace.core.documentstore.mongo.update.parser.MongoSetOperationParser.SET_CLAUSE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mongodb.BasicDBObject;
@@ -37,6 +41,9 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
+import org.bson.BsonInt64;
+import org.bson.BsonString;
+import org.bson.BsonValue;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -99,6 +106,7 @@ public class MongoCollection implements Collection {
                       && allBulkWriteErrorsAreDueToDuplicateKey((MongoBulkWriteException) failure))
           .withDelay(Duration.ofMillis(DELAY_BETWEEN_RETRIES_MILLIS))
           .withMaxRetries(MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE);
+  private final String IF_NULL_CLAUSE = "$ifNull";
 
   MongoCollection(com.mongodb.client.MongoCollection<BasicDBObject> collection) {
     this.collection = collection;
@@ -227,6 +235,42 @@ public class MongoCollection implements Collection {
     }
   }
 
+  @Override
+  public boolean createOrReplace(final Key key, final Document document) throws IOException {
+    try {
+      final UpdateOptions options = new UpdateOptions().upsert(true);
+      final UpdateResult updateResult =
+          collection.updateOne(
+              this.selectionCriteriaForKey(key),
+              this.prepareForCreateOrReplace(key, document),
+              options);
+      LOGGER.debug("Create or replace result: {}", updateResult);
+      return updateResult.getUpsertedId() != null;
+    } catch (final Exception e) {
+      LOGGER.error("Exception creating/replacing document. key: {} content:{}", key, document, e);
+      throw e;
+    }
+  }
+
+  @Override
+  public Document createOrReplaceAndReturn(final Key key, final Document document)
+      throws IOException {
+    try {
+      final FindOneAndUpdateOptions options =
+          new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER);
+      final BasicDBObject result =
+          collection.findOneAndUpdate(
+              this.selectionCriteriaForKey(key),
+              this.prepareForCreateOrReplace(key, document),
+              options);
+      LOGGER.debug("Create or replace result: {}", result);
+      return dbObjectToDocument(requireNonNull(result));
+    } catch (final Exception e) {
+      LOGGER.error("Exception creating/replacing document. key: {} content:{}", key, document, e);
+      throw e;
+    }
+  }
+
   /**
    * Adds the following fields automatically: _id, _lastUpdateTime, lastUpdatedTime and created Time
    */
@@ -247,6 +291,25 @@ public class MongoCollection implements Collection {
     }
 
     return dbObjectToDocument(upsertResult);
+  }
+
+  @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
+  private List<BasicDBObject> prepareForCreateOrReplace(final Key key, final Document document)
+      throws JsonProcessingException {
+    final long now = System.currentTimeMillis();
+
+    // Explicit createdTime field projection automatically unsets all the other existing fields
+    final BasicDBObject project =
+        new BasicDBObject(
+            PROJECT_CLAUSE,
+            new BasicDBObject(
+                CREATED_TIME,
+                new BasicDBObject(
+                    IF_NULL_CLAUSE,
+                    new BsonValue[] {new BsonString(PREFIX + CREATED_TIME), new BsonInt64(now)})));
+    final BasicDBObject set = new BasicDBObject(SET_CLAUSE, prepareDocument(key, document, now));
+
+    return List.of(project, set);
   }
 
   private BasicDBObject prepareUpsert(Key key, Document document) throws JsonProcessingException {
