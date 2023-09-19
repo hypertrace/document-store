@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 import lombok.NonNull;
 import lombok.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig.ConnectionConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials.ConnectionCredentialsBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.ConnectionPoolConfigBuilder;
@@ -12,6 +13,7 @@ import org.hypertrace.core.documentstore.model.config.DatastoreConfig.DatastoreC
 import org.hypertrace.core.documentstore.model.config.Endpoint.EndpointBuilder;
 
 @Value
+@Slf4j
 public class TypesafeConfigDatastoreConfigExtractor {
   @NonNull Config config;
   DatastoreConfigBuilder datastoreConfigBuilder;
@@ -85,9 +87,14 @@ public class TypesafeConfigDatastoreConfigExtractor {
   }
 
   public TypesafeConfigDatastoreConfigExtractor portKey(@NonNull final String key) {
-    if (config.hasPath(key)) {
-      endpointBuilder.port(config.getInt(key));
+    try {
+      if (config.hasPath(key)) {
+        endpointBuilder.port(config.getInt(key));
+      }
+    } catch (final Exception e) {
+      log.warn("Unable to parse port from {}. Will use the default port.", config);
     }
+    
     return this;
   }
 
