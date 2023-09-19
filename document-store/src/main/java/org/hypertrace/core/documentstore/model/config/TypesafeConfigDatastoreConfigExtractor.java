@@ -94,7 +94,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
     } catch (final Exception e) {
       log.warn("Unable to parse port from {}. Will use the default port.", config);
     }
-    
+
     return this;
   }
 
