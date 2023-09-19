@@ -49,7 +49,7 @@ final class MongoRelationalExpressionParser {
                   put(LTE, expressionHandler("lte"));
                   put(IN, handler("in"));
                   put(NOT_IN, handler("nin"));
-                  put(CONTAINS, handler("elemMatch"));
+                  put(CONTAINS, containsHandler());
                   put(NOT_CONTAINS, notContainsHandler());
                   put(EXISTS, handler("exists"));
                   put(NOT_EXISTS, handler("exists"));
@@ -147,8 +147,20 @@ final class MongoRelationalExpressionParser {
     return (lhs, rhs) -> {
       final String parsedLhs = lhs.accept(identifierParser);
       final Object parsedRhs = rhs.accept(rhsParser);
-      return Map.of(
-          parsedLhs, new BasicDBObject("$not", new BasicDBObject(PREFIX + "elemMatch", parsedRhs)));
+      return Map.of(parsedLhs, new BasicDBObject("$not", buildElemMatch(parsedRhs)));
     };
+  }
+
+  private static BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>>
+      containsHandler() {
+    return (lhs, rhs) -> {
+      final String parsedLhs = lhs.accept(identifierParser);
+      final Object parsedRhs = rhs.accept(rhsParser);
+      return Map.of(parsedLhs, buildElemMatch(parsedRhs));
+    };
+  }
+
+  private static BasicDBObject buildElemMatch(final Object parsedRhs) {
+    return new BasicDBObject(PREFIX + "elemMatch", new BasicDBObject("$eq", parsedRhs));
   }
 }

@@ -1,0 +1,9 @@
+[
+  {
+    "item": "Soap",
+    "price": 10,
+    "props": {
+      "colors": ["Blue", "Green"]
+    }
+  }
+]
