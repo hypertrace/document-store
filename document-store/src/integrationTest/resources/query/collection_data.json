@@ -6,6 +6,7 @@
     "quantity": 2,
     "date": "2014-03-01T08:00:00Z",
     "props": {
+      "colors": ["Blue", "Green"],
       "brand": "Dettol",
       "size": "M",
       "seller": {
@@ -69,6 +70,7 @@
     "quantity": 10,
     "date": "2014-03-15T09:00:00Z",
     "props": {
+      "colors": ["Black"],
       "brand": "Sunsilk",
       "size": "L",
       "seller": {
@@ -131,6 +133,7 @@
     "quantity": 5,
     "date": "2014-04-04T21:23:13.331Z",
     "props": {
+      "colors": ["Orange", "Blue"],
       "brand": "Lifebuoy",
       "size": "S",
       "seller": {
@@ -156,6 +159,7 @@
     "quantity": 10,
     "date": "2015-09-10T08:43:00Z",
     "props": {
+      "colors": [],
       "seller": {
         "name": "Go Go Plastics",
         "address": {

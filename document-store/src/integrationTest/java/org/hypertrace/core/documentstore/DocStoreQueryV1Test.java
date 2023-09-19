@@ -1023,7 +1023,7 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
-  public void testQueryV1FilterWithNestedFiled(String dataStoreName) throws IOException {
+  public void testQueryV1FilterWithNestedField(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
     // query docs
@@ -1298,6 +1298,59 @@ public class DocStoreQueryV1Test {
 
       final Iterator<Document> resultDocs = collection.aggregate(query);
       assertDocsAndSizeEqualWithoutOrder(datastoreName, resultDocs, "query/empty_response.json", 0);
+    }
+  }
+
+  @Nested
+  class ContainsOperatorTest {
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testContains(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName);
+
+      final org.hypertrace.core.documentstore.query.Query query =
+          org.hypertrace.core.documentstore.query.Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("props.colors"))
+              .setFilter(
+                  Filter.builder()
+                      .expression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.colors"),
+                              CONTAINS,
+                              ConstantExpression.of("Green")))
+                      .build())
+              .build();
+
+      final Iterator<Document> resultDocs = collection.aggregate(query);
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, resultDocs, "query/contains_filter_response.json", 1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testNotContains(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName);
+
+      final org.hypertrace.core.documentstore.query.Query query =
+          org.hypertrace.core.documentstore.query.Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("props.colors"))
+              .setFilter(
+                  Filter.builder()
+                      .expression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.colors"),
+                              NOT_CONTAINS,
+                              ConstantExpression.of("Green")))
+                      .build())
+              .build();
+
+      final Iterator<Document> resultDocs = collection.aggregate(query);
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, resultDocs, "query/not_contains_filter_response.json", 7);
     }
   }
 
@@ -1692,7 +1745,7 @@ public class DocStoreQueryV1Test {
     @ArgumentsSource(AllProvider.class)
     public void testAtomicCreateOrReplace(final String datastoreName)
         throws IOException, ExecutionException, InterruptedException {
-      final Collection collection = getCollection(datastoreName);
+      final Collection collection = getCollection(datastoreName, "createOrReplaceCollection");
       final Key key = Key.from(UUID.randomUUID().toString());
 
       final Document document1 =

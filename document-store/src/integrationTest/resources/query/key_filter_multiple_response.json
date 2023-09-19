@@ -5,6 +5,7 @@
     "quantity": 10,
     "date": "2015-09-10T08:43:00Z",
     "props": {
+      "colors": [],
       "seller": {
         "name": "Go Go Plastics",
         "address": {
@@ -20,6 +21,7 @@
     "quantity": 10,
     "date": "2014-03-15T09:00:00Z",
     "props": {
+      "colors": ["Black"],
       "brand": "Sunsilk",
       "size": "L",
       "seller": {
