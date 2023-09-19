@@ -1,17 +1,18 @@
 [
   {
-    "date":"2015-09-10T08:43:00Z",
-    "item":"Comb",
-    "price":7.5,
-    "props":{
-      "seller":{
-        "name":"Go Go Plastics",
-        "address":{
-          "city":"Kolkata",
-          "pincode":700007
+    "date": "2015-09-10T08:43:00Z",
+    "item": "Comb",
+    "price": 7.5,
+    "props": {
+      "colors": [],
+      "seller": {
+        "name": "Go Go Plastics",
+        "address": {
+          "city": "Kolkata",
+          "pincode": 700007
         }
       }
     },
-    "quantity":10
+    "quantity": 10
   }
 ]

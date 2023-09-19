@@ -1,0 +1,39 @@
+[
+  {
+    "item": "Mirror",
+    "price": 20
+  },
+  {
+    "item": "Shampoo",
+    "price": 5,
+    "props": {
+      "colors": ["Black"]
+    }
+  },
+  {
+    "item": "Shampoo",
+    "price": 5
+  },
+  {
+    "item": "Soap",
+    "price": 20,
+    "props": {
+      "colors": ["Orange", "Blue"]
+    }
+  },
+  {
+    "item": "Comb",
+    "price": 7.5
+  },
+  {
+    "item": "Soap",
+    "price": 10
+  },
+  {
+    "item": "Comb",
+    "price": 7.5,
+    "props": {
+      "colors": []
+    }
+  }
+]
