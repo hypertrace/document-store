@@ -1741,11 +1741,14 @@ public class DocStoreQueryV1Test {
 
   @Nested
   class AtomicCreateOrReplaceTest {
+
+    private static final String CREATE_OR_REPLACE_COLLECTION = "createOrReplaceCollection";
+
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
     public void testAtomicCreateOrReplace(final String datastoreName)
         throws IOException, ExecutionException, InterruptedException {
-      final Collection collection = getCollection(datastoreName, "createOrReplaceCollection");
+      final Collection collection = getCollection(datastoreName, CREATE_OR_REPLACE_COLLECTION);
       final Key key = Key.from(UUID.randomUUID().toString());
 
       final Document document1 =
@@ -1806,7 +1809,7 @@ public class DocStoreQueryV1Test {
     @ArgumentsSource(AllProvider.class)
     public void testAtomicCreateOrReplaceAndReturn(final String datastoreName)
         throws IOException, ExecutionException, InterruptedException {
-      final Collection collection = getCollection(datastoreName);
+      final Collection collection = getCollection(datastoreName, CREATE_OR_REPLACE_COLLECTION);
       final Key key = Key.from(UUID.randomUUID().toString());
 
       final Document document1 =
