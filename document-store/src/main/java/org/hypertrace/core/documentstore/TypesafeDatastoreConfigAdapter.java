@@ -1,10 +1,10 @@
 package org.hypertrace.core.documentstore;
 
+import static java.util.Collections.emptyList;
+
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
-import com.mongodb.MongoCredential;
 import com.typesafe.config.Config;
-import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.TypesafeConfigDatastoreConfigExtractor;
@@ -19,42 +19,13 @@ interface TypesafeDatastoreConfigAdapter {
   class MongoTypesafeDatastoreConfigAdapter implements TypesafeDatastoreConfigAdapter {
     @Override
     public DatastoreConfig convert(final Config config) {
-      final MongoConnectionConfig connectionConfig =
-          (MongoConnectionConfig)
-              TypesafeConfigDatastoreConfigExtractor.from(config, DatabaseType.MONGO)
-                  .hostKey("host")
-                  .portKey("port")
-                  .usernameKey("user")
-                  .passwordKey("password")
-                  .databaseKey("database")
-                  .authDatabaseKey("authDatabase")
-                  .applicationNameKey("applicationName")
-                  .extract()
-                  .connectionConfig();
-
       final MongoConnectionConfig overridingConnectionConfig =
-          new MongoConnectionConfig(
-              connectionConfig.endpoints(),
-              connectionConfig.database(),
-              connectionConfig.credentials(),
-              connectionConfig.applicationName(),
-              null) {
+          new MongoConnectionConfig(emptyList(), null, null, "", null) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
                   MongoClientSettings.builder()
                       .applyConnectionString(toConnectionString())
-                      .applicationName(applicationName())
                       .retryWrites(true);
-
-              final ConnectionCredentials credentials = credentials();
-              if (credentials != null) {
-                final MongoCredential credential =
-                    MongoCredential.createCredential(
-                        credentials.username(),
-                        credentials.authDatabase().orElseThrow(),
-                        credentials.password().toCharArray());
-                settingsBuilder.credential(credential);
-              }
 
               return settingsBuilder.build();
             }
