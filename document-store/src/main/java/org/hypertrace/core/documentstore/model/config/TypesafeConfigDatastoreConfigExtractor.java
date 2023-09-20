@@ -1,15 +1,10 @@
 package org.hypertrace.core.documentstore.model.config;
 
-import static com.typesafe.config.ConfigValueType.LIST;
-import static com.typesafe.config.ConfigValueType.NUMBER;
-import static com.typesafe.config.ConfigValueType.STRING;
-
 import com.typesafe.config.Config;
 import java.util.List;
 import java.util.Optional;
 import lombok.NonNull;
 import lombok.Value;
-import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig.ConnectionConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials.ConnectionCredentialsBuilder;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.ConnectionPoolConfigBuilder;
@@ -17,7 +12,6 @@ import org.hypertrace.core.documentstore.model.config.DatastoreConfig.DatastoreC
 import org.hypertrace.core.documentstore.model.config.Endpoint.EndpointBuilder;
 
 @Value
-@Slf4j
 public class TypesafeConfigDatastoreConfigExtractor {
   @NonNull Config config;
   DatastoreConfigBuilder datastoreConfigBuilder;
@@ -62,21 +56,18 @@ public class TypesafeConfigDatastoreConfigExtractor {
       @NonNull final String endpointsBaseKey,
       @NonNull final String hostKey,
       @NonNull final String portKey) {
-    if (!config.hasPath(endpointsBaseKey)
-        || !LIST.equals(config.getValue(endpointsBaseKey).valueType())) {
+    if (!config.hasPath(endpointsBaseKey)) {
       return this;
     }
 
     for (final Config endpointConfig : config.getConfigList(endpointsBaseKey)) {
       final Endpoint.EndpointBuilder builder = Endpoint.builder();
 
-      if (endpointConfig.hasPath(hostKey)
-          && STRING.equals(endpointConfig.getValue(hostKey).valueType())) {
+      if (endpointConfig.hasPath(hostKey)) {
         builder.host(endpointConfig.getString(hostKey));
       }
 
-      if (endpointConfig.hasPath(portKey)
-          && NUMBER.equals(endpointConfig.getValue(portKey).valueType())) {
+      if (endpointConfig.hasPath(portKey)) {
         builder.port(endpointConfig.getInt(portKey));
       }
 
@@ -87,56 +78,56 @@ public class TypesafeConfigDatastoreConfigExtractor {
   }
 
   public TypesafeConfigDatastoreConfigExtractor hostKey(@NonNull final String key) {
-    if (config.hasPath(key) && STRING.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       endpointBuilder.host(config.getString(key));
     }
     return this;
   }
 
   public TypesafeConfigDatastoreConfigExtractor portKey(@NonNull final String key) {
-    if (config.hasPath(key) && NUMBER.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       endpointBuilder.port(config.getInt(key));
     }
     return this;
   }
 
   public TypesafeConfigDatastoreConfigExtractor usernameKey(@NonNull final String key) {
-    if (config.hasPath(key) && STRING.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       connectionCredentialsBuilder.username(config.getString(key));
     }
     return this;
   }
 
   public TypesafeConfigDatastoreConfigExtractor passwordKey(@NonNull final String key) {
-    if (config.hasPath(key) && STRING.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       connectionCredentialsBuilder.password(config.getString(key));
     }
     return this;
   }
 
   public TypesafeConfigDatastoreConfigExtractor authDatabaseKey(@NonNull final String key) {
-    if (config.hasPath(key) && STRING.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       connectionCredentialsBuilder.authDatabase(config.getString(key));
     }
     return this;
   }
 
   public TypesafeConfigDatastoreConfigExtractor databaseKey(@NonNull final String key) {
-    if (config.hasPath(key) && STRING.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       connectionConfigBuilder.database(config.getString(key));
     }
     return this;
   }
 
   public TypesafeConfigDatastoreConfigExtractor applicationNameKey(@NonNull final String key) {
-    if (config.hasPath(key) && STRING.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       connectionConfigBuilder.applicationName(config.getString(key));
     }
     return this;
   }
 
   public TypesafeConfigDatastoreConfigExtractor replicaSetKey(@NonNull final String key) {
-    if (config.hasPath(key) && STRING.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       connectionConfigBuilder.replicaSet(config.getString(key));
     }
 
@@ -144,7 +135,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
   }
 
   public TypesafeConfigDatastoreConfigExtractor poolMaxConnectionsKey(@NonNull final String key) {
-    if (config.hasPath(key) && NUMBER.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       connectionPoolConfigBuilder.maxConnections(config.getInt(key));
     }
     return this;
@@ -152,7 +143,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
 
   public TypesafeConfigDatastoreConfigExtractor poolConnectionAccessTimeoutKey(
       @NonNull final String key) {
-    if (config.hasPath(key) && NUMBER.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       connectionPoolConfigBuilder.connectionAccessTimeout(config.getDuration(key));
     }
     return this;
@@ -160,7 +151,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
 
   public TypesafeConfigDatastoreConfigExtractor poolConnectionSurrenderTimeoutKey(
       @NonNull final String key) {
-    if (config.hasPath(key) && NUMBER.equals(config.getValue(key).valueType())) {
+    if (config.hasPath(key)) {
       connectionPoolConfigBuilder.connectionSurrenderTimeout(config.getDuration(key));
     }
     return this;
