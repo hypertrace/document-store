@@ -112,6 +112,12 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                     .authDatabase(authDb)
                     .build())
             .applicationName(appName)
+            .connectionPoolConfig(
+                ConnectionPoolConfig.builder()
+                    .maxConnections(maxConnections)
+                    .connectionAccessTimeout(accessTimeout)
+                    .connectionSurrenderTimeout(surrenderTimeout)
+                    .build())
             .build();
 
     assertEquals(expected, config);
@@ -187,6 +193,12 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                     .authDatabase(authDb)
                     .build())
             .applicationName(appName)
+            .connectionPoolConfig(
+                ConnectionPoolConfig.builder()
+                    .maxConnections(maxConnections)
+                    .connectionAccessTimeout(accessTimeout)
+                    .connectionSurrenderTimeout(surrenderTimeout)
+                    .build())
             .replicaSet(replicaSet)
             .build();
 

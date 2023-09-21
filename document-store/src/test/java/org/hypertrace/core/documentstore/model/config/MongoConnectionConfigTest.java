@@ -5,8 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
-import com.mongodb.connection.ClusterSettings;
+import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.junit.jupiter.api.Test;
 
@@ -22,12 +23,13 @@ class MongoConnectionConfigTest {
             .applicationName("document-store")
             .retryWrites(true)
             .applyToClusterSettings(
+                builder -> builder.requiredReplicaSetName(null).hosts(List.of(new ServerAddress())))
+            .applyToConnectionPoolSettings(
                 builder ->
-                    builder.applySettings(
-                        ClusterSettings.builder()
-                            .requiredReplicaSetName(null)
-                            .hosts(List.of(new ServerAddress()))
-                            .build()))
+                    builder
+                        .maxConnecting(16)
+                        .maxWaitTime(10, TimeUnit.SECONDS)
+                        .maxConnectionIdleTime(60, TimeUnit.SECONDS))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
@@ -40,6 +42,10 @@ class MongoConnectionConfigTest {
     final String authDb = "auth_db";
     final String username = "user-from-Mars";
     final String password = "encrypted-message-from-Mars";
+
+    final int maxPoolConnections = 1;
+    final Duration maxWaitTime = Duration.ofSeconds(5);
+    final Duration maxIdleTime = Duration.ofSeconds(30);
 
     final MongoConnectionConfig mongoConnectionConfig =
         (MongoConnectionConfig)
@@ -54,6 +60,12 @@ class MongoConnectionConfigTest {
                         .password(password)
                         .build())
                 .applicationName(applicationName)
+                .connectionPoolConfig(
+                    ConnectionPoolConfig.builder()
+                        .maxConnections(maxPoolConnections)
+                        .connectionAccessTimeout(maxWaitTime)
+                        .connectionSurrenderTimeout(maxIdleTime)
+                        .build())
                 .build();
 
     final MongoClientSettings expected =
@@ -63,11 +75,15 @@ class MongoConnectionConfigTest {
             .credential(MongoCredential.createCredential(username, authDb, password.toCharArray()))
             .applyToClusterSettings(
                 builder ->
-                    builder.applySettings(
-                        ClusterSettings.builder()
-                            .requiredReplicaSetName(null)
-                            .hosts(List.of(new ServerAddress("the.red.giant.com", 37017)))
-                            .build()))
+                    builder
+                        .requiredReplicaSetName(null)
+                        .hosts(List.of(new ServerAddress("the.red.giant.com", 37017))))
+            .applyToConnectionPoolSettings(
+                builder ->
+                    builder
+                        .maxConnecting(maxPoolConnections)
+                        .maxWaitTime(maxWaitTime.toSeconds(), TimeUnit.SECONDS)
+                        .maxConnectionIdleTime(maxIdleTime.toSeconds(), TimeUnit.SECONDS))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
@@ -102,11 +118,15 @@ class MongoConnectionConfigTest {
                 MongoCredential.createCredential(username, database, password.toCharArray()))
             .applyToClusterSettings(
                 builder ->
-                    builder.applySettings(
-                        ClusterSettings.builder()
-                            .requiredReplicaSetName(replicaSetName)
-                            .hosts(List.of(new ServerAddress("the.red.giant.com", 37017)))
-                            .build()))
+                    builder
+                        .requiredReplicaSetName(replicaSetName)
+                        .hosts(List.of(new ServerAddress("the.red.giant.com", 37017))))
+            .applyToConnectionPoolSettings(
+                builder ->
+                    builder
+                        .maxConnecting(16)
+                        .maxWaitTime(10, TimeUnit.SECONDS)
+                        .maxConnectionIdleTime(60, TimeUnit.SECONDS))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
@@ -133,11 +153,15 @@ class MongoConnectionConfigTest {
             .retryWrites(true)
             .applyToClusterSettings(
                 builder ->
-                    builder.applySettings(
-                        ClusterSettings.builder()
-                            .requiredReplicaSetName(null)
-                            .hosts(List.of(new ServerAddress("the.red.giant.com", 37017)))
-                            .build()))
+                    builder
+                        .requiredReplicaSetName(null)
+                        .hosts(List.of(new ServerAddress("the.red.giant.com", 37017))))
+            .applyToConnectionPoolSettings(
+                builder ->
+                    builder
+                        .maxConnecting(16)
+                        .maxWaitTime(10, TimeUnit.SECONDS)
+                        .maxConnectionIdleTime(60, TimeUnit.SECONDS))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();

@@ -27,18 +27,10 @@ import org.postgresql.PGProperty;
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class PostgresConnectionConfig extends ConnectionConfig {
-
   private static final ConnectionCredentials DEFAULT_CREDENTIALS =
       ConnectionCredentials.builder()
           .username(PostgresDefaults.DEFAULT_USER)
           .password(PostgresDefaults.DEFAULT_PASSWORD)
-          .build();
-
-  private static final ConnectionPoolConfig DEFAULT_CONNECTION_POOL_CONFIG =
-      ConnectionPoolConfig.builder()
-          .maxConnections(PostgresDefaults.DEFAULT_MAX_CONNECTIONS)
-          .connectionAccessTimeout(PostgresDefaults.DEFAULT_MAX_WAIT_TIME)
-          .connectionSurrenderTimeout(PostgresDefaults.DEFAULT_REMOVE_ABANDONED_TIMEOUT)
           .build();
 
   @NonNull String applicationName;
@@ -130,8 +122,6 @@ public class PostgresConnectionConfig extends ConnectionConfig {
   @NonNull
   private ConnectionPoolConfig getConnectionPoolConfigOrDefault(
       @Nullable final ConnectionPoolConfig connectionPoolConfig) {
-    return Optional.ofNullable(connectionPoolConfig)
-        .filter(not(ConnectionPoolConfig.builder().build()::equals))
-        .orElse(DEFAULT_CONNECTION_POOL_CONFIG);
+    return Optional.ofNullable(connectionPoolConfig).orElse(ConnectionPoolConfig.builder().build());
   }
 }

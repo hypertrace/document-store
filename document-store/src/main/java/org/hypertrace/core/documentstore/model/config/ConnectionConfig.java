@@ -67,7 +67,12 @@ public class ConnectionConfig {
       switch (type) {
         case MONGO:
           return new MongoConnectionConfig(
-              unmodifiableList(endpoints), database, credentials, applicationName, replicaSet);
+              unmodifiableList(endpoints),
+              database,
+              credentials,
+              applicationName,
+              replicaSet,
+              connectionPoolConfig);
 
         case POSTGRES:
           return new PostgresConnectionConfig(
