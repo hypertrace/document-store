@@ -5,12 +5,15 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.model.config.mongo.MongoDefaults.DEFAULT_ENDPOINT;
 
 import com.mongodb.MongoClientSettings;
+import com.mongodb.MongoClientSettings.Builder;
 import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
 import com.mongodb.connection.ClusterSettings;
+import com.mongodb.connection.ConnectionPoolSettings;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import lombok.EqualsAndHashCode;
 import lombok.NonNull;
@@ -20,6 +23,7 @@ import lombok.experimental.Accessors;
 import lombok.experimental.NonFinal;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
+import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.Endpoint;
 
@@ -31,6 +35,7 @@ import org.hypertrace.core.documentstore.model.config.Endpoint;
 public class MongoConnectionConfig extends ConnectionConfig {
   @NonNull String applicationName;
   @Nullable String replicaSetName;
+  @NonNull ConnectionPoolConfig connectionPoolConfig;
 
   public static ConnectionConfigBuilder builder() {
     return ConnectionConfig.builder().type(DatabaseType.MONGO);
@@ -41,39 +46,24 @@ public class MongoConnectionConfig extends ConnectionConfig {
       @Nullable final String database,
       @Nullable final ConnectionCredentials credentials,
       @NonNull final String applicationName,
-      @Nullable final String replicaSetName) {
+      @Nullable final String replicaSetName,
+      @Nullable final ConnectionPoolConfig connectionPoolConfig) {
     super(
         ensureAtLeastOneEndpoint(endpoints),
         getDatabaseOrDefault(database),
         getCredentialsOrDefault(credentials, database));
     this.applicationName = applicationName;
     this.replicaSetName = replicaSetName;
+    this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);
   }
 
   public MongoClientSettings toSettings() {
     final MongoClientSettings.Builder settingsBuilder =
         MongoClientSettings.builder().applicationName(applicationName()).retryWrites(true);
 
-    final List<ServerAddress> serverAddresses =
-        endpoints().stream()
-            .map(MongoConnectionConfig::buildServerAddress)
-            .collect(toUnmodifiableList());
-    final ClusterSettings clusterSettings =
-        ClusterSettings.builder()
-            .requiredReplicaSetName(replicaSetName)
-            .hosts(serverAddresses)
-            .build();
-    settingsBuilder.applyToClusterSettings(builder -> builder.applySettings(clusterSettings));
-
-    final ConnectionCredentials credentials = credentials();
-    if (credentials != null) {
-      final MongoCredential credential =
-          MongoCredential.createCredential(
-              credentials.username(),
-              credentials.authDatabase().orElseThrow(),
-              credentials.password().toCharArray());
-      settingsBuilder.credential(credential);
-    }
+    applyClusterSettings(settingsBuilder);
+    applyConnectionPoolSettings(settingsBuilder);
+    applyCredentialSettings(settingsBuilder);
 
     return settingsBuilder.build();
   }
@@ -123,5 +113,50 @@ public class MongoConnectionConfig extends ConnectionConfig {
     }
 
     return new ServerAddress(endpoint.host());
+  }
+
+  @NonNull
+  private ConnectionPoolConfig getConnectionPoolConfigOrDefault(
+      @Nullable final ConnectionPoolConfig connectionPoolConfig) {
+    return Optional.ofNullable(connectionPoolConfig).orElse(ConnectionPoolConfig.builder().build());
+  }
+
+  private void applyClusterSettings(final Builder settingsBuilder) {
+    final List<ServerAddress> serverAddresses =
+        endpoints().stream()
+            .map(MongoConnectionConfig::buildServerAddress)
+            .collect(toUnmodifiableList());
+    final ClusterSettings clusterSettings =
+        ClusterSettings.builder()
+            .requiredReplicaSetName(replicaSetName)
+            .hosts(serverAddresses)
+            .build();
+    settingsBuilder.applyToClusterSettings(builder -> builder.applySettings(clusterSettings));
+  }
+
+  private void applyConnectionPoolSettings(final Builder settingsBuilder) {
+    final ConnectionPoolSettings connectionPoolSettings =
+        ConnectionPoolSettings.builder()
+            .maxConnecting(connectionPoolConfig.maxConnections())
+            .maxWaitTime(
+                connectionPoolConfig.connectionAccessTimeout().toMillis(), TimeUnit.MILLISECONDS)
+            .maxConnectionIdleTime(
+                connectionPoolConfig.connectionSurrenderTimeout().toMillis(), TimeUnit.MILLISECONDS)
+            .build();
+
+    settingsBuilder.applyToConnectionPoolSettings(
+        builder -> builder.applySettings(connectionPoolSettings));
+  }
+
+  private void applyCredentialSettings(final Builder settingsBuilder) {
+    final ConnectionCredentials credentials = credentials();
+    if (credentials != null) {
+      final MongoCredential credential =
+          MongoCredential.createCredential(
+              credentials.username(),
+              credentials.authDatabase().orElseThrow(),
+              credentials.password().toCharArray());
+      settingsBuilder.credential(credential);
+    }
   }
 }
