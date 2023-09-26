@@ -12,6 +12,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Key;
+import org.hypertrace.core.documentstore.expression.impl.ArrayFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -81,6 +82,12 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             IN.name(),
             expression.getKeys().stream().map(Key::toString).collect(toUnmodifiableList()),
             postgresQueryParser.getParamsBuilder());
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public String visit(final ArrayFilterExpression expression) {
+    throw new UnsupportedOperationException();
   }
 
   public static Optional<String> getFilterClause(PostgresQueryParser postgresQueryParser) {

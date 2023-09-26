@@ -9,6 +9,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RootExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
@@ -109,6 +110,11 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
     public Boolean visit(IdentifierExpression expression) {
       return false;
     }
+
+    @Override
+    public Boolean visit(RootExpression expression) {
+      throw new UnsupportedOperationException();
+    }
   }
 
   private static class LocalSelectTypeIdentifierExpressionSelector
@@ -136,6 +142,11 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
     @Override
     public Boolean visit(IdentifierExpression expression) {
       return true;
+    }
+
+    @Override
+    public Boolean visit(final RootExpression expression) {
+      throw new UnsupportedOperationException();
     }
   }
 

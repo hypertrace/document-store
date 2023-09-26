@@ -3,6 +3,8 @@ package org.hypertrace.core.documentstore.expression.impl;
 import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Builder.Default;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
@@ -20,10 +22,11 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
  * </code>
  */
 @Value
+@Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class RelationalExpression implements FilterTypeExpression {
 
-  SelectTypeExpression lhs;
+  @Default SelectTypeExpression lhs = RootExpression.INSTANCE;
 
   RelationalOperator operator;
 

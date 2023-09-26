@@ -9,6 +9,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RootExpression;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class MongoUnsupportedSelectTypeExpressionParser extends MongoSelectTypeExpressionParser {
@@ -37,6 +38,11 @@ public class MongoUnsupportedSelectTypeExpressionParser extends MongoSelectTypeE
 
   @Override
   public <T> T visit(final IdentifierExpression expression) {
+    throw getUnsupportedOperationException(expression);
+  }
+
+  @Override
+  public <T> T visit(final RootExpression expression) {
     throw getUnsupportedOperationException(expression);
   }
 }

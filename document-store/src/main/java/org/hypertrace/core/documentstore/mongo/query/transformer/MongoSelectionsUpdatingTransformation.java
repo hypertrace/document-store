@@ -19,6 +19,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RootExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
@@ -130,6 +131,12 @@ final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressio
     String alias = Optional.ofNullable(source.getAlias()).orElse(key);
 
     return SelectionSpec.of(IdentifierExpression.of(identifier), alias);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public SelectionSpec visit(final RootExpression expression) {
+    return source;
   }
 
   private SelectionSpec substitute(final AggregateExpression expression) {

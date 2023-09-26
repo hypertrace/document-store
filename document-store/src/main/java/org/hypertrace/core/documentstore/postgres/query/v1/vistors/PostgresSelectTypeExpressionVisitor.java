@@ -10,6 +10,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RootExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
@@ -61,6 +62,11 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
 
   @Override
   public <T> T visit(final IdentifierExpression expression) {
+    return baseVisitor.visit(expression);
+  }
+
+  @Override
+  public <T> T visit(final RootExpression expression) {
     return baseVisitor.visit(expression);
   }
 
