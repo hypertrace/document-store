@@ -54,7 +54,7 @@ class PostgresClient {
   public void close() {
     if (connection != null) {
       try {
-        log.info("Closing connection #{} to {}", count, connectionConfig.toConnectionString());
+        log.debug("Closing connection #{} to {}", count, connectionConfig.toConnectionString());
         connection.close();
       } catch (SQLException sqle) {
         log.warn("Ignoring error closing connection", sqle);
