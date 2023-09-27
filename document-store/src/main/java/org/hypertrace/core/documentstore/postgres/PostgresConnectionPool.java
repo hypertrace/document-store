@@ -39,7 +39,8 @@ class PostgresConnectionPool {
     }
   }
 
-  private PoolingDataSource<PoolableConnection> createPooledDataSource(final PostgresConnectionConfig config) {
+  private PoolingDataSource<PoolableConnection> createPooledDataSource(
+      final PostgresConnectionConfig config) {
     final ConnectionFactory connectionFactory =
         new DriverManagerConnectionFactory(config.toConnectionString(), config.buildProperties());
     final PoolableConnectionFactory poolableConnectionFactory =
