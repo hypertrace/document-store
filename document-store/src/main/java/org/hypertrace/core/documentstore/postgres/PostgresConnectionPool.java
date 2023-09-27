@@ -5,7 +5,7 @@ import static java.sql.Connection.TRANSACTION_READ_COMMITTED;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
-import javax.sql.DataSource;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.dbcp2.ConnectionFactory;
 import org.apache.commons.dbcp2.DriverManagerConnectionFactory;
 import org.apache.commons.dbcp2.PoolableConnection;
@@ -16,11 +16,12 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 
+@Slf4j
 class PostgresConnectionPool {
   private static final String VALIDATION_QUERY = "SELECT 1";
   private static final Duration VALIDATION_QUERY_TIMEOUT = Duration.ofSeconds(5);
 
-  private final DataSource dataSource;
+  private final PoolingDataSource<PoolableConnection> dataSource;
 
   PostgresConnectionPool(final PostgresConnectionConfig config) {
     this.dataSource = createPooledDataSource(config);
@@ -30,7 +31,15 @@ class PostgresConnectionPool {
     return dataSource.getConnection();
   }
 
-  private DataSource createPooledDataSource(final PostgresConnectionConfig config) {
+  public void close() {
+    try {
+      dataSource.close();
+    } catch (final SQLException e) {
+      log.warn("Unable to close Postgres connection pool", e);
+    }
+  }
+
+  private PoolingDataSource<PoolableConnection> createPooledDataSource(final PostgresConnectionConfig config) {
     final ConnectionFactory connectionFactory =
         new DriverManagerConnectionFactory(config.toConnectionString(), config.buildProperties());
     final PoolableConnectionFactory poolableConnectionFactory =
