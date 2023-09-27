@@ -51,6 +51,23 @@ class PostgresClient {
     return connectionPool.getConnection();
   }
 
+  public void close() {
+    if (connection != null) {
+      try {
+        log.debug("Closing connection #{} to {}", count, connectionConfig.toConnectionString());
+        connection.close();
+      } catch (SQLException sqle) {
+        log.warn("Ignoring error closing connection", sqle);
+      } finally {
+        connection = null;
+      }
+    }
+  }
+
+  public void closeConnectionPool() {
+    connectionPool.close();
+  }
+
   private boolean isConnectionValid(Connection connection) {
     try {
       if (connection.getMetaData().getJDBCMajorVersion() >= 4) {
@@ -101,19 +118,6 @@ class PostgresClient {
         } else {
           throw sqle;
         }
-      }
-    }
-  }
-
-  private void close() {
-    if (connection != null) {
-      try {
-        log.info("Closing connection #{} to {}", count, connectionConfig.toConnectionString());
-        connection.close();
-      } catch (SQLException sqle) {
-        log.warn("Ignoring error closing connection", sqle);
-      } finally {
-        connection = null;
       }
     }
   }

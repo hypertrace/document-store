@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import lombok.NonNull;
+import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
@@ -25,6 +26,7 @@ import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectio
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Slf4j
 /** Provides {@link Datastore} implementation for Postgres DB. */
 public class PostgresDatastore implements Datastore {
 
@@ -136,6 +138,16 @@ public class PostgresDatastore implements Datastore {
   @Override
   public DocStoreMetricProvider getDocStoreMetricProvider() {
     return docStoreMetricProvider;
+  }
+
+  @Override
+  public void close() {
+    try {
+      client.close();
+      client.closeConnectionPool();
+    } catch (final Exception e) {
+      log.warn("Unable to close Postgres connection", e);
+    }
   }
 
   public Connection getPostgresClient() {
