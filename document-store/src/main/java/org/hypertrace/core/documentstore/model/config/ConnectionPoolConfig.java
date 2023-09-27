@@ -20,5 +20,5 @@ public class ConnectionPoolConfig {
   @NonNull @Builder.Default Duration connectionAccessTimeout = Duration.ofSeconds(10);
 
   // Time duration to wait for surrendering an idle connection back to the pool
-  @NonNull @Builder.Default Duration connectionSurrenderTimeout = Duration.ofSeconds(60);
+  @NonNull @Builder.Default Duration connectionSurrenderTimeout = Duration.ofMinutes(5);
 }
