@@ -144,6 +144,7 @@ public class PostgresDatastore implements Datastore {
   public void close() {
     try {
       client.close();
+      client.closeConnectionPool();
     } catch (final Exception e) {
       log.warn("Unable to close Postgres connection", e);
     }

@@ -62,7 +62,9 @@ class PostgresClient {
         connection = null;
       }
     }
+  }
 
+  public void closeConnectionPool() {
     connectionPool.close();
   }
 
