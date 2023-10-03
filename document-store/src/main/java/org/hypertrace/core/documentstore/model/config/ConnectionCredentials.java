@@ -26,4 +26,8 @@ public class ConnectionCredentials {
   public Optional<String> authDatabase() {
     return Optional.ofNullable(authDatabase);
   }
+
+  public boolean isEmpty() {
+    return username.isBlank() && password.isBlank();
+  }
 }

@@ -64,7 +64,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     final Properties properties = new Properties();
     final ConnectionCredentials credentials = credentials();
 
-    if (credentials != null) {
+    if (credentials != null && !credentials.isEmpty()) {
       properties.setProperty(PGProperty.USER.getName(), credentials.username());
       properties.setProperty(PGProperty.PASSWORD.getName(), credentials.password());
     }
