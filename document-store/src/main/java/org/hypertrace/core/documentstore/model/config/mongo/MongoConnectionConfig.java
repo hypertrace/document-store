@@ -95,7 +95,7 @@ public class MongoConnectionConfig extends ConnectionConfig {
   @Nullable
   private static ConnectionCredentials getCredentialsOrDefault(
       @Nullable final ConnectionCredentials credentials, @Nullable final String database) {
-    if (credentials == null || ConnectionCredentials.builder().build().equals(credentials)) {
+    if (credentials == null || credentials.isEmpty()) {
       return null;
     }
 
