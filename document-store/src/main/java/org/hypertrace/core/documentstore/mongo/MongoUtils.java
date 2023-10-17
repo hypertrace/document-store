@@ -133,6 +133,9 @@ public final class MongoUtils {
   }
 
   private static ObjectNode wrapInLiteral(final ObjectNode objectNode) {
+    /* Wrapping the subDocument with $literal to be able to provide empty object "{}" as value
+     *  Throws error otherwise if empty object is provided as value.
+     *  https://jira.mongodb.org/browse/SERVER-54046 */
     final ObjectNode node = JsonNodeFactory.instance.objectNode();
     node.set(LITERAL, objectNode);
     return node;
