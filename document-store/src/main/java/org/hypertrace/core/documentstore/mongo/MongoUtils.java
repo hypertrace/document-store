@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.Document;
@@ -34,6 +34,7 @@ import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 public final class MongoUtils {
   public static final String FIELD_SEPARATOR = ".";
   public static final String PREFIX = "$";
+  private static final String LITERAL = PREFIX + "literal";
   private static final String UNSUPPORTED_OPERATION = "No MongoDB support available for: '%s'";
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Map<ReturnDocumentType, ReturnDocument> RETURN_DOCUMENT_MAP =
@@ -66,7 +67,8 @@ public final class MongoUtils {
   public static String sanitizeJsonString(final String jsonString) throws JsonProcessingException {
     final JsonNode jsonNode = MAPPER.readTree(jsonString);
     // escape "." and "$" in field names since Mongo DB does not like them
-    final JsonNode sanitizedJsonNode = recursiveClone(jsonNode, MongoUtils::encodeKey);
+    final JsonNode sanitizedJsonNode =
+        recursiveClone(jsonNode, MongoUtils::encodeKey, MongoUtils::wrapInLiteral);
     return MAPPER.writeValueAsString(sanitizedJsonNode);
   }
 
@@ -79,7 +81,10 @@ public final class MongoUtils {
                 toUnmodifiableMap(Entry::getKey, Entry::getValue), BasicDBObject::new));
   }
 
-  public static JsonNode recursiveClone(JsonNode src, Function<String, String> function) {
+  public static JsonNode recursiveClone(
+      JsonNode src,
+      UnaryOperator<String> function,
+      final UnaryOperator<ObjectNode> emptyObjectConverter) {
     if (!src.isObject()) {
       return src;
     }
@@ -92,11 +97,11 @@ public final class MongoUtils {
       JsonNode value = next.getValue();
       JsonNode newValue = value;
       if (value.isObject()) {
-        newValue = recursiveClone(value, function);
+        newValue = recursiveClone(value, function, emptyObjectConverter);
       }
       tgt.set(newFieldName, newValue);
     }
-    return tgt;
+    return tgt.isEmpty() ? emptyObjectConverter.apply(tgt) : tgt;
   }
 
   public static Document dbObjectToDocument(BasicDBObject dbObject) {
@@ -110,7 +115,8 @@ public final class MongoUtils {
           JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
       jsonString = dbObject.toJson(relaxed);
       JsonNode jsonNode = MAPPER.readTree(jsonString);
-      JsonNode decodedJsonNode = recursiveClone(jsonNode, MongoUtils::decodeKey);
+      JsonNode decodedJsonNode =
+          recursiveClone(jsonNode, MongoUtils::decodeKey, UnaryOperator.identity());
       return new JSONDocument(decodedJsonNode);
     } catch (IOException e) {
       // throwing exception is not very useful here.
@@ -124,5 +130,11 @@ public final class MongoUtils {
             () ->
                 new UnsupportedOperationException(
                     String.format("Unhandled return document type: %s", returnDocumentType)));
+  }
+
+  private static ObjectNode wrapInLiteral(final ObjectNode objectNode) {
+    final ObjectNode node = JsonNodeFactory.instance.objectNode();
+    node.set(LITERAL, objectNode);
+    return node;
   }
 }
