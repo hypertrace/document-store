@@ -9,7 +9,8 @@
       {
         "name": "Mars",
         "color": "Red",
-        "humans_live": "possibly in future"
+        "humans_live": "possibly in future",
+        "tags": {}
       }
     ]
   }
