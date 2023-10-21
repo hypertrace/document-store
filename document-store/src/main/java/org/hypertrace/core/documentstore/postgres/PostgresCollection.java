@@ -88,6 +88,7 @@ public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
   public static final String ID = "id";
+  public static final String ENTITY_ID = "entityId";
   public static final String DOCUMENT_ID = "_id";
   public static final String DOCUMENT = "document";
   public static final String UPDATED_AT = "updated_at";
@@ -857,7 +858,8 @@ public class PostgresCollection implements Collection {
       ArrayNode candidateArray = (ArrayNode) getJsonNodeAtPath(subDocPath, docRoot, true);
       candidateArray.removeAll();
       candidateArray.addAll(subDocs);
-      String id = docRoot.findValue(ID).asText();
+      String id =
+          Optional.ofNullable(docRoot.findValue(ID)).orElse(docRoot.findValue(ENTITY_ID)).asText();
       if (docRoot.isObject()) {
         ((ObjectNode) docRoot).put(DocStoreConstants.LAST_UPDATED_TIME, System.currentTimeMillis());
       }
@@ -889,7 +891,8 @@ public class PostgresCollection implements Collection {
       existingItems.removeAll(subDocs);
       candidateArray.removeAll();
       candidateArray.addAll(existingItems);
-      String id = docRoot.findValue(ID).asText();
+      String id =
+          Optional.ofNullable(docRoot.findValue(ID)).orElse(docRoot.findValue(ENTITY_ID)).asText();
       upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
     }
     return upsertDocs(upsertMap);
@@ -911,7 +914,8 @@ public class PostgresCollection implements Collection {
       existingElems.addAll(subDocs);
       candidateArray.removeAll();
       candidateArray.addAll(existingElems);
-      String id = docRoot.findValue(ID).asText();
+      String id =
+          Optional.ofNullable(docRoot.findValue(ID)).orElse(docRoot.findValue(ENTITY_ID)).asText();
       if (docRoot.isObject()) {
         ((ObjectNode) docRoot).put(DocStoreConstants.LAST_UPDATED_TIME, System.currentTimeMillis());
       }

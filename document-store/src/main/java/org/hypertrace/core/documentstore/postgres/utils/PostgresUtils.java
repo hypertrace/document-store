@@ -570,5 +570,9 @@ public class PostgresUtils {
                 log.error("SQLException setting Param. key: {}, value: {}", k, v);
               }
             });
+    if (log.isDebugEnabled()) {
+      log.debug(
+          "Executing statement - prepatedStatement: {}, parama: {}", preparedStatement, params);
+    }
   }
 }
