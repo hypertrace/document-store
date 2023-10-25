@@ -572,7 +572,7 @@ public class PostgresUtils {
             });
     if (log.isDebugEnabled()) {
       log.debug(
-          "Executing statement - prepatedStatement: {}, parama: {}", preparedStatement, params);
+          "Executing statement - preparedStatement: {}, params: {}", preparedStatement, params);
     }
   }
 }
