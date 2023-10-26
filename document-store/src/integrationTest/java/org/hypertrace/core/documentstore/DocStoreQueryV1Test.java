@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Map.entry;
 import static java.util.Spliterators.spliteratorUnknownSize;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -2293,6 +2295,33 @@ public class DocStoreQueryV1Test {
 
   @Nested
   class UpdateOperatorTest {
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testUpdateSetEmptyObject(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate set =
+          SubDocumentUpdate.builder()
+              .subDocument("props.new_property.with.empty.object")
+              .operator(SET)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new JSONDocument(
+                          Map.ofEntries(
+                              entry("hello", "world"), entry("emptyObject", emptyMap())))))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(set);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator, "query/update_operator/updated3.json", 9);
+    }
+
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
     void testUpdateWithAllOperators(final String datastoreName) throws IOException {
