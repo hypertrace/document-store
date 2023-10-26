@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.mongo;
 import static com.mongodb.client.model.ReturnDocument.AFTER;
 import static com.mongodb.client.model.ReturnDocument.BEFORE;
 import static java.util.Map.entry;
+import static java.util.function.UnaryOperator.identity;
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
@@ -72,6 +73,14 @@ public final class MongoUtils {
     return MAPPER.writeValueAsString(sanitizedJsonNode);
   }
 
+  public static String sanitizeJsonStringWithoutLiteralWrapping(final String jsonString)
+      throws JsonProcessingException {
+    final JsonNode jsonNode = MAPPER.readTree(jsonString);
+    // escape "." and "$" in field names since Mongo DB does not like them
+    final JsonNode sanitizedJsonNode = recursiveClone(jsonNode, MongoUtils::encodeKey, identity());
+    return MAPPER.writeValueAsString(sanitizedJsonNode);
+  }
+
   public static BasicDBObject merge(final List<BasicDBObject> basicDbObjects) {
     return basicDbObjects.stream()
         .map(Map::entrySet)
@@ -115,8 +124,7 @@ public final class MongoUtils {
           JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
       jsonString = dbObject.toJson(relaxed);
       JsonNode jsonNode = MAPPER.readTree(jsonString);
-      JsonNode decodedJsonNode =
-          recursiveClone(jsonNode, MongoUtils::decodeKey, UnaryOperator.identity());
+      JsonNode decodedJsonNode = recursiveClone(jsonNode, MongoUtils::decodeKey, identity());
       return new JSONDocument(decodedJsonNode);
     } catch (IOException e) {
       // throwing exception is not very useful here.
