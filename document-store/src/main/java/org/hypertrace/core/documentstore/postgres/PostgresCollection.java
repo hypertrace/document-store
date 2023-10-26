@@ -148,7 +148,12 @@ public class PostgresCollection implements Collection {
     if (condition != null) {
       String conditionQuery = PostgresQueryParser.parseFilter(condition, paramsBuilder);
       if (conditionQuery != null) {
-        upsertQueryBuilder.append(" WHERE ").append(conditionQuery);
+        upsertQueryBuilder
+            .append(" WHERE ")
+            .append(conditionQuery)
+            .append(" AND id = '")
+            .append(key)
+            .append("'");
       }
     }
 
