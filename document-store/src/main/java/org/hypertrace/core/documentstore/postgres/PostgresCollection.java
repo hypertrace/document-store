@@ -65,7 +65,6 @@ import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
-import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
@@ -88,7 +87,6 @@ public class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
   public static final String ID = "id";
-  public static final String ENTITY_ID = "entityId";
   public static final String DOCUMENT_ID = "_id";
   public static final String DOCUMENT = "document";
   public static final String UPDATED_AT = "updated_at";
@@ -425,6 +423,10 @@ public class PostgresCollection implements Collection {
 
   @Override
   public CloseableIterator<Document> search(Query query) {
+    return search(query, true);
+  }
+
+  private CloseableIterator<Document> search(Query query, boolean removeDocumentId) {
     String selection = PostgresQueryParser.parseSelections(query.getSelections());
     StringBuilder sqlBuilder =
         new StringBuilder(String.format("SELECT %s FROM ", selection)).append(collectionName);
@@ -465,8 +467,8 @@ public class PostgresCollection implements Collection {
       ResultSet resultSet = preparedStatement.executeQuery();
       CloseableIterator closeableIterator =
           query.getSelections().size() > 0
-              ? new PostgresResultIteratorWithMetaData(resultSet)
-              : new PostgresResultIterator(resultSet);
+              ? new PostgresResultIteratorWithMetaData(resultSet, removeDocumentId)
+              : new PostgresResultIterator(resultSet, removeDocumentId);
       return closeableIterator;
     } catch (SQLException e) {
       LOGGER.error(
@@ -863,12 +865,11 @@ public class PostgresCollection implements Collection {
       ArrayNode candidateArray = (ArrayNode) getJsonNodeAtPath(subDocPath, docRoot, true);
       candidateArray.removeAll();
       candidateArray.addAll(subDocs);
-      String id =
-          Optional.ofNullable(docRoot.findValue(ID)).orElse(docRoot.findValue(ENTITY_ID)).asText();
+      String id = docRoot.findValue(DOCUMENT_ID).asText();
       if (docRoot.isObject()) {
         ((ObjectNode) docRoot).put(DocStoreConstants.LAST_UPDATED_TIME, System.currentTimeMillis());
       }
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
+      upsertMap.put(Key.from(id), new JSONDocument(docRoot));
     }
     return upsertDocs(upsertMap);
   }
@@ -896,9 +897,8 @@ public class PostgresCollection implements Collection {
       existingItems.removeAll(subDocs);
       candidateArray.removeAll();
       candidateArray.addAll(existingItems);
-      String id =
-          Optional.ofNullable(docRoot.findValue(ID)).orElse(docRoot.findValue(ENTITY_ID)).asText();
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
+      String id = docRoot.findValue(DOCUMENT_ID).asText();
+      upsertMap.put(Key.from(id), new JSONDocument(docRoot));
     }
     return upsertDocs(upsertMap);
   }
@@ -919,12 +919,11 @@ public class PostgresCollection implements Collection {
       existingElems.addAll(subDocs);
       candidateArray.removeAll();
       candidateArray.addAll(existingElems);
-      String id =
-          Optional.ofNullable(docRoot.findValue(ID)).orElse(docRoot.findValue(ENTITY_ID)).asText();
+      String id = docRoot.findValue(DOCUMENT_ID).asText();
       if (docRoot.isObject()) {
         ((ObjectNode) docRoot).put(DocStoreConstants.LAST_UPDATED_TIME, System.currentTimeMillis());
       }
-      upsertMap.put(new SingleValueKey(idToTenantIdMap.get(id), id), new JSONDocument(docRoot));
+      upsertMap.put(Key.from(id), new JSONDocument(docRoot));
     }
     return upsertDocs(upsertMap);
   }
@@ -943,7 +942,7 @@ public class PostgresCollection implements Collection {
   private CloseableIterator<Document> searchDocsForKeys(Set<Key> keys) {
     List<String> keysAsStr = keys.stream().map(Key::toString).collect(Collectors.toList());
     Query query = new Query().withFilter(new Filter(Filter.Op.IN, ID, keysAsStr));
-    return search(query);
+    return search(query, false);
   }
 
   private JsonNode getDocAsJSON(Document subDoc) throws IOException {
@@ -1254,11 +1253,17 @@ public class PostgresCollection implements Collection {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
     protected ResultSet resultSet;
+    private final boolean removeDocumentId;
     protected boolean cursorMovedForward = false;
     protected boolean hasNext = false;
 
     public PostgresResultIterator(ResultSet resultSet) {
+      this(resultSet, true);
+    }
+
+    PostgresResultIterator(ResultSet resultSet, boolean removeDocumentId) {
       this.resultSet = resultSet;
+      this.removeDocumentId = removeDocumentId;
     }
 
     @Override
@@ -1292,7 +1297,10 @@ public class PostgresCollection implements Collection {
     protected Document prepareDocument() throws SQLException, IOException {
       String documentString = resultSet.getString(DOCUMENT);
       ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
-      jsonNode.remove(DOCUMENT_ID);
+      // internal iterators may need document id
+      if (removeDocumentId) {
+        jsonNode.remove(DOCUMENT_ID);
+      }
       // Add Timestamps to Document
       Timestamp createdAt = resultSet.getTimestamp(CREATED_AT);
       Timestamp updatedAt = resultSet.getTimestamp(UPDATED_AT);
@@ -1312,7 +1320,11 @@ public class PostgresCollection implements Collection {
   static class PostgresResultIteratorWithMetaData extends PostgresResultIterator {
 
     public PostgresResultIteratorWithMetaData(ResultSet resultSet) {
-      super(resultSet);
+      super(resultSet, true);
+    }
+
+    PostgresResultIteratorWithMetaData(ResultSet resultSet, boolean removeDocumentId) {
+      super(resultSet, removeDocumentId);
     }
 
     @Override
