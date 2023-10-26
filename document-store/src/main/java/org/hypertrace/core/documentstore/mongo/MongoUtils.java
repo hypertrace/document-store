@@ -124,7 +124,8 @@ public final class MongoUtils {
           JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
       jsonString = dbObject.toJson(relaxed);
       JsonNode jsonNode = MAPPER.readTree(jsonString);
-      JsonNode decodedJsonNode = recursiveClone(jsonNode, MongoUtils::decodeKey, identity());
+      JsonNode decodedJsonNode =
+          recursiveClone(jsonNode, MongoUtils::decodeKey, UnaryOperator.identity());
       return new JSONDocument(decodedJsonNode);
     } catch (IOException e) {
       // throwing exception is not very useful here.
