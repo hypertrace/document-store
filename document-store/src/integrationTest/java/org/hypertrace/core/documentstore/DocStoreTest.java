@@ -2541,6 +2541,28 @@ public class DocStoreTest {
 
     Assertions.assertTrue(createResult.isSucceed());
 
+    createResult =
+        collection.create(
+            new SingleValueKey("default", "testKey2"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey2"),
+                ImmutablePair.of("name", "abc2"),
+                ImmutablePair.of("size", -10),
+                ImmutablePair.of("isCostly", false)));
+
+    Assertions.assertTrue(createResult.isSucceed());
+
+    createResult =
+        collection.create(
+            new SingleValueKey("default", "testKey3"),
+            Utils.createDocument(
+                ImmutablePair.of("id", "testKey3"),
+                ImmutablePair.of("name", "abc3"),
+                ImmutablePair.of("size", -10),
+                ImmutablePair.of("isCostly", true)));
+
+    Assertions.assertTrue(createResult.isSucceed());
+
     // test that document is updated if condition met
     UpdateResult updateResult =
         collection.update(
