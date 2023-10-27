@@ -308,7 +308,8 @@ public class MongoCollection implements Collection {
                 new BasicDBObject(
                     IF_NULL_CLAUSE,
                     new BsonValue[] {new BsonString(PREFIX + CREATED_TIME), new BsonInt64(now)})));
-    final BasicDBObject set = new BasicDBObject(SET_CLAUSE, prepareDocumentWithLiteralWrapping(key, document, now));
+    final BasicDBObject set =
+        new BasicDBObject(SET_CLAUSE, prepareDocumentWithLiteralWrapping(key, document, now));
 
     return List.of(project, set);
   }
@@ -441,11 +442,7 @@ public class MongoCollection implements Collection {
   private BasicDBObject getSubDocumentUpdateObject(
       final String subDocPath, final Document subDocument) {
     try {
-      /* Wrapping the subDocument with $literal to be able to provide empty object "{}" as value
-       *  Throws error otherwise if empty object is provided as value.
-       *  https://jira.mongodb.org/browse/SERVER-54046 */
-      BasicDBObject literalObject =
-          new BasicDBObject("$literal", getSanitizedBasicDBObject(subDocument));
+      BasicDBObject literalObject = getSanitizedBasicDBObjectWithLiteralWrapping(subDocument);
       BasicDBObject dbObject = new BasicDBObject(subDocPath, literalObject);
       dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
       return new BasicDBObject("$set", dbObject);
