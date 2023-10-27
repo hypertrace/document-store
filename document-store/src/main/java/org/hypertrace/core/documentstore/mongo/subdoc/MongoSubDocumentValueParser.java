@@ -3,7 +3,8 @@ package org.hypertrace.core.documentstore.mongo.subdoc;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
-import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonStringWithoutLiteralWrapping;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonStringWrappingEmptyObjectsInLiteral;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mongodb.BasicDBObject;
@@ -54,7 +55,7 @@ public class MongoSubDocumentValueParser implements SubDocumentValueVisitor<Obje
 
   private BasicDBObject parse(final String jsonValue) {
     try {
-      return BasicDBObject.parse(sanitizeJsonStringWithoutLiteralWrapping(jsonValue));
+      return BasicDBObject.parse(sanitizeJsonStringWrappingEmptyObjectsInLiteral(jsonValue));
     } catch (final JsonProcessingException e) {
       throw new RuntimeException(e);
     }
