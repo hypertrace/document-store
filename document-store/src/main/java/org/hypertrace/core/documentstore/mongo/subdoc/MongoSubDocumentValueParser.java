@@ -55,7 +55,7 @@ public class MongoSubDocumentValueParser implements SubDocumentValueVisitor<Obje
 
   private BasicDBObject parse(final String jsonValue) {
     try {
-      return BasicDBObject.parse(sanitizeJsonStringWrappingEmptyObjectsInLiteral(jsonValue));
+      return BasicDBObject.parse(sanitizeJsonString(jsonValue));
     } catch (final JsonProcessingException e) {
       throw new RuntimeException(e);
     }
