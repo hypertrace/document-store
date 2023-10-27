@@ -68,16 +68,16 @@ public final class MongoUtils {
   public static String sanitizeJsonString(final String jsonString) throws JsonProcessingException {
     final JsonNode jsonNode = MAPPER.readTree(jsonString);
     // escape "." and "$" in field names since Mongo DB does not like them
-    final JsonNode sanitizedJsonNode =
-        recursiveClone(jsonNode, MongoUtils::encodeKey, MongoUtils::wrapInLiteral);
+    final JsonNode sanitizedJsonNode = recursiveClone(jsonNode, MongoUtils::encodeKey, identity());
     return MAPPER.writeValueAsString(sanitizedJsonNode);
   }
 
-  public static String sanitizeJsonStringWithoutLiteralWrapping(final String jsonString)
+  public static String sanitizeJsonStringWrappingEmptyObjectsInLiteral(final String jsonString)
       throws JsonProcessingException {
     final JsonNode jsonNode = MAPPER.readTree(jsonString);
     // escape "." and "$" in field names since Mongo DB does not like them
-    final JsonNode sanitizedJsonNode = recursiveClone(jsonNode, MongoUtils::encodeKey, identity());
+    final JsonNode sanitizedJsonNode =
+        recursiveClone(jsonNode, MongoUtils::encodeKey, MongoUtils::wrapInLiteral);
     return MAPPER.writeValueAsString(sanitizedJsonNode);
   }
 
@@ -124,8 +124,7 @@ public final class MongoUtils {
           JsonWriterSettings.builder().outputMode(JsonMode.RELAXED).build();
       jsonString = dbObject.toJson(relaxed);
       JsonNode jsonNode = MAPPER.readTree(jsonString);
-      JsonNode decodedJsonNode =
-          recursiveClone(jsonNode, MongoUtils::decodeKey, UnaryOperator.identity());
+      JsonNode decodedJsonNode = recursiveClone(jsonNode, MongoUtils::decodeKey, identity());
       return new JSONDocument(decodedJsonNode);
     } catch (IOException e) {
       // throwing exception is not very useful here.
