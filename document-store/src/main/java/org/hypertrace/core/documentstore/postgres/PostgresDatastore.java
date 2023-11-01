@@ -68,6 +68,13 @@ public class PostgresDatastore implements Datastore {
   /** @return Returns Tables for a particular database */
   @Override
   public Set<String> listCollections() {
+    //  Relevant bits of the table metadata schema:
+    //  TABLE_CAT String => table catalog (may be null)
+    //  TABLE_SCHEM String => table schema (may be null)
+    //  TABLE_NAME String => table name
+    //  TABLE_TYPE String => table type. Typical types are "TABLE", "VIEW", "SYSTEM TABLE", "GLOBAL
+    // TEMPORARY", "LOCAL TEMPORARY", "ALIAS", "SYNONYM".
+    //
     Set<String> collections = new HashSet<>();
     try {
       DatabaseMetaData metaData = client.getConnection().getMetaData();
