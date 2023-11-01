@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <suppressions xmlns="https://jeremylong.github.io/DependencyCheck/dependency-suppression.1.3.xsd">
-  <suppress until="2023-10-30Z">
+  <suppress until="2023-12-31Z">
     <notes><![CDATA[
-  file name: jackson-databind-2.15.1.jar
-  ]]></notes>
-    <!-- No fix available yet (Disputed) -->
-    <!-- Transitive from other dependencies -->
-    <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
-    <cve>CVE-2023-35116</cve>
+   Doesn't appear to be a real vulnerability, jackson maintainers discuss at https://github.com/FasterXML/jackson-databind/issues/3973
+   Revisit when suppression expires
+   ]]></notes>
+    <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$
+    </packageUrl>
+    <vulnerabilityName>CVE-2023-35116</vulnerabilityName>
   </suppress>
   <suppress>
     <notes><![CDATA[
