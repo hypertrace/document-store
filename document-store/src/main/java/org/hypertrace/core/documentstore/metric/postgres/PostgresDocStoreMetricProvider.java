@@ -25,7 +25,7 @@ public class PostgresDocStoreMetricProvider extends BaseDocStoreMetricProviderIm
       "num.active.postgres.connections";
   private static final String APP_NAME_LABEL = "app_name";
   private static final String APPLICATION_COLUMN_NAME = "application_name";
-  private static final String PG_STAT_ACTIVITY_TABLE = "pg_stat_activity";
+  private static final String PG_STAT_ACTIVITY_TABLE = "pg_catalog.pg_stat_activity";
 
   private final String applicationNameInCurrentConnection;
 
