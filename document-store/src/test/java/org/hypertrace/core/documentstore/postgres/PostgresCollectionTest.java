@@ -89,10 +89,10 @@ class PostgresCollectionTest {
     when(mockClient.getConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(
             String.format(
-                "INSERT INTO %s (id, document, created_at) "
+                "INSERT INTO \"%s\" (id, document, created_at) "
                     + "VALUES (?, ?::jsonb, NOW()) "
                     + "ON CONFLICT(id) DO UPDATE SET "
-                    + "document = jsonb_set(?::jsonb, '{createdTime}', %s.document->'createdTime'), "
+                    + "document = jsonb_set(?::jsonb, '{createdTime}', \"%s\".document->'createdTime'), "
                     + "updated_at = NOW() "
                     + "RETURNING created_at = NOW() AS created_now_alias",
                 COLLECTION_NAME, COLLECTION_NAME)))
@@ -129,7 +129,7 @@ class PostgresCollectionTest {
                 + "document->'date' AS \"date\", "
                 + "document->'props' AS \"props\", "
                 + "id AS _implicit_id "
-                + "FROM %s "
+                + "FROM \"%s\" "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
                 + "ORDER BY "
@@ -166,15 +166,15 @@ class PostgresCollectionTest {
                 + "id, "
                 + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
                 + "FROM "
-                + "(SELECT id, document FROM %s AS t0 WHERE id = ?) "
+                + "(SELECT id, document FROM \"%s\" AS t0 WHERE id = ?) "
                 + "AS t1) "
                 + "AS t2) "
                 + "AS t3) "
                 + "AS t4) "
-                + "UPDATE %s "
+                + "UPDATE \"%s\" "
                 + "SET document=concatenated.document "
                 + "FROM concatenated "
-                + "WHERE %s.id=concatenated.id",
+                + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
     when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
 
@@ -229,7 +229,7 @@ class PostgresCollectionTest {
                 + "document->'date' AS \"date\", "
                 + "document->'props' AS \"props\", "
                 + "id AS _implicit_id "
-                + "FROM %s "
+                + "FROM \"%s\" "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
                 + "ORDER BY "
@@ -265,15 +265,15 @@ class PostgresCollectionTest {
                 + "id, "
                 + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
                 + "FROM "
-                + "(SELECT id, document FROM %s AS t0 WHERE id = ?) "
+                + "(SELECT id, document FROM \"%s\" AS t0 WHERE id = ?) "
                 + "AS t1) "
                 + "AS t2) "
                 + "AS t3) "
                 + "AS t4) "
-                + "UPDATE %s "
+                + "UPDATE \"%s\" "
                 + "SET document=concatenated.document "
                 + "FROM concatenated "
-                + "WHERE %s.id=concatenated.id",
+                + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
     when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
 
@@ -325,7 +325,7 @@ class PostgresCollectionTest {
                 + "document->'date' AS \"date\", "
                 + "document->'props' AS \"props\", "
                 + "id AS _implicit_id "
-                + "FROM %s "
+                + "FROM \"%s\" "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
                 + "ORDER BY "
@@ -375,7 +375,7 @@ class PostgresCollectionTest {
                 + "document->'date' AS \"date\", "
                 + "document->'props' AS \"props\", "
                 + "id AS _implicit_id "
-                + "FROM %s "
+                + "FROM \"%s\" "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
                 + "ORDER BY "
@@ -409,12 +409,12 @@ class PostgresCollectionTest {
                 + "(SELECT "
                 + "id, "
                 + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
-                + "FROM (SELECT id, document FROM %s AS t0 WHERE id = ?)"
+                + "FROM (SELECT id, document FROM \"%s\" AS t0 WHERE id = ?)"
                 + " AS t1) AS t2) AS t3) AS t4) "
-                + "UPDATE %s "
+                + "UPDATE \"%s\" "
                 + "SET document=concatenated.document "
                 + "FROM concatenated "
-                + "WHERE %s.id=concatenated.id",
+                + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
     when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
 
@@ -479,7 +479,7 @@ class PostgresCollectionTest {
                 + "document->'price' AS \"price\", "
                 + "document->'date' AS \"date\", "
                 + "document->'props' AS \"props\" "
-                + "FROM %s "
+                + "FROM \"%s\" "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
                 + "ORDER BY "
@@ -517,17 +517,17 @@ class PostgresCollectionTest {
                 + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
                 + "FROM "
                 + "(SELECT id, document "
-                + "FROM %s AS t0 "
+                + "FROM \"%s\" AS t0 "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?)) "
                 + "AS t1) "
                 + "AS t2) "
                 + "AS t3) "
                 + "AS t4) "
-                + "UPDATE %s "
+                + "UPDATE \"%s\" "
                 + "SET document=concatenated.document "
                 + "FROM concatenated "
-                + "WHERE %s.id=concatenated.id",
+                + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
 
     when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
@@ -594,17 +594,17 @@ class PostgresCollectionTest {
                 + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
                 + "FROM "
                 + "(SELECT id, document "
-                + "FROM %s AS t0 "
+                + "FROM \"%s\" AS t0 "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?)) "
                 + "AS t1) "
                 + "AS t2) "
                 + "AS t3) "
                 + "AS t4) "
-                + "UPDATE %s "
+                + "UPDATE \"%s\" "
                 + "SET document=concatenated.document "
                 + "FROM concatenated "
-                + "WHERE %s.id=concatenated.id",
+                + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
 
     when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
@@ -648,7 +648,7 @@ class PostgresCollectionTest {
                 + "document->'price' AS \"price\", "
                 + "document->'date' AS \"date\", "
                 + "document->'props' AS \"props\" "
-                + "FROM %s "
+                + "FROM \"%s\" "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
                 + "ORDER BY "
@@ -681,17 +681,17 @@ class PostgresCollectionTest {
                 + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
                 + "FROM "
                 + "(SELECT id, document "
-                + "FROM %s AS t0 "
+                + "FROM \"%s\" AS t0 "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?)) "
                 + "AS t1) "
                 + "AS t2) "
                 + "AS t3) "
                 + "AS t4) "
-                + "UPDATE %s "
+                + "UPDATE \"%s\" "
                 + "SET document=concatenated.document "
                 + "FROM concatenated "
-                + "WHERE %s.id=concatenated.id",
+                + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
 
     when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
@@ -741,7 +741,7 @@ class PostgresCollectionTest {
                 + "document->'price' AS \"price\", "
                 + "document->'date' AS \"date\", "
                 + "document->'props' AS \"props\" "
-                + "FROM %s "
+                + "FROM \"%s\" "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
                 + "ORDER BY "
@@ -780,7 +780,7 @@ class PostgresCollectionTest {
                 + "document->'price' AS \"price\", "
                 + "document->'date' AS \"date\", "
                 + "document->'props' AS \"props\" "
-                + "FROM %s "
+                + "FROM \"%s\" "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?) "
                 + "ORDER BY "
@@ -812,17 +812,17 @@ class PostgresCollectionTest {
                 + "jsonb_set(COALESCE(t1.document, '{}'), ?::text[], to_jsonb(?)) AS document "
                 + "FROM "
                 + "(SELECT id, document "
-                + "FROM %s AS t0 "
+                + "FROM \"%s\" AS t0 "
                 + "WHERE (document->>'item' = ?) "
                 + "AND (document->>'date' < ?)) "
                 + "AS t1) "
                 + "AS t2) "
                 + "AS t3) "
                 + "AS t4) "
-                + "UPDATE %s "
+                + "UPDATE \"%s\" "
                 + "SET document=concatenated.document "
                 + "FROM concatenated "
-                + "WHERE %s.id=concatenated.id",
+                + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
 
     when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);

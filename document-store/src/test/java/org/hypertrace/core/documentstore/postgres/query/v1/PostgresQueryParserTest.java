@@ -39,6 +39,7 @@ import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.postgres.Params;
+import org.hypertrace.core.documentstore.postgres.PostgresTableIdentifier;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -50,7 +51,9 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.Test;
 
 public class PostgresQueryParserTest {
-  private static final String TEST_COLLECTION = "testCollection";
+
+  private static final PostgresTableIdentifier TEST_TABLE =
+      PostgresTableIdentifier.parse("testCollection");
   private static final String TENANT_ID = "tenant-id";
 
   @Test
@@ -62,10 +65,12 @@ public class PostgresQueryParserTest {
                     IdentifierExpression.of("quantity"), NEQ, ConstantExpression.of(10)))
             .build();
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
-        "SELECT * " + "FROM testCollection " + "WHERE CAST (document->>'quantity' AS NUMERIC) != ?",
+        "SELECT * "
+            + "FROM \"testCollection\" "
+            + "WHERE CAST (document->>'quantity' AS NUMERIC) != ?",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -90,11 +95,11 @@ public class PostgresQueryParserTest {
                     .build())
             .build();
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "WHERE (CAST (document->>'quantity' AS NUMERIC) > ?) "
             + "AND (document->'props'->'seller'->'address'->>'city' = ?)",
         sql);
@@ -120,11 +125,11 @@ public class PostgresQueryParserTest {
                     .build())
             .build();
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "WHERE (CAST (document->>'quantity' AS NUMERIC) >= ?) "
             + "AND (CAST (document->>'quantity' AS NUMERIC) <= ?)",
         sql);
@@ -150,11 +155,11 @@ public class PostgresQueryParserTest {
                     .build())
             .build();
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "WHERE (CAST (document->>'quantity' AS NUMERIC) >= ?) "
             + "OR (CAST (document->>'quantity' AS NUMERIC) <= ?)",
         sql);
@@ -192,11 +197,11 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "WHERE (CAST (document->>'price' AS NUMERIC) >= ?) "
             + "AND ((CAST (document->>'quantity' AS NUMERIC) >= ?) "
             + "OR (CAST (document->>'quantity' AS NUMERIC) <= ?))",
@@ -216,11 +221,11 @@ public class PostgresQueryParserTest {
             .addSelection(IdentifierExpression.of("price"))
             .build();
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT document->'item' AS \"item\", document->'price' AS \"price\" "
-            + "FROM testCollection",
+            + "FROM \"testCollection\"",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -241,12 +246,12 @@ public class PostgresQueryParserTest {
                 "total")
             .build();
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT document->'item' AS \"item\", "
             + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS \"total\" "
-            + "FROM testCollection",
+            + "FROM \"testCollection\"",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -269,14 +274,14 @@ public class PostgresQueryParserTest {
                 "total")
             .build();
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT document->'item' AS \"item\", "
             + "document->'props'->'brand' AS \"props_dot_brand\", "
             + "document->'props'->'seller'->'name' AS \"props_dot_seller_dot_name\", "
             + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS \"total\" "
-            + "FROM testCollection",
+            + "FROM \"testCollection\"",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -299,14 +304,14 @@ public class PostgresQueryParserTest {
                 "total")
             .build();
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT document->'item' AS \"item\", "
             + "document->'props'->'brand' AS \"props_band\", "
             + "document->'props'->'seller'->'name' AS \"props_seller_name\", "
             + "CAST (document->>'price' AS NUMERIC) * CAST (document->>'quantity' AS NUMERIC) AS \"total\" "
-            + "FROM testCollection",
+            + "FROM \"testCollection\"",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -338,7 +343,7 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT document->'item' AS \"item\", "
@@ -348,7 +353,7 @@ public class PostgresQueryParserTest {
             + "SUM( CAST (document->>'quantity' AS NUMERIC) ) AS \"qty_sum\", "
             + "MIN( CAST (document->>'quantity' AS NUMERIC) ) AS \"qty_min\", "
             + "MAX( CAST (document->>'quantity' AS NUMERIC) ) AS \"qty_max\" "
-            + "FROM testCollection WHERE CAST (document->>'price' AS NUMERIC) = ? "
+            + "FROM \"testCollection\" WHERE CAST (document->>'price' AS NUMERIC) = ? "
             + "GROUP BY document->'item'",
         sql);
 
@@ -377,13 +382,13 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)) AS \"qty_distinct\", "
             + "ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ) AS \"qty_distinct_length\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "WHERE CAST (document->>'price' AS NUMERIC) = ? "
             + "GROUP BY document->'item'",
         sql);
@@ -416,14 +421,14 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT document->'item' AS \"item\", document->'price' AS \"price\", "
             + "ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)) AS \"quantities\", "
             + "ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ) AS \"num_quantities\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "GROUP BY document->'item',document->'price' "
             + "HAVING ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ) = ? "
             + "ORDER BY document->'item' DESC NULLS LAST",
@@ -448,13 +453,13 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS \"item\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "GROUP BY document->'item' "
             + "HAVING COUNT(DISTINCT document->>'quantity' ) <= ?",
         sql);
@@ -481,13 +486,13 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS \"item\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "WHERE CAST (document->>'price' AS NUMERIC) <= ? "
             + "GROUP BY document->'item' "
             + "HAVING COUNT(DISTINCT document->>'quantity' ) <= ?",
@@ -522,14 +527,14 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS \"item\", "
             + "document->'price' AS \"price\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "GROUP BY document->'item',document->'price' "
             + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND (CAST (document->'price' AS NUMERIC) > ?)",
         sql);
@@ -551,12 +556,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT document->'item' AS \"item\", document->'price' AS \"price\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "ORDER BY document->'price' ASC NULLS FIRST,document->'item' DESC NULLS LAST",
         sql);
 
@@ -581,13 +586,13 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS \"item\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "GROUP BY document->'item' "
             + "HAVING COUNT(DISTINCT document->>'quantity' ) <= ? "
             + "ORDER BY \"qty_count\" DESC NULLS LAST,document->'item' DESC NULLS LAST",
@@ -634,7 +639,7 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
@@ -642,7 +647,7 @@ public class PostgresQueryParserTest {
             + "document->'price' AS \"price\", "
             + "document->'quantity' AS \"quantity\", "
             + "document->'date' AS \"date\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "WHERE document->>'item' IN (?, ?, ?, ?) "
             + "ORDER BY document->'quantity' DESC NULLS LAST,document->'item' ASC NULLS FIRST "
             + "OFFSET ? LIMIT ?",
@@ -671,12 +676,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection),\n"
+            + "table0 as (SELECT * from \"testCollection\"),\n"
             + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales)),\n"
             + "table2 as (SELECT * from table1 t1, jsonb_array_elements(sales->'medium') p2(sales_dot_medium))\n"
             + "SELECT document->'item' AS \"item\", "
@@ -703,12 +708,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection),\n"
+            + "table0 as (SELECT * from \"testCollection\"),\n"
             + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
             + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
             + "SELECT document->'item' AS \"item\", "
@@ -746,12 +751,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection "
+            + "table0 as (SELECT * from \"testCollection\" "
             + "WHERE CAST (document->>'quantity' AS NUMERIC) != ?),\n"
             + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales)),\n"
             + "table2 as (SELECT * from table1 t1, jsonb_array_elements(sales->'medium') p2(sales_dot_medium))\n"
@@ -792,12 +797,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
+            + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
             + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
             + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'price' AS \"price\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE sales_dot_medium->>'type' = ?",
@@ -832,12 +837,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection),\n"
+            + "table0 as (SELECT * from \"testCollection\"),\n"
             + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
             + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'price' AS \"price\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE (CAST (document->>'quantity' AS NUMERIC) > ?) OR (sales_dot_medium->>'type' = ?)",
@@ -881,12 +886,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection WHERE CAST (document->>'price' AS NUMERIC) > ?),\n"
+            + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'price' AS NUMERIC) > ?),\n"
             + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
             + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'price' AS \"price\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE (CAST (document->>'quantity' AS NUMERIC) > ?) OR (sales_dot_medium->>'type' = ?)",
@@ -930,12 +935,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
+            + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
             + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
             + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'quantity' AS \"quantity\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE (sales_dot_medium->>'type' = ?) AND (sales_dot_medium->>'type' = ?)",
@@ -979,12 +984,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
+            + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
             + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
             + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'quantity' AS \"quantity\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE (sales_dot_medium->>'type' = ?) AND (sales_dot_medium->>'channel' = ?)",
@@ -1027,12 +1032,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
+            + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
             + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(sales) on TRUE),\n"
             + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(sales_dot_medium) on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'quantity' AS \"quantity\", sales->'city' AS \"sales_dot_city\" FROM table2 WHERE (sales->>'channel' = ?) AND (sales->>'city' = ?)",
@@ -1066,13 +1071,13 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS \"item\", document->'price' AS \"price\" "
-            + "FROM testCollection GROUP BY document->'item',document->'price' "
+            + "FROM \"testCollection\" GROUP BY document->'item',document->'price' "
             + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND (CAST (document->'item' AS TEXT) = ?)",
         sql);
 
@@ -1109,13 +1114,13 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS \"item\", document->'price' AS \"price\" "
-            + "FROM testCollection GROUP BY document->'item',document->'price' "
+            + "FROM \"testCollection\" GROUP BY document->'item',document->'price' "
             + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND (CAST (document->'item' AS TEXT) IN (?, ?, ?, ?))",
         sql);
 
@@ -1153,12 +1158,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "WHERE (CAST (document->>'price' AS NUMERIC) <= ?) AND (document->>'item' IN (?, ?, ?, ?))",
         sql);
 
@@ -1189,12 +1194,12 @@ public class PostgresQueryParserTest {
             .build();
 
     final PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     final String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT document->'item' AS \"item\" "
-            + "FROM testCollection "
+            + "FROM \"testCollection\" "
             + "WHERE CAST (document->>'quantity' AS NUMERIC) * CAST (document->>'price' AS NUMERIC) > ? "
             + "ORDER BY document->'item' DESC NULLS LAST",
         sql);
@@ -1220,13 +1225,13 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS \"item\" "
-            + "FROM testCollection WHERE CAST (document->>'price' AS NUMERIC) <= ? "
+            + "FROM \"testCollection\" WHERE CAST (document->>'price' AS NUMERIC) <= ? "
             + "GROUP BY document->'item'",
         sql);
 
@@ -1244,11 +1249,11 @@ public class PostgresQueryParserTest {
 
     final PostgresQueryParser postgresQueryParser =
         new PostgresQueryParser(
-            TEST_COLLECTION,
+            TEST_TABLE,
             PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
     final String sql = postgresQueryParser.parse();
 
-    assertEquals("SELECT * FROM testCollection WHERE id = ?", sql);
+    assertEquals("SELECT * FROM \"testCollection\" WHERE id = ?", sql);
 
     final Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
@@ -1267,11 +1272,11 @@ public class PostgresQueryParserTest {
 
     final PostgresQueryParser postgresQueryParser =
         new PostgresQueryParser(
-            TEST_COLLECTION,
+            TEST_TABLE,
             PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
     final String sql = postgresQueryParser.parse();
 
-    assertEquals("SELECT * FROM testCollection WHERE (id = ?) OR (id = ?)", sql);
+    assertEquals("SELECT * FROM \"testCollection\" WHERE (id = ?) OR (id = ?)", sql);
 
     final Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(2, params.getObjectParams().size());
@@ -1291,11 +1296,12 @@ public class PostgresQueryParserTest {
             .build();
     final PostgresQueryParser postgresQueryParser =
         new PostgresQueryParser(
-            TEST_COLLECTION,
+            TEST_TABLE,
             PostgresQueryTransformer.transform(Query.builder().setFilter(filter).build()));
     final String sql = postgresQueryParser.parse();
 
-    assertEquals("SELECT * FROM testCollection WHERE (id = ?) AND (document->>'item' != ?)", sql);
+    assertEquals(
+        "SELECT * FROM \"testCollection\" WHERE (id = ?) AND (document->>'item' != ?)", sql);
 
     final Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(2, params.getObjectParams().size());
@@ -1314,9 +1320,9 @@ public class PostgresQueryParserTest {
                     ConstantExpression.of(new JSONDocument("\"a\""))))
             .build();
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
-    assertEquals("SELECT * FROM testCollection WHERE document->'sales' @> ?::jsonb", sql);
+    assertEquals("SELECT * FROM \"testCollection\" WHERE document->'sales' @> ?::jsonb", sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals("[\"a\"]", params.getObjectParams().get(1));
@@ -1342,12 +1348,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection),\n"
+            + "table0 as (SELECT * from \"testCollection\"),\n"
             + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales))\n"
             + "SELECT document->'item' AS \"item\", sales->'medium' AS \"sales_dot_medium\" FROM table1 WHERE sales->'medium' @> ?::jsonb",
         sql);
@@ -1377,12 +1383,12 @@ public class PostgresQueryParserTest {
             .build();
 
     PostgresQueryParser postgresQueryParser =
-        new PostgresQueryParser(TEST_COLLECTION, PostgresQueryTransformer.transform(query));
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
 
     assertEquals(
         "With \n"
-            + "table0 as (SELECT * from testCollection),\n"
+            + "table0 as (SELECT * from \"testCollection\"),\n"
             + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(sales))\n"
             + "SELECT document->'item' AS \"item\", sales->'medium' AS \"sales_dot_medium\" FROM table1 WHERE sales->'medium' IS NULL OR NOT sales->'medium' @> ?::jsonb",
         sql);
@@ -1390,5 +1396,16 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
     assertEquals("[{\"type\":\"retail\",\"volume\":500}]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testCollectionInOtherSchema() {
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            PostgresTableIdentifier.parse("test_schema.test_table.with_a_dot"),
+            PostgresQueryTransformer.transform(Query.builder().build()));
+
+    assertEquals(
+        "SELECT * FROM test_schema.\"test_table.with_a_dot\"", postgresQueryParser.parse());
   }
 }
