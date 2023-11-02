@@ -83,6 +83,8 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.expression.operators.SortOrder;
+import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
@@ -999,6 +1001,32 @@ public class DocStoreQueryV1Test {
                 RelationalExpression.of(
                     IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
             .addAggregation(IdentifierExpression.of("item"))
+            .build();
+    try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultDocs, "query/test_aggr_with_match_selection_and_groupby.json", 3);
+    }
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  void testQueryQ1CountAggregationWithMultipleSelectionAndGroupBy(String dataStoreName)
+      throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(
+                AggregateExpression.of(COUNT, IdentifierExpression.of("quantity")),
+                "qty_count")
+            .addSelection(IdentifierExpression.of("item"), "ITEM")
+            .addSelection(IdentifierExpression.of("props.size"), "PROP_SIZE")
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("props.size"))
+            .addSort(IdentifierExpression.of("PROP_SIZE"), ASC)
             .build();
     try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
       assertDocsAndSizeEqualWithoutOrder(
