@@ -9,6 +9,8 @@ import lombok.Getter;
 @EqualsAndHashCode
 public class PostgresTableIdentifier {
 
+  // If not specified, no schema will be used. By default, postgres treats this as the "public"
+  // schema.
   @Nullable private final String schema;
 
   @Getter @Nonnull private final String quotedTable;

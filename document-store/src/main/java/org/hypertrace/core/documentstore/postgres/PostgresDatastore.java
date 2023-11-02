@@ -142,8 +142,6 @@ public class PostgresDatastore implements Datastore {
 
   @Override
   public Collection getCollection(String collectionName) {
-    // FIXME - need to figure out listing schema tables before merging
-    PostgresTableIdentifier tableIdentifier = PostgresTableIdentifier.parse(collectionName);
     Set<String> tables = listCollections();
     if (!tables.contains(collectionName)) {
       createCollection(collectionName, null);
