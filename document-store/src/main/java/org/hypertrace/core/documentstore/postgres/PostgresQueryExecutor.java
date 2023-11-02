@@ -18,12 +18,12 @@ import org.hypertrace.core.documentstore.query.Query;
 @Slf4j
 @AllArgsConstructor
 public class PostgresQueryExecutor {
-  private final String collectionName;
+  private final PostgresTableIdentifier tableIdentifier;
 
   public CloseableIterator<Document> execute(final Connection connection, final Query query) {
     final org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-            collectionName, transformAndLog(query));
+            tableIdentifier, transformAndLog(query));
     final String sqlQuery = queryParser.parse();
     try {
       final PreparedStatement preparedStatement =

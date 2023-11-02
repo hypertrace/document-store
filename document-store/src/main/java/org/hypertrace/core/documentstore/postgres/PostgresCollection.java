@@ -98,16 +98,21 @@ public class PostgresCollection implements Collection {
       CloseableIterator.emptyIterator();
 
   private final PostgresClient client;
-  private final String collectionName;
+  private final PostgresTableIdentifier tableIdentifier;
   private final PostgresSubDocumentUpdater subDocUpdater;
   private final PostgresQueryExecutor queryExecutor;
   private final UpdateValidator updateValidator;
 
   public PostgresCollection(final PostgresClient client, final String collectionName) {
+    this(client, PostgresTableIdentifier.parse(collectionName));
+  }
+
+  PostgresCollection(final PostgresClient client, final PostgresTableIdentifier tableIdentifier) {
     this.client = client;
-    this.collectionName = collectionName;
-    this.subDocUpdater = new PostgresSubDocumentUpdater(new PostgresQueryBuilder(collectionName));
-    this.queryExecutor = new PostgresQueryExecutor(collectionName);
+    this.tableIdentifier = tableIdentifier;
+    this.subDocUpdater =
+        new PostgresSubDocumentUpdater(new PostgresQueryBuilder(this.tableIdentifier));
+    this.queryExecutor = new PostgresQueryExecutor(this.tableIdentifier);
     this.updateValidator = new CommonUpdateValidator();
   }
 
@@ -369,7 +374,7 @@ public class PostgresCollection implements Collection {
     String updateSubDocSQL =
         String.format(
             "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s = ?",
-            collectionName, DOCUMENT, DOCUMENT, ID);
+            tableIdentifier, DOCUMENT, DOCUMENT, ID);
     try {
       PreparedStatement preparedStatement =
           client.getConnection().prepareStatement(updateSubDocSQL);
@@ -429,7 +434,7 @@ public class PostgresCollection implements Collection {
   private CloseableIterator<Document> search(Query query, boolean removeDocumentId) {
     String selection = PostgresQueryParser.parseSelections(query.getSelections());
     StringBuilder sqlBuilder =
-        new StringBuilder(String.format("SELECT %s FROM ", selection)).append(collectionName);
+        new StringBuilder(String.format("SELECT %s FROM ", selection)).append(tableIdentifier);
 
     String filters = null;
     Params.Builder paramsBuilder = Params.newBuilder();
@@ -501,7 +506,7 @@ public class PostgresCollection implements Collection {
     try (final Connection connection = client.getPooledConnection()) {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-              collectionName, query);
+              tableIdentifier, query);
       final String selectQuery = parser.buildSelectQueryForUpdate();
 
       try (final PreparedStatement preparedStatement =
@@ -604,7 +609,7 @@ public class PostgresCollection implements Collection {
   public long count(org.hypertrace.core.documentstore.query.Query query) {
     org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-            collectionName, query);
+            tableIdentifier, query);
     String subQuery = queryParser.parse();
     String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(count)", subQuery);
     try {
@@ -623,7 +628,7 @@ public class PostgresCollection implements Collection {
 
   @Override
   public boolean delete(Key key) {
-    String deleteSQL = String.format("DELETE FROM %s WHERE %s = ?", collectionName, ID);
+    String deleteSQL = String.format("DELETE FROM %s WHERE %s = ?", tableIdentifier, ID);
     try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
       preparedStatement.setString(1, key.toString());
       preparedStatement.executeUpdate();
@@ -639,10 +644,10 @@ public class PostgresCollection implements Collection {
     if (filter == null) {
       throw new UnsupportedOperationException("Filter must be provided");
     }
-    StringBuilder sqlBuilder = new StringBuilder("DELETE FROM ").append(collectionName);
+    StringBuilder sqlBuilder = new StringBuilder("DELETE FROM ").append(tableIdentifier);
     Params.Builder paramsBuilder = Params.newBuilder();
     String filters = PostgresQueryParser.parseFilter(filter, paramsBuilder);
-    LOGGER.debug("Sending query to PostgresSQL: {} : {}", collectionName, filters);
+    LOGGER.debug("Sending query to PostgresSQL: {} : {}", tableIdentifier, filters);
     if (filters == null) {
       throw new UnsupportedOperationException("Parsed filter is invalid");
     }
@@ -667,7 +672,7 @@ public class PostgresCollection implements Collection {
     String deleteSQL =
         new StringBuilder("DELETE FROM")
             .append(space)
-            .append(collectionName)
+            .append(tableIdentifier)
             .append(" WHERE ")
             .append(ID)
             .append(" IN ")
@@ -688,7 +693,7 @@ public class PostgresCollection implements Collection {
   public boolean deleteSubDoc(Key key, String subDocPath) {
     String deleteSubDocSQL =
         String.format(
-            "UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?", collectionName, DOCUMENT, DOCUMENT, ID);
+            "UPDATE %s SET %s=%s #- ?::text[] WHERE %s=?", tableIdentifier, DOCUMENT, DOCUMENT, ID);
     String jsonSubDocPath = formatSubDocPath(subDocPath);
 
     try (PreparedStatement preparedStatement =
@@ -711,7 +716,7 @@ public class PostgresCollection implements Collection {
 
   @Override
   public boolean deleteAll() {
-    String deleteSQL = String.format("DELETE FROM %s", collectionName);
+    String deleteSQL = String.format("DELETE FROM %s", tableIdentifier);
     try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
       preparedStatement.executeUpdate();
       return true;
@@ -723,7 +728,7 @@ public class PostgresCollection implements Collection {
 
   @Override
   public long count() {
-    String countSQL = String.format("SELECT COUNT(*) FROM %s", collectionName);
+    String countSQL = String.format("SELECT COUNT(*) FROM %s", tableIdentifier);
     long count = -1;
     try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(countSQL)) {
       ResultSet resultSet = preparedStatement.executeQuery();
@@ -739,7 +744,7 @@ public class PostgresCollection implements Collection {
   @Override
   public long total(Query query) {
     StringBuilder totalSQLBuilder =
-        new StringBuilder("SELECT COUNT(*) FROM ").append(collectionName);
+        new StringBuilder("SELECT COUNT(*) FROM ").append(tableIdentifier);
     Params.Builder paramsBuilder = Params.newBuilder();
 
     long count = -1;
@@ -806,7 +811,7 @@ public class PostgresCollection implements Collection {
       query =
           new StringBuilder("SELECT * FROM")
               .append(space)
-              .append(collectionName)
+              .append(tableIdentifier)
               .append(" WHERE ")
               .append(ID)
               .append(" IN ")
@@ -836,12 +841,12 @@ public class PostgresCollection implements Collection {
 
   @Override
   public void drop() {
-    String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
+    String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", tableIdentifier);
     try (PreparedStatement preparedStatement =
         client.getConnection().prepareStatement(dropTableSQL)) {
       preparedStatement.executeUpdate();
     } catch (SQLException e) {
-      LOGGER.error("Exception deleting table name: {}", collectionName);
+      LOGGER.error("Exception deleting table name: {}", tableIdentifier);
     }
   }
 
@@ -1134,7 +1139,7 @@ public class PostgresCollection implements Collection {
     String updateSubDocSQL =
         String.format(
             "UPDATE %s SET %s=jsonb_set(%s, '{lastUpdatedTime}'::text[], ?::jsonb) WHERE %s=?",
-            collectionName, DOCUMENT, DOCUMENT, ID);
+            tableIdentifier, DOCUMENT, DOCUMENT, ID);
     long now = System.currentTimeMillis();
     try {
       PreparedStatement preparedStatement =
@@ -1173,20 +1178,19 @@ public class PostgresCollection implements Collection {
 
   private String getInsertSQL() {
     return String.format(
-        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb)",
-        collectionName, ID, DOCUMENT, ID, DOCUMENT);
+        "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb)", tableIdentifier, ID, DOCUMENT);
   }
 
   private String getUpdateSQL() {
     return String.format(
-        "UPDATE %s SET (%s, %s) = ( ?, ? :: jsonb) ", collectionName, ID, DOCUMENT, ID, DOCUMENT);
+        "UPDATE %s SET (%s, %s) = ( ?, ? :: jsonb) ", tableIdentifier, ID, DOCUMENT);
   }
 
   private String getUpsertSQL() {
     return String.format(
         "INSERT INTO %s (%s,%s) VALUES( ?, ? :: jsonb) ON CONFLICT(%s) DO UPDATE SET %s = "
             + "?::jsonb ",
-        collectionName, ID, DOCUMENT, ID, DOCUMENT);
+        tableIdentifier, ID, DOCUMENT, ID, DOCUMENT);
   }
 
   private String getCreateOrReplaceSQL() {
@@ -1199,14 +1203,14 @@ public class PostgresCollection implements Collection {
             + "%s = jsonb_set(?::jsonb, '{%s}', %s.%s->'%s'), "
             + "%s = NOW() "
             + "RETURNING %s = NOW() AS %s",
-        collectionName,
+        tableIdentifier,
         ID,
         DOCUMENT,
         CREATED_AT,
         ID,
         DOCUMENT,
         DocStoreConstants.CREATED_TIME,
-        collectionName,
+        tableIdentifier,
         DOCUMENT,
         DocStoreConstants.CREATED_TIME,
         UPDATED_AT,
@@ -1224,14 +1228,14 @@ public class PostgresCollection implements Collection {
             + "%s = jsonb_set(?::jsonb, '{%s}', %s.%s->'%s'), "
             + "%s = NOW() "
             + "RETURNING %s::text AS %s, %s AS %s, %s AS %s",
-        collectionName,
+        tableIdentifier,
         ID,
         DOCUMENT,
         CREATED_AT,
         ID,
         DOCUMENT,
         DocStoreConstants.CREATED_TIME,
-        collectionName,
+        tableIdentifier,
         DOCUMENT,
         DocStoreConstants.CREATED_TIME,
         UPDATED_AT,
@@ -1246,7 +1250,7 @@ public class PostgresCollection implements Collection {
   private String getSubDocUpdateQuery() {
     return String.format(
         "UPDATE %s SET %s=jsonb_set(%s, ?::text[], ?::jsonb) WHERE %s=?",
-        collectionName, DOCUMENT, DOCUMENT, ID);
+        tableIdentifier, DOCUMENT, DOCUMENT, ID);
   }
 
   static class PostgresResultIterator implements CloseableIterator<Document> {

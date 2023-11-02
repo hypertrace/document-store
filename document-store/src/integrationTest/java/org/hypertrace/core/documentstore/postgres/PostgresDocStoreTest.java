@@ -1,5 +1,9 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -23,6 +27,7 @@ import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assertions;
@@ -93,8 +98,8 @@ public class PostgresDocStoreTest {
 
     try {
       DatabaseMetaData metaData = datastore.getPostgresClient().getMetaData();
-      Assertions.assertEquals(connectionUrl + database, metaData.getURL());
-      Assertions.assertEquals(user, metaData.getUserName());
+      assertEquals(connectionUrl + database, metaData.getURL());
+      assertEquals(user, metaData.getUserName());
     } catch (SQLException e) {
       System.out.println("Exception executing init test with user and password");
       Assertions.fail();
@@ -108,7 +113,7 @@ public class PostgresDocStoreTest {
     Document resultDocument =
         collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
 
-    Assertions.assertEquals(document.toJson(), resultDocument.toJson());
+    assertEquals(document.toJson(), resultDocument.toJson());
   }
 
   @Test
@@ -148,16 +153,12 @@ public class PostgresDocStoreTest {
     JsonNode expectedRootNode2 = objectMapper.readTree(outputNode2);
     PostgresCollection collection = (PostgresCollection) datastore.getCollection(COLLECTION_NAME);
     try {
-      Assertions.assertEquals(
-          collection.getJsonNodeAtPath(path1, rootNode, true), expectedRootNode1);
-      Assertions.assertEquals(
-          collection.getJsonNodeAtPath(path2, rootNode, true), expectedRootNode2);
-      Assertions.assertEquals(collection.getJsonNodeAtPath(null, rootNode, true), rootNode);
-      Assertions.assertEquals(
-          collection.getJsonNodeAtPath(path1, rootNode, false), expectedRootNode1);
-      Assertions.assertEquals(
-          collection.getJsonNodeAtPath(path2, rootNode, false), expectedRootNode2);
-      Assertions.assertEquals(collection.getJsonNodeAtPath(null, rootNode, false), rootNode);
+      assertEquals(collection.getJsonNodeAtPath(path1, rootNode, true), expectedRootNode1);
+      assertEquals(collection.getJsonNodeAtPath(path2, rootNode, true), expectedRootNode2);
+      assertEquals(collection.getJsonNodeAtPath(null, rootNode, true), rootNode);
+      assertEquals(collection.getJsonNodeAtPath(path1, rootNode, false), expectedRootNode1);
+      assertEquals(collection.getJsonNodeAtPath(path2, rootNode, false), expectedRootNode2);
+      assertEquals(collection.getJsonNodeAtPath(null, rootNode, false), rootNode);
     } catch (Exception e) {
       System.out.println("Created path is not right");
       Assertions.fail();
@@ -187,18 +188,18 @@ public class PostgresDocStoreTest {
     while (iterator.hasNext()) {
       documents.add(iterator.next());
     }
-    Assertions.assertEquals(6, documents.size());
+    assertEquals(6, documents.size());
 
     {
       // empty query returns all the documents
       Query query = new Query();
-      Assertions.assertEquals(6, collection.total(query));
+      assertEquals(6, collection.total(query));
     }
 
     {
       Query query = new Query();
       query.setFilter(Filter.eq("name", "Bob"));
-      Assertions.assertEquals(2, collection.total(query));
+      assertEquals(2, collection.total(query));
     }
 
     {
@@ -206,7 +207,7 @@ public class PostgresDocStoreTest {
       Query query = new Query();
       query.setFilter(Filter.eq("name", "Bob"));
       query.setLimit(1);
-      Assertions.assertEquals(2, collection.total(query));
+      assertEquals(2, collection.total(query));
     }
   }
 
@@ -214,8 +215,32 @@ public class PostgresDocStoreTest {
   public void testDrop() {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
 
-    Assertions.assertTrue(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
+    assertTrue(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
     collection.drop();
     Assertions.assertFalse(datastore.listCollections().contains("postgres." + COLLECTION_NAME));
+  }
+
+  @Test
+  void testBasicSchemaTableOps() throws IOException {
+    Collection collection = datastore.getCollection("schema.myTest");
+    assertTrue(datastore.listCollections().contains("postgres.schema.myTest"));
+    Document document = Utils.createDocument("foo1", "bar1");
+    Document resultDocument =
+        collection.createOrReplaceAndReturn(new SingleValueKey("default", "testKey"), document);
+    assertEquals(
+        "bar1", new ObjectMapper().readTree(resultDocument.toJson()).get("foo1").textValue());
+
+    // Going to the same table without the schema should not get any data
+    assertFalse(
+        datastore
+            .getCollection(COLLECTION_NAME)
+            .aggregate(
+                org.hypertrace.core.documentstore.query.Query.builder()
+                    .addSelection(IdentifierExpression.of("foo1"))
+                    .build())
+            .hasNext());
+
+    assertTrue(datastore.deleteCollection("schema.myTest"));
+    assertFalse(datastore.listCollections().contains("postgres.schema.myTest"));
   }
 }

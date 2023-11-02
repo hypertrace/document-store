@@ -13,6 +13,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
@@ -67,12 +68,24 @@ public class PostgresDatastore implements Datastore {
   /** @return Returns Tables for a particular database */
   @Override
   public Set<String> listCollections() {
+    //  Relevant bits of the table metadata schema:
+    //  TABLE_CAT String => table catalog (may be null)
+    //  TABLE_SCHEM String => table schema (may be null)
+    //  TABLE_NAME String => table name
+    //  TABLE_TYPE String => table type. Typical types are "TABLE", "VIEW", "SYSTEM TABLE", "GLOBAL
+    // TEMPORARY", "LOCAL TEMPORARY", "ALIAS", "SYNONYM".
+    //
     Set<String> collections = new HashSet<>();
     try {
       DatabaseMetaData metaData = client.getConnection().getMetaData();
       ResultSet tables = metaData.getTables(null, null, "%", new String[] {"TABLE"});
       while (tables.next()) {
-        collections.add(database + "." + tables.getString("TABLE_NAME"));
+        Optional<String> nonPublicSchema =
+            Optional.ofNullable(tables.getString("TABLE_SCHEM"))
+                .filter(schema -> !schema.equals("public"));
+        String tableName = tables.getString("TABLE_NAME");
+        String fullTableString = nonPublicSchema.map(s -> s + "." + tableName).orElse(tableName);
+        collections.add(database + "." + fullTableString);
       }
     } catch (SQLException e) {
       LOGGER.error("Exception getting postgres metadata");
@@ -82,6 +95,8 @@ public class PostgresDatastore implements Datastore {
 
   @Override
   public boolean createCollection(String collectionName, Map<String, String> options) {
+    final PostgresTableIdentifier identifier = PostgresTableIdentifier.parse(collectionName);
+    identifier.getSchema().ifPresent(this::createSchemaIfNotExists);
     String createTableSQL =
         String.format(
             "CREATE TABLE %s ("
@@ -90,26 +105,37 @@ public class PostgresDatastore implements Datastore {
                 + "%s TIMESTAMPTZ NOT NULL DEFAULT NOW(),"
                 + "%s TIMESTAMPTZ NOT NULL DEFAULT NOW()"
                 + ");",
-            collectionName, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
+            identifier, ID, DOCUMENT, CREATED_AT, UPDATED_AT);
     try (PreparedStatement preparedStatement =
         client.getConnection().prepareStatement(createTableSQL)) {
       preparedStatement.executeUpdate();
     } catch (SQLException e) {
-      LOGGER.error("Exception creating table name: {}", collectionName);
+      LOGGER.error("Exception creating table name: {}", identifier);
       return false;
     }
     return true;
   }
 
+  private void createSchemaIfNotExists(@NonNull String schema) {
+    final String createSchemaSql = String.format("CREATE SCHEMA IF NOT EXISTS %s;", schema);
+    try (PreparedStatement preparedStatement =
+        client.getConnection().prepareStatement(createSchemaSql)) {
+      preparedStatement.execute();
+    } catch (SQLException e) {
+      LOGGER.error("Exception creating schema: {}", schema);
+    }
+  }
+
   @Override
   public boolean deleteCollection(String collectionName) {
-    String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", collectionName);
+    PostgresTableIdentifier tableIdentifier = PostgresTableIdentifier.parse(collectionName);
+    String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", tableIdentifier);
     try (PreparedStatement preparedStatement =
         client.getConnection().prepareStatement(dropTableSQL)) {
       int result = preparedStatement.executeUpdate();
       return result >= 0;
     } catch (SQLException e) {
-      LOGGER.error("Exception deleting table name: {}", collectionName);
+      LOGGER.error("Exception deleting table name: {}", tableIdentifier);
     }
     return false;
   }
@@ -125,9 +151,9 @@ public class PostgresDatastore implements Datastore {
 
   @Override
   public boolean healthCheck() {
-    String healtchCheckSQL = "SELECT 1;";
+    String healthCheckSql = "SELECT 1;";
     try (PreparedStatement preparedStatement =
-        client.getConnection().prepareStatement(healtchCheckSQL)) {
+        client.getConnection().prepareStatement(healthCheckSql)) {
       return preparedStatement.execute();
     } catch (SQLException e) {
       LOGGER.error("Exception executing health check");
