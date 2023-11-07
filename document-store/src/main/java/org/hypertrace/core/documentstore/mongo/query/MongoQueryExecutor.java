@@ -40,8 +40,8 @@ public class MongoQueryExecutor {
   private static final List<Function<Query, Collection<BasicDBObject>>>
       AGGREGATE_PIPELINE_FUNCTIONS =
           List.of(
-              query -> singleton(getFilterClause(query, Query::getFilter)),
               MongoFromTypeExpressionParser::getFromClauses,
+              query -> singleton(getFilterClause(query, Query::getFilter)),
               query -> singleton(getGroupClause(query)),
               query -> singleton(getProjectClause(query)),
               query -> singleton(getFilterClause(query, Query::getAggregationFilter)),

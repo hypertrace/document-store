@@ -1,12 +1,5 @@
 [
   {
-    "$match": {
-      "class": {
-        "$lte": 10
-      }
-    }
-  },
-  {
     "$unwind": {
       "path": "$class.students",
       "preserveNullAndEmptyArrays": true
@@ -16,6 +9,13 @@
     "$unwind": {
       "path": "$class.students.courses",
       "preserveNullAndEmptyArrays": true
+    }
+  },
+  {
+    "$match": {
+      "class": {
+        "$lte": 10
+      }
     }
   },
   {
