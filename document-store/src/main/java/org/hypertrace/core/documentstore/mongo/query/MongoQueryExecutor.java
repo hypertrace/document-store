@@ -1,7 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.query;
 
 import static java.lang.Long.parseLong;
-import static java.util.Collections.emptyList;
+import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
@@ -25,6 +25,7 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -52,11 +53,9 @@ public class MongoQueryExecutor {
               query -> singleton(getSkipClause(query)),
               query -> singleton(getLimitClause(query)));
 
-  private static Collection<BasicDBObject> getPostUnwindingFilterClause(
+  private static Set<BasicDBObject> getPostUnwindingFilterClause(
       final Query query, final List<BasicDBObject> fromClauses) {
-    return fromClauses.isEmpty()
-        ? emptyList()
-        : singleton(getFilterClause(query, Query::getFilter));
+    return fromClauses.isEmpty() ? emptySet() : singleton(getFilterClause(query, Query::getFilter));
   }
 
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
