@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.mongo.query;
 
 import static java.lang.Long.parseLong;
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static java.util.function.Predicate.not;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
@@ -10,6 +11,7 @@ import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelpe
 import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelper.getSkipClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilterClause;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFromTypeExpressionParser.getFromClauses;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser.getGroupClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getProjectClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getSelections;
@@ -40,14 +42,22 @@ public class MongoQueryExecutor {
   private static final List<Function<Query, Collection<BasicDBObject>>>
       AGGREGATE_PIPELINE_FUNCTIONS =
           List.of(
-              MongoFromTypeExpressionParser::getFromClauses,
               query -> singleton(getFilterClause(query, Query::getFilter)),
+              MongoFromTypeExpressionParser::getFromClauses,
+              query -> getPostUnwindingFilterClause(query, getFromClauses(query)),
               query -> singleton(getGroupClause(query)),
               query -> singleton(getProjectClause(query)),
               query -> singleton(getFilterClause(query, Query::getAggregationFilter)),
               query -> singleton(getSortClause(query)),
               query -> singleton(getSkipClause(query)),
               query -> singleton(getLimitClause(query)));
+
+  private static Collection<BasicDBObject> getPostUnwindingFilterClause(
+      final Query query, final List<BasicDBObject> fromClauses) {
+    return fromClauses.isEmpty()
+        ? emptyList()
+        : singleton(getFilterClause(query, Query::getFilter));
+  }
 
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 

@@ -1,5 +1,12 @@
 [
   {
+    "$match": {
+      "class": {
+        "$lte": 10
+      }
+    }
+  },
+  {
     "$unwind": {
       "path": "$class.students",
       "preserveNullAndEmptyArrays": true
