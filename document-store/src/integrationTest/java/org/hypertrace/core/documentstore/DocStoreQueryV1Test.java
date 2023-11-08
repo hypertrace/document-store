@@ -83,6 +83,7 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
@@ -820,6 +821,53 @@ public class DocStoreQueryV1Test {
     assertDocsAndSizeEqual(
         dataStoreName, resultDocs, "query/test_functional_lhs_in_filter_response.json", 3);
     testCountApi(dataStoreName, query, "query/test_functional_lhs_in_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  void testAggregateWithNestedArraysAndUnnestFilters(final String dataStoreName)
+      throws IOException {
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    final Collection collection = datastore.getCollection(COLLECTION_NAME);
+    final FilterTypeExpression filter =
+        LogicalExpression.builder()
+            .operator(AND)
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("sales.medium.type"),
+                    EQ,
+                    ConstantExpression.of("distributionChannel")))
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), LT, ConstantExpression.of(20)))
+            .build();
+    final Query query =
+        Query.builder()
+            .setSelections(
+                List.of(
+                    SelectionSpec.of(IdentifierExpression.of("item")),
+                    SelectionSpec.of(IdentifierExpression.of("sales.city")),
+                    SelectionSpec.of(IdentifierExpression.of("price")),
+                    SelectionSpec.of(IdentifierExpression.of("sales.medium.type")),
+                    SelectionSpec.of(IdentifierExpression.of("sales.medium.volume"))))
+            .setFilter(filter)
+            .addFromClauses(
+                List.of(
+                    UnnestExpression.builder()
+                        .preserveNullAndEmptyArrays(false)
+                        .identifierExpression(IdentifierExpression.of("sales"))
+                        .filterTypeExpression(filter)
+                        .build(),
+                    UnnestExpression.builder()
+                        .preserveNullAndEmptyArrays(false)
+                        .identifierExpression(IdentifierExpression.of("sales.medium"))
+                        .filterTypeExpression(filter)
+                        .build()))
+            .build();
+
+    final Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsAndSizeEqual(
+        dataStoreName, resultDocs, "query/test_aggr_nested_arrays_and_unnest_filters.json", 4);
   }
 
   @ParameterizedTest
