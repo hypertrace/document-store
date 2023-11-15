@@ -13,6 +13,19 @@ import org.hypertrace.core.documentstore.model.config.Endpoint.EndpointBuilder;
 
 @Value
 public class TypesafeConfigDatastoreConfigExtractor {
+  private static final String HOST_KEY = "host";
+  private static final String PORT_KEY = "port";
+  private static final String ENDPOINTS_KEY = "endpoints";
+  private static final String AUTH_DB_KEY = "authDb";
+  private static final String REPLICA_SET_KEY = "replicaSet";
+  private static final String DATABASE_KEY = "database";
+  private static final String USER_KEY = "user";
+  private static final String PASSWORD_KEY = "password";
+  private static final String APP_NAME_KEY = "appName";
+  private static final String MAX_POOL_SIZE_KEY = "maxPoolSize";
+  private static final String CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
+  private static final String CONNECTION_IDLE_TIME_KEY = "connectionIdleTime";
+
   @NonNull Config config;
   DatastoreConfigBuilder datastoreConfigBuilder;
   ConnectionConfigBuilder connectionConfigBuilder;
@@ -40,6 +53,20 @@ public class TypesafeConfigDatastoreConfigExtractor {
     this.connectionPoolConfigBuilder = ConnectionPoolConfig.builder();
     this.datastoreConfigBuilder = DatastoreConfig.builder().type(type);
     this.endpointBuilder = Endpoint.builder();
+
+    final String dataStoreType = type.type();
+    this.hostKey(dataStoreType + "." + HOST_KEY)
+        .portKey(dataStoreType + "." + PORT_KEY)
+        .keysForEndpoints(dataStoreType + "." + ENDPOINTS_KEY, HOST_KEY, PORT_KEY)
+        .authDatabaseKey(dataStoreType + "." + AUTH_DB_KEY)
+        .replicaSetKey(dataStoreType + "." + REPLICA_SET_KEY)
+        .databaseKey(dataStoreType + "." + DATABASE_KEY)
+        .usernameKey(dataStoreType + "." + USER_KEY)
+        .passwordKey(dataStoreType + "." + PASSWORD_KEY)
+        .applicationNameKey(APP_NAME_KEY)
+        .poolMaxConnectionsKey(MAX_POOL_SIZE_KEY)
+        .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
+        .poolConnectionSurrenderTimeoutKey(CONNECTION_IDLE_TIME_KEY);
   }
 
   public static TypesafeConfigDatastoreConfigExtractor from(
