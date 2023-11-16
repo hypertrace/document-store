@@ -245,6 +245,62 @@ class TypesafeConfigDatastoreConfigExtractorTest {
     assertEquals(expected, config);
   }
 
+  @Test
+  void testBuildMongoUsingDefaultKeys() {
+    final ConnectionConfig config =
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildConfigMapUsingDefaultKeysForMongo(), TYPE_KEY)
+            .extract()
+            .connectionConfig();
+    final ConnectionConfig expected =
+        ConnectionConfig.builder()
+            .type(DatabaseType.MONGO)
+            .addEndpoint(Endpoint.builder().host(host).port(port).build())
+            .database(database)
+            .credentials(
+                ConnectionCredentials.builder()
+                    .username(user)
+                    .password(password)
+                    .authDatabase(authDb)
+                    .build())
+            .applicationName(appName)
+            .connectionPoolConfig(
+                ConnectionPoolConfig.builder()
+                    .maxConnections(maxConnections)
+                    .connectionAccessTimeout(accessTimeout)
+                    .connectionSurrenderTimeout(surrenderTimeout)
+                    .build())
+            .replicaSet(replicaSet)
+            .build();
+
+    assertEquals(expected, config);
+  }
+
+  @Test
+  void testBuildPostgresUsingDefaultKeys() {
+    final ConnectionConfig config =
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildConfigMapWithDefaultKeysForPostgres(), TYPE_KEY)
+            .extract()
+            .connectionConfig();
+    final ConnectionConfig expected =
+        ConnectionConfig.builder()
+            .type(DatabaseType.POSTGRES)
+            .addEndpoint(Endpoint.builder().host(host).port(port).build())
+            .database(database)
+            .credentials(ConnectionCredentials.builder().username(user).password(password).build())
+            .applicationName(appName)
+            .connectionPoolConfig(
+                ConnectionPoolConfig.builder()
+                    .maxConnections(maxConnections)
+                    .connectionAccessTimeout(accessTimeout)
+                    .connectionSurrenderTimeout(surrenderTimeout)
+                    .build())
+            .build();
+
+    assertEquals(expected, config);
+  }
+
   private Config buildConfigMap() {
     return ConfigFactory.parseMap(
         Map.ofEntries(
@@ -259,6 +315,38 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             entry(MAX_CONNECTIONS_KEY, maxConnections),
             entry(CONNECTION_ACCESS_TIMEOUT_KEY, accessTimeout),
             entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout)));
+  }
+
+  private Config buildConfigMapWithDefaultKeysForPostgres() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(TYPE_KEY, "postgres"),
+            entry("postgres.host", host),
+            entry("postgres.port", port),
+            entry("postgres.database", database),
+            entry("postgres.user", user),
+            entry("postgres.password", password),
+            entry("appName", appName),
+            entry("maxPoolSize", maxConnections),
+            entry("connectionAccessTimeout", accessTimeout),
+            entry("connectionIdleTime", surrenderTimeout)));
+  }
+
+  private Config buildConfigMapUsingDefaultKeysForMongo() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(TYPE_KEY, "mongo"),
+            entry("mongo.host", host),
+            entry("mongo.port", port),
+            entry("mongo.database", database),
+            entry("mongo.user", user),
+            entry("mongo.password", password),
+            entry("mongo.authDb", authDb),
+            entry("appName", appName),
+            entry("mongo.replicaSet", replicaSet),
+            entry("maxPoolSize", maxConnections),
+            entry("connectionAccessTimeout", accessTimeout),
+            entry("connectionIdleTime", surrenderTimeout)));
   }
 
   private Config buildPostgresConfigMapUsingEndpointsKey() {
