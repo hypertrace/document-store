@@ -69,7 +69,7 @@ public class PostgresRemoveAllFromListParser implements PostgresUpdateOperationP
         IntStream.range(0, values.length).mapToObj(i -> type.parsed()).collect(joining(", "));
     return String.format(
         "jsonb_set(%s, ?::text[], "
-            + "(SELECT jsonb_agg(value) "
+            + "(SELECT COALESCE (jsonb_agg(value), '[]'::jsonb) "
             + "FROM jsonb_array_elements(%s) t(value) "
             + "WHERE value NOT IN (%s)))",
         baseField, fieldAccess, filter);

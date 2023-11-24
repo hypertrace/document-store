@@ -2639,7 +2639,53 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
-    void testRemoveAllOccurrancesFromIntegerList(final String datastoreName) throws IOException {
+    void testRemoveFromSingletonList(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate set =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.habitable_planets")
+              .operator(SET)
+              .subDocumentValue(SubDocumentValue.of(new String[] {"Earth"}))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(set);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          iterator,
+          "query/update_operator/updated_set_string_array_with_singleton_element.json",
+          9);
+
+      final SubDocumentUpdate remove =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.habitable_planets")
+              .operator(REMOVE_ALL_FROM_LIST)
+              .subDocumentValue(SubDocumentValue.of(new String[] {"Earth"}))
+              .build();
+
+      final List<SubDocumentUpdate> newUpdates = List.of(remove);
+
+      final CloseableIterator<Document> newIterator =
+          collection.bulkUpdate(
+              query, newUpdates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          newIterator,
+          "query/update_operator/updated_remove_from_string_array_with_singleton_element.json",
+          9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testRemoveAllOccurrencesFromIntegerList(final String datastoreName) throws IOException {
       final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
       createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
@@ -2655,9 +2701,8 @@ public class DocStoreQueryV1Test {
       final Query query = Query.builder().build();
       final List<SubDocumentUpdate> updates = List.of(set, unset);
 
-      final CloseableIterator<Document> iterator =
-          collection.bulkUpdate(
-              query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
+      collection.bulkUpdate(
+          query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
 
       final SubDocumentUpdate remove =
           SubDocumentUpdate.builder()
