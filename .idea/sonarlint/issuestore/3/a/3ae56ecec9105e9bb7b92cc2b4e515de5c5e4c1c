@@ -1,9 +1,0 @@
-
-b
-java:S1192"LDefine a constant instead of duplicating this literal "key is null" 3 times.(¥¸¿™
-y
-java:S6204"^Replace this usage of 'Stream.collect(Collectors.toUnmodifiableList())' with 'Stream.toList()'(ã¹¦òúÿÿÿÿ
-t
-java:S6204)"^Replace this usage of 'Stream.collect(Collectors.toUnmodifiableList())' with 'Stream.toList()'(ş»ôÀ
-y
-java:S6204-"^Replace this usage of 'Stream.collect(Collectors.toUnmodifiableList())' with 'Stream.toList()'(¤è•øÿÿÿÿ
