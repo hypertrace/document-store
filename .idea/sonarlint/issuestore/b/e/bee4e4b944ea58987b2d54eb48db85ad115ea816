@@ -1,0 +1,292 @@
+
+a	java:S112Ê"FDefine and throw a dedicated exception instead of using a generic one.(Õòñıÿÿÿÿ
+\	java:S112ä"FDefine and throw a dedicated exception instead of using a generic one.(ñğÍ˜
+a	java:S112ş"FDefine and throw a dedicated exception instead of using a generic one.(ØËºéüÿÿÿÿ
+a	java:S112˜"FDefine and throw a dedicated exception instead of using a generic one.(É‚€£ùÿÿÿÿ
+‘
+java:S1192”"uDefine a constant instead of duplicating this literal "\"name\":\"X-Content-Type-Options without nosniff\"," 3 times.(â‹²°üÿÿÿÿ
+f
+java:S1192 "JDefine a constant instead of duplicating this literal "ENTITY_ID" 3 times.(±°§´úÿÿÿÿ
+w
+java:S1192"`Define a constant instead of duplicating this literal "\"environment\":\"cluster001\"," 3 times.(ƒ…ºó
+^
+java:S1192÷"GDefine a constant instead of duplicating this literal "Bottle" 6 times.(‹°½²
+¨
+java:S1192‡"Define a constant instead of duplicating this literal "\"type\":\"VULNERABILITY_TYPE_MISSING_NOSNIFF_IN_CONTENT_TYPE_OPTIONS_HEADER\"," 3 times.(óªÔ±
+^
+java:S1192í"GDefine a constant instead of duplicating this literal "price" 74 times.(¡îŒ
+a
+java:S1192Ï"JDefine a constant instead of duplicating this literal "new_value" 3 times.(ÑÁÎÛ
+j
+java:S1192Û"NDefine a constant instead of duplicating this literal "props.planets" 4 times.(‚Ø‚ùÿÿÿÿ
+e
+java:S1192ß"NDefine a constant instead of duplicating this literal "sales.medium" 19 times.(ğïÆş
+c
+java:S1192¤"GDefine a constant instead of duplicating this literal "props" 19 times.(èñî¬ûÿÿÿÿ
+~
+java:S1192‘"gDefine a constant instead of duplicating this literal "\"detection_timestamp\":1663312992746," 3 times.(–ÄÅ¦
+|
+java:S1192—"eDefine a constant instead of duplicating this literal "e2e7f827-7ea5-5a5f-b547-d737965e4e58" 3 times.(Ù‹Ø§
+‚
+java:S1192"fDefine a constant instead of duplicating this literal "query/updatable_collection_data.json" 18 times.(ÇŞğİüÿÿÿÿ
+|
+java:S1192Œ"`Define a constant instead of duplicating this literal "\"entity_name\":\"POST/login\"," 3 times.(Ñ¢ÇÜùÿÿÿÿ
+w
+java:S1192¢"[Define a constant instead of duplicating this literal "query/collection_data.json" 6 times.(ôÌùıÿÿÿÿ
+‚
+java:S1192‘"fDefine a constant instead of duplicating this literal "query/not_exists_filter_response.json" 4 times.(¨×ôÓøÿÿÿÿ
+d
+java:S1192©"NDefine a constant instead of duplicating this literal "VULNERABILITY" 3 times.(“‚Á5
+b
+java:S1192­"KDefine a constant instead of duplicating this literal "props.size" 3 times.(‘Ííë
+t
+java:S1192"XDefine a constant instead of duplicating this literal "query/sum_response.json" 4 times.(¯€†¨øÿÿÿÿ
+~
+java:S1192İ"bDefine a constant instead of duplicating this literal "query/exists_filter_response.json" 4 times.(ËÏß”øÿÿÿÿ
+m
+java:S1192"VDefine a constant instead of duplicating this literal "2022-08-09T18:53:17Z" 14 times.(†Û
+
+java:S1192‹"yDefine a constant instead of duplicating this literal "\"service_id\":\"8d64ccfb-ad07-3a3c-bc32-740f1c794b7d\"," 3 times.(·©Ëº
+s
+java:S1192"\Define a constant instead of duplicating this literal "\"type\":\"VULNERABILITY\"," 3 times.(ÉƒÒ´
+`
+java:S1192"IDefine a constant instead of duplicating this literal "postgres" 4 times.(Û¡Ï‰
+v
+java:S1192Ú"ZDefine a constant instead of duplicating this literal "props.seller.address.city" 3 times.(’„Í–ıÿÿÿÿ
+k
+java:S1192á"TDefine a constant instead of duplicating this literal "props.appended.list" 4 times.(³¶¶Ï
+g
+java:S1192¶"PDefine a constant instead of duplicating this literal "num_items.value" 3 times.(ŸĞß¢
+q
+java:S1192ú"ZDefine a constant instead of duplicating this literal "{\"json\": \"new_value\"}" 6 times.(òˆ²°
+_
+java:S1192¥"IDefine a constant instead of duplicating this literal "tenantId" 3 times.(ñÖÉ
+
+java:S1192€"rDefine a constant instead of duplicating this literal "\"_id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\"," 3 times.(Ü¾Ûûÿÿÿÿ
+y
+java:S1192ş"bDefine a constant instead of duplicating this literal "query/simple_filter_response.json" 4 times.(ÙşÍ£
+a
+java:S1192ï"KDefine a constant instead of duplicating this literal "quantities" 4 times.(‘‹°
+x
+java:S1192“"\Define a constant instead of duplicating this literal "\"identifyingAttributes\":{" 3 times.(¹üØÑùÿÿÿÿ
+v
+java:S1192ú"_Define a constant instead of duplicating this literal "query/key_filter_response.json" 5 times.(÷¸õ¡
+g
+java:S1192…"PDefine a constant instead of duplicating this literal "\"attributes\":" 3 times.(â´¨²
+g
+java:S1192Õ"PDefine a constant instead of duplicating this literal "props.added.set" 4 times.(­Æâ
+q
+java:S1192ˆ"UDefine a constant instead of duplicating this literal "\"status\":\"OPEN\"," 3 times.(Ûèçµúÿÿÿÿ
+\
+java:S1192İ"FDefine a constant instead of duplicating this literal "Pluto" 5 times.(ƒÂH
+^
+java:S1192Ú"GDefine a constant instead of duplicating this literal "sales" 19 times.(¯› ÿ
+c
+java:S1192"GDefine a constant instead of duplicating this literal "STATUS" 3 times.(Ú×ø×ıÿÿÿÿ
+b
+java:S1192"KDefine a constant instead of duplicating this literal "qty_count" 16 times.(Ë‰«
+q
+java:S1192 "UDefine a constant instead of duplicating this literal "attributes.entity_id" 3 times.(±°§´úÿÿÿÿ
+l
+java:S1192‚"PDefine a constant instead of duplicating this literal "\"tenantId\":\"" 3 times.(Ì½ö¶øÿÿÿÿ
+ƒ
+java:S1192’"lDefine a constant instead of duplicating this literal "\"status_update_timestamp\":1663312992746}," 3 times.(Ï½Œÿ
+
+java:S1192ù"eDefine a constant instead of duplicating this literal "props.new_property.deep.nested.value" 7 times.(³ê€ùÿÿÿÿ
+p
+java:S1192Ô"TDefine a constant instead of duplicating this literal "sales.medium.volume" 4 times.(‰ÿÆ»şÿÿÿÿ
+m
+java:S1192ˆ"QDefine a constant instead of duplicating this literal "props.added.list" 6 times.(ÃĞ«Ÿùÿÿÿÿ
+]
+java:S1192¶"FDefine a constant instead of duplicating this literal "count" 7 times.(ñ¹ «
+{
+java:S1192„"_Define a constant instead of duplicating this literal "props.new_property.deep.nested" 3 times.(²ªöîùÿÿÿÿ
+•
+java:S1192•"yDefine a constant instead of duplicating this literal "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\"}}" 3 times.(Å½ÌËúÿÿÿÿ
+^
+java:S1192ö"GDefine a constant instead of duplicating this literal "Dettol" 6 times.(Şş‹ª
+d
+java:S1192Õ
+"MDefine a constant instead of duplicating this literal "props.colors" 4 times.(Ê”Ù°
+”
+java:S1192Š"xDefine a constant instead of duplicating this literal "\"entity_id\":\"79d2ffc4-38a6-376f-a57f-89893f0acb5b\"," 3 times.(Õâåæúÿÿÿÿ
+c
+java:S1192Ñ"LDefine a constant instead of duplicating this literal "sales.city" 16 times.(ÿêö„
+u
+java:S1192"YDefine a constant instead of duplicating this literal "\"entity_type\":\"API\"," 3 times.(Šç¿Ÿûÿÿÿÿ
+l
+java:S1192"UDefine a constant instead of duplicating this literal "\"nginx-traceshop\"," 3 times.(ú¡É‡
+c
+java:S1192´"GDefine a constant instead of duplicating this literal "Mirror" 5 times.(í˜¾õıÿÿÿÿ
+~
+java:S1192"gDefine a constant instead of duplicating this literal "\"is_external\":true,\"service_name\":" 3 times.(‡£ôÙ
+
+java:S1192†"vDefine a constant instead of duplicating this literal "{\"name\":\"X-Content-Type-Options without nosniff\"," 3 times.(³Â±¦
+c
+java:S1192ì"GDefine a constant instead of duplicating this literal "total" 11 times.(óä‰”ÿÿÿÿÿ
+
+java:S1192ÿ"rDefine a constant instead of duplicating this literal "{\"id\":\"e2e7f827-7ea5-5a5f-b547-d737965e4e58\"," 3 times.(ãĞäšÿÿÿÿÿ
+
+java:S1192Ë"wDefine a constant instead of duplicating this literal "query/filter_with_sorting_and_pagination_response.json" 3 times.(‡ìù‡
+f
+java:S1192î"JDefine a constant instead of duplicating this literal "quantity" 65 times.(¥¿š”şÿÿÿÿ
+o
+java:S1192Å"SDefine a constant instead of duplicating this literal "sales.medium.type" 16 times.(ÿùõ”ùÿÿÿÿ
+d
+java:S1192´"HDefine a constant instead of duplicating this literal "Shampoo" 5 times.(í˜¾õıÿÿÿÿ
+s
+java:S1192‰"WDefine a constant instead of duplicating this literal "\"severity\":\"HIGH\"," 3 times.(®ğÌúÿÿÿÿ
+q
+java:S1192º"ZDefine a constant instead of duplicating this literal "query/count_response.json" 4 times.(ëÔ–É
+n
+java:S1192"RDefine a constant instead of duplicating this literal "attributes.status" 3 times.(Ú×ø×ıÿÿÿÿ
+i
+java:S1192Ù"MDefine a constant instead of duplicating this literal "props.brand" 12 times.(²á×şÿÿÿÿ
+‰
+java:S1192¶"rDefine a constant instead of duplicating this literal "query/test_functional_lhs_in_filter_response.json" 4 times.(ïéÂ
+t
+java:S1192é"]Define a constant instead of duplicating this literal "props.seller.address.pincode" 3 times.(Šõ¾Ô
+i
+java:S1192Ø"RDefine a constant instead of duplicating this literal "props.seller.name" 4 times.(¡ßüÛ
+l	java:S117Ù"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ïòÂÑùÿÿÿÿ
+f	java:S117ü"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(¹çu
+g	java:S117‚"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ú£Ü¼
+g	java:S117‡"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(›¹á§
+g	java:S117"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ßºÂÓ
+g	java:S117“"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ÆìÂÆ
+g	java:S117Ÿ"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Òìåñ
+f	java:S117¢"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Ç§°<
+f	java:S117Ñ"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Ñ·½
+f	java:S117Ó"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Ç§°<
+l	java:S117ô"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ïòÂÑùÿÿÿÿ
+f	java:S117š"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(¹çu
+g	java:S117¡"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ú£Ü¼
+g	java:S117¦"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(›¹á§
+g	java:S117°"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ßºÂÓ
+g	java:S117º"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ÆìÂÆ
+g	java:S117Æ"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Òìåñ
+f	java:S117É"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Ç§°<
+l	java:S117™"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ŒõƒÇøÿÿÿÿ
+f	java:S117›"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Ç§°<
+l	java:S117Á"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ŒõƒÇøÿÿÿÿ
+f	java:S117Ã"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Ç§°<
+l	java:S117ÿ"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ç£úøÿÿÿÿ
+l	java:S117€"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(¨öü‡şÿÿÿÿ
+l	java:S117"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(Ø¾ßøüÿÿÿÿ
+l	java:S117"QRename this local variable to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(íúÎğıÿÿÿÿ
+j
+java:S2095"NUse try-with-resources or close this "GenericContainer" in a "finally" clause.(´ØŞîşÿÿÿÿ
+i
+java:S2095"NUse try-with-resources or close this "GenericContainer" in a "finally" clause.(ºîÇÿÿÿÿÿ
+o
+java:S3655"XCall "doc2Optional.isPresent()" or "!doc2Optional.isEmpty()" before accessing the value.(ü¯‰¨
+t
+java:S3655"XCall "doc1Optional.isPresent()" or "!doc1Optional.isEmpty()" before accessing the value.(×öÅûÿÿÿÿ
+o
+java:S3655‘"XCall "doc2Optional.isPresent()" or "!doc2Optional.isEmpty()" before accessing the value.(ü¯‰¨
+o
+java:S3655Ö"XCall "doc2Optional.isPresent()" or "!doc2Optional.isEmpty()" before accessing the value.(ü¯‰¨
+t
+java:S3655œ"XCall "doc1Optional.isPresent()" or "!doc1Optional.isEmpty()" before accessing the value.(×öÅûÿÿÿÿ
+t
+java:S3655À"XCall "doc1Optional.isPresent()" or "!doc1Optional.isEmpty()" before accessing the value.(×öÅûÿÿÿÿ
+o
+java:S3655Á"XCall "doc2Optional.isPresent()" or "!doc2Optional.isEmpty()" before accessing the value.(ü¯‰¨
+t
+java:S3655Õ"XCall "doc1Optional.isPresent()" or "!doc1Optional.isEmpty()" before accessing the value.(×öÅûÿÿÿÿ
+K
+java:S1874‰"4Remove this use of "getDatastore"; it is deprecated.(Ç™“
+F	java:S106Š"+Replace this use of System.out by a logger.(«—äöùÿÿÿÿ
+K
+java:S1874œ"4Remove this use of "getDatastore"; it is deprecated.(¸Êé
+F	java:S106"+Replace this use of System.out by a logger.(§ÆÉüÿÿÿÿ
+H
+java:S3985¾"1Remove this unused private "MongoProvider" class.(™‹£Ë
+d
+java:S5738Ò"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+d
+java:S5738Ş"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+d
+java:S5738ü"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+d
+java:S5738›"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+d
+java:S5738É"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+d
+java:S5738ò"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+_
+java:S5738˜"HRemove this call to a deprecated method, it has been marked for removal.(îŒ±º
+_
+java:S5738Ñ"HRemove this call to a deprecated method, it has been marked for removal.(îŒ±º
+_
+java:S5738‹"HRemove this call to a deprecated method, it has been marked for removal.(îŒ±º
+d
+java:S5738ÿ"HRemove this call to a deprecated method, it has been marked for removal.(ş¬æşÿÿÿÿ
+d	java:S100¦
+"NRename this method name to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(¯Ö’Û
+i	java:S100à"NRename this method name to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ĞÌïÜúÿÿÿÿ
+i	java:S100ˆ"NRename this method name to match the regular expression '^[a-z][a-zA-Z0-9]*$'.(ÓÌ‹ıÿÿÿÿ
+d
+java:S5738û"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+5
+java:S2119‘"Save and re-use this "Random".(¦‘—ê
+u
+java:S6204ª"^Replace this usage of 'Stream.collect(Collectors.toUnmodifiableList())' with 'Stream.toList()'(½–ü£
+5
+java:S2119Î"Save and re-use this "Random".(¦‘—ê
+_
+java:S5738ù"HRemove this call to a deprecated method, it has been marked for removal.( Í¶
+_
+java:S5738Š"HRemove this call to a deprecated method, it has been marked for removal.( Í¶
+_
+java:S5738›"HRemove this call to a deprecated method, it has been marked for removal.( Í¶
+_
+java:S5738¬"HRemove this call to a deprecated method, it has been marked for removal.( Í¶
+_
+java:S5738»"HRemove this call to a deprecated method, it has been marked for removal.( Í¶
+_
+java:S5738Î"HRemove this call to a deprecated method, it has been marked for removal.( Í¶
+_
+java:S5738à"HRemove this call to a deprecated method, it has been marked for removal.( Í¶
+_
+java:S5738õ"HRemove this call to a deprecated method, it has been marked for removal.( Í¶
+5
+java:S2119¬"Save and re-use this "Random".(¦‘—ê
+_
+java:S5738Ë"HRemove this call to a deprecated method, it has been marked for removal.(„˜Ï¶
+5
+java:S2119ü"Save and re-use this "Random".(¦‘—ê
+_
+java:S5738›"HRemove this call to a deprecated method, it has been marked for removal.(„˜Ï¶
+5
+java:S2119Á"Save and re-use this "Random".(¦‘—ê
+_
+java:S5738à"HRemove this call to a deprecated method, it has been marked for removal.(„˜Ï¶
+5
+java:S2119ˆ"Save and re-use this "Random".(¦‘—ê
+d
+java:S5738¢"HRemove this call to a deprecated method, it has been marked for removal.(»óó¤ùÿÿÿÿ
+S
+java:S1854·"<Remove this useless assignment to local variable "iterator".(×÷™
+D
+java:S1481·"-Remove this unused "iterator" local variable.(×÷™
+_
+java:S5738Ò"HRemove this call to a deprecated method, it has been marked for removal.(„˜Ï¶
+_
+java:S5738“"HRemove this call to a deprecated method, it has been marked for removal.(„˜Ï¶
+_
+java:S5738Î"HRemove this call to a deprecated method, it has been marked for removal.(„˜Ï¶
+_
+java:S5738‰"HRemove this call to a deprecated method, it has been marked for removal.(„˜Ï¶
+d
+java:S5738Â"HRemove this call to a deprecated method, it has been marked for removal.(ÚóÄ·üÿÿÿÿ
+d
+java:S5738Û"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+d
+java:S5738õ"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+d
+java:S5738"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+d
+java:S5738©"HRemove this call to a deprecated method, it has been marked for removal.(•¸Ç£øÿÿÿÿ
+B
+java:S5960â"+Remove this assertion from production code.(”º·¥

@@ -184,15 +184,14 @@ public class PostgresUtils {
 
   public static String parseNonCompositeFilterWithCasting(
       String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
-    String parsedExpression = prepareFieldDataAccessorExpr(fieldName, columnName);
+    String parsedExpression =
+        prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
     if (isInOp(op)) {
       if (isFirstClassColumn(parsedExpression)) {
         parsedExpression = "to_jsonb(" + parsedExpression + ")";
       } else {
         parsedExpression = parsedExpression.replace("->>", "->");
       }
-    } else {
-      parsedExpression = prepareCast(parsedExpression, value);
     }
     return parseNonCompositeFilter(
         fieldName, parsedExpression, columnName, op, value, paramsBuilder);
