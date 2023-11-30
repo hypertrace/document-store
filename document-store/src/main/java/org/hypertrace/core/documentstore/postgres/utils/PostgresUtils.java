@@ -90,6 +90,10 @@ public class PostgresUtils {
     return fieldPrefix.toString();
   }
 
+  private static boolean isFirstClassColumn(String fieldName) {
+    return OUTER_COLUMNS.contains(fieldName) || DOCUMENT_COLUMN.equals(fieldName);
+  }
+
   public static Type getType(Object value) {
     boolean isArrayType = false;
     Type type = Type.STRING;
@@ -180,10 +184,29 @@ public class PostgresUtils {
 
   public static String parseNonCompositeFilterWithCasting(
       String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
-    String parsedExpression =
-        prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
+    String parsedExpression = prepareFieldDataAccessorExpr(fieldName, columnName);
+    if (isInOp(op)) {
+      if (isFirstClassColumn(parsedExpression)) {
+        parsedExpression = "to_jsonb(" + parsedExpression + ")";
+      } else {
+        parsedExpression = parsedExpression.replace("->>", "->");
+      }
+    } else {
+      parsedExpression = prepareCast(parsedExpression, value);
+    }
     return parseNonCompositeFilter(
         fieldName, parsedExpression, columnName, op, value, paramsBuilder);
+  }
+
+  private static boolean isInOp(String op) {
+    switch (op) {
+      case "IN":
+      case "NOT_IN":
+      case "NOT IN":
+        return true;
+      default:
+        return false;
+    }
   }
 
   @SuppressWarnings("unchecked")
@@ -198,6 +221,7 @@ public class PostgresUtils {
     String sqlOperator;
     boolean isMultiValued = false;
     boolean isContainsOp = false;
+    boolean isInOP = false;
     switch (op) {
       case "EQ":
       case "=":
@@ -250,18 +274,24 @@ public class PostgresUtils {
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
         StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName, columnName);
         if (!OUTER_COLUMNS.contains(fieldName)) {
-          filterString = notInFilterString.append(" IS NULL OR ").append(parsedExpression);
+          filterString = notInFilterString.append(" IS NULL OR");
         }
         sqlOperator = " NOT IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
+        isInOP = true;
+        filterString
+            .append(" NOT ")
+            .append(
+                prepareFilterStringForInOperator(
+                    parsedExpression, (Iterable<Object>) value, paramsBuilder));
         break;
       case "IN":
-        // NOTE: both NOT_IN and IN filter currently limited to non-array field
-        //  - https://github.com/hypertrace/document-store/issues/32#issuecomment-781411676
         sqlOperator = " IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
+        isInOP = true;
+        filterString =
+            prepareFilterStringForInOperator(
+                parsedExpression, (Iterable<Object>) value, paramsBuilder);
         break;
       case "NOT_EXISTS":
       case "NOT EXISTS":
@@ -336,8 +366,10 @@ public class PostgresUtils {
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     }
 
-    filterString.append(sqlOperator);
-    if (value != null) {
+    if (!isInOP) {
+      filterString.append(sqlOperator);
+    }
+    if (value != null && !isInOP) {
       if (isMultiValued) {
         filterString.append(value);
       } else if (isContainsOp) {
@@ -350,6 +382,23 @@ public class PostgresUtils {
       }
     }
     return filterString.toString();
+  }
+
+  private static StringBuilder prepareFilterStringForInOperator(
+      final String parsedExpression, final Iterable<Object> values, final Builder paramsBuilder) {
+    final StringBuilder filterStringBuilder = new StringBuilder();
+    filterStringBuilder.append("(");
+    final String collect =
+        StreamSupport.stream(values.spliterator(), false)
+            .map(
+                val -> {
+                  paramsBuilder.addObjectParam(val);
+                  return parsedExpression + " ?? ?";
+                })
+            .collect(Collectors.joining(" OR "));
+    filterStringBuilder.append(collect);
+    filterStringBuilder.append(")");
+    return filterStringBuilder;
   }
 
   private static Object prepareJsonValueForContainsOp(final Object value) {

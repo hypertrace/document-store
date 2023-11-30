@@ -110,7 +110,19 @@ class PostgresQueryParserTest {
               filter.getOp().toString(),
               filter.getValue(),
               initParams());
-      Assertions.assertEquals(ID + " IN (?, ?)", query);
+      Assertions.assertEquals("(to_jsonb(" + ID + ") ?? ? OR to_jsonb(" + ID + ") ?? ?)", query);
+    }
+
+    {
+      Filter filter = new Filter(Filter.Op.IN, ID, List.of("abc"));
+      String query =
+          PostgresUtils.parseNonCompositeFilterWithCasting(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              initParams());
+      Assertions.assertEquals("(to_jsonb(" + ID + ") ?? ?)", query);
     }
   }
 
@@ -159,15 +171,29 @@ class PostgresQueryParserTest {
     }
 
     {
+      Filter filter = new Filter(Filter.Op.IN, "key1", List.of("abc"));
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
+      Assertions.assertEquals("(document->'key1' ?? ?)", query);
+    }
+
+    {
       Filter filter = new Filter(Filter.Op.IN, "key1", List.of("abc", "xyz"));
       String query = PostgresQueryParser.parseFilter(filter, initParams());
-      Assertions.assertEquals("document->>'key1' IN (?, ?)", query);
+      Assertions.assertEquals("(document->'key1' ?? ? OR document->'key1' ?? ?)", query);
+    }
+
+    {
+      Filter filter = new Filter(Op.NOT_IN, "key1", List.of("abc"));
+      String query = PostgresQueryParser.parseFilter(filter, initParams());
+      Assertions.assertEquals("document->'key1' IS NULL OR NOT (document->'key1' ?? ?)", query);
     }
 
     {
       Filter filter = new Filter(Op.NOT_IN, "key1", List.of("abc", "xyz"));
       String query = PostgresQueryParser.parseFilter(filter, initParams());
-      Assertions.assertEquals("document->'key1' IS NULL OR document->>'key1' NOT IN (?, ?)", query);
+      Assertions.assertEquals(
+          "document->'key1' IS NULL OR NOT (document->'key1' ?? ? OR document->'key1' ?? ?)",
+          query);
     }
 
     {
