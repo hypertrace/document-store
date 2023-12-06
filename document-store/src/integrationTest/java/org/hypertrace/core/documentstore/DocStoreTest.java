@@ -666,7 +666,6 @@ public class DocStoreTest {
     // postgres
     // {"foo1":"bar1","subdoc":{"subfoo1":"subbar1","nesteddoc":{"nestedfoo1":"nestedbar1"}},
     // "created_at":"2021-03-15 00:24:50.981147","updated_at":"2021-03-15 00:24:50.981147"}
-    System.out.println(documents.get(0).toJson());
     ObjectNode jsonNode = (ObjectNode) OBJECT_MAPPER.readTree(documents.get(0).toJson());
     String expected =
         "{\"foo1\":\"bar1\",\"subdoc\":{\"subfoo1\":\"subbar1\","

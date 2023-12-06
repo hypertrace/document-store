@@ -184,14 +184,15 @@ public class PostgresUtils {
 
   public static String parseNonCompositeFilterWithCasting(
       String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
-    String parsedExpression =
-        prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
+    String parsedExpression;
     if (isInOp(op)) {
+      parsedExpression =
+          prepareCast(prepareFieldAccessorExpr(fieldName, columnName).toString(), value);
       if (isFirstClassColumn(parsedExpression)) {
         parsedExpression = "to_jsonb(" + parsedExpression + ")";
-      } else {
-        parsedExpression = parsedExpression.replace("->>", "->");
       }
+    } else {
+      parsedExpression = prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
     }
     return parseNonCompositeFilter(
         fieldName, parsedExpression, columnName, op, value, paramsBuilder);
@@ -365,10 +366,14 @@ public class PostgresUtils {
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     }
 
-    if (!isInOP) {
-      filterString.append(sqlOperator);
+    // final filter string has already been built for in operators
+    if (isInOP) {
+      return filterString.toString();
     }
-    if (value != null && !isInOP) {
+
+    filterString.append(sqlOperator);
+
+    if (value != null) {
       if (isMultiValued) {
         filterString.append(value);
       } else if (isContainsOp) {
@@ -392,7 +397,7 @@ public class PostgresUtils {
             .map(
                 val -> {
                   paramsBuilder.addObjectParam(val);
-                  return parsedExpression + " ?? ?";
+                  return "(jsonb_build_array(" + parsedExpression + ") @> jsonb_build_array(?))";
                 })
             .collect(Collectors.joining(" OR "));
     filterStringBuilder.append(collect);

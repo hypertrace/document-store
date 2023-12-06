@@ -110,7 +110,9 @@ class PostgresQueryParserTest {
               filter.getOp().toString(),
               filter.getValue(),
               initParams());
-      Assertions.assertEquals("(to_jsonb(" + ID + ") ?? ? OR to_jsonb(" + ID + ") ?? ?)", query);
+      Assertions.assertEquals(
+          "((jsonb_build_array(to_jsonb(id)) @> jsonb_build_array(?)) OR (jsonb_build_array(to_jsonb(id)) @> jsonb_build_array(?)))",
+          query);
     }
 
     {
@@ -122,7 +124,7 @@ class PostgresQueryParserTest {
               filter.getOp().toString(),
               filter.getValue(),
               initParams());
-      Assertions.assertEquals("(to_jsonb(" + ID + ") ?? ?)", query);
+      Assertions.assertEquals("((jsonb_build_array(to_jsonb(id)) @> jsonb_build_array(?)))", query);
     }
   }
 
@@ -173,26 +175,31 @@ class PostgresQueryParserTest {
     {
       Filter filter = new Filter(Filter.Op.IN, "key1", List.of("abc"));
       String query = PostgresQueryParser.parseFilter(filter, initParams());
-      Assertions.assertEquals("(document->'key1' ?? ?)", query);
+      Assertions.assertEquals(
+          "((jsonb_build_array(document->'key1') @> jsonb_build_array(?)))", query);
     }
 
     {
       Filter filter = new Filter(Filter.Op.IN, "key1", List.of("abc", "xyz"));
       String query = PostgresQueryParser.parseFilter(filter, initParams());
-      Assertions.assertEquals("(document->'key1' ?? ? OR document->'key1' ?? ?)", query);
+      Assertions.assertEquals(
+          "((jsonb_build_array(document->'key1') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'key1') @> jsonb_build_array(?)))",
+          query);
     }
 
     {
       Filter filter = new Filter(Op.NOT_IN, "key1", List.of("abc"));
       String query = PostgresQueryParser.parseFilter(filter, initParams());
-      Assertions.assertEquals("document->'key1' IS NULL OR NOT (document->'key1' ?? ?)", query);
+      Assertions.assertEquals(
+          "document->'key1' IS NULL OR NOT ((jsonb_build_array(document->'key1') @> jsonb_build_array(?)))",
+          query);
     }
 
     {
       Filter filter = new Filter(Op.NOT_IN, "key1", List.of("abc", "xyz"));
       String query = PostgresQueryParser.parseFilter(filter, initParams());
       Assertions.assertEquals(
-          "document->'key1' IS NULL OR NOT (document->'key1' ?? ? OR document->'key1' ?? ?)",
+          "document->'key1' IS NULL OR NOT ((jsonb_build_array(document->'key1') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'key1') @> jsonb_build_array(?)))",
           query);
     }
 
