@@ -648,7 +648,7 @@ public class PostgresQueryParserTest {
             + "document->'quantity' AS \"quantity\", "
             + "document->'date' AS \"date\" "
             + "FROM \"testCollection\" "
-            + "WHERE document->>'item' IN (?, ?, ?, ?) "
+            + "WHERE ((jsonb_build_array(document->>'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->>'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->>'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->>'item') @> jsonb_build_array(?))) "
             + "ORDER BY document->'quantity' DESC NULLS LAST,document->'item' ASC NULLS FIRST "
             + "OFFSET ? LIMIT ?",
         sql);
@@ -1121,7 +1121,7 @@ public class PostgresQueryParserTest {
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS \"item\", document->'price' AS \"price\" "
             + "FROM \"testCollection\" GROUP BY document->'item',document->'price' "
-            + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND (CAST (document->'item' AS TEXT) IN (?, ?, ?, ?))",
+            + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND (((jsonb_build_array(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?)) OR (jsonb_build_array(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?)) OR (jsonb_build_array(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?)) OR (jsonb_build_array(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?))))",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -1164,7 +1164,7 @@ public class PostgresQueryParserTest {
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\" "
             + "FROM \"testCollection\" "
-            + "WHERE (CAST (document->>'price' AS NUMERIC) <= ?) AND (document->>'item' IN (?, ?, ?, ?))",
+            + "WHERE (CAST (document->>'price' AS NUMERIC) <= ?) AND (((jsonb_build_array(document->>'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->>'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->>'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->>'item') @> jsonb_build_array(?))))",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();

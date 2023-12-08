@@ -454,6 +454,7 @@ public class PostgresUtils {
     String sqlOperator;
     boolean isMultiValued = false;
     boolean isContainsOp = false;
+    boolean isInOP = false;
     switch (op) {
       case "EQ":
       case "=":
@@ -487,13 +488,22 @@ public class PostgresUtils {
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
         sqlOperator = " NOT IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
+        isInOP = true;
+        filterString
+            .append(" IS NULL OR")
+            .append(" NOT ")
+            .append(
+                prepareFilterStringForInOperator(
+                    preparedExpression, (Iterable<Object>) value, paramsBuilder));
         break;
       case "IN":
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
         sqlOperator = " IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
+        isInOP = true;
+        filterString =
+            prepareFilterStringForInOperator(
+                preparedExpression, (Iterable<Object>) value, paramsBuilder);
         break;
       case "NOT_EXISTS":
       case "NOT EXISTS":
@@ -529,6 +539,10 @@ public class PostgresUtils {
         break;
       default:
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
+    }
+
+    if (isInOP) {
+      return filterString.toString();
     }
 
     filterString.append(sqlOperator);
