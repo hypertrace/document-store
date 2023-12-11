@@ -90,10 +90,6 @@ public class PostgresUtils {
     return fieldPrefix.toString();
   }
 
-  private static boolean isFirstClassColumn(String fieldName) {
-    return OUTER_COLUMNS.contains(fieldName) || DOCUMENT_COLUMN.equals(fieldName);
-  }
-
   public static Type getType(Object value) {
     boolean isArrayType = false;
     Type type = Type.STRING;
@@ -184,29 +180,10 @@ public class PostgresUtils {
 
   public static String parseNonCompositeFilterWithCasting(
       String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
-    String parsedExpression;
-    if (isInOp(op)) {
-      parsedExpression =
-          prepareCast(prepareFieldAccessorExpr(fieldName, columnName).toString(), value);
-      if (isFirstClassColumn(parsedExpression)) {
-        parsedExpression = "to_jsonb(" + parsedExpression + ")";
-      }
-    } else {
-      parsedExpression = prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
-    }
+    String parsedExpression =
+        prepareCast(prepareFieldDataAccessorExpr(fieldName, columnName), value);
     return parseNonCompositeFilter(
         fieldName, parsedExpression, columnName, op, value, paramsBuilder);
-  }
-
-  private static boolean isInOp(String op) {
-    switch (op) {
-      case "IN":
-      case "NOT_IN":
-      case "NOT IN":
-        return true;
-      default:
-        return false;
-    }
   }
 
   @SuppressWarnings("unchecked")
@@ -221,7 +198,6 @@ public class PostgresUtils {
     String sqlOperator;
     boolean isMultiValued = false;
     boolean isContainsOp = false;
-    boolean isInOP = false;
     switch (op) {
       case "EQ":
       case "=":
@@ -274,24 +250,18 @@ public class PostgresUtils {
         //    so, we need - "document->key IS NULL OR document->key->> NOT IN (v1, v2)"
         StringBuilder notInFilterString = prepareFieldAccessorExpr(fieldName, columnName);
         if (!OUTER_COLUMNS.contains(fieldName)) {
-          filterString = notInFilterString.append(" IS NULL OR");
+          filterString = notInFilterString.append(" IS NULL OR ").append(parsedExpression);
         }
         sqlOperator = " NOT IN ";
         isMultiValued = true;
-        isInOP = true;
-        filterString
-            .append(" NOT ")
-            .append(
-                prepareFilterStringForInOperator(
-                    parsedExpression, (Iterable<Object>) value, paramsBuilder));
+        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
         break;
       case "IN":
+        // NOTE: both NOT_IN and IN filter currently limited to non-array field
+        //  - https://github.com/hypertrace/document-store/issues/32#issuecomment-781411676
         sqlOperator = " IN ";
         isMultiValued = true;
-        isInOP = true;
-        filterString =
-            prepareFilterStringForInOperator(
-                parsedExpression, (Iterable<Object>) value, paramsBuilder);
+        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
         break;
       case "NOT_EXISTS":
       case "NOT EXISTS":
@@ -366,13 +336,7 @@ public class PostgresUtils {
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
     }
 
-    // final filter string has already been built for in operators
-    if (isInOP) {
-      return filterString.toString();
-    }
-
     filterString.append(sqlOperator);
-
     if (value != null) {
       if (isMultiValued) {
         filterString.append(value);
