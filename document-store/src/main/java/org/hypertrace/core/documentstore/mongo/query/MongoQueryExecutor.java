@@ -18,11 +18,14 @@ import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSortType
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoCommandException;
+import com.mongodb.ServerAddress;
+import com.mongodb.ServerCursor;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.Collection;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -49,6 +52,47 @@ public class MongoQueryExecutor {
               query -> singleton(getSkipClause(query)),
               query -> singleton(getLimitClause(query)));
 
+  private static final Integer ZERO = Integer.valueOf(0);
+  private static final MongoCursor<BasicDBObject> EMPTY_CURSOR =
+      new MongoCursor<>() {
+        @Override
+        public void close() {
+          // Do nothing
+        }
+
+        @Override
+        public boolean hasNext() {
+          return false;
+        }
+
+        @Override
+        public BasicDBObject next() {
+          throw new NoSuchElementException();
+        }
+
+        @Override
+        public int available() {
+          return 0;
+        }
+
+        @Override
+        public BasicDBObject tryNext() {
+          throw new NoSuchElementException();
+        }
+
+        @Override
+        public ServerCursor getServerCursor() {
+          // It is okay to throw exception since we are never invoking this method
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public ServerAddress getServerAddress() {
+          // It is okay to throw exception since we are never invoking this method
+          throw new UnsupportedOperationException();
+        }
+      };
+
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
 
   public MongoCursor<BasicDBObject> find(final Query query) {
@@ -70,6 +114,11 @@ public class MongoQueryExecutor {
   }
 
   public MongoCursor<BasicDBObject> aggregate(final Query originalQuery) {
+    if (originalQuery.getPagination().map(Pagination::getLimit).map(ZERO::equals).orElse(false)) {
+      log.debug("Not executing query because of a 0 limit");
+      return EMPTY_CURSOR;
+    }
+
     Query query = transformAndLog(originalQuery);
 
     List<BasicDBObject> pipeline =
