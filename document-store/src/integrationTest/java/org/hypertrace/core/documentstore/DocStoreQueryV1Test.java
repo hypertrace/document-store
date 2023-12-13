@@ -2053,6 +2053,17 @@ public class DocStoreQueryV1Test {
     }
   }
 
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testAggregateWithZeroLimitAndOffset(final String datastoreName) throws IOException {
+    final Collection collection = getCollection(datastoreName);
+
+    final Iterator<Document> resultDocs =
+        collection.aggregate(
+            Query.builder().setPagination(Pagination.builder().limit(0).offset(0).build()).build());
+    assertDocsAndSizeEqual(datastoreName, resultDocs, "query/empty_response.json", 0);
+  }
+
   @Nested
   class AtomicUpdateTest {
     @ParameterizedTest
