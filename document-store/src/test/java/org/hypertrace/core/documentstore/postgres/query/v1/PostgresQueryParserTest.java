@@ -648,19 +648,19 @@ public class PostgresQueryParserTest {
             + "document->'quantity' AS \"quantity\", "
             + "document->'date' AS \"date\" "
             + "FROM \"testCollection\" "
-            + "WHERE document->>'item' IN (?, ?, ?, ?) "
+            + "WHERE (((jsonb_typeof(to_jsonb(document->'item')) = 'array' AND to_jsonb(document->'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'item') @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(document->'item')) = 'array' AND to_jsonb(document->'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'item') @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(document->'item')) = 'array' AND to_jsonb(document->'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'item') @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(document->'item')) = 'array' AND to_jsonb(document->'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'item') @> jsonb_build_array(?)))) "
             + "ORDER BY document->'quantity' DESC NULLS LAST,document->'item' ASC NULLS FIRST "
             + "OFFSET ? LIMIT ?",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
-    assertEquals(6, params.getObjectParams().size());
+    assertEquals(10, params.getObjectParams().size());
     assertEquals("Mirror", params.getObjectParams().get(1));
-    assertEquals("Comb", params.getObjectParams().get(2));
-    assertEquals("Shampoo", params.getObjectParams().get(3));
-    assertEquals("Bottle", params.getObjectParams().get(4));
-    assertEquals(1, params.getObjectParams().get(5));
-    assertEquals(3, params.getObjectParams().get(6));
+    assertEquals("Comb", params.getObjectParams().get(3));
+    assertEquals("Shampoo", params.getObjectParams().get(5));
+    assertEquals("Bottle", params.getObjectParams().get(7));
+    assertEquals(1, params.getObjectParams().get(9));
+    assertEquals(3, params.getObjectParams().get(10));
   }
 
   @Test
@@ -1121,16 +1121,16 @@ public class PostgresQueryParserTest {
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\", "
             + "document->'item' AS \"item\", document->'price' AS \"price\" "
             + "FROM \"testCollection\" GROUP BY document->'item',document->'price' "
-            + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND (CAST (document->'item' AS TEXT) IN (?, ?, ?, ?))",
+            + "HAVING (COUNT(DISTINCT document->>'quantity' ) <= ?) AND ((((jsonb_typeof(to_jsonb(CAST (document->'item' AS TEXT))) = 'array' AND to_jsonb(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?)) OR (jsonb_build_array(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(CAST (document->'item' AS TEXT))) = 'array' AND to_jsonb(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?)) OR (jsonb_build_array(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(CAST (document->'item' AS TEXT))) = 'array' AND to_jsonb(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?)) OR (jsonb_build_array(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(CAST (document->'item' AS TEXT))) = 'array' AND to_jsonb(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?)) OR (jsonb_build_array(CAST (document->'item' AS TEXT)) @> jsonb_build_array(?)))))",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
-    assertEquals(5, params.getObjectParams().size());
+    assertEquals(9, params.getObjectParams().size());
     assertEquals(10, params.getObjectParams().get(1));
     assertEquals("\"Mirror\"", params.getObjectParams().get(2));
-    assertEquals("\"Comb\"", params.getObjectParams().get(3));
-    assertEquals("\"Shampoo\"", params.getObjectParams().get(4));
-    assertEquals("\"Bottle\"", params.getObjectParams().get(5));
+    assertEquals("\"Comb\"", params.getObjectParams().get(4));
+    assertEquals("\"Shampoo\"", params.getObjectParams().get(6));
+    assertEquals("\"Bottle\"", params.getObjectParams().get(8));
   }
 
   @Test
@@ -1164,16 +1164,16 @@ public class PostgresQueryParserTest {
     assertEquals(
         "SELECT COUNT(DISTINCT document->>'quantity' ) AS \"qty_count\" "
             + "FROM \"testCollection\" "
-            + "WHERE (CAST (document->>'price' AS NUMERIC) <= ?) AND (document->>'item' IN (?, ?, ?, ?))",
+            + "WHERE (CAST (document->>'price' AS NUMERIC) <= ?) AND ((((jsonb_typeof(to_jsonb(document->'item')) = 'array' AND to_jsonb(document->'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'item') @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(document->'item')) = 'array' AND to_jsonb(document->'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'item') @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(document->'item')) = 'array' AND to_jsonb(document->'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'item') @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(document->'item')) = 'array' AND to_jsonb(document->'item') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'item') @> jsonb_build_array(?)))))",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
-    assertEquals(5, params.getObjectParams().size());
+    assertEquals(9, params.getObjectParams().size());
     assertEquals(10, params.getObjectParams().get(1));
     assertEquals("Mirror", params.getObjectParams().get(2));
-    assertEquals("Comb", params.getObjectParams().get(3));
-    assertEquals("Shampoo", params.getObjectParams().get(4));
-    assertEquals("Bottle", params.getObjectParams().get(5));
+    assertEquals("Comb", params.getObjectParams().get(4));
+    assertEquals("Shampoo", params.getObjectParams().get(6));
+    assertEquals("Bottle", params.getObjectParams().get(8));
   }
 
   @Test
