@@ -360,8 +360,8 @@ public class PostgresUtils {
         StreamSupport.stream(values.spliterator(), false)
             .map(
                 val -> {
-                  paramsBuilder.addObjectParam(val);
-                  return "(jsonb_build_array(" + parsedExpression + ") @> jsonb_build_array(?))";
+                  paramsBuilder.addObjectParam(val).addObjectParam(val);
+                  return "((jsonb_typeof(to_jsonb("+parsedExpression+")) = 'array' AND to_jsonb("+parsedExpression+") @> jsonb_build_array(?)) OR (jsonb_build_array(" + parsedExpression + ") @> jsonb_build_array(?)))";
                 })
             .collect(Collectors.joining(" OR "));
     filterStringBuilder.append(collect);
