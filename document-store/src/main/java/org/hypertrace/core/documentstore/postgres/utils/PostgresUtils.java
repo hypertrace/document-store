@@ -361,7 +361,13 @@ public class PostgresUtils {
             .map(
                 val -> {
                   paramsBuilder.addObjectParam(val).addObjectParam(val);
-                  return "((jsonb_typeof(to_jsonb("+parsedExpression+")) = 'array' AND to_jsonb("+parsedExpression+") @> jsonb_build_array(?)) OR (jsonb_build_array(" + parsedExpression + ") @> jsonb_build_array(?)))";
+                  return "((jsonb_typeof(to_jsonb("
+                      + parsedExpression
+                      + ")) = 'array' AND to_jsonb("
+                      + parsedExpression
+                      + ") @> jsonb_build_array(?)) OR (jsonb_build_array("
+                      + parsedExpression
+                      + ") @> jsonb_build_array(?)))";
                 })
             .collect(Collectors.joining(" OR "));
     filterStringBuilder.append(collect);
@@ -418,7 +424,6 @@ public class PostgresUtils {
     String sqlOperator;
     boolean isMultiValued = false;
     boolean isContainsOp = false;
-    boolean isInOP = false;
     switch (op) {
       case "EQ":
       case "=":
@@ -450,25 +455,31 @@ public class PostgresUtils {
       case "NOT_IN":
       case "NOT IN":
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        // In order to make the behaviour same as for mongo, the not in operator would match only if
+        // the lhs
+        // and rhs have no intersection at all
+        // NOTE: This doesn't work in case the lhs is a function
         sqlOperator = " NOT IN ";
         isMultiValued = true;
-        isInOP = true;
         filterString
             .append(" IS NULL OR")
-            .append(" NOT ")
+            .append(" NOT (")
             .append(
                 prepareFilterStringForInOperator(
-                    preparedExpression, (Iterable<Object>) value, paramsBuilder));
-        break;
+                    preparedExpression, (Iterable<Object>) value, paramsBuilder))
+            .append(")");
+        return filterString.toString();
       case "IN":
+        // In order to make the behaviour same as for mongo, the in operator would match if the lhs
+        // and rhs have any intersection at all
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        // NOTE: This doesn't work in case the lhs is a function
         sqlOperator = " IN ";
         isMultiValued = true;
-        isInOP = true;
         filterString =
             prepareFilterStringForInOperator(
                 preparedExpression, (Iterable<Object>) value, paramsBuilder);
-        break;
+        return filterString.toString();
       case "NOT_EXISTS":
       case "NOT EXISTS":
         sqlOperator = " IS NULL ";
@@ -503,10 +514,6 @@ public class PostgresUtils {
         break;
       default:
         throw new UnsupportedOperationException(UNSUPPORTED_QUERY_OPERATION);
-    }
-
-    if (isInOP) {
-      return filterString.toString();
     }
 
     filterString.append(sqlOperator);

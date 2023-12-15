@@ -1251,34 +1251,47 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
-  public void testQueryV1AggregationWithInFilterWithPrimitiveLhs(final String dataStoreName) throws IOException {
+  public void testQueryV1AggregationWithInFilterWithPrimitiveLhs(final String dataStoreName)
+      throws IOException {
     final Collection collection = getCollection(dataStoreName);
-    final Query query = Query.builder()
+    final Query query =
+        Query.builder()
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("quantity"))
             .setFilter(
-                    RelationalExpression.of(IdentifierExpression.of("item"), IN, ConstantExpression.ofStrings(List.of("Comb", "Shampoo")))
-            )
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Comb", "Shampoo"))))
             .build();
 
     final Iterator<Document> resultDocs = collection.aggregate(query);
-    assertDocsAndSizeEqualWithoutOrder(dataStoreName, resultDocs, "query/test_primitive_lhs_in_filter_aggr_response.json", 4);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/test_primitive_lhs_in_filter_aggr_response.json", 4);
   }
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
-  public void testQueryV1AggregationWithInFilterWithArrayLhs(final String dataStoreName) throws IOException {
+  public void testQueryV1AggregationWithInFilterWithArrayLhs(final String dataStoreName)
+      throws IOException {
     final Collection collection = getCollection(dataStoreName);
-    final Query query = Query.builder()
+    final Query query =
+        Query.builder()
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("price"))
             .setFilter(
-                    RelationalExpression.of(IdentifierExpression.of("props.colors"), IN, ConstantExpression.ofStrings(List.of("Orange")))
-            )
+                RelationalExpression.of(
+                    IdentifierExpression.of("props.colors"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Orange"))))
             .build();
 
     final Iterator<Document> resultDocs = collection.aggregate(query);
-    assertDocsAndSizeEqualWithoutOrder(dataStoreName, resultDocs, "query/test_json_column_array_lhs_in_filter_aggr_response.json", 1);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName,
+        resultDocs,
+        "query/test_json_column_array_lhs_in_filter_aggr_response.json",
+        1);
   }
 
   @ParameterizedTest
