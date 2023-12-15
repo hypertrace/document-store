@@ -361,13 +361,9 @@ public class PostgresUtils {
             .map(
                 val -> {
                   paramsBuilder.addObjectParam(val).addObjectParam(val);
-                  return "((jsonb_typeof(to_jsonb("
-                      + parsedExpression
-                      + ")) = 'array' AND to_jsonb("
-                      + parsedExpression
-                      + ") @> jsonb_build_array(?)) OR (jsonb_build_array("
-                      + parsedExpression
-                      + ") @> jsonb_build_array(?)))";
+                  return String.format(
+                      "((jsonb_typeof(to_jsonb(%s)) = 'array' AND to_jsonb(%s) @> jsonb_build_array(?)) OR (jsonb_build_array(%s) @> jsonb_build_array(?)))",
+                      parsedExpression, parsedExpression, parsedExpression);
                 })
             .collect(Collectors.joining(" OR "));
     filterStringBuilder.append(collect);
@@ -454,11 +450,10 @@ public class PostgresUtils {
         break;
       case "NOT_IN":
       case "NOT IN":
-        // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
-        // In order to make the behaviour same as for mongo, the not in operator would match only if
-        // the lhs
-        // and rhs have no intersection at all
-        // NOTE: This doesn't work in case the lhs is a function
+        // In order to make the behaviour same as for Mongo, the "NOT_IN" operator would match only
+        // if
+        // the LHS and RHS have no intersection at all
+        // NOTE: This doesn't work in case the LHS is a function
         sqlOperator = " NOT IN ";
         isMultiValued = true;
         filterString
@@ -470,10 +465,10 @@ public class PostgresUtils {
             .append(")");
         return filterString.toString();
       case "IN":
-        // In order to make the behaviour same as for mongo, the in operator would match if the lhs
-        // and rhs have any intersection at all
+        // In order to make the behaviour same as for Mongo, the "INI" operator would match if the
+        // LHS and RHS have any intersection (i.e. non-empty intersection)
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
-        // NOTE: This doesn't work in case the lhs is a function
+        // NOTE: This doesn't work in case the LHS is a function
         sqlOperator = " IN ";
         isMultiValued = true;
         filterString =
