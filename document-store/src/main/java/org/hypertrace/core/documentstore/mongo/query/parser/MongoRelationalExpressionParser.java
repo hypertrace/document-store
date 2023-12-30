@@ -36,13 +36,7 @@ final class MongoRelationalExpressionParser {
 
   private final Map<RelationalOperator, RelationalFilterOperation> handlers;
 
-  public MongoRelationalExpressionParser() {
-    lhsParser = new MongoIdentifierExpressionParser();
-    rhsParser = new MongoConstantExpressionParser();
-    handlers = buildHandlerMappings();
-  }
-
-  public MongoRelationalExpressionParser(
+  MongoRelationalExpressionParser(
       final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser) {
     lhsParser = wrappingLhsParser.apply(new MongoIdentifierExpressionParser());
     rhsParser = new MongoConstantExpressionParser();
