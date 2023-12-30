@@ -1,0 +1,95 @@
+[
+  {
+    "name": "Solar System 1",
+    "additional_info": {
+      "planets": [
+        {
+          "name": "Planet 1",
+          "elements": [
+            "Oxygen",
+            "Water",
+            "Nitrogen"
+          ]
+        },
+        {
+          "name": "Planet 2",
+          "elements": [
+            "Oxygen",
+            "Helium",
+            "Water"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "name": "Our Own Beautiful Solar System",
+    "additional_info": {
+      "planets": [
+        {
+          "name": "Mercury",
+          "elements": [
+            "Silicate",
+            "Aluminum"
+          ]
+        },
+        {
+          "name": "Venus",
+          "elements": [
+            "Carbon Dioxide",
+            "Sulfuric Acid"
+          ]
+        },
+        {
+          "name": "Earth",
+          "elements": [
+            "Oxygen",
+            "Nitrogen",
+            "Water"
+          ]
+        },
+        {
+          "name": "Mars",
+          "elements": [
+            "Iron",
+            "Silicate"
+          ]
+        },
+        {
+          "name": "Jupiter",
+          "elements": [
+            "Hydrogen",
+            "Helium"
+          ]
+        },
+        {
+          "name": "Saturn",
+          "elements": [
+            "Hydrogen",
+            "Helium",
+            "Methane"
+          ]
+        },
+        {
+          "name": "Uranus",
+          "elements": [
+            "Hydrogen",
+            "Helium",
+            "Methane",
+            "Ammonia"
+          ]
+        },
+        {
+          "name": "Neptune",
+          "elements": [
+            "Hydrogen",
+            "Helium",
+            "Methane",
+            "Ammonia",
+            "Methane Hydrate"
+          ]
+        }
+      ]
+    }
+  }
+]
