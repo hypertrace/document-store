@@ -16,7 +16,6 @@ import java.util.Spliterators;
 import java.util.stream.Collector;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-import org.bson.json.JsonObject;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
@@ -31,6 +30,7 @@ import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.json.JSONArray;
 import org.json.JSONException;
+import org.json.JSONObject;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -216,7 +216,14 @@ class ArrayFiltersQueryTest {
     return StreamSupport.stream(
             Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false)
         .map(Document::toJson)
-        .map(JsonObject::new)
+        .map(
+            json -> {
+              try {
+                return new JSONObject(json);
+              } catch (JSONException e) {
+                throw new RuntimeException(e);
+              }
+            })
         .collect(
             Collector.of(
                 JSONArray::new, JSONArray::put, (array1, array2) -> array1, JSONArray::toString));

@@ -13,6 +13,7 @@ import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.mongo.MongoUtils;
 
 class MongoDocumentArrayFilterParser {
+  private static final String EXPR = "$expr";
   private static final String ANY_ELEMENT_TRUE = "$anyElementTrue";
   private static final String MAP = "$map";
   private static final String INPUT = "input";
@@ -27,10 +28,13 @@ class MongoDocumentArrayFilterParser {
       new MongoIdentifierExpressionParser();
 
   private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
+  private final boolean exprTypeFilter;
 
   MongoDocumentArrayFilterParser(
-      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser) {
+      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser,
+      final boolean exprTypeFilter) {
     this.wrappingLhsParser = wrappingLhsParser;
+    this.exprTypeFilter = exprTypeFilter;
   }
 
   Map<String, Object> parse(final DocumentArrayFilterExpression arrayFilterExpression) {
@@ -43,54 +47,60 @@ class MongoDocumentArrayFilterParser {
 
     final SelectTypeExpression arraySource = arrayFilterExpression.getArraySource();
     final String arraySourceName = arraySource.accept(identifierParser);
-    final String alias = MongoUtils.encodeKey(arraySourceName);
+    final String alias = MongoUtils.getLastField(arraySourceName);
 
     /*
-     * Wrapping parser to convert 'lhs' to '$prefix.lhs' in the case of nested array filters.
-     * Identifier prefixing parser to convert '$prefix.lhs' to '$$prefix.lhs' in the case of nested array filters.
-     * In the case of non-nested array filters, 'lhs' will just be converted to '$lhs' by the identifier prefixing parser (because the wrapping parser will be identity)
+     * Wrapping parser to convert 'lhs' to '$$prefix.lhs' in the case of nested array filters.
+     * Dollar prefixing idempotent parser to retain '$$prefix.lhs' to '$$prefix.lhs' in the case of nested array filters.
+     * In the case of non-nested array filters, 'lhs' will just be converted to '$lhs' by the dollar prefixing idempotent parser
      */
     final MongoSelectTypeExpressionParser wrappingParser =
-        new MongoIdentifierPrefixingParser(wrappingLhsParser.apply(identifierParser));
+        new MongoDollarPrefixingIdempotentParser(wrappingLhsParser.apply(identifierParser));
     final String mapInput = arraySource.accept(wrappingParser);
 
     /*
     {
-      "$anyElementTrue":
-        {
-          "$map":
+      "$expr": {
+        "$anyElementTrue":
           {
-            "input":
+            "$map":
             {
-              "$ifNull": [
-                "$planets",
-                []
-              ]
-            },
-            "as": "planets",
-            "in":
-            {
-              "$eq": ["$$planets.name", "Mars"]
+              "input":
+              {
+                "$ifNull": [
+                  "$planets",
+                  []
+                ]
+              },
+              "as": "planets",
+              "in":
+              {
+                "$eq": ["$$planets.name", "Mars"]
+              }
             }
           }
         }
       }
      */
 
-    return Map.of(
-        operator,
+    final Object filter =
+        arrayFilterExpression
+            .getFilter()
+            .accept(
+                new MongoFilterTypeExpressionParser(
+                    parser -> buildPrefixingParser(alias, parser), true));
+
+    final Map<String, Object> arrayFilter =
         Map.of(
-            MAP,
-            Map.ofEntries(
-                entry(INPUT, Map.of(IF_NULL, new Object[] {mapInput, new Object[0]})),
-                entry(AS, alias),
-                entry(
-                    IN,
-                    arrayFilterExpression
-                        .getFilter()
-                        .accept(
-                            new MongoFilterTypeExpressionParser(
-                                parser -> buildPrefixingParser(alias, parser)))))));
+            operator,
+            Map.of(
+                MAP,
+                Map.ofEntries(
+                    entry(INPUT, Map.of(IF_NULL, new Object[] {mapInput, new Object[0]})),
+                    entry(AS, alias),
+                    entry(IN, filter))));
+    // If already wrapped inside `$expr` avoid wrapping again
+    return exprTypeFilter ? arrayFilter : Map.of(EXPR, arrayFilter);
   }
 
   private MongoIdentifierPrefixingParser buildPrefixingParser(
