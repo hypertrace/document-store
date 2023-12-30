@@ -2,8 +2,8 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import static java.util.Map.entry;
 import static org.hypertrace.core.documentstore.expression.operators.ArrayOperator.ANY;
-import static org.hypertrace.core.documentstore.mongo.query.parser.MongoExprRelationalFilterOperation.EXPR;
 import static org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.FilterLocation.INSIDE_EXPR;
+import static org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoStandardExprRelationalFilterParser.EXPR;
 
 import com.google.common.collect.Maps;
 import java.util.Map;
@@ -29,11 +29,11 @@ class MongoArrayFilterParser {
       new MongoIdentifierExpressionParser();
 
   private final MongoRelationalFilterContext relationalFilterContext;
-  private final MongoArrayFilterParserWrapper arrayFilterParserWrapper;
+  private final MongoArrayFilterParserGetter arrayFilterParserWrapper;
 
   MongoArrayFilterParser(
       final MongoRelationalFilterContext relationalFilterContext,
-      final MongoArrayFilterParserWrapper arrayFilterParserWrapper) {
+      final MongoArrayFilterParserGetter arrayFilterParserWrapper) {
     this.relationalFilterContext = relationalFilterContext;
     this.arrayFilterParserWrapper = arrayFilterParserWrapper;
   }
@@ -89,8 +89,10 @@ class MongoArrayFilterParser {
             .getFilter()
             .accept(
                 new MongoFilterTypeExpressionParser(
-                    parser -> arrayFilterParserWrapper.getParser(parser, sourcePath, alias),
-                    true));
+                    MongoRelationalFilterContext.builder()
+                        .lhsParser(arrayFilterParserWrapper.getParser(sourcePath, alias))
+                        .location(INSIDE_EXPR)
+                        .build()));
 
     final Map<String, Object> arrayFilter =
         Map.of(
@@ -102,6 +104,8 @@ class MongoArrayFilterParser {
                     entry(AS, alias),
                     entry(IN, filter))));
     // If already wrapped inside `$expr` avoid wrapping again
-    return INSIDE_EXPR.equals(relationalFilterContext.location()) ? arrayFilter : Map.of(EXPR, arrayFilter);
+    return INSIDE_EXPR.equals(relationalFilterContext.location())
+        ? arrayFilter
+        : Map.of(EXPR, arrayFilter);
   }
 }

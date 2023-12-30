@@ -57,14 +57,16 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final ArrayRelationalFilterExpression expression) {
-    return new MongoArrayFilterParser(relationalFilterContext, new MongoArrayRelationalFilterParserWrapper())
+    return new MongoArrayFilterParser(
+            relationalFilterContext, new MongoArrayRelationalFilterParserWrapper())
         .parse(expression);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final DocumentArrayFilterExpression expression) {
-    return new MongoArrayFilterParser(relationalFilterContext, new MongoDocumentArrayFilterParserWrapper())
+    return new MongoArrayFilterParser(
+            relationalFilterContext, new MongoDocumentArrayFilterParserWrapper())
         .parse(expression);
   }
 
