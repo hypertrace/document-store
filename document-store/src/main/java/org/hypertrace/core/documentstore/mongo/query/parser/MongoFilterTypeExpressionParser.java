@@ -22,29 +22,26 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   private static final String FILTER_CLAUSE = "$match";
 
   private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
-  private final boolean exprTypeFilter;
 
   public MongoFilterTypeExpressionParser() {
-    this(UnaryOperator.identity(), false);
+    this(UnaryOperator.identity());
   }
 
   public MongoFilterTypeExpressionParser(
-      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser,
-      final boolean exprTypeFilter) {
+      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser) {
     this.wrappingLhsParser = wrappingLhsParser;
-    this.exprTypeFilter = exprTypeFilter;
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final LogicalExpression expression) {
-    return new MongoLogicalExpressionParser(wrappingLhsParser, exprTypeFilter).parse(expression);
+    return new MongoLogicalExpressionParser(wrappingLhsParser).parse(expression);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final RelationalExpression expression) {
-    return new MongoRelationalExpressionParser(wrappingLhsParser, exprTypeFilter).parse(expression);
+    return new MongoRelationalExpressionParser(wrappingLhsParser).parse(expression);
   }
 
   @SuppressWarnings("unchecked")
@@ -60,14 +57,13 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final ArrayRelationalFilterExpression expression) {
-    return new MongoArrayRelationalFilterParser(wrappingLhsParser, exprTypeFilter)
-        .parse(expression);
+    return new MongoArrayRelationalFilterParser(wrappingLhsParser).parse(expression);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final DocumentArrayFilterExpression expression) {
-    return new MongoDocumentArrayFilterParser(wrappingLhsParser, exprTypeFilter).parse(expression);
+    return new MongoDocumentArrayFilterParser(wrappingLhsParser).parse(expression);
   }
 
   public static BasicDBObject getFilterClause(

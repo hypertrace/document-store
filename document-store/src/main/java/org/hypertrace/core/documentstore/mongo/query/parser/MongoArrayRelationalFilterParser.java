@@ -13,7 +13,6 @@ import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.mongo.MongoUtils;
 
 class MongoArrayRelationalFilterParser {
-  private static final String EXPR = "$expr";
   private static final String ANY_ELEMENT_TRUE = "$anyElementTrue";
   private static final String MAP = "$map";
   private static final String INPUT = "input";
@@ -28,13 +27,10 @@ class MongoArrayRelationalFilterParser {
       new MongoIdentifierExpressionParser();
 
   private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
-  private final boolean exprTypeFilter;
 
   MongoArrayRelationalFilterParser(
-      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser,
-      boolean exprTypeFilter) {
+      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser) {
     this.wrappingLhsParser = wrappingLhsParser;
-    this.exprTypeFilter = exprTypeFilter;
   }
 
   Map<String, Object> parse(final ArrayRelationalFilterExpression arrayFilterExpression) {
@@ -47,60 +43,52 @@ class MongoArrayRelationalFilterParser {
 
     final SelectTypeExpression lhs = arrayFilterExpression.getFilter().getLhs();
     final String lhsFieldName = lhs.accept(identifierParser);
-    final String alias = MongoUtils.getLastField(lhsFieldName);
+    final String alias = MongoUtils.encodeKey(lhsFieldName);
 
     /*
-     * Wrapping parser to convert 'lhs' to '$$prefix.lhs' in the case of nested array filters.
-     * Dollar prefixing idempotent parser to retain '$$prefix.lhs' to '$$prefix.lhs' in the case of nested array filters.
-     * In the case of non-nested array filters, 'lhs' will just be converted to '$lhs' by the dollar prefixing idempotent parser
+     * Wrapping parser to convert 'lhs' to '$prefix.lhs' in the case of nested array filters.
+     * Identifier prefixing parser to convert '$prefix.lhs' to '$$prefix.lhs' in the case of nested array filters.
+     * In the case of non-nested array filters, 'lhs' will just be converted to '$lhs' by the identifier prefixing parser (because the wrapping parser will be identity)
      */
     final MongoSelectTypeExpressionParser wrappingParser =
-        new MongoDollarPrefixingIdempotentParser(wrappingLhsParser.apply(identifierParser));
+        new MongoIdentifierPrefixingParser(wrappingLhsParser.apply(identifierParser));
     final String mapInput = lhs.accept(wrappingParser);
 
     /*
     {
-      "$expr": {
-        "$anyElementTrue":
+      "$anyElementTrue":
+        {
+          "$map":
           {
-            "$map":
+            "input":
             {
-              "input":
-              {
-                "$ifNull": [
-                  "$elements",
-                  []
-                ]
-              },
-              "as": "elements",
-              "in":
-              {
-                "$eq": ["$$elements", "Water"]
-              }
+              "$ifNull": [
+                "$elements",
+                []
+              ]
+            },
+            "as": "elements",
+            "in":
+            {
+              "$eq": ["$$elements", "Water"]
             }
           }
         }
       }
      */
 
-    final Object filter =
-        arrayFilterExpression
-            .getFilter()
-            .accept(
-                new MongoFilterTypeExpressionParser(
-                    parser -> buildSubstitutingParser(lhsFieldName, alias, parser), true));
-
-    final Map<String, Object> arrayFilter =
+    return Map.of(
+        operator,
         Map.of(
-            operator,
-            Map.of(
-                MAP,
-                Map.ofEntries(
-                    entry(INPUT, Map.of(IF_NULL, new Object[] {mapInput, new Object[0]})),
-                    entry(AS, alias),
-                    entry(IN, filter))));
-    // If already wrapped inside `$expr` avoid wrapping again
-    return exprTypeFilter ? arrayFilter : Map.of(EXPR, arrayFilter);
+            MAP,
+            Map.ofEntries(
+                entry(INPUT, Map.of(IF_NULL, new Object[] {mapInput, new Object[0]})),
+                entry(AS, alias),
+                entry(
+                    IN,
+                    new MongoRelationalExpressionParser(
+                            parser -> buildSubstitutingParser(lhsFieldName, alias, parser))
+                        .parse(arrayFilterExpression.getFilter())))));
   }
 
   private MongoIdentifierPrefixingParser buildSubstitutingParser(

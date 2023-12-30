@@ -1,7 +1,5 @@
 package org.hypertrace.core.documentstore.mongo.query.parser;
 
-import static org.hypertrace.core.documentstore.mongo.query.parser.MongoExprRelationalFilterOperation.EXPR;
-
 import com.mongodb.BasicDBObject;
 import java.util.Map;
 import lombok.AllArgsConstructor;
@@ -9,6 +7,8 @@ import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 
 @AllArgsConstructor
 class MongoFunctionRelationalFilterOperation implements RelationalFilterOperation {
+  private static final String EXPR = "$expr";
+
   private final MongoSelectTypeExpressionParser functionParser =
       new MongoFunctionExpressionParser();
 
