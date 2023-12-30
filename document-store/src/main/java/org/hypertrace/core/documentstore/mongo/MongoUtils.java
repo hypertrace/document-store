@@ -65,6 +65,11 @@ public final class MongoUtils {
     return key.replace("\\u002e", FIELD_SEPARATOR).replace("\\u0024", PREFIX).replace("\\\\", "\\");
   }
 
+  public static String getLastField(final String fieldPath) {
+    final String[] fields = fieldPath.split("\\" + FIELD_SEPARATOR);
+    return fields[fields.length - 1];
+  }
+
   public static String sanitizeJsonString(final String jsonString) throws JsonProcessingException {
     final JsonNode jsonNode = MAPPER.readTree(jsonString);
     // escape "." and "$" in field names since Mongo DB does not like them

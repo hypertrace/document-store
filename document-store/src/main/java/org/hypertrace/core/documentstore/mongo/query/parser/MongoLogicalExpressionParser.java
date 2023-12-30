@@ -25,10 +25,13 @@ final class MongoLogicalExpressionParser {
           });
 
   private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
+  private final boolean exprTypeFilter;
 
   MongoLogicalExpressionParser(
-      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser) {
+      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser,
+      final boolean exprTypeFilter) {
     this.wrappingLhsParser = wrappingLhsParser;
+    this.exprTypeFilter = exprTypeFilter;
   }
 
   Map<String, Object> parse(final LogicalExpression expression) {
@@ -39,7 +42,8 @@ final class MongoLogicalExpressionParser {
       throw getUnsupportedOperationException(operator);
     }
 
-    FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser(wrappingLhsParser);
+    FilterTypeExpressionVisitor parser =
+        new MongoFilterTypeExpressionParser(wrappingLhsParser, exprTypeFilter);
     List<Object> parsed =
         expression.getOperands().stream()
             .map(exp -> exp.accept(parser))

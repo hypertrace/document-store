@@ -37,10 +37,11 @@ final class MongoRelationalExpressionParser {
   private final Map<RelationalOperator, RelationalFilterOperation> handlers;
 
   MongoRelationalExpressionParser(
-      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser) {
+      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser,
+      final boolean exprTypeFilter) {
     lhsParser = wrappingLhsParser.apply(new MongoIdentifierExpressionParser());
     rhsParser = new MongoConstantExpressionParser();
-    handlers = buildHandlerMappings();
+    handlers = buildHandlerMappings(exprTypeFilter);
   }
 
   Map<String, Object> parse(final RelationalExpression expression) {
@@ -50,23 +51,47 @@ final class MongoRelationalExpressionParser {
     return generateMap(lhs, rhs, operator);
   }
 
-  private ImmutableMap<RelationalOperator, RelationalFilterOperation> buildHandlerMappings() {
-    return Maps.immutableEnumMap(
-        Map.ofEntries(
-            entry(EQ, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$eq")),
-            entry(NEQ, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$ne")),
-            entry(GT, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$gt")),
-            entry(LT, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$lt")),
-            entry(GTE, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$gte")),
-            entry(LTE, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$lte")),
-            entry(IN, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$in")),
-            entry(NOT_IN, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$nin")),
-            entry(CONTAINS, new MongoContainsFilterOperation(lhsParser, rhsParser)),
-            entry(NOT_CONTAINS, new MongoNotContainsFilterOperation(lhsParser, rhsParser)),
-            entry(EXISTS, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$exists")),
-            entry(NOT_EXISTS, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$exists")),
-            entry(LIKE, new MongoLikeFilterOperation(lhsParser, rhsParser)),
-            entry(STARTS_WITH, new MongoStartsWithFilterOperation(lhsParser, rhsParser))));
+  private ImmutableMap<RelationalOperator, RelationalFilterOperation> buildHandlerMappings(
+      final boolean exprTypeFilter) {
+    return exprTypeFilter
+        ? Maps.immutableEnumMap(
+            Map.ofEntries(
+                entry(EQ, new MongoExprRelationalFilterOperation(lhsParser, rhsParser, "$eq")),
+                entry(NEQ, new MongoExprRelationalFilterOperation(lhsParser, rhsParser, "$ne")),
+                entry(GT, new MongoExprRelationalFilterOperation(lhsParser, rhsParser, "$gt")),
+                entry(LT, new MongoExprRelationalFilterOperation(lhsParser, rhsParser, "$lt")),
+                entry(GTE, new MongoExprRelationalFilterOperation(lhsParser, rhsParser, "$gte")),
+                entry(LTE, new MongoExprRelationalFilterOperation(lhsParser, rhsParser, "$lte")),
+                entry(IN, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$in")),
+                entry(NOT_IN, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$nin")),
+                entry(CONTAINS, new MongoContainsFilterOperation(lhsParser, rhsParser)),
+                entry(NOT_CONTAINS, new MongoNotContainsFilterOperation(lhsParser, rhsParser)),
+                entry(EXISTS, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$exists")),
+                entry(
+                    NOT_EXISTS,
+                    new MongoRelationalFilterOperation(lhsParser, rhsParser, "$exists")),
+                entry(LIKE, new MongoLikeFilterOperation(lhsParser, rhsParser)),
+                entry(STARTS_WITH, new MongoStartsWithFilterOperation(lhsParser, rhsParser))))
+        : Maps.immutableEnumMap(
+            Map.ofEntries(
+                entry(EQ, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$eq")),
+                entry(NEQ, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$ne")),
+                entry(GT, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$gt")),
+                entry(LT, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$lt")),
+                entry(
+                    GTE, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$gte")),
+                entry(
+                    LTE, new MongoFunctionRelationalFilterOperation(lhsParser, rhsParser, "$lte")),
+                entry(IN, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$in")),
+                entry(NOT_IN, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$nin")),
+                entry(CONTAINS, new MongoContainsFilterOperation(lhsParser, rhsParser)),
+                entry(NOT_CONTAINS, new MongoNotContainsFilterOperation(lhsParser, rhsParser)),
+                entry(EXISTS, new MongoRelationalFilterOperation(lhsParser, rhsParser, "$exists")),
+                entry(
+                    NOT_EXISTS,
+                    new MongoRelationalFilterOperation(lhsParser, rhsParser, "$exists")),
+                entry(LIKE, new MongoLikeFilterOperation(lhsParser, rhsParser)),
+                entry(STARTS_WITH, new MongoStartsWithFilterOperation(lhsParser, rhsParser))));
   }
 
   private Map<String, Object> generateMap(
