@@ -16,8 +16,8 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
  * <p>Example: If product is an array field (containing documents)<code>
  * ANY(product) [color IN ('Blue', 'Green') AND color != 'Black' AND name = 'Comb']
  * </code> can be constructed as <code>
- *   ArrayFilterExpression.builder()
- *    .arrayOperator(ANY)
+ *   DocumentArrayFilterExpression.builder()
+ *    .operator(ANY)
  *    .arraySource(IdentifierExpression.of("product"))
  *    .filter(
  *      LogicalExpression.and(
@@ -40,7 +40,7 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class DocumentArrayFilterExpression implements FilterTypeExpression {
-  ArrayOperator arrayOperator;
+  ArrayOperator operator;
 
   SelectTypeExpression arraySource;
 
@@ -49,10 +49,10 @@ public class DocumentArrayFilterExpression implements FilterTypeExpression {
   @SuppressWarnings("unused")
   public static class DocumentArrayFilterExpressionBuilder {
     public DocumentArrayFilterExpression build() {
-      Preconditions.checkArgument(arrayOperator != null, "array operator is null");
+      Preconditions.checkArgument(operator != null, "array operator is null");
       Preconditions.checkArgument(arraySource != null, "array source is null");
       Preconditions.checkArgument(filter != null, "filter is null");
-      return new DocumentArrayFilterExpression(arrayOperator, arraySource, filter);
+      return new DocumentArrayFilterExpression(operator, arraySource, filter);
     }
   }
 
@@ -63,6 +63,6 @@ public class DocumentArrayFilterExpression implements FilterTypeExpression {
 
   @Override
   public String toString() {
-    return String.format("%s(%s) [%s]", arrayOperator, arraySource, filter);
+    return String.format("%s(%s) [%s]", operator, arraySource, filter);
   }
 }

@@ -15,8 +15,8 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
  * <p>Example: If color is an array field <code>
  * ANY(color) IN ('Blue', 'Green')
  * </code> can be constructed as <code>
- *   ArrayFilterExpression.builder()
- *    .arrayOperator(ANY)
+ *   ArrayRelationalFilterExpression.builder()
+ *    .operator(ANY)
  *    .filter(
  *      RelationalExpression.of(
  *        IdentifierExpression.of("color"),
@@ -30,16 +30,16 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ArrayRelationalFilterExpression implements FilterTypeExpression {
-  ArrayOperator arrayOperator;
+  ArrayOperator operator;
 
   RelationalExpression filter;
 
   @SuppressWarnings("unused")
   public static class ArrayRelationalFilterExpressionBuilder {
     public ArrayRelationalFilterExpression build() {
-      Preconditions.checkArgument(arrayOperator != null, "array operator is null");
+      Preconditions.checkArgument(operator != null, "array operator is null");
       Preconditions.checkArgument(filter != null, "filter is null");
-      return new ArrayRelationalFilterExpression(arrayOperator, filter);
+      return new ArrayRelationalFilterExpression(operator, filter);
     }
   }
 
@@ -51,6 +51,6 @@ public class ArrayRelationalFilterExpression implements FilterTypeExpression {
   @Override
   public String toString() {
     return String.format(
-        "%s(%s) %s %s", arrayOperator, filter.getLhs(), filter.getOperator(), filter.getRhs());
+        "%s(%s) %s %s", operator, filter.getLhs(), filter.getOperator(), filter.getRhs());
   }
 }
