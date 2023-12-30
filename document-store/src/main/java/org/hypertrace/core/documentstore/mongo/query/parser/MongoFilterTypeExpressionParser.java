@@ -6,7 +6,6 @@ import com.mongodb.BasicDBObject;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.function.UnaryOperator;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
@@ -14,6 +13,7 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
+import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.MongoRelationalFilterContext;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
@@ -21,30 +21,27 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
 
   private static final String FILTER_CLAUSE = "$match";
 
-  private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
-  private final boolean exprTypeFilter;
+  private final MongoRelationalFilterContext relationalFilterContext;
 
   public MongoFilterTypeExpressionParser() {
-    this(UnaryOperator.identity(), false);
+    this(MongoRelationalFilterContext.DEFAULT_INSTANCE);
   }
 
   public MongoFilterTypeExpressionParser(
-      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser,
-      final boolean exprTypeFilter) {
-    this.wrappingLhsParser = wrappingLhsParser;
-    this.exprTypeFilter = exprTypeFilter;
+      final MongoRelationalFilterContext relationalFilterContext) {
+    this.relationalFilterContext = relationalFilterContext;
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final LogicalExpression expression) {
-    return new MongoLogicalExpressionParser(wrappingLhsParser, exprTypeFilter).parse(expression);
+    return new MongoLogicalExpressionParser(relationalFilterContext).parse(expression);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final RelationalExpression expression) {
-    return new MongoRelationalExpressionParser(wrappingLhsParser, exprTypeFilter).parse(expression);
+    return new MongoRelationalExpressionParser().parse(expression, relationalFilterContext);
   }
 
   @SuppressWarnings("unchecked")
@@ -60,16 +57,14 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final ArrayRelationalFilterExpression expression) {
-    return new MongoArrayFilterParser(
-            wrappingLhsParser, exprTypeFilter, new MongoArrayRelationalFilterParserWrapper())
+    return new MongoArrayFilterParser(relationalFilterContext, new MongoArrayRelationalFilterParserWrapper())
         .parse(expression);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final DocumentArrayFilterExpression expression) {
-    return new MongoArrayFilterParser(
-            wrappingLhsParser, exprTypeFilter, new MongoDocumentArrayFilterParserWrapper())
+    return new MongoArrayFilterParser(relationalFilterContext, new MongoDocumentArrayFilterParserWrapper())
         .parse(expression);
   }
 

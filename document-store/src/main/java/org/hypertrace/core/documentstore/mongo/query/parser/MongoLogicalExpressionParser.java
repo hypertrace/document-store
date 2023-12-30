@@ -8,10 +8,10 @@ import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedO
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
+import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.MongoRelationalFilterContext;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
 final class MongoLogicalExpressionParser {
@@ -24,14 +24,10 @@ final class MongoLogicalExpressionParser {
             }
           });
 
-  private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
-  private final boolean exprTypeFilter;
+  private final MongoRelationalFilterContext relationalFilterContext;
 
-  MongoLogicalExpressionParser(
-      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser,
-      final boolean exprTypeFilter) {
-    this.wrappingLhsParser = wrappingLhsParser;
-    this.exprTypeFilter = exprTypeFilter;
+  MongoLogicalExpressionParser(final MongoRelationalFilterContext relationalFilterContext) {
+    this.relationalFilterContext = relationalFilterContext;
   }
 
   Map<String, Object> parse(final LogicalExpression expression) {
@@ -43,7 +39,7 @@ final class MongoLogicalExpressionParser {
     }
 
     FilterTypeExpressionVisitor parser =
-        new MongoFilterTypeExpressionParser(wrappingLhsParser, exprTypeFilter);
+        new MongoFilterTypeExpressionParser(relationalFilterContext);
     List<Object> parsed =
         expression.getOperands().stream()
             .map(exp -> exp.accept(parser))

@@ -5,7 +5,7 @@ import static org.hypertrace.core.documentstore.mongo.MongoUtils.FIELD_SEPARATOR
 public class MongoDocumentArrayFilterParserWrapper implements MongoArrayFilterParserWrapper {
 
   @Override
-  public MongoSelectTypeExpressionParser wrapParser(
+  public MongoSelectTypeExpressionParser getParser(
       final MongoSelectTypeExpressionParser baseParser,
       final String arraySource,
       final String alias) {

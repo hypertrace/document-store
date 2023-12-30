@@ -3,15 +3,16 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 import static java.util.Map.entry;
 import static org.hypertrace.core.documentstore.expression.operators.ArrayOperator.ANY;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoExprRelationalFilterOperation.EXPR;
+import static org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.FilterLocation.INSIDE_EXPR;
 
 import com.google.common.collect.Maps;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.UnaryOperator;
 import org.hypertrace.core.documentstore.expression.impl.ArrayFilterExpression;
 import org.hypertrace.core.documentstore.expression.operators.ArrayOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.mongo.MongoUtils;
+import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.MongoRelationalFilterContext;
 
 class MongoArrayFilterParser {
   private static final String ANY_ELEMENT_TRUE = "$anyElementTrue";
@@ -27,16 +28,13 @@ class MongoArrayFilterParser {
   private final MongoSelectTypeExpressionParser identifierParser =
       new MongoIdentifierExpressionParser();
 
-  private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
-  private final boolean exprTypeFilter;
+  private final MongoRelationalFilterContext relationalFilterContext;
   private final MongoArrayFilterParserWrapper arrayFilterParserWrapper;
 
   MongoArrayFilterParser(
-      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser,
-      final boolean exprTypeFilter,
+      final MongoRelationalFilterContext relationalFilterContext,
       final MongoArrayFilterParserWrapper arrayFilterParserWrapper) {
-    this.wrappingLhsParser = wrappingLhsParser;
-    this.exprTypeFilter = exprTypeFilter;
+    this.relationalFilterContext = relationalFilterContext;
     this.arrayFilterParserWrapper = arrayFilterParserWrapper;
   }
 
@@ -58,7 +56,7 @@ class MongoArrayFilterParser {
      * In the case of non-nested array filters, 'lhs' will just be converted to '$lhs' by the dollar prefixing idempotent parser
      */
     final MongoSelectTypeExpressionParser wrappingParser =
-        new MongoDollarPrefixingIdempotentParser(wrappingLhsParser.apply(identifierParser));
+        new MongoDollarPrefixingIdempotentParser(relationalFilterContext.lhsParser());
     final String mapInput = arraySource.accept(wrappingParser);
 
     /*
@@ -91,7 +89,7 @@ class MongoArrayFilterParser {
             .getFilter()
             .accept(
                 new MongoFilterTypeExpressionParser(
-                    parser -> arrayFilterParserWrapper.wrapParser(parser, sourcePath, alias),
+                    parser -> arrayFilterParserWrapper.getParser(parser, sourcePath, alias),
                     true));
 
     final Map<String, Object> arrayFilter =
@@ -104,6 +102,6 @@ class MongoArrayFilterParser {
                     entry(AS, alias),
                     entry(IN, filter))));
     // If already wrapped inside `$expr` avoid wrapping again
-    return exprTypeFilter ? arrayFilter : Map.of(EXPR, arrayFilter);
+    return INSIDE_EXPR.equals(relationalFilterContext.location()) ? arrayFilter : Map.of(EXPR, arrayFilter);
   }
 }
