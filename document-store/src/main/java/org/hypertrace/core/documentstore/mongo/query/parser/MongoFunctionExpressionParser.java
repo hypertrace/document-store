@@ -20,7 +20,7 @@ import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
 @NoArgsConstructor
-final class MongoFunctionExpressionParser extends MongoSelectTypeExpressionParser {
+public final class MongoFunctionExpressionParser extends MongoSelectTypeExpressionParser {
   private static final Map<FunctionOperator, String> KEY_MAP =
       unmodifiableMap(
           new EnumMap<>(FunctionOperator.class) {
@@ -35,7 +35,7 @@ final class MongoFunctionExpressionParser extends MongoSelectTypeExpressionParse
             }
           });
 
-  MongoFunctionExpressionParser(final MongoSelectTypeExpressionParser baseParser) {
+  public MongoFunctionExpressionParser(final MongoSelectTypeExpressionParser baseParser) {
     super(baseParser);
   }
 

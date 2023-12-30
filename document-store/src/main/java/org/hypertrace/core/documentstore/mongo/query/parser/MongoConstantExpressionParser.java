@@ -9,7 +9,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 
 @NoArgsConstructor
-final class MongoConstantExpressionParser extends MongoSelectTypeExpressionParser {
+public final class MongoConstantExpressionParser extends MongoSelectTypeExpressionParser {
   MongoConstantExpressionParser(final MongoSelectTypeExpressionParser baseParser) {
     super(baseParser);
   }
