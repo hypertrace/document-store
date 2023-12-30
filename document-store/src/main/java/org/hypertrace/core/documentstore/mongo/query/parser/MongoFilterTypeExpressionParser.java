@@ -57,13 +57,13 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final ArrayRelationalFilterExpression expression) {
-    return new MongoArrayRelationalFilterParser(wrappingLhsParser).parse(expression);
+    throw new UnsupportedOperationException();
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final DocumentArrayFilterExpression expression) {
-    return new MongoDocumentArrayFilterParser(wrappingLhsParser).parse(expression);
+    throw new UnsupportedOperationException();
   }
 
   public static BasicDBObject getFilterClause(

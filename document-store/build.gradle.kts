@@ -29,7 +29,6 @@ dependencies {
   integrationTestImplementation(libs.com.github.java.json.tools.json.patch)
   integrationTestImplementation(libs.org.testcontainers)
   integrationTestImplementation(libs.org.testcontainers.junit.jupiter)
-  integrationTestImplementation(libs.org.skyscreamer.jsonassert)
 }
 
 tasks.test {
