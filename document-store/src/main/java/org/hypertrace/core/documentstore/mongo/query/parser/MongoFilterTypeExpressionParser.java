@@ -6,6 +6,7 @@ import com.mongodb.BasicDBObject;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
@@ -20,16 +21,27 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
 
   private static final String FILTER_CLAUSE = "$match";
 
+  private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
+
+  public MongoFilterTypeExpressionParser() {
+    this(UnaryOperator.identity());
+  }
+
+  public MongoFilterTypeExpressionParser(
+      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser) {
+    this.wrappingLhsParser = wrappingLhsParser;
+  }
+
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final LogicalExpression expression) {
-    return new MongoLogicalExpressionParser().parse(expression);
+    return new MongoLogicalExpressionParser(wrappingLhsParser).parse(expression);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final RelationalExpression expression) {
-    return new MongoRelationalExpressionParser().parse(expression);
+    return new MongoRelationalExpressionParser(wrappingLhsParser).parse(expression);
   }
 
   @SuppressWarnings("unchecked")

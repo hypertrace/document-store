@@ -8,6 +8,7 @@ import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedO
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
@@ -23,6 +24,13 @@ final class MongoLogicalExpressionParser {
             }
           });
 
+  private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
+
+  MongoLogicalExpressionParser(
+      final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser) {
+    this.wrappingLhsParser = wrappingLhsParser;
+  }
+
   Map<String, Object> parse(final LogicalExpression expression) {
     LogicalOperator operator = expression.getOperator();
     String key = KEY_MAP.get(operator);
@@ -31,7 +39,7 @@ final class MongoLogicalExpressionParser {
       throw getUnsupportedOperationException(operator);
     }
 
-    FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser();
+    FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser(wrappingLhsParser);
     List<Object> parsed =
         expression.getOperands().stream()
             .map(exp -> exp.accept(parser))
