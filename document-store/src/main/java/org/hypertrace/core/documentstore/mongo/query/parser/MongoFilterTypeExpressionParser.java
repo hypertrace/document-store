@@ -60,14 +60,17 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final ArrayRelationalFilterExpression expression) {
-    return new MongoArrayRelationalFilterParser(wrappingLhsParser, exprTypeFilter)
+    return new MongoArrayFilterParser(
+            wrappingLhsParser, exprTypeFilter, new MongoArrayRelationalFilterParserWrapper())
         .parse(expression);
   }
 
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final DocumentArrayFilterExpression expression) {
-    return new MongoDocumentArrayFilterParser(wrappingLhsParser, exprTypeFilter).parse(expression);
+    return new MongoArrayFilterParser(
+            wrappingLhsParser, exprTypeFilter, new MongoDocumentArrayFilterParserWrapper())
+        .parse(expression);
   }
 
   public static BasicDBObject getFilterClause(

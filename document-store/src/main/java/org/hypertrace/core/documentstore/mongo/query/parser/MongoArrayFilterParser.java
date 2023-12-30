@@ -2,18 +2,18 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import static java.util.Map.entry;
 import static org.hypertrace.core.documentstore.expression.operators.ArrayOperator.ANY;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoExprRelationalFilterOperation.EXPR;
 
 import com.google.common.collect.Maps;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
-import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayFilterExpression;
 import org.hypertrace.core.documentstore.expression.operators.ArrayOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.mongo.MongoUtils;
 
-class MongoDocumentArrayFilterParser {
-  private static final String EXPR = "$expr";
+class MongoArrayFilterParser {
   private static final String ANY_ELEMENT_TRUE = "$anyElementTrue";
   private static final String MAP = "$map";
   private static final String INPUT = "input";
@@ -29,15 +29,18 @@ class MongoDocumentArrayFilterParser {
 
   private final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser;
   private final boolean exprTypeFilter;
+  private final MongoArrayFilterParserWrapper arrayFilterParserWrapper;
 
-  MongoDocumentArrayFilterParser(
+  MongoArrayFilterParser(
       final UnaryOperator<MongoSelectTypeExpressionParser> wrappingLhsParser,
-      final boolean exprTypeFilter) {
+      final boolean exprTypeFilter,
+      final MongoArrayFilterParserWrapper arrayFilterParserWrapper) {
     this.wrappingLhsParser = wrappingLhsParser;
     this.exprTypeFilter = exprTypeFilter;
+    this.arrayFilterParserWrapper = arrayFilterParserWrapper;
   }
 
-  Map<String, Object> parse(final DocumentArrayFilterExpression arrayFilterExpression) {
+  Map<String, Object> parse(final ArrayFilterExpression arrayFilterExpression) {
     final String operator =
         Optional.ofNullable(OPERATOR_MAP.get(arrayFilterExpression.getOperator()))
             .orElseThrow(
@@ -46,8 +49,8 @@ class MongoDocumentArrayFilterParser {
                         "Unsupported array operator in " + arrayFilterExpression));
 
     final SelectTypeExpression arraySource = arrayFilterExpression.getArraySource();
-    final String arraySourceName = arraySource.accept(identifierParser);
-    final String alias = MongoUtils.getLastField(arraySourceName);
+    final String sourcePath = arraySource.accept(identifierParser);
+    final String alias = MongoUtils.getLastField(sourcePath);
 
     /*
      * Wrapping parser to convert 'lhs' to '$$prefix.lhs' in the case of nested array filters.
@@ -68,14 +71,14 @@ class MongoDocumentArrayFilterParser {
               "input":
               {
                 "$ifNull": [
-                  "$planets",
+                  "$elements",
                   []
                 ]
               },
-              "as": "planets",
+              "as": "elements",
               "in":
               {
-                "$eq": ["$$planets.name", "Mars"]
+                "$eq": ["$$elements", "Water"]
               }
             }
           }
@@ -88,7 +91,8 @@ class MongoDocumentArrayFilterParser {
             .getFilter()
             .accept(
                 new MongoFilterTypeExpressionParser(
-                    parser -> buildPrefixingParser(alias, parser), true));
+                    parser -> arrayFilterParserWrapper.wrapParser(parser, sourcePath, alias),
+                    true));
 
     final Map<String, Object> arrayFilter =
         Map.of(
@@ -101,14 +105,5 @@ class MongoDocumentArrayFilterParser {
                     entry(IN, filter))));
     // If already wrapped inside `$expr` avoid wrapping again
     return exprTypeFilter ? arrayFilter : Map.of(EXPR, arrayFilter);
-  }
-
-  private MongoIdentifierPrefixingParser buildPrefixingParser(
-      final String alias, final MongoSelectTypeExpressionParser baseParser) {
-    // Substitute the array name in the LHS with the alias (because it could be encoded)
-    // and then wrap with dollar ($) twice. E.g.: 'name' --> '$$planets.name'
-    return new MongoIdentifierPrefixingParser(
-        new MongoIdentifierPrefixingParser(
-            new MongoIdentifierPrefixingParser(baseParser, alias + ".")));
   }
 }
