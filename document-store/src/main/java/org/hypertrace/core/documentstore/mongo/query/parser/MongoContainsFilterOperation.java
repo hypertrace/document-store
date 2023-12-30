@@ -2,22 +2,17 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import com.mongodb.BasicDBObject;
 import java.util.Map;
-import java.util.function.BiFunction;
 import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 
 @AllArgsConstructor
-public class MongoContainsFilterOperation
-    implements BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>> {
-  private static final MongoSelectTypeExpressionParser identifierParser =
-      new MongoIdentifierExpressionParser();
-  // Only a constant RHS is supported as of now
-  private static final MongoSelectTypeExpressionParser rhsParser =
-      new MongoConstantExpressionParser();
+class MongoContainsFilterOperation implements RelationalFilterOperation {
+  private final MongoSelectTypeExpressionParser lhsParser;
+  private final MongoSelectTypeExpressionParser rhsParser;
 
   @Override
   public Map<String, Object> apply(final SelectTypeExpression lhs, final SelectTypeExpression rhs) {
-    final String parsedLhs = lhs.accept(identifierParser);
+    final String parsedLhs = lhs.accept(lhsParser);
     final Object parsedRhs = rhs.accept(rhsParser);
     return Map.of(parsedLhs, buildElemMatch(parsedRhs));
   }
