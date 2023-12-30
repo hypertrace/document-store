@@ -12,14 +12,16 @@ public class MongoPaginationHelper {
   private static final String LIMIT_CLAUSE = "$limit";
 
   static BasicDBObject getSkipClause(final Query query) {
-    Optional<Pagination> paginationOptional = query.getPagination();
+    Optional<Pagination> paginationOptional =
+        query.getPagination().filter(pagination -> pagination.getOffset() > 0);
     return paginationOptional
         .map(pagination -> new BasicDBObject(SKIP_CLAUSE, pagination.getOffset()))
         .orElse(new BasicDBObject());
   }
 
   static BasicDBObject getLimitClause(final Query query) {
-    Optional<Pagination> paginationOptional = query.getPagination();
+    Optional<Pagination> paginationOptional =
+        query.getPagination().filter(pagination -> pagination.getLimit() > 0);
     return paginationOptional
         .map(pagination -> new BasicDBObject(LIMIT_CLAUSE, pagination.getLimit()))
         .orElse(new BasicDBObject());

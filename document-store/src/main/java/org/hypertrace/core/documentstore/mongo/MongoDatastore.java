@@ -11,6 +11,7 @@ import com.mongodb.client.MongoDatabase;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
@@ -22,6 +23,7 @@ import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfi
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@Slf4j
 public class MongoDatastore implements Datastore {
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoDatastore.class);
 
@@ -89,6 +91,15 @@ public class MongoDatastore implements Datastore {
   @Override
   public DocStoreMetricProvider getDocStoreMetricProvider() {
     return docStoreMetricProvider;
+  }
+
+  @Override
+  public void close() {
+    try {
+      client.close();
+    } catch (final Exception e) {
+      log.warn("Unable to close MongoDB connection", e);
+    }
   }
 
   @VisibleForTesting

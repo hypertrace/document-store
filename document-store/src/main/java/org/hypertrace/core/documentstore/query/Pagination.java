@@ -17,6 +17,10 @@ public class Pagination {
     public Pagination build() {
       Preconditions.checkArgument(limit != null, "limit is null");
       Preconditions.checkArgument(offset != null, "offset is null");
+
+      Preconditions.checkArgument(limit >= 0, "limit must be non-negative");
+      Preconditions.checkArgument(offset >= 0, "offset must be non-negative");
+
       return new Pagination(limit, offset);
     }
   }

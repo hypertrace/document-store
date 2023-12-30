@@ -10,6 +10,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisitor {
+
   private static final String QUERY_FMT = "With \n%s\n%s\n";
 
   private static final String TABLE0_QUERY_FMT = "table0 as (SELECT * from %s),";
@@ -76,6 +77,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
     }
 
     String table0Query = prepareTable0Query(postgresQueryParser);
+
     postgresQueryParser.setFinalTableName("table" + postgresQueryParser.getPgColumnNames().size());
     return Optional.of(String.format(QUERY_FMT, table0Query, childList));
   }
@@ -86,7 +88,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
 
     return whereFilter.isPresent()
         ? String.format(
-            TABLE0_QUERY_FMT_WHERE, postgresQueryParser.getCollection(), whereFilter.get())
-        : String.format(TABLE0_QUERY_FMT, postgresQueryParser.getCollection());
+            TABLE0_QUERY_FMT_WHERE, postgresQueryParser.getTableIdentifier(), whereFilter.get())
+        : String.format(TABLE0_QUERY_FMT, postgresQueryParser.getTableIdentifier());
   }
 }

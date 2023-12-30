@@ -2,14 +2,27 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Map.entry;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Map;
 import java.util.Properties;
+import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.config.DatabaseType;
+import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -20,6 +33,7 @@ import org.postgresql.PGProperty;
 
 @ExtendWith(MockitoExtension.class)
 class PostgresDatastoreTest {
+
   @Mock private Connection mockConnection;
 
   @Test
@@ -52,6 +66,63 @@ class PostgresDatastoreTest {
                       "jdbc:postgresql://localhost:5432/inputDB", properties))
           .thenReturn(mockConnection);
       assertEquals(mockConnection, datastore.getPostgresClient());
+    }
+  }
+
+  @Test
+  void testCreateExplicitSchemaTable() throws SQLException {
+    try (final MockedStatic<DriverManager> driverManager =
+        Mockito.mockStatic(DriverManager.class)) {
+      driverManager
+          .when(() -> DriverManager.getConnection(any(), any()))
+          .thenReturn(mockConnection);
+      Datastore datastore =
+          DatastoreProvider.getDatastore(
+              DatastoreConfig.builder()
+                  .type(DatabaseType.POSTGRES)
+                  .connectionConfig(
+                      ConnectionConfig.builder()
+                          .type(DatabaseType.POSTGRES)
+                          .database("inputDB")
+                          .build())
+                  .build());
+      DatabaseMetaData mockMetadata = mock(DatabaseMetaData.class);
+      PreparedStatement mockPreparedStatement = mock(PreparedStatement.class);
+      when(mockMetadata.getTables(any(), any(), any(), any())).thenReturn(mock(ResultSet.class));
+      when(mockConnection.getMetaData()).thenReturn(mockMetadata);
+      when(mockConnection.prepareStatement(any())).thenReturn(mockPreparedStatement);
+      datastore.getCollection("testSchema.testTable");
+
+      verify(mockConnection, times(1)).prepareStatement("CREATE SCHEMA IF NOT EXISTS testSchema;");
+      verify(mockConnection, times(1))
+          .prepareStatement(
+              "CREATE TABLE testSchema.\"testTable\" (id TEXT PRIMARY KEY,document jsonb NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());");
+    }
+  }
+
+  @Test
+  void testDeleteExplicitSchemaTable() throws SQLException {
+    try (final MockedStatic<DriverManager> driverManager =
+        Mockito.mockStatic(DriverManager.class)) {
+      driverManager
+          .when(() -> DriverManager.getConnection(any(), any()))
+          .thenReturn(mockConnection);
+      Datastore datastore =
+          DatastoreProvider.getDatastore(
+              DatastoreConfig.builder()
+                  .type(DatabaseType.POSTGRES)
+                  .connectionConfig(
+                      ConnectionConfig.builder()
+                          .type(DatabaseType.POSTGRES)
+                          .database("inputDB")
+                          .build())
+                  .build());
+      PreparedStatement mockPreparedStatement = mock(PreparedStatement.class);
+      when(mockConnection.prepareStatement(any())).thenReturn(mockPreparedStatement);
+      datastore.deleteCollection("testSchema.testTable");
+
+      verify(mockConnection, times(1))
+          .prepareStatement("DROP TABLE IF EXISTS testSchema.\"testTable\"");
     }
   }
 }

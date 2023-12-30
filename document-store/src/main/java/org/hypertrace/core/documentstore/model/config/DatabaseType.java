@@ -3,8 +3,12 @@ package org.hypertrace.core.documentstore.model.config;
 import java.util.Arrays;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 import lombok.experimental.FieldDefaults;
 
+@Getter
+@Accessors(fluent = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @FieldDefaults(makeFinal = true, level = AccessLevel.PRIVATE)
 public enum DatabaseType {

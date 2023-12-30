@@ -33,6 +33,7 @@ import org.hypertrace.core.documentstore.query.Query;
 
 @RequiredArgsConstructor
 public class PostgresQueryBuilder {
+
   private static final Map<UpdateOperator, PostgresUpdateOperationParser> UPDATE_PARSER_MAP =
       Map.ofEntries(
           entry(SET, new PostgresSetValueParser()),
@@ -42,17 +43,17 @@ public class PostgresQueryBuilder {
           entry(ADD_TO_LIST_IF_ABSENT, new PostgresAddToListIfAbsentParser()),
           entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
 
-  @Getter private final String collectionName;
+  @Getter private final PostgresTableIdentifier tableIdentifier;
 
   public String getSubDocUpdateQuery(
       final Query query,
       final Collection<SubDocumentUpdate> updates,
       final Params.Builder paramBuilder) {
-    final PostgresQueryParser baseQueryParser = new PostgresQueryParser(collectionName, query);
+    final PostgresQueryParser baseQueryParser = new PostgresQueryParser(tableIdentifier, query);
     String selectQuery =
         String.format(
             "(SELECT %s, %s FROM %s AS t0 %s)",
-            ID, DOCUMENT, collectionName, baseQueryParser.buildFilterClause());
+            ID, DOCUMENT, getTableIdentifier(), baseQueryParser.buildFilterClause());
 
     final Stack<Params.Builder> paramsStack = new Stack<>();
     paramsStack.push(baseQueryParser.getParamsBuilder());
@@ -86,7 +87,7 @@ public class PostgresQueryBuilder {
             + "SET %s=concatenated.%s "
             + "FROM concatenated "
             + "WHERE %s.%s=concatenated.%s",
-        selectQuery, collectionName, DOCUMENT, DOCUMENT, collectionName, ID, ID);
+        selectQuery, getTableIdentifier(), DOCUMENT, DOCUMENT, getTableIdentifier(), ID, ID);
   }
 
   private String getNewDocumentQuery(

@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Map.entry;
 import static java.util.Spliterators.spliteratorUnknownSize;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toUnmodifiableList;
@@ -81,6 +83,7 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
@@ -822,6 +825,53 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
+  void testAggregateWithNestedArraysAndUnnestFilters(final String dataStoreName)
+      throws IOException {
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    final Collection collection = datastore.getCollection(COLLECTION_NAME);
+    final FilterTypeExpression filter =
+        LogicalExpression.builder()
+            .operator(AND)
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("sales.medium.type"),
+                    EQ,
+                    ConstantExpression.of("distributionChannel")))
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), LT, ConstantExpression.of(20)))
+            .build();
+    final Query query =
+        Query.builder()
+            .setSelections(
+                List.of(
+                    SelectionSpec.of(IdentifierExpression.of("item")),
+                    SelectionSpec.of(IdentifierExpression.of("sales.city")),
+                    SelectionSpec.of(IdentifierExpression.of("price")),
+                    SelectionSpec.of(IdentifierExpression.of("sales.medium.type")),
+                    SelectionSpec.of(IdentifierExpression.of("sales.medium.volume"))))
+            .setFilter(filter)
+            .addFromClauses(
+                List.of(
+                    UnnestExpression.builder()
+                        .preserveNullAndEmptyArrays(false)
+                        .identifierExpression(IdentifierExpression.of("sales"))
+                        .filterTypeExpression(filter)
+                        .build(),
+                    UnnestExpression.builder()
+                        .preserveNullAndEmptyArrays(false)
+                        .identifierExpression(IdentifierExpression.of("sales.medium"))
+                        .filterTypeExpression(filter)
+                        .build()))
+            .build();
+
+    final Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsAndSizeEqual(
+        dataStoreName, resultDocs, "query/test_aggr_nested_arrays_and_unnest_filters.json", 4);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
   public void testFindWithFunctionalLeftHandSideFilter(final String dataStoreName)
       throws IOException {
     final Datastore datastore = datastoreMap.get(dataStoreName);
@@ -1197,6 +1247,51 @@ public class DocStoreQueryV1Test {
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, "query/distinct_count_response.json", 4);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testQueryV1AggregationWithInFilterWithPrimitiveLhs(final String dataStoreName)
+      throws IOException {
+    final Collection collection = getCollection(dataStoreName);
+    final Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Comb", "Shampoo"))))
+            .build();
+
+    final Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/test_primitive_lhs_in_filter_aggr_response.json", 4);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testQueryV1AggregationWithInFilterWithArrayLhs(final String dataStoreName)
+      throws IOException {
+    final Collection collection = getCollection(dataStoreName);
+    final Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props.colors"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Orange"))))
+            .build();
+
+    final Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName,
+        resultDocs,
+        "query/test_json_column_array_lhs_in_filter_aggr_response.json",
+        1);
   }
 
   @ParameterizedTest
@@ -1984,6 +2079,17 @@ public class DocStoreQueryV1Test {
     }
   }
 
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testAggregateWithZeroLimitAndOffset(final String datastoreName) throws IOException {
+    final Collection collection = getCollection(datastoreName);
+
+    final Iterator<Document> resultDocs =
+        collection.aggregate(
+            Query.builder().setPagination(Pagination.builder().limit(0).offset(0).build()).build());
+    assertDocsAndSizeEqual(datastoreName, resultDocs, "query/empty_response.json", 0);
+  }
+
   @Nested
   class AtomicUpdateTest {
     @ParameterizedTest
@@ -2276,6 +2382,33 @@ public class DocStoreQueryV1Test {
   class UpdateOperatorTest {
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
+    void testUpdateSetEmptyObject(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate set =
+          SubDocumentUpdate.builder()
+              .subDocument("props.new_property.with.empty.object")
+              .operator(SET)
+              .subDocumentValue(
+                  SubDocumentValue.of(
+                      new JSONDocument(
+                          Map.ofEntries(
+                              entry("hello", "world"), entry("emptyObject", emptyMap())))))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(set);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName, iterator, "query/update_operator/updated3.json", 9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
     void testUpdateWithAllOperators(final String datastoreName) throws IOException {
       final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
       createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
@@ -2543,7 +2676,53 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
-    void testRemoveAllOccurrancesFromIntegerList(final String datastoreName) throws IOException {
+    void testRemoveFromSingletonList(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final SubDocumentUpdate set =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.habitable_planets")
+              .operator(SET)
+              .subDocumentValue(SubDocumentValue.of(new String[] {"Earth"}))
+              .build();
+
+      final Query query = Query.builder().build();
+      final List<SubDocumentUpdate> updates = List.of(set);
+
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          iterator,
+          "query/update_operator/updated_set_string_array_with_singleton_element.json",
+          9);
+
+      final SubDocumentUpdate remove =
+          SubDocumentUpdate.builder()
+              .subDocument("props.added.habitable_planets")
+              .operator(REMOVE_ALL_FROM_LIST)
+              .subDocumentValue(SubDocumentValue.of(new String[] {"Earth"}))
+              .build();
+
+      final List<SubDocumentUpdate> newUpdates = List.of(remove);
+
+      final CloseableIterator<Document> newIterator =
+          collection.bulkUpdate(
+              query, newUpdates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+
+      assertDocsAndSizeEqualWithoutOrder(
+          datastoreName,
+          newIterator,
+          "query/update_operator/updated_remove_from_string_array_with_singleton_element.json",
+          9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testRemoveAllOccurrencesFromIntegerList(final String datastoreName) throws IOException {
       final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
       createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
@@ -2559,9 +2738,8 @@ public class DocStoreQueryV1Test {
       final Query query = Query.builder().build();
       final List<SubDocumentUpdate> updates = List.of(set, unset);
 
-      final CloseableIterator<Document> iterator =
-          collection.bulkUpdate(
-              query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
+      collection.bulkUpdate(
+          query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
 
       final SubDocumentUpdate remove =
           SubDocumentUpdate.builder()

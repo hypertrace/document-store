@@ -29,7 +29,7 @@ class MongoConnectionConfigTest {
                     builder
                         .maxConnecting(16)
                         .maxWaitTime(10, TimeUnit.SECONDS)
-                        .maxConnectionIdleTime(60, TimeUnit.SECONDS))
+                        .maxConnectionIdleTime(5, TimeUnit.MINUTES))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
@@ -126,7 +126,7 @@ class MongoConnectionConfigTest {
                     builder
                         .maxConnecting(16)
                         .maxWaitTime(10, TimeUnit.SECONDS)
-                        .maxConnectionIdleTime(60, TimeUnit.SECONDS))
+                        .maxConnectionIdleTime(5, TimeUnit.MINUTES))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
@@ -161,7 +161,7 @@ class MongoConnectionConfigTest {
                     builder
                         .maxConnecting(16)
                         .maxWaitTime(10, TimeUnit.SECONDS)
-                        .maxConnectionIdleTime(60, TimeUnit.SECONDS))
+                        .maxConnectionIdleTime(5, TimeUnit.MINUTES))
             .build();
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();

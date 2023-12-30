@@ -352,6 +352,25 @@ public class PostgresUtils {
     return filterString.toString();
   }
 
+  private static StringBuilder prepareFilterStringForInOperator(
+      final String parsedExpression, final Iterable<Object> values, final Builder paramsBuilder) {
+    final StringBuilder filterStringBuilder = new StringBuilder();
+    filterStringBuilder.append("(");
+    final String collect =
+        StreamSupport.stream(values.spliterator(), false)
+            .map(
+                val -> {
+                  paramsBuilder.addObjectParam(val).addObjectParam(val);
+                  return String.format(
+                      "((jsonb_typeof(to_jsonb(%s)) = 'array' AND to_jsonb(%s) @> jsonb_build_array(?)) OR (jsonb_build_array(%s) @> jsonb_build_array(?)))",
+                      parsedExpression, parsedExpression, parsedExpression);
+                })
+            .collect(Collectors.joining(" OR "));
+    filterStringBuilder.append(collect);
+    filterStringBuilder.append(")");
+    return filterStringBuilder;
+  }
+
   private static Object prepareJsonValueForContainsOp(final Object value) {
     if (value instanceof Document) {
       try {
@@ -431,17 +450,31 @@ public class PostgresUtils {
         break;
       case "NOT_IN":
       case "NOT IN":
-        // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        // In order to make the behaviour same as for Mongo, the "NOT_IN" operator would match only
+        // if
+        // the LHS and RHS have no intersection at all
+        // NOTE: This doesn't work in case the LHS is a function
         sqlOperator = " NOT IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
-        break;
+        filterString
+            .append(" IS NULL OR")
+            .append(" NOT (")
+            .append(
+                prepareFilterStringForInOperator(
+                    preparedExpression, (Iterable<Object>) value, paramsBuilder))
+            .append(")");
+        return filterString.toString();
       case "IN":
+        // In order to make the behaviour same as for Mongo, the "INI" operator would match if the
+        // LHS and RHS have any intersection (i.e. non-empty intersection)
         // NOTE: Pl. refer this in non-parsed expression for limitation of this filter
+        // NOTE: This doesn't work in case the LHS is a function
         sqlOperator = " IN ";
         isMultiValued = true;
-        value = prepareParameterizedStringForList((Iterable<Object>) value, paramsBuilder);
-        break;
+        filterString =
+            prepareFilterStringForInOperator(
+                preparedExpression, (Iterable<Object>) value, paramsBuilder);
+        return filterString.toString();
       case "NOT_EXISTS":
       case "NOT EXISTS":
         sqlOperator = " IS NULL ";
@@ -570,5 +603,8 @@ public class PostgresUtils {
                 log.error("SQLException setting Param. key: {}, value: {}", k, v);
               }
             });
+    if (log.isDebugEnabled()) {
+      log.debug("Executing statement - preparedStatement: {}", preparedStatement);
+    }
   }
 }

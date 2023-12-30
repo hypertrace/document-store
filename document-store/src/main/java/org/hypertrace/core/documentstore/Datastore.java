@@ -17,4 +17,6 @@ public interface Datastore {
 
   @SuppressWarnings("unused")
   DocStoreMetricProvider getDocStoreMetricProvider();
+
+  void close();
 }

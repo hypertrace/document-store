@@ -10,6 +10,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.PostgresTableIdentifier;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumnTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresAggregationFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
@@ -22,9 +23,10 @@ import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 
 public class PostgresQueryParser {
+
   private static final String ALL_SELECTIONS = "*";
 
-  @Getter private final String collection;
+  @Getter private final PostgresTableIdentifier tableIdentifier;
   @Getter private final Query query;
 
   @Setter String finalTableName;
@@ -42,10 +44,10 @@ public class PostgresQueryParser {
   @Getter private final Map<String, String> pgColumnNames = new HashMap<>();
   @Getter private final FieldToPgColumnTransformer toPgColumnTransformer;
 
-  public PostgresQueryParser(String collection, Query query) {
-    this.collection = collection;
+  public PostgresQueryParser(PostgresTableIdentifier tableIdentifier, Query query) {
+    this.tableIdentifier = tableIdentifier;
     this.query = query;
-    this.finalTableName = collection;
+    this.finalTableName = tableIdentifier.toString();
     toPgColumnTransformer = new FieldToPgColumnTransformer(this);
   }
 
@@ -94,7 +96,7 @@ public class PostgresQueryParser {
 
     final StringBuilder queryBuilder = new StringBuilder();
     queryBuilder.append("SELECT ").append(selections);
-    queryBuilder.append(" FROM ").append(collection);
+    queryBuilder.append(" FROM ").append(tableIdentifier);
     optionalFilter.ifPresent(filter -> queryBuilder.append(" WHERE ").append(filter));
     optionalOrderBy.ifPresent(orderBy -> queryBuilder.append(" ORDER BY ").append(orderBy));
     queryBuilder.append(" LIMIT 1");

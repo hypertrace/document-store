@@ -118,6 +118,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
       case NOT_CONTAINS:
       case EXISTS:
       case NOT_EXISTS:
+      case IN:
+      case NOT_IN:
         return true;
       default:
         return false;

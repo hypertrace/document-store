@@ -1,0 +1,18 @@
+[
+  {
+    "item":"Comb",
+    "quantity": 10
+  },
+  {
+    "item":"Comb",
+    "quantity": 5
+  },
+  {
+    "item":"Shampoo",
+    "quantity": 20
+  },
+  {
+    "item":"Shampoo",
+    "quantity": 10
+  }
+]

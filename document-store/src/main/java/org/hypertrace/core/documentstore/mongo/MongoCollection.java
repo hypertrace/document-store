@@ -6,6 +6,7 @@ import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_U
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.dbObjectToDocument;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonStringWrappingEmptyObjectsInLiteral;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.PROJECT_CLAUSE;
 import static org.hypertrace.core.documentstore.mongo.update.parser.MongoSetOperationParser.SET_CLAUSE;
 
@@ -307,7 +308,8 @@ public class MongoCollection implements Collection {
                 new BasicDBObject(
                     IF_NULL_CLAUSE,
                     new BsonValue[] {new BsonString(PREFIX + CREATED_TIME), new BsonInt64(now)})));
-    final BasicDBObject set = new BasicDBObject(SET_CLAUSE, prepareDocument(key, document, now));
+    final BasicDBObject set =
+        new BasicDBObject(SET_CLAUSE, prepareDocumentWithLiteralWrapping(key, document, now));
 
     return List.of(project, set);
   }
@@ -330,6 +332,14 @@ public class MongoCollection implements Collection {
   private BasicDBObject prepareDocument(Key key, Document document, long now)
       throws JsonProcessingException {
     BasicDBObject basicDBObject = getSanitizedBasicDBObject(document);
+    basicDBObject.put(ID_KEY, key.toString());
+    basicDBObject.put(LAST_UPDATED_TIME, now);
+    return basicDBObject;
+  }
+
+  private BasicDBObject prepareDocumentWithLiteralWrapping(Key key, Document document, long now)
+      throws JsonProcessingException {
+    BasicDBObject basicDBObject = getSanitizedBasicDBObjectWithLiteralWrapping(document);
     basicDBObject.put(ID_KEY, key.toString());
     basicDBObject.put(LAST_UPDATED_TIME, now);
     return basicDBObject;
@@ -432,11 +442,7 @@ public class MongoCollection implements Collection {
   private BasicDBObject getSubDocumentUpdateObject(
       final String subDocPath, final Document subDocument) {
     try {
-      /* Wrapping the subDocument with $literal to be able to provide empty object "{}" as value
-       *  Throws error otherwise if empty object is provided as value.
-       *  https://jira.mongodb.org/browse/SERVER-54046 */
-      BasicDBObject literalObject =
-          new BasicDBObject("$literal", getSanitizedBasicDBObject(subDocument));
+      BasicDBObject literalObject = getSanitizedBasicDBObjectWithLiteralWrapping(subDocument);
       BasicDBObject dbObject = new BasicDBObject(subDocPath, literalObject);
       dbObject.append(LAST_UPDATED_TIME, System.currentTimeMillis());
       return new BasicDBObject("$set", dbObject);
@@ -471,6 +477,13 @@ public class MongoCollection implements Collection {
       throws JsonProcessingException {
     String jsonString = document.toJson();
     final String sanitizedJsonString = sanitizeJsonString(jsonString);
+    return BasicDBObject.parse(sanitizedJsonString);
+  }
+
+  private BasicDBObject getSanitizedBasicDBObjectWithLiteralWrapping(Document document)
+      throws JsonProcessingException {
+    String jsonString = document.toJson();
+    final String sanitizedJsonString = sanitizeJsonStringWrappingEmptyObjectsInLiteral(jsonString);
     return BasicDBObject.parse(sanitizedJsonString);
   }
 
