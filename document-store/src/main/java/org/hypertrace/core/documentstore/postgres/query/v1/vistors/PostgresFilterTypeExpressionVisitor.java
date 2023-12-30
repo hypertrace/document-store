@@ -12,7 +12,8 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.Key;
-import org.hypertrace.core.documentstore.expression.impl.ArrayFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -86,7 +87,13 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
 
   @SuppressWarnings("unchecked")
   @Override
-  public String visit(final ArrayFilterExpression expression) {
+  public String visit(final ArrayRelationalFilterExpression expression) {
+    throw new UnsupportedOperationException();
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public String visit(final DocumentArrayFilterExpression expression) {
     throw new UnsupportedOperationException();
   }
 

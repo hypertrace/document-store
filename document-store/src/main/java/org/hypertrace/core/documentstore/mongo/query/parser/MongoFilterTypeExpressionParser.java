@@ -7,7 +7,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
 import org.hypertrace.core.documentstore.Key;
-import org.hypertrace.core.documentstore.expression.impl.ArrayFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -43,7 +44,13 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
 
   @SuppressWarnings("unchecked")
   @Override
-  public Map<String, Object> visit(final ArrayFilterExpression expression) {
+  public Map<String, Object> visit(final ArrayRelationalFilterExpression expression) {
+    throw new UnsupportedOperationException();
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(final DocumentArrayFilterExpression expression) {
     throw new UnsupportedOperationException();
   }
 

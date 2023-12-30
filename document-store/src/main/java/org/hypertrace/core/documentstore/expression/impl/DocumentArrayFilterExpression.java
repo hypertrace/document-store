@@ -11,35 +11,35 @@ import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
 /**
- * Expression representing a condition for filtering on array fields
+ * Expression representing a condition for filtering on document array fields
  *
- * <p>Example: If product is an array field (containing objects)<code>
- * ANY(product).color IN ('Blue', 'Green')
+ * <p>Example: If product is an array field (containing documents)<code>
+ * ANY(product) [color IN ('Blue', 'Green') AND color != 'Black' AND name = 'Comb']
  * </code> can be constructed as <code>
  *   ArrayFilterExpression.builder()
  *    .arrayOperator(ANY)
  *    .arraySource(IdentifierExpression.of("product"))
- *    .lhs(IdentifierExpression.of("color"))
- *    .operator(IN)
- *    .rhs(ConstantExpression.ofStrings("Blue", "Green"))
+ *    .filter(
+ *      LogicalExpression.and(
+ *        RelationalExpression.of(
+ *          IdentifierExpression.of("color"),
+ *          IN,
+ *          ConstantExpression.ofStrings("Blue", "Green")),
+ *        RelationalExpression.of(
+ *          IdentifierExpression.of("color"),
+ *          NEQ,
+ *          ConstantExpression.of("Black")),
+ *        RelationalExpression.of(
+ *          IdentifierExpression.of("name"),
+ *          EQ,
+ *          ConstantExpression.of("Comb"))
+ *      )
  *    .build();
- * </code> Note: The lhs is optional and can be dropped for primitive arrays
- *
- * <p>Example: If color is an array field <code>
- * ANY(color) IN ('Blue', 'Green')
- * </code> can be constructed as <code>
- *   ArrayFilterExpression.builder()
- *    .arrayOperator(ANY)
- *    .arraySource(IdentifierExpression.of("color"))
- *    .operator(IN)
- *    .rhs(ConstantExpression.ofStrings("Blue", "Green"))
- *    .build();
- * </code>
  */
 @Value
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ArrayFilterExpression implements FilterTypeExpression {
+public class DocumentArrayFilterExpression implements FilterTypeExpression {
   ArrayOperator arrayOperator;
 
   SelectTypeExpression arraySource;
@@ -47,12 +47,12 @@ public class ArrayFilterExpression implements FilterTypeExpression {
   FilterTypeExpression filter;
 
   @SuppressWarnings("unused")
-  public static class ArrayFilterExpressionBuilder {
-    public ArrayFilterExpression build() {
+  public static class DocumentArrayFilterExpressionBuilder {
+    public DocumentArrayFilterExpression build() {
       Preconditions.checkArgument(arrayOperator != null, "array operator is null");
       Preconditions.checkArgument(arraySource != null, "array source is null");
       Preconditions.checkArgument(filter != null, "filter is null");
-      return new ArrayFilterExpression(arrayOperator, arraySource, filter);
+      return new DocumentArrayFilterExpression(arrayOperator, arraySource, filter);
     }
   }
 
@@ -63,6 +63,6 @@ public class ArrayFilterExpression implements FilterTypeExpression {
 
   @Override
   public String toString() {
-    return String.format("%s(%s).%s", arrayOperator, arraySource, filter);
+    return String.format("%s(%s) [%s]", arrayOperator, arraySource, filter);
   }
 }

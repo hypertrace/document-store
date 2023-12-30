@@ -9,15 +9,15 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
-import org.hypertrace.core.documentstore.expression.impl.RootExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
@@ -211,11 +211,6 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     public List<String> visit(IdentifierExpression expression) {
       return List.of(expression.getName());
     }
-
-    @Override
-    public List<String> visit(final RootExpression expression) {
-      throw new UnsupportedOperationException();
-    }
   }
 
   @SuppressWarnings("unchecked")
@@ -245,7 +240,12 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     }
 
     @Override
-    public List<FilterTypeExpression> visit(final ArrayFilterExpression expression) {
+    public List<FilterTypeExpression> visit(final ArrayRelationalFilterExpression expression) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<FilterTypeExpression> visit(final DocumentArrayFilterExpression expression) {
       throw new UnsupportedOperationException();
     }
   }
@@ -284,9 +284,14 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
       return false;
     }
 
+    @Override
+    public Boolean visit(final ArrayRelationalFilterExpression expression) {
+      throw new UnsupportedOperationException();
+    }
+
     @SuppressWarnings("unchecked")
     @Override
-    public Boolean visit(final ArrayFilterExpression expression) {
+    public Boolean visit(final DocumentArrayFilterExpression expression) {
       throw new UnsupportedOperationException();
     }
   }

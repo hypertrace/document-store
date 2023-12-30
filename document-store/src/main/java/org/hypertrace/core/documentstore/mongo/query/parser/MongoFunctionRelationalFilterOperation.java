@@ -9,13 +9,13 @@ import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 
 @AllArgsConstructor
-public class MongoRelationalExprFilterOperation
+public class MongoFunctionRelationalFilterOperation
     implements BiFunction<SelectTypeExpression, SelectTypeExpression, Map<String, Object>> {
   private static final String EXPR = "$expr";
 
   private static final MongoSelectTypeExpressionParser lhsParser =
-      new MongoFunctionExpressionParser(
-          new MongoIdentifierPrefixingParser(new MongoIdentifierExpressionParser()));
+      new MongoFunctionExpressionParser();
+
   // Only a constant RHS is supported as of now
   private static final MongoSelectTypeExpressionParser rhsParser =
       new MongoConstantExpressionParser();
@@ -23,8 +23,14 @@ public class MongoRelationalExprFilterOperation
 
   @Override
   public Map<String, Object> apply(final SelectTypeExpression lhs, final SelectTypeExpression rhs) {
-    final Object parsedLhs = lhs.accept(lhsParser);
-    final Object parsedRhs = rhs.accept(rhsParser);
-    return Map.of(EXPR, new BasicDBObject(PREFIX + operator, new Object[] {parsedLhs, parsedRhs}));
+    try {
+      final Object parsedLhs = lhs.accept(lhsParser);
+      final Object parsedRhs = rhs.accept(rhsParser);
+      return Map.of(
+          EXPR, new BasicDBObject(PREFIX + operator, new Object[] {parsedLhs, parsedRhs}));
+    } catch (final UnsupportedOperationException e) {
+      // Fallback if the LHS was not a function
+      return new MongoRelationalFilterOperation(operator).apply(lhs, rhs);
+    }
   }
 }

@@ -34,12 +34,12 @@ final class MongoRelationalExpressionParser {
           unmodifiableMap(
               new EnumMap<>(RelationalOperator.class) {
                 {
-                  put(EQ, new MongoRelationalExprFilterOperation("eq"));
-                  put(NEQ, new MongoRelationalExprFilterOperation("ne"));
-                  put(GT, new MongoRelationalExprFilterOperation("gt"));
-                  put(LT, new MongoRelationalExprFilterOperation("lt"));
-                  put(GTE, new MongoRelationalExprFilterOperation("gte"));
-                  put(LTE, new MongoRelationalExprFilterOperation("lte"));
+                  put(EQ, new MongoFunctionRelationalFilterOperation("eq"));
+                  put(NEQ, new MongoFunctionRelationalFilterOperation("ne"));
+                  put(GT, new MongoFunctionRelationalFilterOperation("gt"));
+                  put(LT, new MongoFunctionRelationalFilterOperation("lt"));
+                  put(GTE, new MongoFunctionRelationalFilterOperation("gte"));
+                  put(LTE, new MongoFunctionRelationalFilterOperation("lte"));
                   put(IN, new MongoRelationalFilterOperation("in"));
                   put(NOT_IN, new MongoRelationalFilterOperation("nin"));
                   put(CONTAINS, new MongoContainsFilterOperation());
