@@ -58,7 +58,7 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @Override
   public Map<String, Object> visit(final ArrayRelationalFilterExpression expression) {
     return new MongoArrayFilterParser(
-            relationalFilterContext, new MongoArrayRelationalFilterParserWrapper())
+            relationalFilterContext, new MongoArrayRelationalFilterParserGetter())
         .parse(expression);
   }
 
@@ -66,7 +66,7 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @Override
   public Map<String, Object> visit(final DocumentArrayFilterExpression expression) {
     return new MongoArrayFilterParser(
-            relationalFilterContext, new MongoDocumentArrayFilterParserWrapper())
+            relationalFilterContext, new MongoDocumentArrayFilterParserGetter())
         .parse(expression);
   }
 
