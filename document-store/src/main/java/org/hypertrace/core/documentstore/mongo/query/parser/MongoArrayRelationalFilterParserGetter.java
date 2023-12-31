@@ -1,6 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.query.parser;
 
-public class MongoArrayRelationalFilterParserWrapper implements MongoArrayFilterParserGetter {
+public class MongoArrayRelationalFilterParserGetter implements MongoArrayFilterParserGetter {
 
   @Override
   public MongoSelectTypeExpressionParser getParser(final String arraySource, final String alias) {
