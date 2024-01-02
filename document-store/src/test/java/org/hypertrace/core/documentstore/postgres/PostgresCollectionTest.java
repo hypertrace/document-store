@@ -338,6 +338,7 @@ class PostgresCollectionTest {
     when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(false);
+    when(mockResultSet.isClosed()).thenReturn(false, true);
 
     final Optional<Document> oldDocument =
         postgresCollection.update(
@@ -492,6 +493,7 @@ class PostgresCollectionTest {
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(true).thenReturn(false);
     when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    when(mockResultSet.isClosed()).thenReturn(false, true);
     when(mockResultSetMetaData.getColumnCount()).thenReturn(4);
     mockResultSetMetadata();
 
@@ -660,6 +662,7 @@ class PostgresCollectionTest {
     when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(false);
+    when(mockResultSet.isClosed()).thenReturn(false, true);
 
     final String updateQuery =
         String.format(

@@ -731,7 +731,15 @@ public class MongoCollection implements Collection {
 
     @Override
     public boolean hasNext() {
-      boolean hasNext = !closed && cursor.hasNext();
+      boolean hasNext;
+
+      try {
+        hasNext = !closed && cursor.hasNext();
+      } catch (final Exception e) {
+        close();
+        throw e;
+      }
+
       if (!hasNext) {
         close();
       }
