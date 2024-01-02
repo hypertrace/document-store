@@ -59,7 +59,10 @@ public class MongoConnectionConfig extends ConnectionConfig {
 
   public MongoClientSettings toSettings() {
     final MongoClientSettings.Builder settingsBuilder =
-        MongoClientSettings.builder().applicationName(applicationName()).retryWrites(true);
+        MongoClientSettings.builder()
+            .applicationName(applicationName())
+            .retryWrites(true)
+            .retryReads(true);
 
     applyClusterSettings(settingsBuilder);
     applyConnectionPoolSettings(settingsBuilder);
