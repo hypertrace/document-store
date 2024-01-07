@@ -5,7 +5,7 @@ org-mockito = "5.2.0"
 org-testcontainers = "1.17.6"
 
 [libraries]
-com-fasterxml-jackson-core-jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version = "2.15.1" }
+com-fasterxml-jackson-core-jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version = "2.16.1" }
 com-github-java-json-tools-json-patch = { module = "com.github.java-json-tools:json-patch", version = "1.13" }
 com-google-guava = { module = "com.google.guava:guava", version = "32.0.1-jre" }
 com-typesafe-config = { module = "com.typesafe:config", version = "1.4.2" }

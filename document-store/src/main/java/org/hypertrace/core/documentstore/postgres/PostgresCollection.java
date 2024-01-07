@@ -30,6 +30,7 @@ import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.google.common.annotations.VisibleForTesting;
+import com.sun.jdi.InternalException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.sql.BatchUpdateException;
@@ -51,7 +52,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
-import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -1277,9 +1277,15 @@ public class PostgresCollection implements Collection {
           hasNext = resultSet.next();
           cursorMovedForward = true;
         }
+
+        if (!hasNext) {
+          closeResultSet();
+        }
+
         return hasNext;
       } catch (SQLException e) {
         LOGGER.error("SQLException iterating documents.", e);
+        closeResultSet();
       }
       return false;
     }
@@ -1294,6 +1300,7 @@ public class PostgresCollection implements Collection {
         cursorMovedForward = false;
         return prepareDocument();
       } catch (IOException | SQLException e) {
+        closeResultSet();
         return JSONDocument.errorDocument(e.getMessage());
       }
     }
@@ -1314,10 +1321,20 @@ public class PostgresCollection implements Collection {
       return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
     }
 
-    @SneakyThrows
+    protected void closeResultSet() {
+      try {
+        if (resultSet != null && !resultSet.isClosed()) {
+          resultSet.close();
+        }
+      } catch (SQLException ex) {
+        LOGGER.error("Unable to close connection", ex);
+        throw new InternalException(ex.getMessage());
+      }
+    }
+
     @Override
     public void close() {
-      resultSet.close();
+      closeResultSet();
     }
   }
 
