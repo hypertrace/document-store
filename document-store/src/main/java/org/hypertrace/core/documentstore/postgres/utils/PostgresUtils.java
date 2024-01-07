@@ -36,9 +36,9 @@ import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
 
 @Slf4j
 public class PostgresUtils {
+  public static final String JSON_FIELD_ACCESSOR = "->";
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String QUESTION_MARK = "?";
-  private static final String JSON_FIELD_ACCESSOR = "->";
   private static final String JSON_DATA_ACCESSOR = "->>";
   private static final String DOT_STR = "_dot_";
   private static final String DOT = ".";
@@ -545,6 +545,11 @@ public class PostgresUtils {
 
   public static String wrapAliasWithDoubleQuotes(String fieldName) {
     return "\"" + fieldName + "\"";
+  }
+
+  public static String getLastPath(final String fieldName) {
+    final String[] split = fieldName.split(DOC_PATH_SEPARATOR);
+    return split[split.length - 1];
   }
 
   public static String formatSubDocPath(String subDocPath) {

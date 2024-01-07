@@ -158,7 +158,7 @@ class ArrayFiltersQueryTest {
   }
 
   @ParameterizedTest
-  @ArgumentsSource(MongoProvider.class)
+  @ArgumentsSource(PostgresProvider.class)
   void getAllSolarSystemsWithAtLeastOnePlanetHavingBothWaterAndOxygen(final String dataStoreName)
       throws IOException, JSONException {
     final Collection collection = getCollection(dataStoreName);
