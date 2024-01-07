@@ -45,7 +45,7 @@ import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.shaded.com.google.common.collect.Maps;
 import org.testcontainers.utility.DockerImageName;
 
-class ArrayFiltersQueryTest {
+class ArrayFiltersQueryIntegrationTest {
   private static final String COLLECTION_NAME = "galaxy";
 
   private static Map<String, Datastore> datastoreMap;
@@ -123,9 +123,9 @@ class ArrayFiltersQueryTest {
         Utils.buildDocumentsFromResource("query/array_operators/galaxy.json");
     datastoreMap.forEach(
         (k, v) -> {
-          v.deleteCollection(ArrayFiltersQueryTest.COLLECTION_NAME);
-          v.createCollection(ArrayFiltersQueryTest.COLLECTION_NAME, null);
-          Collection collection = v.getCollection(ArrayFiltersQueryTest.COLLECTION_NAME);
+          v.deleteCollection(ArrayFiltersQueryIntegrationTest.COLLECTION_NAME);
+          v.createCollection(ArrayFiltersQueryIntegrationTest.COLLECTION_NAME, null);
+          Collection collection = v.getCollection(ArrayFiltersQueryIntegrationTest.COLLECTION_NAME);
           collection.bulkUpsert(documents);
         });
   }
@@ -143,6 +143,7 @@ class ArrayFiltersQueryTest {
     }
   }
 
+  @SuppressWarnings("unused")
   private static class MongoProvider implements ArgumentsProvider {
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
@@ -150,6 +151,7 @@ class ArrayFiltersQueryTest {
     }
   }
 
+  @SuppressWarnings("unused")
   private static class PostgresProvider implements ArgumentsProvider {
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
@@ -158,9 +160,9 @@ class ArrayFiltersQueryTest {
   }
 
   @ParameterizedTest
-  @ArgumentsSource(PostgresProvider.class)
+  @ArgumentsSource(AllProvider.class)
   void getAllSolarSystemsWithAtLeastOnePlanetHavingBothWaterAndOxygen(final String dataStoreName)
-      throws IOException, JSONException {
+      throws JSONException {
     final Collection collection = getCollection(dataStoreName);
 
     final Query query =
@@ -168,7 +170,6 @@ class ArrayFiltersQueryTest {
             .setFilter(
                 DocumentArrayFilterExpression.builder()
                     .operator(ANY)
-                    // # Can pass in some alias to this?
                     .arraySource(IdentifierExpression.of("additional_info.planets"))
                     .filter(
                         and(
@@ -187,7 +188,11 @@ class ArrayFiltersQueryTest {
                                         IdentifierExpression.of("elements"),
                                         RelationalOperator.EQ,
                                         ConstantExpression.of("Water")))
-                                .build()))
+                                .build(),
+                            RelationalExpression.of(
+                                IdentifierExpression.of("meta.num_moons"),
+                                RelationalOperator.GT,
+                                ConstantExpression.of(0))))
                     .build())
             .build();
 
@@ -209,7 +214,7 @@ class ArrayFiltersQueryTest {
 
   private Collection getCollection(final String dataStoreName) {
     final Datastore datastore = datastoreMap.get(dataStoreName);
-    return datastore.getCollection(ArrayFiltersQueryTest.COLLECTION_NAME);
+    return datastore.getCollection(ArrayFiltersQueryIntegrationTest.COLLECTION_NAME);
   }
 
   private String iteratorToJson(final Iterator<Document> iterator) {

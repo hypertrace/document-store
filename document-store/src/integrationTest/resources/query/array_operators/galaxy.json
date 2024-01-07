@@ -10,7 +10,10 @@
             "Oxygen",
             "Water",
             "Nitrogen"
-          ]
+          ],
+          "meta": {
+            "num_moons": 7
+          }
         },
         {
           "name": "Planet 2",
@@ -18,7 +21,10 @@
             "Oxygen",
             "Helium",
             "Water"
-          ]
+          ],
+          "meta": {
+            "num_moons": 1
+          }
         }
       ]
     }
@@ -61,7 +67,10 @@
             "Hydrogen",
             "Helium",
             "Methane"
-          ]
+          ],
+          "meta": {
+            "num_moons": 10
+          }
         },
         {
           "name": "Planet 8",
@@ -100,7 +109,10 @@
             "Oxygen",
             "Nitrogen",
             "Water"
-          ]
+          ],
+          "meta": {
+            "num_moons": 1
+          }
         },
         {
           "name": "Mars",

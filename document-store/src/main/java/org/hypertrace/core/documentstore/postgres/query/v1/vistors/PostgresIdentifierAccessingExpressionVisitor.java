@@ -28,7 +28,7 @@ public class PostgresIdentifierAccessingExpressionVisitor
     final String[] paths = parsed.split(DOC_PATH_SEPARATOR);
     final StringBuilder builder = new StringBuilder(baseField);
 
-    for (String path : paths) {
+    for (final String path : paths) {
       builder.append(JSON_FIELD_ACCESSOR).append("'").append(path).append("'");
     }
 
