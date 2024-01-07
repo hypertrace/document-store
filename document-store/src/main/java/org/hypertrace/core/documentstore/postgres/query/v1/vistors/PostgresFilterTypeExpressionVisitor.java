@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
+import static java.util.function.UnaryOperator.identity;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
@@ -7,6 +8,7 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareParsedNonCompositeFilter;
 
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
@@ -27,9 +29,15 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.Postgre
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
   protected PostgresQueryParser postgresQueryParser;
+  private final UnaryOperator<PostgresSelectTypeExpressionVisitor> wrappingVisitor;
 
   public PostgresFilterTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
+    this(postgresQueryParser, identity());
+  }
+
+  public PostgresFilterTypeExpressionVisitor(PostgresQueryParser postgresQueryParser, final UnaryOperator<PostgresSelectTypeExpressionVisitor> wrappingVisitor) {
     this.postgresQueryParser = postgresQueryParser;
+    this.wrappingVisitor = wrappingVisitor;
   }
 
   @SuppressWarnings("unchecked")
@@ -52,7 +60,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     final PostgresSelectExpressionParserBuilder parserBuilder =
         new PostgresSelectExpressionParserBuilderImpl();
     final PostgresSelectTypeExpressionVisitor lhsVisitor =
-        parserBuilder.buildFor(expression, postgresQueryParser);
+        wrappingVisitor.apply(parserBuilder.buildFor(expression, postgresQueryParser));
 
     final PostgresRelationalFilterContext context =
         PostgresRelationalFilterContext.builder()
