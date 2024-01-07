@@ -1,0 +1,56 @@
+[
+  {
+    "name": "Solar System 2",
+    "additional_info": {
+      "planets": [
+        {
+          "name": "Planet 1"
+        },
+        {
+          "name": "Planet 2"
+        },
+        {
+          "name": "Planet 3",
+          "elements": [
+            "Oxygen",
+            "Nitrogen"
+          ]
+        },
+        {
+          "name": "Planet 4",
+          "elements": [
+            "Iron"
+          ]
+        },
+        {
+          "name": "Planet 5",
+          "elements": []
+        },
+        {
+          "name": "Planet 6",
+          "elements": []
+        },
+        {
+          "name": "Planet 7",
+          "elements": [
+            "Hydrogen",
+            "Helium",
+            "Methane"
+          ],
+          "meta": {
+            "num_moons": 10
+          }
+        },
+        {
+          "name": "Planet 8",
+          "elements": [
+            "Hydrogen",
+            "Helium",
+            "Methane",
+            "Ammonia"
+          ]
+        }
+      ]
+    }
+  }
+]

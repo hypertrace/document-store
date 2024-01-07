@@ -2,8 +2,10 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.NOT;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
+import static org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.FilterLocation.INSIDE_EXPR;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -15,6 +17,10 @@ import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelation
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
 final class MongoLogicalExpressionParser {
+
+  private static final String NOR_OP = "$nor";
+  private static final String NOT_OP = "$not";
+
   private static final Map<LogicalOperator, String> KEY_MAP =
       unmodifiableMap(
           new EnumMap<>(LogicalOperator.class) {
@@ -32,7 +38,7 @@ final class MongoLogicalExpressionParser {
 
   Map<String, Object> parse(final LogicalExpression expression) {
     LogicalOperator operator = expression.getOperator();
-    String key = KEY_MAP.get(operator);
+    String key = NOT.equals(operator) ? getNotOp() : KEY_MAP.get(operator);
 
     if (key == null) {
       throw getUnsupportedOperationException(operator);
@@ -40,11 +46,16 @@ final class MongoLogicalExpressionParser {
 
     FilterTypeExpressionVisitor parser =
         new MongoFilterTypeExpressionParser(relationalFilterContext);
+
     List<Object> parsed =
         expression.getOperands().stream()
             .map(exp -> exp.accept(parser))
             .collect(Collectors.toList());
 
     return Map.of(key, parsed);
+  }
+
+  private String getNotOp() {
+    return INSIDE_EXPR.equals(relationalFilterContext.location()) ? NOT_OP : NOR_OP;
   }
 }
