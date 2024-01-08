@@ -30,7 +30,6 @@ import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.google.common.annotations.VisibleForTesting;
-import com.sun.jdi.InternalException;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.sql.BatchUpdateException;
@@ -1328,7 +1327,6 @@ public class PostgresCollection implements Collection {
         }
       } catch (SQLException ex) {
         LOGGER.error("Unable to close connection", ex);
-        throw new InternalException(ex.getMessage());
       }
     }
 
