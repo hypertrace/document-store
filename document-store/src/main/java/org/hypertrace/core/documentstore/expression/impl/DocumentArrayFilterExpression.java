@@ -39,7 +39,7 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 @Value
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class DocumentArrayFilterExpression implements FilterTypeExpression {
+public class DocumentArrayFilterExpression implements FilterTypeExpression, ArrayFilterExpression {
   ArrayOperator operator;
 
   SelectTypeExpression arraySource;

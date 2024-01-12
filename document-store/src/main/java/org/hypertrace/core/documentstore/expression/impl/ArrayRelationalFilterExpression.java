@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Value;
 import org.hypertrace.core.documentstore.expression.operators.ArrayOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
 /**
@@ -29,7 +30,8 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 @Value
 @Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
-public class ArrayRelationalFilterExpression implements FilterTypeExpression {
+public class ArrayRelationalFilterExpression
+    implements FilterTypeExpression, ArrayFilterExpression {
   ArrayOperator operator;
 
   RelationalExpression filter;
@@ -46,6 +48,11 @@ public class ArrayRelationalFilterExpression implements FilterTypeExpression {
   @Override
   public <T> T accept(final FilterTypeExpressionVisitor visitor) {
     return visitor.visit(this);
+  }
+
+  @Override
+  public SelectTypeExpression getArraySource() {
+    return filter.getLhs();
   }
 
   @Override
