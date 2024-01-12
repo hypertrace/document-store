@@ -9,8 +9,10 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
@@ -236,6 +238,16 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     public List<FilterTypeExpression> visit(KeyExpression expression) {
       return List.of(expression);
     }
+
+    @Override
+    public List<FilterTypeExpression> visit(final ArrayRelationalFilterExpression expression) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<FilterTypeExpression> visit(final DocumentArrayFilterExpression expression) {
+      throw new UnsupportedOperationException();
+    }
   }
 
   @SuppressWarnings("unchecked")
@@ -270,6 +282,17 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     @Override
     public Boolean visit(KeyExpression expression) {
       return false;
+    }
+
+    @Override
+    public Boolean visit(final ArrayRelationalFilterExpression expression) {
+      throw new UnsupportedOperationException();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public Boolean visit(final DocumentArrayFilterExpression expression) {
+      throw new UnsupportedOperationException();
     }
   }
 }

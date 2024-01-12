@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
+import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.MongoRelationalFilterContext;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
 final class MongoLogicalExpressionParser {
@@ -23,6 +24,12 @@ final class MongoLogicalExpressionParser {
             }
           });
 
+  private final MongoRelationalFilterContext relationalFilterContext;
+
+  MongoLogicalExpressionParser(final MongoRelationalFilterContext relationalFilterContext) {
+    this.relationalFilterContext = relationalFilterContext;
+  }
+
   Map<String, Object> parse(final LogicalExpression expression) {
     LogicalOperator operator = expression.getOperator();
     String key = KEY_MAP.get(operator);
@@ -31,7 +38,8 @@ final class MongoLogicalExpressionParser {
       throw getUnsupportedOperationException(operator);
     }
 
-    FilterTypeExpressionVisitor parser = new MongoFilterTypeExpressionParser();
+    FilterTypeExpressionVisitor parser =
+        new MongoFilterTypeExpressionParser(relationalFilterContext);
     List<Object> parsed =
         expression.getOperands().stream()
             .map(exp -> exp.accept(parser))
