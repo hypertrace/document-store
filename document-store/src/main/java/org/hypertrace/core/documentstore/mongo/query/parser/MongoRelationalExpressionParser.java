@@ -6,12 +6,14 @@ import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelation
 import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.MongoRelationalFilterContext;
 import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactoryImpl;
 
+@AllArgsConstructor
 final class MongoRelationalExpressionParser {
   private static final MongoRelationalFilterParserFactory factory =
       new MongoRelationalFilterParserFactoryImpl();
 
-  Map<String, Object> parse(
-      final RelationalExpression expression, final MongoRelationalFilterContext context) {
+  private final MongoRelationalFilterContext context;
+
+  Map<String, Object> parse(final RelationalExpression expression) {
     return factory.parser(expression, context).parse(expression, context);
   }
 }
