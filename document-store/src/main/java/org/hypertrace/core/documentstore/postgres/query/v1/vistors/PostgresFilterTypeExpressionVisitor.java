@@ -4,7 +4,6 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getType;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareParsedNonCompositeFilter;
 
 import java.util.Optional;
@@ -18,11 +17,13 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
-import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
-import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.builder.PostgresSelectExpressionParserBuilder;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.builder.PostgresSelectExpressionParserBuilderImpl;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParser.PostgresRelationalFilterContext;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParserFactoryImpl;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
   protected PostgresQueryParser postgresQueryParser;
@@ -48,25 +49,19 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final RelationalExpression expression) {
-    SelectTypeExpression lhs = expression.getLhs();
-    RelationalOperator operator = expression.getOperator();
-    SelectTypeExpression rhs = expression.getRhs();
+    final PostgresSelectExpressionParserBuilder parserBuilder =
+        new PostgresSelectExpressionParserBuilderImpl(postgresQueryParser);
+    final PostgresSelectTypeExpressionVisitor lhsVisitor = parserBuilder.build(expression);
 
-    // Only a constant RHS is supported as of now.
-    PostgresSelectTypeExpressionVisitor rhsVisitor = new PostgresConstantExpressionVisitor();
-    Object value = rhs.accept(rhsVisitor);
+    final PostgresRelationalFilterContext context =
+        PostgresRelationalFilterContext.builder()
+            .lhsParser(lhsVisitor)
+            .postgresQueryParser(postgresQueryParser)
+            .build();
 
-    PostgresSelectTypeExpressionVisitor lhsVisitor =
-        isOperatorNeedsFieldAccessor(operator)
-            ? new PostgresFunctionExpressionVisitor(
-                new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser))
-            : new PostgresFunctionExpressionVisitor(
-                new PostgresDataAccessorIdentifierExpressionVisitor(
-                    postgresQueryParser, getType(value)));
-
-    final String parseResult = lhs.accept(lhsVisitor);
-    return prepareParsedNonCompositeFilter(
-        parseResult, operator.toString(), value, postgresQueryParser.getParamsBuilder());
+    return new PostgresRelationalFilterParserFactoryImpl()
+        .parser(expression)
+        .parse(expression, context);
   }
 
   @SuppressWarnings("unchecked")
@@ -117,19 +112,5 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     }
     throw new UnsupportedOperationException(
         String.format("Query operation:%s not supported", operator));
-  }
-
-  private boolean isOperatorNeedsFieldAccessor(RelationalOperator operator) {
-    switch (operator) {
-      case CONTAINS:
-      case NOT_CONTAINS:
-      case EXISTS:
-      case NOT_EXISTS:
-      case IN:
-      case NOT_IN:
-        return true;
-      default:
-        return false;
-    }
   }
 }
