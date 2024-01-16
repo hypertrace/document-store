@@ -547,11 +547,6 @@ public class PostgresUtils {
     return "\"" + fieldName + "\"";
   }
 
-  public static String getLastPath(final String fieldName) {
-    final String[] split = fieldName.split(DOC_PATH_SEPARATOR);
-    return split[split.length - 1];
-  }
-
   public static String formatSubDocPath(String subDocPath) {
     return "{" + subDocPath.replaceAll(DOC_PATH_SEPARATOR, ",") + "}";
   }

@@ -22,7 +22,7 @@ public class PostgresIdentifierTrimmingExpressionVisitor
 
   @Override
   public PostgresQueryParser getPostgresQueryParser() {
-    return postgresQueryParser != null ? postgresQueryParser : baseVisitor.getPostgresQueryParser();
+    return baseVisitor.getPostgresQueryParser();
   }
 
   @SuppressWarnings("unchecked")
