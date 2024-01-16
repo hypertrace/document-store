@@ -4,7 +4,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
-import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getLastPath;
+import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.encodeAliasForNestedField;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareParsedNonCompositeFilter;
 
 import java.util.Optional;
@@ -61,7 +61,11 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   public String visit(final RelationalExpression expression) {
     final PostgresSelectExpressionParserBuilder parserBuilder =
         new PostgresSelectExpressionParserBuilderImpl(postgresQueryParser);
-    final PostgresSelectTypeExpressionVisitor lhsVisitor = parserBuilder.build(expression);
+    final PostgresSelectTypeExpressionVisitor baseVisitor = parserBuilder.build(expression);
+    final PostgresSelectTypeExpressionVisitor lhsVisitor =
+        Optional.ofNullable(wrappingVisitorProvider)
+            .map(visitor -> visitor.getForRelational(baseVisitor, expression.getRhs()))
+            .orElse(baseVisitor);
 
     final PostgresRelationalFilterContext context =
         PostgresRelationalFilterContext.builder()
@@ -102,40 +106,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
      */
     switch (expression.getOperator()) {
       case ANY:
-        // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
-        // level array filter
-        // Also, for the first time (if this was not under any nesting), use the field identifier
-        // visitor to make it document->'elements'
-        final PostgresIdentifierExpressionVisitor identifierVisitor =
-            new PostgresIdentifierExpressionVisitor(postgresQueryParser);
-        final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
-            wrappingVisitorProvider == null
-                ? new PostgresFieldIdentifierExpressionVisitor(identifierVisitor)
-                : wrappingVisitorProvider.getForNonRelational(identifierVisitor);
-        final String parsedLhs = expression.getArraySource().accept(arrayPathVisitor);
-
-        // Extract the field name
-        final String identifierName =
-            expression
-                .getArraySource()
-                .accept(new PostgresIdentifierExpressionVisitor(postgresQueryParser));
-
-        // If the field name is 'elements.inner', just pick the last part as the alias ('inner')
-        final String alias = getLastPath(identifierName);
-
-        // Any LHS field name (elements) is to be prefixed with current alias (inner)
-        final PostgresWrappingFilterVisitorProvider visitorProvider =
-            new PostgresArrayRelationalWrappingFilterVisitorProvider(
-                postgresQueryParser, identifierName, alias);
-        final String parsedFilter =
-            expression
-                .getFilter()
-                .accept(
-                    new PostgresFilterTypeExpressionVisitor(postgresQueryParser, visitorProvider));
-
-        return String.format(
-            "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
-            parsedLhs, alias, parsedFilter);
+        return getFilterStringForAnyOperator(expression);
 
       default:
         throw new UnsupportedOperationException(
@@ -155,38 +126,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
      */
     switch (expression.getOperator()) {
       case ANY:
-        // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
-        // level array filter
-        // Also, for the first time (if this was not under any nesting), use the field identifier
-        // visitor to make it document->'elements'
-        final PostgresIdentifierExpressionVisitor identifierVisitor =
-            new PostgresIdentifierExpressionVisitor(postgresQueryParser);
-        final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
-            wrappingVisitorProvider == null
-                ? new PostgresFieldIdentifierExpressionVisitor(identifierVisitor)
-                : wrappingVisitorProvider.getForNonRelational(identifierVisitor);
-        final String parsedLhs = expression.getArraySource().accept(arrayPathVisitor);
-
-        // Extract the field name
-        final String identifierName =
-            expression
-                .getArraySource()
-                .accept(new PostgresIdentifierExpressionVisitor(postgresQueryParser));
-
-        // If the field name is 'elements.inner', just pick the last part as the alias ('inner')
-        final String alias = getLastPath(identifierName);
-
-        // Any LHS field name (elements) is to be prefixed with current alias (inner)
-        final PostgresWrappingFilterVisitorProvider wrapper =
-            new PostgresDocumentArrayWrappingFilterVisitorProvider(postgresQueryParser, alias);
-        final String parsedFilter =
-            expression
-                .getFilter()
-                .accept(new PostgresFilterTypeExpressionVisitor(postgresQueryParser, wrapper));
-
-        return String.format(
-            "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
-            parsedLhs, alias, parsedFilter);
+        return getFilterStringForAnyOperator(expression);
 
       default:
         throw new UnsupportedOperationException(
@@ -214,5 +154,76 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     }
     throw new UnsupportedOperationException(
         String.format("Query operation:%s not supported", operator));
+  }
+
+  private String getFilterStringForAnyOperator(final ArrayRelationalFilterExpression expression) {
+    // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
+    // level array filter
+    // For the first time (if 'elements' was not under any nested array, say a top-level field),
+    // use the field identifier visitor to make it document->'elements'
+    final PostgresIdentifierExpressionVisitor identifierVisitor =
+        new PostgresIdentifierExpressionVisitor(postgresQueryParser);
+    final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
+        wrappingVisitorProvider == null
+            ? new PostgresFieldIdentifierExpressionVisitor(identifierVisitor)
+            : wrappingVisitorProvider.getForNonRelational(identifierVisitor);
+    final String parsedLhs = expression.getArraySource().accept(arrayPathVisitor);
+
+    // Extract the field name
+    final String identifierName =
+        expression
+            .getArraySource()
+            .accept(new PostgresIdentifierExpressionVisitor(postgresQueryParser));
+
+    // If the field name is 'elements.inner', alias becomes 'elements_dot_inner'
+    final String alias = encodeAliasForNestedField(identifierName);
+
+    // Any LHS field name (elements) is to be prefixed with current alias (inner)
+    final PostgresWrappingFilterVisitorProvider visitorProvider =
+        new PostgresArrayRelationalWrappingFilterVisitorProvider(
+            postgresQueryParser, identifierName, alias);
+    final String parsedFilter =
+        expression
+            .getFilter()
+            .accept(new PostgresFilterTypeExpressionVisitor(postgresQueryParser, visitorProvider));
+
+    return String.format(
+        "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
+        parsedLhs, alias, parsedFilter);
+  }
+
+  private String getFilterStringForAnyOperator(final DocumentArrayFilterExpression expression) {
+    // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
+    // level array filter
+    // For the first time (if 'elements' was not under any nested array, say a top-level field),
+    // use the field identifier visitor to make it document->'elements'
+    final PostgresIdentifierExpressionVisitor identifierVisitor =
+        new PostgresIdentifierExpressionVisitor(postgresQueryParser);
+    final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
+        wrappingVisitorProvider == null
+            ? new PostgresFieldIdentifierExpressionVisitor(identifierVisitor)
+            : wrappingVisitorProvider.getForNonRelational(identifierVisitor);
+    final String parsedLhs = expression.getArraySource().accept(arrayPathVisitor);
+
+    // Extract the field name
+    final String identifierName =
+        expression
+            .getArraySource()
+            .accept(new PostgresIdentifierExpressionVisitor(postgresQueryParser));
+
+    // If the field name is 'elements.inner', alias becomes 'elements_dot_inner'
+    final String alias = encodeAliasForNestedField(identifierName);
+
+    // Any LHS field name (elements) is to be prefixed with current alias (inner)
+    final PostgresWrappingFilterVisitorProvider wrapper =
+        new PostgresDocumentArrayWrappingFilterVisitorProvider(postgresQueryParser, alias);
+    final String parsedFilter =
+        expression
+            .getFilter()
+            .accept(new PostgresFilterTypeExpressionVisitor(postgresQueryParser, wrapper));
+
+    return String.format(
+        "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
+        parsedLhs, alias, parsedFilter);
   }
 }
