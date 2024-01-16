@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.parser.builder;
 
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.getType;
 
+import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresConstantExpressionVisitor;
@@ -10,12 +11,14 @@ import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresField
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFunctionExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelectTypeExpressionVisitor;
 
+@AllArgsConstructor
 public class PostgresSelectExpressionParserBuilderImpl
     implements PostgresSelectExpressionParserBuilder {
 
+  private final PostgresQueryParser postgresQueryParser;
+
   @Override
-  public PostgresSelectTypeExpressionVisitor buildFor(
-      final RelationalExpression expression, final PostgresQueryParser postgresQueryParser) {
+  public PostgresSelectTypeExpressionVisitor build(final RelationalExpression expression) {
     switch (expression.getOperator()) {
       case CONTAINS:
       case NOT_CONTAINS:
@@ -24,12 +27,12 @@ public class PostgresSelectExpressionParserBuilderImpl
       case IN:
       case NOT_IN:
         return new PostgresFunctionExpressionVisitor(
-            new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser));
+            new PostgresFieldIdentifierExpressionVisitor(this.postgresQueryParser));
 
       default:
         return new PostgresFunctionExpressionVisitor(
             new PostgresDataAccessorIdentifierExpressionVisitor(
-                postgresQueryParser,
+                this.postgresQueryParser,
                 getType(expression.getRhs().accept(new PostgresConstantExpressionVisitor()))));
     }
   }

@@ -41,7 +41,7 @@ public final class MongoFilterTypeExpressionParser implements FilterTypeExpressi
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final RelationalExpression expression) {
-    return new MongoRelationalExpressionParser().parse(expression, relationalFilterContext);
+    return new MongoRelationalExpressionParser(relationalFilterContext).parse(expression);
   }
 
   @SuppressWarnings("unchecked")

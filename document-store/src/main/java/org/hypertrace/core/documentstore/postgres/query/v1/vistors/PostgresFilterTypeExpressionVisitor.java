@@ -28,9 +28,6 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.Postgre
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParserFactoryImpl;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
-  private static final PostgresSelectExpressionParserBuilder parserBuilder =
-      new PostgresSelectExpressionParserBuilderImpl();
-
   protected PostgresQueryParser postgresQueryParser;
   @Nullable private final PostgresWrappingFilterVisitorProvider wrappingVisitorProvider;
 
@@ -62,12 +59,9 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final RelationalExpression expression) {
-    final PostgresSelectTypeExpressionVisitor baseVisitor =
-        parserBuilder.buildFor(expression, postgresQueryParser);
-    final PostgresSelectTypeExpressionVisitor lhsVisitor =
-        Optional.ofNullable(wrappingVisitorProvider)
-            .map(visitor -> visitor.getForRelational(baseVisitor, expression.getRhs()))
-            .orElse(baseVisitor);
+    final PostgresSelectExpressionParserBuilder parserBuilder =
+        new PostgresSelectExpressionParserBuilderImpl(postgresQueryParser);
+    final PostgresSelectTypeExpressionVisitor lhsVisitor = parserBuilder.build(expression);
 
     final PostgresRelationalFilterContext context =
         PostgresRelationalFilterContext.builder()
@@ -76,7 +70,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .build();
 
     return new PostgresRelationalFilterParserFactoryImpl()
-        .parser(expression, context)
+        .parser(expression)
         .parse(expression, context);
   }
 

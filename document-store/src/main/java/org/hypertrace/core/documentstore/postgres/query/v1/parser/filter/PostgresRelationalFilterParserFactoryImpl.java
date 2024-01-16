@@ -14,7 +14,6 @@ import com.google.common.collect.Maps;
 import java.util.Map;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
-import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParser.PostgresRelationalFilterContext;
 
 public class PostgresRelationalFilterParserFactoryImpl
     implements PostgresRelationalFilterParserFactory {
@@ -33,8 +32,7 @@ public class PostgresRelationalFilterParserFactoryImpl
       postgresStandardRelationalFilterParser = new PostgresStandardRelationalFilterParser();
 
   @Override
-  public PostgresRelationalFilterParser parser(
-      final RelationalExpression expression, final PostgresRelationalFilterContext context) {
+  public PostgresRelationalFilterParser parser(final RelationalExpression expression) {
     return parserMap.getOrDefault(expression.getOperator(), postgresStandardRelationalFilterParser);
   }
 }
