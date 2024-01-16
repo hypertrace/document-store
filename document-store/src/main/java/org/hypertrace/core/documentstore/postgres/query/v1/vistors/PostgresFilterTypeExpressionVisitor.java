@@ -50,9 +50,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   @Override
   public String visit(final RelationalExpression expression) {
     final PostgresSelectExpressionParserBuilder parserBuilder =
-        new PostgresSelectExpressionParserBuilderImpl();
-    final PostgresSelectTypeExpressionVisitor lhsVisitor =
-        parserBuilder.buildFor(expression, postgresQueryParser);
+        new PostgresSelectExpressionParserBuilderImpl(postgresQueryParser);
+    final PostgresSelectTypeExpressionVisitor lhsVisitor = parserBuilder.build(expression);
 
     final PostgresRelationalFilterContext context =
         PostgresRelationalFilterContext.builder()
@@ -61,7 +60,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .build();
 
     return new PostgresRelationalFilterParserFactoryImpl()
-        .parser(expression, context)
+        .parser(expression)
         .parse(expression, context);
   }
 
