@@ -1,10 +1,7 @@
 package org.hypertrace.core.documentstore;
 
 import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.and;
-
 import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.not;
-
-
 import static org.hypertrace.core.documentstore.expression.operators.ArrayOperator.ANY;
 import static org.hypertrace.core.documentstore.model.config.DatabaseType.MONGO;
 import static org.hypertrace.core.documentstore.model.config.DatabaseType.POSTGRES;
@@ -165,9 +162,7 @@ class ArrayFiltersQueryIntegrationTest {
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
-
   void getSolarSystemsWithAtLeastOnePlanetHavingBothWaterAndOxygen(final String dataStoreName)
-
       throws JSONException {
     final Collection collection = getCollection(dataStoreName);
 
@@ -208,7 +203,6 @@ class ArrayFiltersQueryIntegrationTest {
 
     JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
   }
-
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
@@ -301,8 +295,6 @@ class ArrayFiltersQueryIntegrationTest {
 
     JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
   }
-
-
 
   private String readResource(final String fileName) {
     try {
