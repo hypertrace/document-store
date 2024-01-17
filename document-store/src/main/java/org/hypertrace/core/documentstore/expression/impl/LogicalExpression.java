@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.expression.impl;
 import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.NOT;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 
 import com.google.common.base.Preconditions;
@@ -74,6 +75,10 @@ public class LogicalExpression implements FilterTypeExpression {
     return buildLogicalExpression(operand1, operand2, otherOperands, OR);
   }
 
+  public static LogicalExpression not(final FilterTypeExpression operand) {
+    return buildLogicalExpression(List.of(operand), NOT);
+  }
+
   private static LogicalExpression buildLogicalExpression(
       final FilterTypeExpression operand1,
       final FilterTypeExpression operand2,
@@ -102,6 +107,10 @@ public class LogicalExpression implements FilterTypeExpression {
 
   @Override
   public String toString() {
+    if (NOT.equals(operator)) {
+      return String.format("NOT (%s)", operands.get(0));
+    }
+
     return "("
         + operands.stream().map(String::valueOf).collect(joining(") " + operator + " ("))
         + ")";
@@ -109,11 +118,17 @@ public class LogicalExpression implements FilterTypeExpression {
 
   public static class LogicalExpressionBuilder {
     public LogicalExpression build() {
+      Preconditions.checkArgument(operator != null, "operator is null");
       Preconditions.checkArgument(operands != null, "operands is null");
-      Preconditions.checkArgument(operands.size() >= 2, "At least 2 operands required");
+
+      if (NOT.equals(operator)) {
+        Preconditions.checkArgument(operands.size() == 1, "Exactly one operand required for NOT");
+      } else {
+        Preconditions.checkArgument(operands.size() >= 2, "At least 2 operands required");
+      }
+
       Preconditions.checkArgument(
           operands.stream().noneMatch(Objects::isNull), "One or more operands is null");
-      Preconditions.checkArgument(operator != null, "operator is null");
       return new LogicalExpression(operands, operator);
     }
   }

@@ -1,0 +1,31 @@
+[
+  {
+    "name": "Solar System 1",
+    "additional_info": {
+      "planets": [
+        {
+          "name": "Planet 1",
+          "elements": [
+            "Oxygen",
+            "Water",
+            "Nitrogen"
+          ],
+          "meta": {
+            "num_moons": 7
+          }
+        },
+        {
+          "name": "Planet 2",
+          "elements": [
+            "Oxygen",
+            "Helium",
+            "Water"
+          ],
+          "meta": {
+            "num_moons": 1
+          }
+        }
+      ]
+    }
+  }
+]

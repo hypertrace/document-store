@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.NOT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
@@ -45,6 +46,10 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final LogicalExpression expression) {
+    if (NOT.equals(expression.getOperator())) {
+      return String.format("NOT (%s)", expression.getOperands().get(0).accept(this).toString());
+    }
+
     Collector<String, ?, String> collector =
         getCollectorForLogicalOperator(expression.getOperator());
     String childList =

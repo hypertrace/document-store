@@ -27,7 +27,7 @@ class MongoConnectionConfigTest {
             .applyToConnectionPoolSettings(
                 builder ->
                     builder
-                        .maxConnecting(16)
+                        .maxSize(16)
                         .maxWaitTime(10, TimeUnit.SECONDS)
                         .maxConnectionIdleTime(5, TimeUnit.MINUTES))
             .build();
@@ -81,7 +81,7 @@ class MongoConnectionConfigTest {
             .applyToConnectionPoolSettings(
                 builder ->
                     builder
-                        .maxConnecting(maxPoolConnections)
+                        .maxSize(maxPoolConnections)
                         .maxWaitTime(maxWaitTime.toSeconds(), TimeUnit.SECONDS)
                         .maxConnectionIdleTime(maxIdleTime.toSeconds(), TimeUnit.SECONDS))
             .build();
@@ -124,7 +124,7 @@ class MongoConnectionConfigTest {
             .applyToConnectionPoolSettings(
                 builder ->
                     builder
-                        .maxConnecting(16)
+                        .maxSize(16)
                         .maxWaitTime(10, TimeUnit.SECONDS)
                         .maxConnectionIdleTime(5, TimeUnit.MINUTES))
             .build();
@@ -159,7 +159,7 @@ class MongoConnectionConfigTest {
             .applyToConnectionPoolSettings(
                 builder ->
                     builder
-                        .maxConnecting(16)
+                        .maxSize(16)
                         .maxWaitTime(10, TimeUnit.SECONDS)
                         .maxConnectionIdleTime(5, TimeUnit.MINUTES))
             .build();

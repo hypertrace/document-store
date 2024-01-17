@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore;
 
 import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.and;
+import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.not;
 import static org.hypertrace.core.documentstore.expression.operators.ArrayOperator.ANY;
 import static org.hypertrace.core.documentstore.model.config.DatabaseType.MONGO;
 import static org.hypertrace.core.documentstore.model.config.DatabaseType.POSTGRES;
@@ -161,7 +162,7 @@ class ArrayFiltersQueryIntegrationTest {
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
-  void getAllSolarSystemsWithAtLeastOnePlanetHavingBothWaterAndOxygen(final String dataStoreName)
+  void getSolarSystemsWithAtLeastOnePlanetHavingBothWaterAndOxygen(final String dataStoreName)
       throws JSONException {
     final Collection collection = getCollection(dataStoreName);
 
@@ -198,6 +199,98 @@ class ArrayFiltersQueryIntegrationTest {
 
     final Iterator<Document> documents = collection.aggregate(query);
     final String expected = readResource("at_least_one_planet_having_both_oxygen_and_water.json");
+    final String actual = iteratorToJson(documents);
+
+    JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  void getSolarSystemsWithAllThePlanetsHavingBothWaterAndOxygen(final String dataStoreName)
+      throws JSONException {
+    final Collection collection = getCollection(dataStoreName);
+
+    // All planets having both oxygen and water = No planet without both oxygen and water
+    final Query query =
+        Query.builder()
+            .setFilter(
+                not(
+                    DocumentArrayFilterExpression.builder()
+                        .operator(ANY)
+                        .arraySource(IdentifierExpression.of("additional_info.planets"))
+                        .filter(
+                            not(
+                                and(
+                                    ArrayRelationalFilterExpression.builder()
+                                        .operator(ANY)
+                                        .filter(
+                                            RelationalExpression.of(
+                                                IdentifierExpression.of("elements"),
+                                                RelationalOperator.EQ,
+                                                ConstantExpression.of("Oxygen")))
+                                        .build(),
+                                    ArrayRelationalFilterExpression.builder()
+                                        .operator(ANY)
+                                        .filter(
+                                            RelationalExpression.of(
+                                                IdentifierExpression.of("elements"),
+                                                RelationalOperator.EQ,
+                                                ConstantExpression.of("Water")))
+                                        .build(),
+                                    RelationalExpression.of(
+                                        IdentifierExpression.of("meta.num_moons"),
+                                        RelationalOperator.GT,
+                                        ConstantExpression.of(0)))))
+                        .build()))
+            .build();
+
+    final Iterator<Document> documents = collection.aggregate(query);
+    final String expected = readResource("all_planets_having_both_oxygen_and_water.json");
+    final String actual = iteratorToJson(documents);
+
+    JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  void getSolarSystemsWithNoneOfThePlanetsHavingBothWaterAndOxygenTogether(
+      final String dataStoreName) throws JSONException {
+    final Collection collection = getCollection(dataStoreName);
+
+    final Query query =
+        Query.builder()
+            .setFilter(
+                not(
+                    DocumentArrayFilterExpression.builder()
+                        .operator(ANY)
+                        .arraySource(IdentifierExpression.of("additional_info.planets"))
+                        .filter(
+                            and(
+                                ArrayRelationalFilterExpression.builder()
+                                    .operator(ANY)
+                                    .filter(
+                                        RelationalExpression.of(
+                                            IdentifierExpression.of("elements"),
+                                            RelationalOperator.EQ,
+                                            ConstantExpression.of("Oxygen")))
+                                    .build(),
+                                ArrayRelationalFilterExpression.builder()
+                                    .operator(ANY)
+                                    .filter(
+                                        RelationalExpression.of(
+                                            IdentifierExpression.of("elements"),
+                                            RelationalOperator.EQ,
+                                            ConstantExpression.of("Water")))
+                                    .build(),
+                                RelationalExpression.of(
+                                    IdentifierExpression.of("meta.num_moons"),
+                                    RelationalOperator.GT,
+                                    ConstantExpression.of(0))))
+                        .build()))
+            .build();
+
+    final Iterator<Document> documents = collection.aggregate(query);
+    final String expected = readResource("no_planet_having_both_oxygen_and_water_together.json");
     final String actual = iteratorToJson(documents);
 
     JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);

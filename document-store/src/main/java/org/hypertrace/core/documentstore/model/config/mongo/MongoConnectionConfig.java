@@ -140,7 +140,7 @@ public class MongoConnectionConfig extends ConnectionConfig {
   private void applyConnectionPoolSettings(final Builder settingsBuilder) {
     final ConnectionPoolSettings connectionPoolSettings =
         ConnectionPoolSettings.builder()
-            .maxConnecting(connectionPoolConfig.maxConnections())
+            .maxSize(connectionPoolConfig.maxConnections())
             .maxWaitTime(
                 connectionPoolConfig.connectionAccessTimeout().toMillis(), TimeUnit.MILLISECONDS)
             .maxConnectionIdleTime(
