@@ -16,5 +16,6 @@
     <!-- The vulnerability is in the Postgres Server -->
     <packageUrl regex="true">^pkg:maven/org\.postgresql/postgresql@.*$</packageUrl>
     <vulnerabilityName>CVE-2020-21469</vulnerabilityName>
+    <vulnerabilityName>CVE-2024-1597</vulnerabilityName>
   </suppress>
 </suppressions> 
