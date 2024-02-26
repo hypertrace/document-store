@@ -224,11 +224,10 @@ public class MongoCollection implements Collection {
       }
       return new CreateResult(insertOneResult.getInsertedId() != null);
     } catch (final MongoWriteException e) {
+      LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
       if (e.getCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE) {
         throw new DuplicateDocumentException();
       }
-
-      LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
       throw new IOException(e);
     } catch (final Exception e) {
       LOGGER.error("SQLException creating document. key: " + key + " content: " + document, e);
