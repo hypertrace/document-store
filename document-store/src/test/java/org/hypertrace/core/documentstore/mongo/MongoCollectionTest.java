@@ -378,6 +378,7 @@ public class MongoCollectionTest {
 
       when(mockClock.millis()).thenReturn(1660721309000L);
       when(collection.aggregate(anyList())).thenReturn(mockIterable);
+      when(mockIterable.allowDiskUse(true)).thenReturn(mockIterable);
       when(mockIterable.cursor()).thenReturn(mockCursor);
       when(mockCursor.hasNext()).thenReturn(true).thenReturn(false);
       when(mockCursor.next()).thenReturn(response);
