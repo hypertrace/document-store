@@ -130,7 +130,8 @@ public class MongoQueryExecutor {
     logPipeline(pipeline);
 
     try {
-      final AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
+      final AggregateIterable<BasicDBObject> iterable =
+          collection.aggregate(pipeline).allowDiskUse(true);
       return iterable.cursor();
     } catch (final MongoCommandException e) {
       log.error("Execution failed for query: {}. Aggregation Pipeline: {}", query, pipeline);

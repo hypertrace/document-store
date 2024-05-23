@@ -96,6 +96,7 @@ class MongoQueryExecutorTest {
     when(iterable.sort(any(BasicDBObject.class))).thenReturn(iterable);
 
     when(iterable.cursor()).thenReturn(cursor);
+    when(aggIterable.allowDiskUse(true)).thenReturn(aggIterable);
     when(aggIterable.cursor()).thenReturn(cursor);
   }
 
@@ -522,6 +523,7 @@ class MongoQueryExecutorTest {
     executor.aggregate(query);
     verify(collection).getNamespace();
     verify(collection).aggregate(pipeline);
+    verify(aggIterable).allowDiskUse(true);
     verify(aggIterable).cursor();
   }
 
