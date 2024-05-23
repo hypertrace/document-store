@@ -21,11 +21,12 @@ jobs:
           args: jacocoTestReport
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           name: unit test reports
           fail_ci_if_error: true
           flags: unit
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Integration test
         uses: hypertrace/github-actions/gradle@main
