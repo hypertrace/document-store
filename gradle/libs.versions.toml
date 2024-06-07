@@ -28,7 +28,7 @@ org-mockito-mockito-inline = { module = "org.mockito:mockito-inline", version.re
 org-mockito-mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "org-mockito" }
 org-mongodb-mongodb-driver-sync = { module = "org.mongodb:mongodb-driver-sync", version = "4.9.0" }
 org-postgresql = { module = "org.postgresql:postgresql", version = "42.5.5" }
-org-projectlombok-lombok = { module = "org.projectlombok:lombok", version = "1.18.26" }
+org-projectlombok-lombok = { module = "org.projectlombok:lombok", version = "1.18.30" }
 org-slf4j-slf4j-api = { module = "org.slf4j:slf4j-api", version = "1.7.36" }
 org-testcontainers = { module = "org.testcontainers:testcontainers", version.ref = "org-testcontainers" }
 org-testcontainers-junit-jupiter = { module = "org.testcontainers:junit-jupiter", version.ref = "org-testcontainers" }
