@@ -147,8 +147,8 @@ public class MongoQueryExecutor {
     if (connectionConfig.isSortOptimizedQueryEnabled()
         && query.getAggregations().isEmpty()
         && query.getAggregationFilter().isEmpty()
-        && !isSortContainsAggregation(query)
-        && !isProjectionContainsAggregation(query)) {
+        && !isProjectionContainsAggregation(query)
+        && !isSortContainsAggregation(query)) {
       aggregatePipeline = SORT_OPTIMISED_AGGREGATE_PIPELINE_FUNCTIONS;
     }
 
@@ -233,7 +233,9 @@ public class MongoQueryExecutor {
 
   private boolean isSortContainsAggregation(Query query) {
     Map<String, List<SelectionSpec>> aliasToSelectionMap =
-        query.getSelections().stream().collect(Collectors.groupingBy(this::getAlias, toList()));
+        query.getSelections().stream()
+            .filter(spec -> this.getAlias(spec) != null)
+            .collect(Collectors.groupingBy(this::getAlias, toList()));
     return query.getSorts().stream()
         .anyMatch(
             sort ->
@@ -243,8 +245,13 @@ public class MongoQueryExecutor {
   }
 
   private String getAlias(SelectionSpec selectionSpec) {
-    return selectionSpec.getAlias() != null
-        ? selectionSpec.getAlias()
+    if (selectionSpec.getAlias() != null) {
+      return selectionSpec.getAlias();
+    }
+
+    return selectionSpec.getExpression().getClass().equals(FunctionExpression.class)
+            || selectionSpec.getExpression().getClass().equals(AggregateExpression.class)
+        ? null
         : ((IdentifierExpression) selectionSpec.getExpression()).getName();
   }
 

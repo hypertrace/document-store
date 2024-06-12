@@ -119,6 +119,7 @@ public class MongoNonProjectedSortTypeExpressionParser implements SortTypeExpres
         new MongoNonProjectedSortTypeExpressionParser(definition.getOrder());
     Map<String, List<SelectionSpec>> aliasToSelectionMap =
         selectionSpecs.stream()
+            .filter(spec -> MongoNonProjectedSortTypeExpressionParser.getAlias(spec) != null)
             .collect(
                 Collectors.groupingBy(
                     MongoNonProjectedSortTypeExpressionParser::getAlias, toList()));
@@ -135,8 +136,13 @@ public class MongoNonProjectedSortTypeExpressionParser implements SortTypeExpres
   }
 
   private static String getAlias(SelectionSpec selectionSpec) {
-    return selectionSpec.getAlias() != null
-        ? selectionSpec.getAlias()
+    if (selectionSpec.getAlias() != null) {
+      return selectionSpec.getAlias();
+    }
+
+    return selectionSpec.getExpression().getClass().equals(FunctionExpression.class)
+            || selectionSpec.getExpression().getClass().equals(AggregateExpression.class)
+        ? null
         : ((IdentifierExpression) selectionSpec.getExpression()).getName();
   }
 }
