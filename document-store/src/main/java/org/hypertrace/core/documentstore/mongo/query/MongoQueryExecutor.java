@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.mongo.query;
 import static java.lang.Long.parseLong;
 import static java.util.Collections.singleton;
 import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.toList;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.getCountClause;
 import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelper.applyPagination;
@@ -11,6 +12,7 @@ import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelpe
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilterClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser.getGroupClause;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoNonProjectedSortTypeExpressionParser.getNonProjectedSortClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getProjectClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getSelections;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSortTypeExpressionParser.getOrders;
@@ -25,6 +27,7 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,16 +35,23 @@ import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
+import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.mongo.query.parser.MongoFromTypeExpressionParser;
 import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
+import org.hypertrace.core.documentstore.query.SortingSpec;
 
 @Slf4j
 @AllArgsConstructor
 public class MongoQueryExecutor {
+
   private static final List<Function<Query, Collection<BasicDBObject>>>
-      AGGREGATE_PIPELINE_FUNCTIONS =
+      DEFAULT_AGGREGATE_PIPELINE_FUNCTIONS =
           List.of(
               query -> singleton(getFilterClause(query, Query::getFilter)),
               MongoFromTypeExpressionParser::getFromClauses,
@@ -51,6 +61,16 @@ public class MongoQueryExecutor {
               query -> singleton(getSortClause(query)),
               query -> singleton(getSkipClause(query)),
               query -> singleton(getLimitClause(query)));
+
+  private static final List<Function<Query, Collection<BasicDBObject>>>
+      SORT_OPTIMISED_AGGREGATE_PIPELINE_FUNCTIONS =
+          List.of(
+              query -> singleton(getFilterClause(query, Query::getFilter)),
+              MongoFromTypeExpressionParser::getFromClauses,
+              query -> singleton(getNonProjectedSortClause(query)),
+              query -> singleton(getSkipClause(query)),
+              query -> singleton(getLimitClause(query)),
+              query -> singleton(getProjectClause(query)));
 
   private static final Integer ZERO = Integer.valueOf(0);
   private static final MongoCursor<BasicDBObject> EMPTY_CURSOR =
@@ -94,6 +114,7 @@ public class MongoQueryExecutor {
       };
 
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
+  private final ConnectionConfig connectionConfig;
 
   public MongoCursor<BasicDBObject> find(final Query query) {
     BasicDBObject filterClause = getFilter(query, Query::getFilter);
@@ -121,11 +142,21 @@ public class MongoQueryExecutor {
 
     Query query = transformAndLog(originalQuery);
 
+    List<Function<Query, Collection<BasicDBObject>>> aggregatePipeline =
+        DEFAULT_AGGREGATE_PIPELINE_FUNCTIONS;
+    if (connectionConfig.isSortOptimizedQueryEnabled()
+        && query.getAggregations().isEmpty()
+        && query.getAggregationFilter().isEmpty()
+        && !isSortContainsAggregation(query)
+        && !isProjectionContainsAggregation(query)) {
+      aggregatePipeline = SORT_OPTIMISED_AGGREGATE_PIPELINE_FUNCTIONS;
+    }
+
     List<BasicDBObject> pipeline =
-        AGGREGATE_PIPELINE_FUNCTIONS.stream()
+        aggregatePipeline.stream()
             .flatMap(function -> function.apply(query).stream())
             .filter(not(BasicDBObject::isEmpty))
-            .collect(Collectors.toList());
+            .collect(toList());
 
     logPipeline(pipeline);
 
@@ -144,11 +175,11 @@ public class MongoQueryExecutor {
 
     final List<BasicDBObject> pipeline =
         Stream.concat(
-                AGGREGATE_PIPELINE_FUNCTIONS.stream()
+                DEFAULT_AGGREGATE_PIPELINE_FUNCTIONS.stream()
                     .flatMap(function -> function.apply(query).stream()),
                 Stream.of(getCountClause()))
             .filter(not(BasicDBObject::isEmpty))
-            .collect(Collectors.toList());
+            .collect(toList());
 
     logPipeline(pipeline);
     final AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
@@ -169,7 +200,8 @@ public class MongoQueryExecutor {
       final Bson sortOrders,
       final Pagination pagination) {
     log.debug(
-        "MongoDB find():\nQuery: {}\nCollection: {}\n Projections: {}\n Filter: {}\n Sorting: {}\n Pagination: {}",
+        "MongoDB find():\nQuery: {}\nCollection: {}\n Projections: {}\n Filter: {}\n Sorting: "
+            + "{}\n Pagination: {}",
         query,
         collection.getNamespace(),
         projection,
@@ -190,5 +222,44 @@ public class MongoQueryExecutor {
     query = MongoQueryTransformer.transform(query);
     log.debug("MongoDB query after transformation: {}", query);
     return query;
+  }
+
+  private boolean isProjectionContainsAggregation(Query query) {
+    return query.getSelections().stream()
+        .anyMatch(
+            selectionSpec ->
+                selectionSpec.getExpression().getClass().equals(AggregateExpression.class));
+  }
+
+  private boolean isSortContainsAggregation(Query query) {
+    Map<String, List<SelectionSpec>> aliasToSelectionMap =
+        query.getSelections().stream().collect(Collectors.groupingBy(this::getAlias, toList()));
+    return query.getSorts().stream()
+        .anyMatch(
+            sort ->
+                sort.getExpression().getClass().equals(FunctionExpression.class)
+                    || sort.getExpression().getClass().equals(AggregateExpression.class)
+                    || isSortOnAggregatedProjection(aliasToSelectionMap, sort));
+  }
+
+  private String getAlias(SelectionSpec selectionSpec) {
+    return selectionSpec.getAlias() != null
+        ? selectionSpec.getAlias()
+        : ((IdentifierExpression) selectionSpec.getExpression()).getName();
+  }
+
+  private boolean isSortOnAggregatedProjection(
+      Map<String, List<SelectionSpec>> aliasToSelectionMap, SortingSpec sort) {
+    List<SelectionSpec> selectionSpecs =
+        aliasToSelectionMap.get(((IdentifierExpression) sort.getExpression()).getName());
+    return selectionSpecs != null
+        && selectionSpecs.stream()
+            .anyMatch(
+                selectionSpec ->
+                    selectionSpec.getExpression().getClass().equals(FunctionExpression.class)
+                        || selectionSpec
+                            .getExpression()
+                            .getClass()
+                            .equals(AggregateExpression.class));
   }
 }

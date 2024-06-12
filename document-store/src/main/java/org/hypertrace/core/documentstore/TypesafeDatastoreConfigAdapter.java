@@ -13,14 +13,20 @@ import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectio
 
 @Deprecated(forRemoval = true)
 interface TypesafeDatastoreConfigAdapter {
+
   DatastoreConfig convert(final Config config);
 
   @Deprecated(forRemoval = true)
   class MongoTypesafeDatastoreConfigAdapter implements TypesafeDatastoreConfigAdapter {
+
     @Override
     public DatastoreConfig convert(final Config config) {
+      boolean isSortOptimizedQueryEnabled =
+          config.hasPath("isSortOptimizedQueryEnabled")
+              && config.getBoolean("isSortOptimizedQueryEnabled");
       final MongoConnectionConfig overridingConnectionConfig =
-          new MongoConnectionConfig(emptyList(), null, null, "", null, null) {
+          new MongoConnectionConfig(
+              emptyList(), null, null, "", null, null, isSortOptimizedQueryEnabled) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
                   MongoClientSettings.builder()
@@ -50,6 +56,7 @@ interface TypesafeDatastoreConfigAdapter {
 
   @Deprecated(forRemoval = true)
   class PostgresTypesafeDatastoreConfigAdapter implements TypesafeDatastoreConfigAdapter {
+
     @Override
     public DatastoreConfig convert(final Config config) {
       final PostgresConnectionConfig connectionConfig =
@@ -73,7 +80,8 @@ interface TypesafeDatastoreConfigAdapter {
               connectionConfig.database(),
               connectionConfig.credentials(),
               connectionConfig.applicationName(),
-              connectionConfig.connectionPoolConfig()) {
+              connectionConfig.connectionPoolConfig(),
+              connectionConfig.isSortOptimizedQueryEnabled()) {
             @Override
             public String toConnectionString() {
               return config.hasPath("url")

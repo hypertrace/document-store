@@ -57,6 +57,7 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
@@ -109,10 +110,12 @@ public class MongoCollection implements Collection {
           .withMaxRetries(MAX_RETRY_ATTEMPTS_FOR_DUPLICATE_KEY_ISSUE);
   private final String IF_NULL_CLAUSE = "$ifNull";
 
-  MongoCollection(com.mongodb.client.MongoCollection<BasicDBObject> collection) {
+  MongoCollection(
+      com.mongodb.client.MongoCollection<BasicDBObject> collection,
+      ConnectionConfig connectionConfig) {
     this.collection = collection;
-    this.queryExecutor = new MongoQueryExecutor(collection);
-    this.updateExecutor = new MongoUpdateExecutor(collection);
+    this.queryExecutor = new MongoQueryExecutor(collection, connectionConfig);
+    this.updateExecutor = new MongoUpdateExecutor(collection, connectionConfig);
   }
 
   /**
@@ -713,6 +716,7 @@ public class MongoCollection implements Collection {
   }
 
   static class MongoResultsIterator implements CloseableIterator<Document> {
+
     private final MongoCursor<BasicDBObject> cursor;
     private boolean closed = false;
 

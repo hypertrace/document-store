@@ -29,6 +29,7 @@ public class ConnectionConfig {
   @Singular @NonNull List<@NonNull Endpoint> endpoints;
   @NonNull String database;
   @Nullable ConnectionCredentials credentials;
+  boolean isSortOptimizedQueryEnabled;
 
   public static ConnectionConfigBuilder builder() {
     return new ConnectionConfigBuilder();
@@ -46,6 +47,7 @@ public class ConnectionConfig {
     String applicationName = DEFAULT_APP_NAME;
     String replicaSet;
     ConnectionPoolConfig connectionPoolConfig;
+    boolean isSortOptimizedQueryEnabled = false;
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;
@@ -61,6 +63,12 @@ public class ConnectionConfig {
       return this;
     }
 
+    public ConnectionConfigBuilder isSortOptimizedQueryEnabled(
+        final boolean sortOptimizedQueryEnabled) {
+      this.isSortOptimizedQueryEnabled = sortOptimizedQueryEnabled;
+      return this;
+    }
+
     public ConnectionConfig build() {
       Preconditions.checkArgument(type != null, "The database type is mandatory");
 
@@ -72,7 +80,8 @@ public class ConnectionConfig {
               credentials,
               applicationName,
               replicaSet,
-              connectionPoolConfig);
+              connectionPoolConfig,
+              isSortOptimizedQueryEnabled);
 
         case POSTGRES:
           return new PostgresConnectionConfig(
@@ -80,7 +89,8 @@ public class ConnectionConfig {
               database,
               credentials,
               applicationName,
-              connectionPoolConfig);
+              connectionPoolConfig,
+              isSortOptimizedQueryEnabled);
       }
 
       throw new IllegalArgumentException("Unsupported database type: " + type);

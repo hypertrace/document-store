@@ -47,11 +47,13 @@ public class MongoConnectionConfig extends ConnectionConfig {
       @Nullable final ConnectionCredentials credentials,
       @NonNull final String applicationName,
       @Nullable final String replicaSetName,
-      @Nullable final ConnectionPoolConfig connectionPoolConfig) {
+      @Nullable final ConnectionPoolConfig connectionPoolConfig,
+      boolean sortOptimizedQueryEnabled) {
     super(
         ensureAtLeastOneEndpoint(endpoints),
         getDatabaseOrDefault(database),
-        getCredentialsOrDefault(credentials, database));
+        getCredentialsOrDefault(credentials, database),
+        sortOptimizedQueryEnabled);
     this.applicationName = applicationName;
     this.replicaSetName = replicaSetName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);

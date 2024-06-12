@@ -50,6 +50,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
@@ -75,7 +76,7 @@ public class MongoCollectionTest {
 
     try (final MockedStatic<Clock> clockMock = mockStatic(Clock.class)) {
       clockMock.when(Clock::systemUTC).thenReturn(mockClock);
-      mongoCollection = new MongoCollection(collection);
+      mongoCollection = new MongoCollection(collection, mock(ConnectionConfig.class));
     }
 
     MongoNamespace namespace = new MongoNamespace("Mongo.test_collection");

@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -49,6 +50,7 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -85,7 +87,9 @@ class MongoQueryExecutorTest {
 
   @BeforeEach
   void setUp() {
-    executor = new MongoQueryExecutor(collection);
+    ConnectionConfig connectionConfig = mock(ConnectionConfig.class);
+    when(connectionConfig.isSortOptimizedQueryEnabled()).thenReturn(true);
+    executor = new MongoQueryExecutor(collection, connectionConfig);
 
     when(collection.find(any(BasicDBObject.class))).thenReturn(iterable);
     when(collection.aggregate(anyList())).thenReturn(aggIterable);
@@ -255,6 +259,40 @@ class MongoQueryExecutorTest {
 
   @Test
   public void testFindAndAggregateWithDuplicateAlias() {
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("price"), "value"),
+            SelectionSpec.of(IdentifierExpression.of("quantity"), "value"),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    NOT_IN,
+                    ConstantExpression.ofStrings(List.of("Soap", "Bottle"))))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    assertThrows(IllegalArgumentException.class, () -> executor.find(query));
+    verify(collection, NOT_INVOKED).getNamespace();
+    verify(collection, NOT_INVOKED).find(any(BasicDBObject.class));
+    verify(iterable, NOT_INVOKED).projection(any(BasicDBObject.class));
+    verify(iterable, NOT_INVOKED).sort(any(BasicDBObject.class));
+    verify(iterable, NOT_INVOKED).skip(anyInt());
+    verify(iterable, NOT_INVOKED).limit(anyInt());
+    verify(iterable, NOT_INVOKED).cursor();
+
+    assertThrows(IllegalArgumentException.class, () -> executor.aggregate(query));
+    verify(collection, NOT_INVOKED).aggregate(anyList());
+    verify(aggIterable, NOT_INVOKED).cursor();
+  }
+
+  @Test
+  public void testFindAndAggregateWithOptimizedSort() {
     List<SelectionSpec> selectionSpecs =
         List.of(
             SelectionSpec.of(IdentifierExpression.of("item")),

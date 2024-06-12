@@ -112,6 +112,7 @@ import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
 public class DocStoreQueryV1Test {
+
   private static final String COLLECTION_NAME = "myTest";
   private static final String UPDATABLE_COLLECTION_NAME = "updatable_collection";
 
@@ -129,9 +130,10 @@ public class DocStoreQueryV1Test {
             .waitingFor(Wait.forListeningPort());
     mongo.start();
 
-    Map<String, String> mongoConfig = new HashMap<>();
+    Map<String, Object> mongoConfig = new HashMap<>();
     mongoConfig.putIfAbsent("host", "localhost");
     mongoConfig.putIfAbsent("port", mongo.getMappedPort(27017).toString());
+    mongoConfig.putIfAbsent("isSortOptimizedQueryEnabled", true);
     Config config = ConfigFactory.parseMap(mongoConfig);
 
     Datastore mongoDatastore = DatastoreProvider.getDatastore("Mongo", config);
@@ -181,6 +183,7 @@ public class DocStoreQueryV1Test {
   }
 
   private static class AllProvider implements ArgumentsProvider {
+
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
       return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_STORE));
@@ -188,6 +191,7 @@ public class DocStoreQueryV1Test {
   }
 
   private static class MongoProvider implements ArgumentsProvider {
+
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
       return Stream.of(Arguments.of(MONGO_STORE));
@@ -195,6 +199,7 @@ public class DocStoreQueryV1Test {
   }
 
   private static class PostgresProvider implements ArgumentsProvider {
+
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
       return Stream.of(Arguments.of(POSTGRES_STORE));
@@ -1321,6 +1326,7 @@ public class DocStoreQueryV1Test {
 
   @Nested
   class StartsWithOperatorTest {
+
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
     public void testWithUnnestingAndRegularFilters(final String datastoreName) throws IOException {
@@ -1398,6 +1404,7 @@ public class DocStoreQueryV1Test {
 
   @Nested
   class ContainsOperatorTest {
+
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
     public void testContains(final String datastoreName) throws IOException {
@@ -1945,6 +1952,7 @@ public class DocStoreQueryV1Test {
 
   @Nested
   class KeyFilterTest {
+
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
     public void testFindWithSingleKey(final String datastoreName) throws IOException {
@@ -2111,6 +2119,7 @@ public class DocStoreQueryV1Test {
 
   @Nested
   class AtomicUpdateTest {
+
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
     public void testAtomicUpdateWithFilter(final String datastoreName)
@@ -2399,6 +2408,7 @@ public class DocStoreQueryV1Test {
 
   @Nested
   class UpdateOperatorTest {
+
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
     void testUpdateSetEmptyObject(final String datastoreName) throws IOException {
@@ -2814,7 +2824,8 @@ public class DocStoreQueryV1Test {
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName,
           iterator_new,
-          "query/update_operator/updated_add_to_list_if_absent_does_not_deduplicate_existing_list.json",
+          "query/update_operator/updated_add_to_list_if_absent_does_not_deduplicate_existing_list"
+              + ".json",
           9);
     }
 
@@ -2901,6 +2912,7 @@ public class DocStoreQueryV1Test {
 
   @Nested
   class BulkUpdateTest {
+
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
     void testBulkUpdateWithFilterAndGetNoDocuments(final String datastoreName) throws IOException {

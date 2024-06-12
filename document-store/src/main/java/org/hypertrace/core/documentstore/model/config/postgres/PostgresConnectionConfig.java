@@ -45,11 +45,13 @@ public class PostgresConnectionConfig extends ConnectionConfig {
       @Nullable final String database,
       @Nullable final ConnectionCredentials credentials,
       @NonNull final String applicationName,
-      @Nullable final ConnectionPoolConfig connectionPoolConfig) {
+      @Nullable final ConnectionPoolConfig connectionPoolConfig,
+      boolean sortOptimizedQueryEnabled) {
     super(
         ensureSingleEndpoint(endpoints),
         getDatabaseOrDefault(database),
-        getCredentialsOrDefault(credentials));
+        getCredentialsOrDefault(credentials),
+        sortOptimizedQueryEnabled);
     this.applicationName = applicationName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);
   }

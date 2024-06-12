@@ -27,12 +27,13 @@ import org.slf4j.LoggerFactory;
 public class MongoDatastore implements Datastore {
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoDatastore.class);
 
+  private final ConnectionConfig connectionConfig;
   private final MongoClient client;
   private final MongoDatabase database;
   private final DocStoreMetricProvider docStoreMetricProvider;
 
   public MongoDatastore(final DatastoreConfig datastoreConfig) {
-    final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
+    connectionConfig = datastoreConfig.connectionConfig();
 
     if (!(connectionConfig instanceof MongoConnectionConfig)) {
       throw new IllegalArgumentException(
@@ -79,7 +80,8 @@ public class MongoDatastore implements Datastore {
 
   @Override
   public Collection getCollection(String collectionName) {
-    return new MongoCollection(database.getCollection(collectionName, BasicDBObject.class));
+    return new MongoCollection(
+        database.getCollection(collectionName, BasicDBObject.class), connectionConfig);
   }
 
   @Override
