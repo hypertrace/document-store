@@ -27,6 +27,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
   private static final String MAX_CONNECTIONS_KEY = "maxConnectionsKey";
   private static final String CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
   private static final String CONNECTION_SURRENDER_TIMEOUT_KEY = "connectionSurrenderTimeout";
+  private static final String AGGREGATION_PIPELINE_MODE = "aggregationPipelineMode";
 
   private static final String host = "red.planet";
   private static final String host1 = "RED_PLANET";
@@ -118,6 +119,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                     .connectionAccessTimeout(accessTimeout)
                     .connectionSurrenderTimeout(surrenderTimeout)
                     .build())
+            .aggregationPipelineMode(AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE)
             .build();
 
     assertEquals(expected, config);
@@ -158,6 +160,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                     .connectionAccessTimeout(accessTimeout)
                     .connectionSurrenderTimeout(surrenderTimeout)
                     .build())
+            .aggregationPipelineMode(AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE)
             .build();
 
     assertEquals(expected, config);
@@ -314,7 +317,8 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             entry(REPLICA_SET_KEY, replicaSet),
             entry(MAX_CONNECTIONS_KEY, maxConnections),
             entry(CONNECTION_ACCESS_TIMEOUT_KEY, accessTimeout),
-            entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout)));
+            entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout),
+            entry(AGGREGATION_PIPELINE_MODE, "SORT_OPTIMIZED_IF_POSSIBLE")));
   }
 
   private Config buildConfigMapWithDefaultKeysForPostgres() {

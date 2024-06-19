@@ -73,12 +73,6 @@ public class ConnectionConfig {
       return this;
     }
 
-    public ConnectionConfigBuilder setAggregationPipelineMode(
-        final AggregatePipelineMode aggregationPipelineMode) {
-      this.aggregationPipelineMode = aggregationPipelineMode;
-      return this;
-    }
-
     public ConnectionConfig build() {
       Preconditions.checkArgument(type != null, "The database type is mandatory");
 
