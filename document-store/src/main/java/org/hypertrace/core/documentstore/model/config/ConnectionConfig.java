@@ -29,7 +29,17 @@ public class ConnectionConfig {
   @Singular @NonNull List<@NonNull Endpoint> endpoints;
   @NonNull String database;
   @Nullable ConnectionCredentials credentials;
-  boolean isSortOptimizedQueryEnabled;
+  @NonNull AggregatePipelineMode aggregationPipelineMode;
+
+  public ConnectionConfig(
+      @NonNull List<@NonNull Endpoint> endpoints,
+      @NonNull String database,
+      @Nullable ConnectionCredentials credentials) {
+    this.endpoints = endpoints;
+    this.database = database;
+    this.credentials = credentials;
+    this.aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ONLY;
+  }
 
   public static ConnectionConfigBuilder builder() {
     return new ConnectionConfigBuilder();
@@ -47,7 +57,7 @@ public class ConnectionConfig {
     String applicationName = DEFAULT_APP_NAME;
     String replicaSet;
     ConnectionPoolConfig connectionPoolConfig;
-    boolean isSortOptimizedQueryEnabled = false;
+    AggregatePipelineMode aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ONLY;
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;
@@ -63,9 +73,9 @@ public class ConnectionConfig {
       return this;
     }
 
-    public ConnectionConfigBuilder isSortOptimizedQueryEnabled(
-        final boolean sortOptimizedQueryEnabled) {
-      this.isSortOptimizedQueryEnabled = sortOptimizedQueryEnabled;
+    public ConnectionConfigBuilder setAggregationPipelineMode(
+        final AggregatePipelineMode aggregationPipelineMode) {
+      this.aggregationPipelineMode = aggregationPipelineMode;
       return this;
     }
 
@@ -81,7 +91,7 @@ public class ConnectionConfig {
               applicationName,
               replicaSet,
               connectionPoolConfig,
-              isSortOptimizedQueryEnabled);
+              aggregationPipelineMode);
 
         case POSTGRES:
           return new PostgresConnectionConfig(
@@ -89,8 +99,7 @@ public class ConnectionConfig {
               database,
               credentials,
               applicationName,
-              connectionPoolConfig,
-              isSortOptimizedQueryEnabled);
+              connectionPoolConfig);
       }
 
       throw new IllegalArgumentException("Unsupported database type: " + type);

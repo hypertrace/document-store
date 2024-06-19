@@ -37,8 +37,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
-import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.mongo.query.parser.AggregateExpressionChecker;
+import org.hypertrace.core.documentstore.mongo.query.parser.AliasParser;
+import org.hypertrace.core.documentstore.mongo.query.parser.FunctionExpressionChecker;
 import org.hypertrace.core.documentstore.mongo.query.parser.MongoFromTypeExpressionParser;
 import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -143,14 +146,7 @@ public class MongoQueryExecutor {
     Query query = transformAndLog(originalQuery);
 
     List<Function<Query, Collection<BasicDBObject>>> aggregatePipeline =
-        DEFAULT_AGGREGATE_PIPELINE_FUNCTIONS;
-    if (connectionConfig.isSortOptimizedQueryEnabled()
-        && query.getAggregations().isEmpty()
-        && query.getAggregationFilter().isEmpty()
-        && !isProjectionContainsAggregation(query)
-        && !isSortContainsAggregation(query)) {
-      aggregatePipeline = SORT_OPTIMISED_AGGREGATE_PIPELINE_FUNCTIONS;
-    }
+        getAggregationPipeline(query);
 
     List<BasicDBObject> pipeline =
         aggregatePipeline.stream()
@@ -224,18 +220,33 @@ public class MongoQueryExecutor {
     return query;
   }
 
+  private List<Function<Query, Collection<BasicDBObject>>> getAggregationPipeline(Query query) {
+    List<Function<Query, Collection<BasicDBObject>>> aggregatePipeline =
+        DEFAULT_AGGREGATE_PIPELINE_FUNCTIONS;
+    if (connectionConfig
+            .aggregationPipelineMode()
+            .equals(AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE)
+        && query.getAggregations().isEmpty()
+        && query.getAggregationFilter().isEmpty()
+        && !isProjectionContainsAggregation(query)
+        && !isSortContainsAggregation(query)) {
+      log.debug("Using sort optimized aggregate pipeline functions for query: {}", query);
+      aggregatePipeline = SORT_OPTIMISED_AGGREGATE_PIPELINE_FUNCTIONS;
+    }
+    return aggregatePipeline;
+  }
+
   private boolean isProjectionContainsAggregation(Query query) {
     return query.getSelections().stream()
-        .anyMatch(
-            selectionSpec ->
-                selectionSpec.getExpression().getClass().equals(AggregateExpression.class));
+        .map(SelectionSpec::getExpression)
+        .anyMatch(spec -> spec.accept(new AggregateExpressionChecker()));
   }
 
   private boolean isSortContainsAggregation(Query query) {
-    Map<String, List<SelectionSpec>> aliasToSelectionMap =
+    Map<String, SelectionSpec> aliasToSelectionMap =
         query.getSelections().stream()
             .filter(spec -> this.getAlias(spec) != null)
-            .collect(Collectors.groupingBy(this::getAlias, toList()));
+            .collect(Collectors.toUnmodifiableMap(this::getAlias, Function.identity()));
     return query.getSorts().stream()
         .anyMatch(
             sort ->
@@ -249,24 +260,15 @@ public class MongoQueryExecutor {
       return selectionSpec.getAlias();
     }
 
-    return selectionSpec.getExpression().getClass().equals(FunctionExpression.class)
-            || selectionSpec.getExpression().getClass().equals(AggregateExpression.class)
-        ? null
-        : ((IdentifierExpression) selectionSpec.getExpression()).getName();
+    return selectionSpec.getExpression().accept(new AliasParser());
   }
 
   private boolean isSortOnAggregatedProjection(
-      Map<String, List<SelectionSpec>> aliasToSelectionMap, SortingSpec sort) {
-    List<SelectionSpec> selectionSpecs =
-        aliasToSelectionMap.get(((IdentifierExpression) sort.getExpression()).getName());
-    return selectionSpecs != null
-        && selectionSpecs.stream()
-            .anyMatch(
-                selectionSpec ->
-                    selectionSpec.getExpression().getClass().equals(FunctionExpression.class)
-                        || selectionSpec
-                            .getExpression()
-                            .getClass()
-                            .equals(AggregateExpression.class));
+      Map<String, SelectionSpec> aliasToSelectionMap, SortingSpec sort) {
+    SelectionSpec selectionSpec =
+        aliasToSelectionMap.get(sort.getExpression().accept(new AliasParser()));
+    return selectionSpec != null
+        && (selectionSpec.getExpression().accept(new FunctionExpressionChecker())
+            || selectionSpec.getExpression().accept(new AggregateExpressionChecker()));
   }
 }

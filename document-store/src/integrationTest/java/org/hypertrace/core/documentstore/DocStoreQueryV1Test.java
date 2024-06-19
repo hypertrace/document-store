@@ -130,10 +130,10 @@ public class DocStoreQueryV1Test {
             .waitingFor(Wait.forListeningPort());
     mongo.start();
 
-    Map<String, Object> mongoConfig = new HashMap<>();
+    Map<String, String> mongoConfig = new HashMap<>();
     mongoConfig.putIfAbsent("host", "localhost");
     mongoConfig.putIfAbsent("port", mongo.getMappedPort(27017).toString());
-    mongoConfig.putIfAbsent("isSortOptimizedQueryEnabled", true);
+    mongoConfig.putIfAbsent("isSortOptimizedQueryEnabled", "true");
     Config config = ConfigFactory.parseMap(mongoConfig);
 
     Datastore mongoDatastore = DatastoreProvider.getDatastore("Mongo", config);
@@ -2824,8 +2824,7 @@ public class DocStoreQueryV1Test {
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName,
           iterator_new,
-          "query/update_operator/updated_add_to_list_if_absent_does_not_deduplicate_existing_list"
-              + ".json",
+          "query/update_operator/updated_add_to_list_if_absent_does_not_deduplicate_existing_list.json",
           9);
     }
 

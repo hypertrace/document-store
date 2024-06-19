@@ -21,6 +21,7 @@ import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import lombok.experimental.NonFinal;
+import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
@@ -48,12 +49,12 @@ public class MongoConnectionConfig extends ConnectionConfig {
       @NonNull final String applicationName,
       @Nullable final String replicaSetName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig,
-      boolean sortOptimizedQueryEnabled) {
+      AggregatePipelineMode aggregationPipelineMode) {
     super(
         ensureAtLeastOneEndpoint(endpoints),
         getDatabaseOrDefault(database),
         getCredentialsOrDefault(credentials, database),
-        sortOptimizedQueryEnabled);
+        aggregationPipelineMode);
     this.applicationName = applicationName;
     this.replicaSetName = replicaSetName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);

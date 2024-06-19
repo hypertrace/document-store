@@ -1,16 +1,14 @@
 package org.hypertrace.core.documentstore.mongo.query.parser;
 
-import static java.util.Collections.unmodifiableMap;
-import static java.util.stream.Collectors.toList;
-import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
-import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSortTypeExpressionParser.ORDER_MAP;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSortTypeExpressionParser.SORT_CLAUSE;
 
 import com.mongodb.BasicDBObject;
-import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
@@ -31,17 +29,6 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
  * sortBy("attribute.name", DESC)
  */
 public class MongoNonProjectedSortTypeExpressionParser implements SortTypeExpressionVisitor {
-
-  private static final String SORT_CLAUSE = "$sort";
-  private static final Map<SortOrder, Integer> ORDER_MAP =
-      unmodifiableMap(
-          new EnumMap<>(SortOrder.class) {
-            {
-              put(ASC, 1);
-              put(DESC, -1);
-            }
-          });
-
   private final SortOrder order;
 
   MongoNonProjectedSortTypeExpressionParser(final SortOrder order) {
@@ -108,31 +95,24 @@ public class MongoNonProjectedSortTypeExpressionParser implements SortTypeExpres
 
   private static Map<String, Object> parse(
       final SortingSpec definition, final List<SelectionSpec> selectionSpecs) {
-    if (!definition.getExpression().getClass().equals(IdentifierExpression.class)) {
-      // This parser is only meant to convert identifier based sort
-      // expression to their projected query. If you have sort on other
-      // functions or aggregations, then use MongoSortTypeExpressionParser
-      throw new IllegalArgumentException("Sort expression should be an identifier");
-    }
-
     MongoNonProjectedSortTypeExpressionParser parser =
         new MongoNonProjectedSortTypeExpressionParser(definition.getOrder());
-    Map<String, List<SelectionSpec>> aliasToSelectionMap =
+    Map<String, SelectionSpec> aliasToSelectionMap =
         selectionSpecs.stream()
             .filter(spec -> MongoNonProjectedSortTypeExpressionParser.getAlias(spec) != null)
             .collect(
-                Collectors.groupingBy(
-                    MongoNonProjectedSortTypeExpressionParser::getAlias, toList()));
+                Collectors.toUnmodifiableMap(
+                    MongoNonProjectedSortTypeExpressionParser::getAlias, Function.identity()));
 
-    List<SelectionSpec> sortSelectionSpec =
-        aliasToSelectionMap.get(((IdentifierExpression) definition.getExpression()).getName());
-
-    // no selection spec is present for the sort expression
-    if (sortSelectionSpec == null || sortSelectionSpec.isEmpty()) {
-      return definition.getExpression().accept(parser);
+    String sortAlias = definition.getExpression().accept(new AliasParser());
+    SelectionSpec sortSelectionSpec = aliasToSelectionMap.get(sortAlias);
+    // If selection spec is present for the sort expression,
+    // use the selection spec for sort order, else do nothing
+    if (sortSelectionSpec != null) {
+      return sortSelectionSpec.getExpression().accept(parser);
     }
 
-    return ((IdentifierExpression) sortSelectionSpec.get(0).getExpression()).accept(parser);
+    return definition.getExpression().accept(parser);
   }
 
   private static String getAlias(SelectionSpec selectionSpec) {
@@ -140,9 +120,6 @@ public class MongoNonProjectedSortTypeExpressionParser implements SortTypeExpres
       return selectionSpec.getAlias();
     }
 
-    return selectionSpec.getExpression().getClass().equals(FunctionExpression.class)
-            || selectionSpec.getExpression().getClass().equals(AggregateExpression.class)
-        ? null
-        : ((IdentifierExpression) selectionSpec.getExpression()).getName();
+    return selectionSpec.getExpression().accept(new AliasParser());
   }
 }

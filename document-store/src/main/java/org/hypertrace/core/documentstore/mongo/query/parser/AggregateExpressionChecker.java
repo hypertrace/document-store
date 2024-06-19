@@ -1,0 +1,36 @@
+package org.hypertrace.core.documentstore.mongo.query.parser;
+
+import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+
+public class AggregateExpressionChecker implements SelectTypeExpressionVisitor {
+
+  @Override
+  public Boolean visit(AggregateExpression expression) {
+    return true;
+  }
+
+  @Override
+  public Boolean visit(ConstantExpression expression) {
+    return null;
+  }
+
+  @Override
+  public Boolean visit(DocumentConstantExpression expression) {
+    return null;
+  }
+
+  @Override
+  public Boolean visit(FunctionExpression expression) {
+    return null;
+  }
+
+  @Override
+  public Boolean visit(IdentifierExpression expression) {
+    return null;
+  }
+}

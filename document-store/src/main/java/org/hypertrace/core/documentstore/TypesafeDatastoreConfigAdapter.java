@@ -5,6 +5,7 @@ import static java.util.Collections.emptyList;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.typesafe.config.Config;
+import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.TypesafeConfigDatastoreConfigExtractor;
@@ -21,12 +22,9 @@ interface TypesafeDatastoreConfigAdapter {
 
     @Override
     public DatastoreConfig convert(final Config config) {
-      boolean isSortOptimizedQueryEnabled =
-          config.hasPath("isSortOptimizedQueryEnabled")
-              && config.getBoolean("isSortOptimizedQueryEnabled");
       final MongoConnectionConfig overridingConnectionConfig =
           new MongoConnectionConfig(
-              emptyList(), null, null, "", null, null, isSortOptimizedQueryEnabled) {
+              emptyList(), null, null, "", null, null, AggregatePipelineMode.DEFAULT_ONLY) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
                   MongoClientSettings.builder()
@@ -80,8 +78,7 @@ interface TypesafeDatastoreConfigAdapter {
               connectionConfig.database(),
               connectionConfig.credentials(),
               connectionConfig.applicationName(),
-              connectionConfig.connectionPoolConfig(),
-              connectionConfig.isSortOptimizedQueryEnabled()) {
+              connectionConfig.connectionPoolConfig()) {
             @Override
             public String toConnectionString() {
               return config.hasPath("url")
