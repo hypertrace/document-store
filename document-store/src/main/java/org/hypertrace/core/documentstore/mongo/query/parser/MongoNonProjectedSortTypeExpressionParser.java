@@ -12,9 +12,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
@@ -28,7 +31,8 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
  * "attributeName", key: "attribute.name") would result in sort expression as
  * sortBy("attribute.name", DESC)
  */
-public class MongoNonProjectedSortTypeExpressionParser implements SortTypeExpressionVisitor {
+public class MongoNonProjectedSortTypeExpressionParser
+    implements SortTypeExpressionVisitor, SelectTypeExpressionVisitor {
   private final SortOrder order;
 
   MongoNonProjectedSortTypeExpressionParser(final SortOrder order) {
@@ -66,6 +70,26 @@ public class MongoNonProjectedSortTypeExpressionParser implements SortTypeExpres
 
     String parsed = new MongoIdentifierExpressionParser().parse(expression);
     return Map.of(parsed, value);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(ConstantExpression expression) {
+    throw new UnsupportedOperationException(
+        String.format(
+            "Cannot sort a constant expression ($%s) in MongoDB."
+                + "Set alias in selection and sort by the alias as identifier",
+            expression.getValue().toString()));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(DocumentConstantExpression expression) {
+    throw new UnsupportedOperationException(
+        String.format(
+            "Cannot sort a constant expression ($%s) in MongoDB."
+                + "Set alias in selection and sort by the alias as identifier",
+            expression.getValue().toString()));
   }
 
   public static BasicDBObject getNonProjectedSortClause(final Query query) {

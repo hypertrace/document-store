@@ -6,8 +6,11 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.Docu
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 
-public class FunctionExpressionChecker implements SelectTypeExpressionVisitor {
+@SuppressWarnings("unchecked")
+public class FunctionExpressionChecker
+    implements SelectTypeExpressionVisitor, SortTypeExpressionVisitor {
 
   @Override
   public Boolean visit(AggregateExpression expression) {
@@ -16,12 +19,12 @@ public class FunctionExpressionChecker implements SelectTypeExpressionVisitor {
 
   @Override
   public Boolean visit(ConstantExpression expression) {
-    return null;
+    return false;
   }
 
   @Override
   public Boolean visit(DocumentConstantExpression expression) {
-    return null;
+    return false;
   }
 
   @Override
@@ -31,6 +34,6 @@ public class FunctionExpressionChecker implements SelectTypeExpressionVisitor {
 
   @Override
   public Boolean visit(IdentifierExpression expression) {
-    return null;
+    return false;
   }
 }

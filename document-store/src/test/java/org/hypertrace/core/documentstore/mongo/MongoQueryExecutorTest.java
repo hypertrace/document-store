@@ -50,6 +50,7 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
+import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
 import org.hypertrace.core.documentstore.query.Filter;
@@ -88,7 +89,8 @@ class MongoQueryExecutorTest {
   @BeforeEach
   void setUp() {
     ConnectionConfig connectionConfig = mock(ConnectionConfig.class);
-    when(connectionConfig.isSortOptimizedQueryEnabled()).thenReturn(true);
+    when(connectionConfig.aggregationPipelineMode())
+        .thenReturn(AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE);
     executor = new MongoQueryExecutor(collection, connectionConfig);
 
     when(collection.find(any(BasicDBObject.class))).thenReturn(iterable);

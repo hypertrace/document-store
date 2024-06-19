@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo.query;
 
 import static java.lang.Long.parseLong;
 import static java.util.Collections.singleton;
+import static java.util.function.Function.identity;
 import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toList;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
@@ -35,8 +36,6 @@ import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
-import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
-import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.mongo.query.parser.AggregateExpressionChecker;
@@ -243,16 +242,23 @@ public class MongoQueryExecutor {
   }
 
   private boolean isSortContainsAggregation(Query query) {
+    // ideally there should be only one alias per selection,
+    // in case of duplicates, we will accept the latest one
     Map<String, SelectionSpec> aliasToSelectionMap =
         query.getSelections().stream()
             .filter(spec -> this.getAlias(spec) != null)
-            .collect(Collectors.toUnmodifiableMap(this::getAlias, Function.identity()));
+            .collect(Collectors.toMap(this::getAlias, identity(), (v1, v2) -> v2));
     return query.getSorts().stream()
-        .anyMatch(
-            sort ->
-                sort.getExpression().getClass().equals(FunctionExpression.class)
-                    || sort.getExpression().getClass().equals(AggregateExpression.class)
-                    || isSortOnAggregatedProjection(aliasToSelectionMap, sort));
+        .anyMatch(sort -> isSortOnAggregatedField(aliasToSelectionMap, sort));
+  }
+
+  private boolean isSortOnAggregatedField(
+      Map<String, SelectionSpec> aliasToSelectionMap, SortingSpec sort) {
+    boolean isFunctionExpression = sort.getExpression().accept(new FunctionExpressionChecker());
+    boolean isAggregateExpression = sort.getExpression().accept(new AggregateExpressionChecker());
+    return isFunctionExpression
+        || isAggregateExpression
+        || isSortOnAggregatedProjection(aliasToSelectionMap, sort);
   }
 
   private String getAlias(SelectionSpec selectionSpec) {
@@ -265,10 +271,16 @@ public class MongoQueryExecutor {
 
   private boolean isSortOnAggregatedProjection(
       Map<String, SelectionSpec> aliasToSelectionMap, SortingSpec sort) {
-    SelectionSpec selectionSpec =
-        aliasToSelectionMap.get(sort.getExpression().accept(new AliasParser()));
-    return selectionSpec != null
-        && (selectionSpec.getExpression().accept(new FunctionExpressionChecker())
-            || selectionSpec.getExpression().accept(new AggregateExpressionChecker()));
+    String alias = sort.getExpression().accept(new AliasParser());
+    SelectionSpec selectionSpec = aliasToSelectionMap.get(alias);
+    if (selectionSpec == null) {
+      return false;
+    }
+
+    Boolean isFunctionExpression =
+        selectionSpec.getExpression().accept(new FunctionExpressionChecker());
+    Boolean isAggregationExpression =
+        selectionSpec.getExpression().accept(new AggregateExpressionChecker());
+    return isFunctionExpression || isAggregationExpression;
   }
 }

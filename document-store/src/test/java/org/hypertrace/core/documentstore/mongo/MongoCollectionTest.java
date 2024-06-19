@@ -50,6 +50,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -73,10 +74,12 @@ public class MongoCollectionTest {
   public void setup() {
     collection = mock(com.mongodb.client.MongoCollection.class);
     mockClock = mock(Clock.class);
-
+    ConnectionConfig connectionConfig = mock(ConnectionConfig.class);
+    when(connectionConfig.aggregationPipelineMode())
+        .thenReturn(AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE);
     try (final MockedStatic<Clock> clockMock = mockStatic(Clock.class)) {
       clockMock.when(Clock::systemUTC).thenReturn(mockClock);
-      mongoCollection = new MongoCollection(collection, mock(ConnectionConfig.class));
+      mongoCollection = new MongoCollection(collection, connectionConfig);
     }
 
     MongoNamespace namespace = new MongoNamespace("Mongo.test_collection");
