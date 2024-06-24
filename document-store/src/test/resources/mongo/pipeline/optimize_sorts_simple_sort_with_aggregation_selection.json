@@ -1,0 +1,22 @@
+[
+  {
+    "$group": {
+      "total": {
+        "$push": 1
+      },
+      "_id": null
+    }
+  },
+  {
+    "$project": {
+      "total": {
+        "$size": "$total"
+      }
+    }
+  },
+  {
+    "$sort": {
+      "item.description": -1
+    }
+  }
+]

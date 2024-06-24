@@ -15,13 +15,13 @@
     }
   },
   {
-    "$project": {
-      "item": 1
+    "$sort": {
+      "item": -1
     }
   },
   {
-    "$sort": {
-      "item": -1
+    "$project": {
+      "item": 1
     }
   }
 ]

@@ -20,9 +20,8 @@ import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
 public final class MongoSortTypeExpressionParser implements SortTypeExpressionVisitor {
-
-  private static final String SORT_CLAUSE = "$sort";
-  private static final Map<SortOrder, Integer> ORDER_MAP =
+  static final String SORT_CLAUSE = "$sort";
+  static final Map<SortOrder, Integer> ORDER_MAP =
       unmodifiableMap(
           new EnumMap<>(SortOrder.class) {
             {

@@ -1,0 +1,17 @@
+[
+  {
+    "$sort": {
+      "item.description": -1
+    }
+  },
+  {
+    "$project": {
+      "total": {
+        "$multiply": [
+          "$price",
+          "$quantity"
+        ]
+      }
+    }
+  }
+]

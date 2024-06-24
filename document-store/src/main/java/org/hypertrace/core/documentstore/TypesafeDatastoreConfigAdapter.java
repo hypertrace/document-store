@@ -5,6 +5,7 @@ import static java.util.Collections.emptyList;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.typesafe.config.Config;
+import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.TypesafeConfigDatastoreConfigExtractor;
@@ -13,14 +14,17 @@ import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectio
 
 @Deprecated(forRemoval = true)
 interface TypesafeDatastoreConfigAdapter {
+
   DatastoreConfig convert(final Config config);
 
   @Deprecated(forRemoval = true)
   class MongoTypesafeDatastoreConfigAdapter implements TypesafeDatastoreConfigAdapter {
+
     @Override
     public DatastoreConfig convert(final Config config) {
       final MongoConnectionConfig overridingConnectionConfig =
-          new MongoConnectionConfig(emptyList(), null, null, "", null, null) {
+          new MongoConnectionConfig(
+              emptyList(), null, null, "", null, null, AggregatePipelineMode.DEFAULT_ALWAYS) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
                   MongoClientSettings.builder()
@@ -50,6 +54,7 @@ interface TypesafeDatastoreConfigAdapter {
 
   @Deprecated(forRemoval = true)
   class PostgresTypesafeDatastoreConfigAdapter implements TypesafeDatastoreConfigAdapter {
+
     @Override
     public DatastoreConfig convert(final Config config) {
       final PostgresConnectionConfig connectionConfig =

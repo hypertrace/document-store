@@ -18,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -33,10 +34,11 @@ public class MongoUpdateExecutor {
   private final MongoQueryExecutor queryExecutor;
   private final UpdateValidator updateValidator;
 
-  public MongoUpdateExecutor(final MongoCollection<BasicDBObject> collection) {
+  public MongoUpdateExecutor(
+      final MongoCollection<BasicDBObject> collection, ConnectionConfig connectionConfig) {
     this.collection = collection;
     this.updateParser = new MongoUpdateParser(Clock.systemUTC());
-    this.queryExecutor = new MongoQueryExecutor(collection);
+    this.queryExecutor = new MongoQueryExecutor(collection, connectionConfig);
     this.updateValidator = new CommonUpdateValidator();
   }
 

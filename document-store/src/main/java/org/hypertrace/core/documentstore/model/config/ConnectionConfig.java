@@ -29,6 +29,14 @@ public class ConnectionConfig {
   @Singular @NonNull List<@NonNull Endpoint> endpoints;
   @NonNull String database;
   @Nullable ConnectionCredentials credentials;
+  @NonNull AggregatePipelineMode aggregationPipelineMode;
+
+  public ConnectionConfig(
+      @NonNull List<@NonNull Endpoint> endpoints,
+      @NonNull String database,
+      @Nullable ConnectionCredentials credentials) {
+    this(endpoints, database, credentials, AggregatePipelineMode.DEFAULT_ALWAYS);
+  }
 
   public static ConnectionConfigBuilder builder() {
     return new ConnectionConfigBuilder();
@@ -46,6 +54,7 @@ public class ConnectionConfig {
     String applicationName = DEFAULT_APP_NAME;
     String replicaSet;
     ConnectionPoolConfig connectionPoolConfig;
+    AggregatePipelineMode aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ALWAYS;
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;
@@ -72,7 +81,8 @@ public class ConnectionConfig {
               credentials,
               applicationName,
               replicaSet,
-              connectionPoolConfig);
+              connectionPoolConfig,
+              aggregationPipelineMode);
 
         case POSTGRES:
           return new PostgresConnectionConfig(

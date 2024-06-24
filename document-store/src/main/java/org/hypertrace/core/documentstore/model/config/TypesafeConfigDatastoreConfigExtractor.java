@@ -25,6 +25,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
   private static final String MAX_POOL_SIZE_KEY = "maxPoolSize";
   private static final String CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
   private static final String CONNECTION_IDLE_TIME_KEY = "connectionIdleTime";
+  private static final String AGGREGATION_PIPELINE_MODE = "aggregationPipelineMode";
 
   @NonNull Config config;
   DatastoreConfigBuilder datastoreConfigBuilder;
@@ -66,7 +67,8 @@ public class TypesafeConfigDatastoreConfigExtractor {
         .applicationNameKey(APP_NAME_KEY)
         .poolMaxConnectionsKey(MAX_POOL_SIZE_KEY)
         .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
-        .poolConnectionSurrenderTimeoutKey(CONNECTION_IDLE_TIME_KEY);
+        .poolConnectionSurrenderTimeoutKey(CONNECTION_IDLE_TIME_KEY)
+        .aggregationPipelineMode(AGGREGATION_PIPELINE_MODE);
   }
 
   public static TypesafeConfigDatastoreConfigExtractor from(
@@ -181,6 +183,17 @@ public class TypesafeConfigDatastoreConfigExtractor {
     if (config.hasPath(key)) {
       connectionPoolConfigBuilder.connectionSurrenderTimeout(config.getDuration(key));
     }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor aggregationPipelineMode(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionConfigBuilder.aggregationPipelineMode(
+          AggregatePipelineMode.valueOf(config.getString(key)));
+      return this;
+    }
+
+    connectionConfigBuilder.aggregationPipelineMode(AggregatePipelineMode.DEFAULT_ALWAYS);
     return this;
   }
 

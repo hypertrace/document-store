@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -49,6 +50,8 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
+import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
+import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -85,7 +88,10 @@ class MongoQueryExecutorTest {
 
   @BeforeEach
   void setUp() {
-    executor = new MongoQueryExecutor(collection);
+    ConnectionConfig connectionConfig = mock(ConnectionConfig.class);
+    when(connectionConfig.aggregationPipelineMode())
+        .thenReturn(AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE);
+    executor = new MongoQueryExecutor(collection, connectionConfig);
 
     when(collection.find(any(BasicDBObject.class))).thenReturn(iterable);
     when(collection.aggregate(anyList())).thenReturn(aggIterable);
@@ -514,6 +520,85 @@ class MongoQueryExecutorTest {
     verify(iterable, NOT_INVOKED).skip(anyInt());
     verify(iterable, NOT_INVOKED).limit(anyInt());
     verify(iterable).cursor();
+  }
+
+  @Test
+  public void testOptimizeSorts_simpleAggregate() throws IOException, URISyntaxException {
+    final Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSort(IdentifierExpression.of("item"), DESC)
+            .build();
+
+    testAggregation(query, "mongo/pipeline/optimize_sorts_simple_aggregate.json");
+  }
+
+  @Test
+  public void testOptimizeSorts_sortSpecNotInSelection() throws IOException, URISyntaxException {
+    final Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSort(IdentifierExpression.of("item.description"), DESC)
+            .build();
+
+    testAggregation(query, "mongo/pipeline/optimize_sorts_sort_spec_not_in_selection.json");
+  }
+
+  @Test
+  public void testOptimizeSorts_sortSpecNotInSelection_selectionWithAlias()
+      throws IOException, URISyntaxException {
+    final Query query =
+        Query.builder()
+            .addSelection(SelectionSpec.of(IdentifierExpression.of("item"), "item"))
+            .addSort(IdentifierExpression.of("item.description"), DESC)
+            .build();
+
+    testAggregation(query, "mongo/pipeline/optimize_sorts_selection_with_alias.json");
+  }
+
+  @Test
+  public void testOptimizeSorts_simpleSortWithFunctionAsSelection()
+      throws IOException, URISyntaxException {
+    final Query query =
+        Query.builder()
+            .addSelection(
+                FunctionExpression.builder()
+                    .operand(IdentifierExpression.of("price"))
+                    .operator(MULTIPLY)
+                    .operand(IdentifierExpression.of("quantity"))
+                    .build(),
+                "total")
+            .addSort(IdentifierExpression.of("item.description"), DESC)
+            .build();
+
+    testAggregation(
+        query, "mongo/pipeline/optimize_sorts_simple_sort_with_function_as_selection.json");
+  }
+
+  @Test
+  public void testOptimizeSorts_simpleSortWithAggregationAsSelection()
+      throws IOException, URISyntaxException {
+    final Query query =
+        Query.builder()
+            .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+            .addSort(IdentifierExpression.of("item.description"), DESC)
+            .build();
+
+    testAggregation(
+        query, "mongo/pipeline/optimize_sorts_simple_sort_with_aggregation_selection.json");
+  }
+
+  @Test
+  public void testOptimizeSorts_sortSpecInSelection_selectionWithAlias()
+      throws IOException, URISyntaxException {
+    final Query query =
+        Query.builder()
+            .addSelection(SelectionSpec.of(IdentifierExpression.of("item.name"), "name"))
+            .addSort(IdentifierExpression.of("name"), DESC)
+            .build();
+
+    testAggregation(
+        query, "mongo/pipeline/optimize_sorts_sort_in_selection_selection_with_alias.json");
   }
 
   private void testAggregation(Query query, final String filePath)
