@@ -1,0 +1,12 @@
+[
+  {
+    "$sort": {
+      "item.name": -1
+    }
+  },
+  {
+    "$project": {
+      "name": "$item.name"
+    }
+  }
+]

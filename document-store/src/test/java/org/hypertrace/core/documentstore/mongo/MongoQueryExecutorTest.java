@@ -588,18 +588,18 @@ class MongoQueryExecutorTest {
         query, "mongo/pipeline/optimize_sorts_simple_sort_with_aggregation_selection.json");
   }
 
-  //  @Test
-  //  public void testOptimizeSorts_simpleSortWithAggregationAsSelection()
-  //      throws IOException, URISyntaxException {
-  //    final Query query =
-  //        Query.builder()
-  //            .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
-  //            .addSort(IdentifierExpression.of("item.description"), DESC)
-  //            .build();
-  //
-  //    testAggregation(
-  //        query, "mongo/pipeline/optimize_sorts_simple_sort_with_aggregation_selection.json");
-  //  }
+  @Test
+  public void testOptimizeSorts_sortSpecInSelection_selectionWithAlias()
+      throws IOException, URISyntaxException {
+    final Query query =
+        Query.builder()
+            .addSelection(SelectionSpec.of(IdentifierExpression.of("item.name"), "name"))
+            .addSort(IdentifierExpression.of("name"), DESC)
+            .build();
+
+    testAggregation(
+        query, "mongo/pipeline/optimize_sorts_sort_in_selection_selection_with_alias.json");
+  }
 
   private void testAggregation(Query query, final String filePath)
       throws IOException, URISyntaxException {
