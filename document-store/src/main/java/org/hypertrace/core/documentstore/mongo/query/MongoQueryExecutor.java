@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -38,11 +39,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
-import org.hypertrace.core.documentstore.mongo.query.parser.AggregateExpressionChecker;
 import org.hypertrace.core.documentstore.mongo.query.parser.AliasParser;
-import org.hypertrace.core.documentstore.mongo.query.parser.FunctionExpressionChecker;
 import org.hypertrace.core.documentstore.mongo.query.parser.MongoFromTypeExpressionParser;
 import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
+import org.hypertrace.core.documentstore.parser.AggregateExpressionChecker;
+import org.hypertrace.core.documentstore.parser.FunctionExpressionChecker;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
@@ -246,8 +247,10 @@ public class MongoQueryExecutor {
     // in case of duplicates, we will accept the latest one
     Map<String, SelectionSpec> aliasToSelectionMap =
         query.getSelections().stream()
-            .filter(spec -> this.getAlias(spec) != null)
-            .collect(Collectors.toMap(this::getAlias, identity(), (v1, v2) -> v2));
+            .filter(spec -> this.getAlias(spec).isPresent())
+            .collect(
+                Collectors.toMap(
+                    entry -> this.getAlias(entry).orElseThrow(), identity(), (v1, v2) -> v2));
     return query.getSorts().stream()
         .anyMatch(sort -> isSortOnAggregatedField(aliasToSelectionMap, sort));
   }
@@ -261,9 +264,9 @@ public class MongoQueryExecutor {
         || isSortOnAggregatedProjection(aliasToSelectionMap, sort);
   }
 
-  private String getAlias(SelectionSpec selectionSpec) {
+  private Optional<String> getAlias(SelectionSpec selectionSpec) {
     if (selectionSpec.getAlias() != null) {
-      return selectionSpec.getAlias();
+      return Optional.of(selectionSpec.getAlias());
     }
 
     return selectionSpec.getExpression().accept(new AliasParser());
@@ -271,8 +274,13 @@ public class MongoQueryExecutor {
 
   private boolean isSortOnAggregatedProjection(
       Map<String, SelectionSpec> aliasToSelectionMap, SortingSpec sort) {
-    String alias = sort.getExpression().accept(new AliasParser());
-    SelectionSpec selectionSpec = aliasToSelectionMap.get(alias);
+    Optional<String> alias = sort.getExpression().accept(new AliasParser());
+    if (alias.isEmpty()) {
+      throw new UnsupportedOperationException(
+          "Cannot sort by an expression that does not have an alias in selection");
+    }
+
+    SelectionSpec selectionSpec = aliasToSelectionMap.get(alias.get());
     if (selectionSpec == null) {
       return false;
     }

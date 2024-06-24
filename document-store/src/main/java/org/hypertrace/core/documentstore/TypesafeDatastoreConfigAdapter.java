@@ -24,7 +24,7 @@ interface TypesafeDatastoreConfigAdapter {
     public DatastoreConfig convert(final Config config) {
       final MongoConnectionConfig overridingConnectionConfig =
           new MongoConnectionConfig(
-              emptyList(), null, null, "", null, null, AggregatePipelineMode.DEFAULT_ONLY) {
+              emptyList(), null, null, "", null, null, AggregatePipelineMode.DEFAULT_ALWAYS) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
                   MongoClientSettings.builder()

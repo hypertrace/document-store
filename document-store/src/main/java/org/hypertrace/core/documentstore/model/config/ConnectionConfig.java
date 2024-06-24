@@ -35,10 +35,7 @@ public class ConnectionConfig {
       @NonNull List<@NonNull Endpoint> endpoints,
       @NonNull String database,
       @Nullable ConnectionCredentials credentials) {
-    this.endpoints = endpoints;
-    this.database = database;
-    this.credentials = credentials;
-    this.aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ONLY;
+    this(endpoints, database, credentials, AggregatePipelineMode.DEFAULT_ALWAYS);
   }
 
   public static ConnectionConfigBuilder builder() {
@@ -57,7 +54,7 @@ public class ConnectionConfig {
     String applicationName = DEFAULT_APP_NAME;
     String replicaSet;
     ConnectionPoolConfig connectionPoolConfig;
-    AggregatePipelineMode aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ONLY;
+    AggregatePipelineMode aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ALWAYS;
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;

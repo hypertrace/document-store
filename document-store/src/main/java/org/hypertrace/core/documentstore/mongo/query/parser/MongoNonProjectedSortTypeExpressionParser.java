@@ -8,6 +8,7 @@ import com.mongodb.BasicDBObject;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.apache.commons.collections4.CollectionUtils;
@@ -123,13 +124,19 @@ public class MongoNonProjectedSortTypeExpressionParser
         new MongoNonProjectedSortTypeExpressionParser(definition.getOrder());
     Map<String, SelectionSpec> aliasToSelectionMap =
         selectionSpecs.stream()
-            .filter(spec -> MongoNonProjectedSortTypeExpressionParser.getAlias(spec) != null)
+            .filter(spec -> MongoNonProjectedSortTypeExpressionParser.getAlias(spec).isPresent())
             .collect(
                 Collectors.toUnmodifiableMap(
-                    MongoNonProjectedSortTypeExpressionParser::getAlias, Function.identity()));
+                    entry ->
+                        MongoNonProjectedSortTypeExpressionParser.getAlias(entry).orElseThrow(),
+                    Function.identity()));
 
-    String sortAlias = definition.getExpression().accept(new AliasParser());
-    SelectionSpec sortSelectionSpec = aliasToSelectionMap.get(sortAlias);
+    Optional<String> sortAlias = definition.getExpression().accept(new AliasParser());
+    if (sortAlias.isEmpty()) {
+      throw new UnsupportedOperationException(
+          "Cannot sort by an expression that does not have an alias in selection");
+    }
+    SelectionSpec sortSelectionSpec = aliasToSelectionMap.get(sortAlias.get());
     // If selection spec is present for the sort expression,
     // use the selection spec for sort order, else do nothing
     if (sortSelectionSpec != null) {
@@ -139,9 +146,9 @@ public class MongoNonProjectedSortTypeExpressionParser
     return definition.getExpression().accept(parser);
   }
 
-  private static String getAlias(SelectionSpec selectionSpec) {
+  private static Optional<String> getAlias(SelectionSpec selectionSpec) {
     if (selectionSpec.getAlias() != null) {
-      return selectionSpec.getAlias();
+      return Optional.of(selectionSpec.getAlias());
     }
 
     return selectionSpec.getExpression().accept(new AliasParser());

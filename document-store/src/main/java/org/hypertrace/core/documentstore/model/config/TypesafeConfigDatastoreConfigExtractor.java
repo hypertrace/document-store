@@ -193,7 +193,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
       return this;
     }
 
-    connectionConfigBuilder.aggregationPipelineMode(AggregatePipelineMode.DEFAULT_ONLY);
+    connectionConfigBuilder.aggregationPipelineMode(AggregatePipelineMode.DEFAULT_ALWAYS);
     return this;
   }
 
