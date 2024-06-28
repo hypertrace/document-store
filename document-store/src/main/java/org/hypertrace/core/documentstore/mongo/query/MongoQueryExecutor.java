@@ -12,7 +12,6 @@ import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelpe
 import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelper.getSkipClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilterClause;
-import static org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser.getGroupClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoNonProjectedSortTypeExpressionParser.getNonProjectedSortClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getProjectClause;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getSelections;
@@ -41,6 +40,7 @@ import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.mongo.query.parser.AliasParser;
 import org.hypertrace.core.documentstore.mongo.query.parser.MongoFromTypeExpressionParser;
+import org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser;
 import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
 import org.hypertrace.core.documentstore.parser.AggregateExpressionChecker;
 import org.hypertrace.core.documentstore.parser.FunctionExpressionChecker;
@@ -58,7 +58,7 @@ public class MongoQueryExecutor {
           List.of(
               query -> singleton(getFilterClause(query, Query::getFilter)),
               MongoFromTypeExpressionParser::getFromClauses,
-              query -> singleton(getGroupClause(query)),
+              MongoGroupTypeExpressionParser::getGroupClauses,
               query -> singleton(getProjectClause(query)),
               query -> singleton(getFilterClause(query, Query::getAggregationFilter)),
               query -> singleton(getSortClause(query)),

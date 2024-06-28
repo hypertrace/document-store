@@ -1,7 +1,11 @@
 package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import static java.util.stream.Collectors.toMap;
+import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.getGroupByAliases;
+import static org.hypertrace.core.documentstore.mongo.MongoUtils.isFunctionExpressionSelectionWithGroupBy;
 
+import com.google.common.base.Joiner;
 import com.mongodb.BasicDBObject;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +23,8 @@ public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpre
   public static final String PROJECT_CLAUSE = "$project";
 
   protected final MongoSelectTypeExpressionParser baseParser;
+
+  private static final Joiner DOT_JOINER = Joiner.on(".");
 
   protected MongoSelectTypeExpressionParser() {
     this(MongoUnsupportedSelectTypeExpressionParser.INSTANCE);
@@ -59,8 +65,17 @@ public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpre
         new MongoIdentifierPrefixingParser(
             new MongoIdentifierExpressionParser(new MongoFunctionExpressionParser()));
 
+    List<String> groupByAliases = getGroupByAliases(query.getAggregations());
+
     Map<String, Object> projectionMap =
         selectionSpecs.stream()
+            .map(
+                spec ->
+                    isFunctionExpressionSelectionWithGroupBy(spec, groupByAliases)
+                        ? SelectionSpec.of(
+                            IdentifierExpression.of(DOT_JOINER.join(ID_KEY, spec.getAlias())),
+                            spec.getAlias())
+                        : spec)
             .map(spec -> MongoSelectTypeExpressionParser.parse(parser, spec))
             .flatMap(map -> map.entrySet().stream())
             .collect(

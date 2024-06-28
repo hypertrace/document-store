@@ -62,7 +62,8 @@ public final class MongoFunctionExpressionParser extends MongoSelectTypeExpressi
 
     SelectTypeExpressionVisitor parser =
         new MongoIdentifierPrefixingParser(
-            new MongoIdentifierExpressionParser(new MongoConstantExpressionParser()));
+            new MongoIdentifierExpressionParser(
+                new MongoFunctionExpressionParser(new MongoConstantExpressionParser())));
 
     if (numArgs == 1) {
       Object value = expression.getOperands().get(0).accept(parser);

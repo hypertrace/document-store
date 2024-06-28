@@ -26,11 +26,16 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
+import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 public final class MongoUtils {
   public static final String FIELD_SEPARATOR = ".";
@@ -143,6 +148,20 @@ public final class MongoUtils {
             () ->
                 new UnsupportedOperationException(
                     String.format("Unhandled return document type: %s", returnDocumentType)));
+  }
+
+  public static boolean isFunctionExpressionSelectionWithGroupBy(
+      final SelectionSpec selectionSpec, final List<String> groupByAliases) {
+    return selectionSpec.getAlias() != null
+        && groupByAliases.contains(selectionSpec.getAlias())
+        && selectionSpec.getExpression().getClass().equals(FunctionExpression.class);
+  }
+
+  public static List<String> getGroupByAliases(final List<GroupTypeExpression> expressions) {
+    return expressions.stream()
+        .filter(expression -> expression.getClass().equals(IdentifierExpression.class))
+        .map(expression -> ((IdentifierExpression) expression).getName())
+        .collect(Collectors.toUnmodifiableList());
   }
 
   private static ObjectNode wrapInLiteral(final ObjectNode objectNode) {
