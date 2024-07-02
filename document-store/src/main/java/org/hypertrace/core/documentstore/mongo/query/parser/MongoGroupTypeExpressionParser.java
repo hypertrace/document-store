@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
@@ -151,10 +151,12 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
         && (Boolean) selectionSpec.getExpression().accept(FUNCTION_EXPRESSION_CHECKER);
   }
 
+  @SuppressWarnings("unchecked")
   public static List<String> getGroupByAliases(final List<GroupTypeExpression> expressions) {
     return expressions.stream()
-        .map(expression -> (String) expression.accept(GROUP_BY_ALIAS_GETTER))
-        .filter(Objects::nonNull)
+        .map(expression -> (Optional<String>) expression.accept(GROUP_BY_ALIAS_GETTER))
+        .filter(Optional::isPresent)
+        .map(Optional::get)
         .collect(Collectors.toUnmodifiableList());
   }
 }
