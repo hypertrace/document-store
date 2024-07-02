@@ -430,6 +430,20 @@ public class PostgresCollection implements Collection {
     return search(query, true);
   }
 
+  public CloseableIterator<Document> search(String selection, String table) {
+    try {
+      PreparedStatement preparedStatement =
+          queryExecutor.buildPreparedStatement(
+              String.format("SELECT %s from %s", selection, table),
+              Params.newBuilder().build(),
+              client.getConnection());
+      preparedStatement.executeQuery();
+    } catch (SQLException ignored) {
+    }
+
+    return EMPTY_ITERATOR;
+  }
+
   private CloseableIterator<Document> search(Query query, boolean removeDocumentId) {
     String selection = PostgresQueryParser.parseSelections(query.getSelections());
     StringBuilder sqlBuilder =
