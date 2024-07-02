@@ -2,8 +2,8 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import static java.util.stream.Collectors.toMap;
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
-import static org.hypertrace.core.documentstore.mongo.MongoUtils.getGroupByAliases;
-import static org.hypertrace.core.documentstore.mongo.MongoUtils.isFunctionExpressionSelectionWithGroupBy;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser.getGroupByAliases;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser.isFunctionExpressionSelectionWithGroupBy;
 
 import com.google.common.base.Joiner;
 import com.mongodb.BasicDBObject;

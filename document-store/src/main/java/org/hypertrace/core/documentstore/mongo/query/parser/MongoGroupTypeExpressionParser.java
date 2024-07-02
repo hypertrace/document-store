@@ -3,8 +3,6 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
-import static org.hypertrace.core.documentstore.mongo.MongoUtils.getGroupByAliases;
-import static org.hypertrace.core.documentstore.mongo.MongoUtils.isFunctionExpressionSelectionWithGroupBy;
 
 import com.mongodb.BasicDBObject;
 import java.util.ArrayList;
@@ -12,12 +10,15 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
+import org.hypertrace.core.documentstore.parser.FunctionExpressionChecker;
+import org.hypertrace.core.documentstore.parser.GroupByAliasGetter;
 import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
@@ -27,6 +28,9 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
 
   private static final String GROUP_CLAUSE = "$group";
   private static final String ADD_FIELDS_CLAUSE = "$addFields";
+  private static final FunctionExpressionChecker FUNCTION_EXPRESSION_CHECKER =
+      new FunctionExpressionChecker();
+  private static final GroupByAliasGetter GROUP_BY_ALIAS_GETTER = new GroupByAliasGetter();
 
   @SuppressWarnings("unchecked")
   @Override
@@ -137,6 +141,20 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
         .filter(
             selectionSpec ->
                 isFunctionExpressionSelectionWithGroupBy(selectionSpec, groupByAliases))
+        .collect(Collectors.toUnmodifiableList());
+  }
+
+  public static boolean isFunctionExpressionSelectionWithGroupBy(
+      final SelectionSpec selectionSpec, final List<String> groupByAliases) {
+    return selectionSpec.getAlias() != null
+        && groupByAliases.contains(selectionSpec.getAlias())
+        && (Boolean) selectionSpec.getExpression().accept(FUNCTION_EXPRESSION_CHECKER);
+  }
+
+  public static List<String> getGroupByAliases(final List<GroupTypeExpression> expressions) {
+    return expressions.stream()
+        .map(expression -> (String) expression.accept(GROUP_BY_ALIAS_GETTER))
+        .filter(Objects::nonNull)
         .collect(Collectors.toUnmodifiableList());
   }
 }
