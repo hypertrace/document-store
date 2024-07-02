@@ -14,8 +14,11 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.DIVIDE;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.FLOOR;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.SUBTRACT;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
@@ -87,6 +90,7 @@ import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
+import org.hypertrace.core.documentstore.query.Aggregation;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
@@ -3310,6 +3314,52 @@ public class DocStoreQueryV1Test {
         dataStoreName, resultDocs, "query/not_exists_filter_response.json", 4);
 
     testCountApi(dataStoreName, query, "query/not_exists_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  public void testMongoFunctionExpressionGroupBy(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    FunctionExpression functionExpression =
+        FunctionExpression.builder()
+            .operator(FLOOR)
+            .operand(
+                FunctionExpression.builder()
+                    .operator(DIVIDE)
+                    .operand(
+                        FunctionExpression.builder()
+                            .operator(SUBTRACT)
+                            .operand(IdentifierExpression.of("price"))
+                            .operand(ConstantExpression.of(5))
+                            .build())
+                    .operand(ConstantExpression.of(5))
+                    .build())
+            .build();
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(functionExpression, "function"),
+            SelectionSpec.of(
+                AggregateExpression.of(COUNT, IdentifierExpression.of("function")),
+                "functionCount"));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+
+    Query query =
+        Query.builder()
+            .setSelection(selection)
+            .setAggregation(
+                Aggregation.builder().expression(IdentifierExpression.of("function")).build())
+            .setSort(
+                Sort.builder()
+                    .sortingSpec(SortingSpec.of(IdentifierExpression.of("function"), ASC))
+                    .build())
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/function_expression_group_by_response.json", 3);
+
+    testCountApi(dataStoreName, query, "query/function_expression_group_by_response.json");
   }
 
   private static Collection getCollection(final String dataStoreName) {
