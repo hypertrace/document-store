@@ -11,4 +11,5 @@ public enum FunctionOperator {
   DIVIDE, // Dividend and then divisors (Left to right associative),
   MULTIPLY,
   SUBTRACT, // Minuend and then subtrahends (Left to right associative),
+  TO_LOWER_CASE
 }
