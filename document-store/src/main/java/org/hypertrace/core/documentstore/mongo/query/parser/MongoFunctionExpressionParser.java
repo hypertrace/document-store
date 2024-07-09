@@ -8,6 +8,7 @@ import static org.hypertrace.core.documentstore.expression.operators.FunctionOpe
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.LENGTH;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.SUBTRACT;
+import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.TO_LOWER_CASE;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import java.util.EnumMap;
@@ -32,6 +33,7 @@ public final class MongoFunctionExpressionParser extends MongoSelectTypeExpressi
               put(DIVIDE, "$divide");
               put(MULTIPLY, "$multiply");
               put(SUBTRACT, "$subtract");
+              put(TO_LOWER_CASE, "$toLower");
             }
           });
 

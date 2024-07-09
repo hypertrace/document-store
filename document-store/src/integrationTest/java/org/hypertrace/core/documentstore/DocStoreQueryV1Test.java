@@ -86,6 +86,8 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
+import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -3360,6 +3362,37 @@ public class DocStoreQueryV1Test {
         dataStoreName, resultDocs, "query/function_expression_group_by_response.json", 3);
 
     testCountApi(dataStoreName, query, "query/function_expression_group_by_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  public void testToLowerCaseMongoFunctionOperator(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("price")),
+            SelectionSpec.of(IdentifierExpression.of("quantity")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    FunctionExpression.builder()
+                        .operator(FunctionOperator.TO_LOWER_CASE)
+                        .operand(IdentifierExpression.of("item"))
+                        .build(),
+                    RelationalOperator.EQ,
+                    ConstantExpression.of("shampoo")))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/case_insensitive_exact_match_response.json", 2);
   }
 
   private static Collection getCollection(final String dataStoreName) {
