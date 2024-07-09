@@ -3392,7 +3392,7 @@ public class DocStoreQueryV1Test {
 
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsAndSizeEqualWithoutOrder(
-        dataStoreName, resultDocs, "query/simple_filter_response.json", 2);
+        dataStoreName, resultDocs, "query/case_insensitive_exact_match_response.json", 2);
   }
 
   private static Collection getCollection(final String dataStoreName) {
