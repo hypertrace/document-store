@@ -7,12 +7,16 @@ import static org.hypertrace.core.documentstore.model.config.CustomMetricConfig.
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.TextNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,10 +26,12 @@ import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.model.config.CustomMetricConfig;
 import org.hypertrace.core.documentstore.query.Query;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 @Slf4j
 @AllArgsConstructor
 public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricProvider {
+  private static final String NULL_LABEL_VALUE_PLACEHOLDER = "<null>";
   private static final ObjectMapper mapper = new ObjectMapper();
 
   private final Datastore dataStore;
@@ -35,6 +41,18 @@ public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricPr
     try {
       final String collectionName = customMetricConfig.collectionName();
       final Query query = customMetricConfig.query();
+      query
+          .getSelections()
+          .forEach(
+              selectionSpec -> {
+                final String alias = selectionSpec.getAlias();
+                if (Objects.isNull(alias) || alias.isBlank()) {
+                  throw new IllegalArgumentException(
+                      String.format(
+                          "Selection alias is required for selection spec in custom metric query for metric: %s",
+                          customMetricConfig.metricName()));
+                }
+              });
 
       final Collection collection = dataStore.getCollection(collectionName);
       final CloseableIterator<Document> iterator = collection.aggregate(query);
@@ -68,9 +86,20 @@ public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricPr
           continue;
         }
 
+        Map<String, JsonNode> jsonNodeMap =
+            query.getSelections().stream()
+                .collect(
+                    Collectors.toUnmodifiableMap(
+                        SelectionSpec::getAlias,
+                        selectionSpec ->
+                            Optional.ofNullable(node.get(selectionSpec.getAlias()))
+                                .orElse(TextNode.valueOf(NULL_LABEL_VALUE_PLACEHOLDER))));
+
         final Map<String, String> labels =
             StreamSupport.stream(
-                    Spliterators.spliteratorUnknownSize(node.fields(), Spliterator.ORDERED), false)
+                    Spliterators.spliteratorUnknownSize(
+                        jsonNodeMap.entrySet().iterator(), Spliterator.ORDERED),
+                    false)
                 .filter(entry -> !VALUE_KEY.equals(entry.getKey()))
                 .collect(toUnmodifiableMap(Entry::getKey, entry -> entry.getValue().textValue()));
 
