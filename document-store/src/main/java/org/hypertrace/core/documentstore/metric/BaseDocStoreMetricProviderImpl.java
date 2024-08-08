@@ -31,7 +31,7 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
 @Slf4j
 @AllArgsConstructor
 public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricProvider {
-  private static final String NULL_VALUE_PLACEHOLDER = "<null>";
+  private static final String NULL_LABEL_VALUE_PLACEHOLDER = "<null>";
   private static final ObjectMapper mapper = new ObjectMapper();
 
   private final Datastore dataStore;
@@ -46,7 +46,7 @@ public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricPr
           .forEach(
               selectionSpec -> {
                 final String alias = selectionSpec.getAlias();
-                if (Objects.isNull(alias) || alias.isEmpty()) {
+                if (Objects.isNull(alias) || alias.isBlank()) {
                   throw new IllegalArgumentException(
                       String.format(
                           "Selection alias is required for selection spec in custom metric query for metric: %s",
@@ -93,7 +93,7 @@ public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricPr
                         SelectionSpec::getAlias,
                         selectionSpec ->
                             Optional.ofNullable(node.get(selectionSpec.getAlias()))
-                                .orElse(TextNode.valueOf(NULL_VALUE_PLACEHOLDER))));
+                                .orElse(TextNode.valueOf(NULL_LABEL_VALUE_PLACEHOLDER))));
 
         final Map<String, String> labels =
             StreamSupport.stream(
