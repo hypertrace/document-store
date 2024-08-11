@@ -101,7 +101,9 @@ public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricPr
                         jsonNodeMap.entrySet().iterator(), Spliterator.ORDERED),
                     false)
                 .filter(entry -> !VALUE_KEY.equals(entry.getKey()))
-                .collect(toUnmodifiableMap(Entry::getKey, entry -> entry.getValue().textValue()));
+                .collect(
+                    toUnmodifiableMap(
+                        Entry::getKey, entry -> getStringLabelValue(entry.getValue())));
 
         final DocStoreMetric metric =
             DocStoreMetric.builder()
@@ -117,6 +119,20 @@ public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricPr
     } catch (final Exception e) {
       log.error("Unable to report metric: {}", customMetricConfig, e);
       return emptyList();
+    }
+  }
+
+  private String getStringLabelValue(JsonNode jsonNode) {
+    switch (jsonNode.getNodeType()) {
+      case STRING:
+        return jsonNode.textValue();
+      case NUMBER:
+        return String.valueOf(jsonNode.numberValue());
+      case BOOLEAN:
+        return String.valueOf(jsonNode.booleanValue());
+      default:
+        throw new IllegalArgumentException(
+            String.format("Unsupported JSON node type: %s", jsonNode.getNodeType()));
     }
   }
 }
