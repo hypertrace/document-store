@@ -53,7 +53,7 @@ public class MongoUpdateExecutor {
     try {
       final BasicDBObject selections = getSelections(query);
       final BasicDBObject sorts = getOrders(query);
-      final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
+      final FindOneAndUpdateOptions options = updateOptions.getFindOneAndUpdateOptions();
       final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
 
       options.returnDocument(getReturnDocument(returnDocumentType));
@@ -96,16 +96,16 @@ public class MongoUpdateExecutor {
     switch (returnDocumentType) {
       case BEFORE_UPDATE:
         cursor = queryExecutor.aggregate(query);
-        logAndUpdate(filter, updateObject);
+        logAndUpdate(filter, updateObject, updateOptions.getUpdateOptions());
         return Optional.of(cursor);
 
       case AFTER_UPDATE:
-        logAndUpdate(filter, updateObject);
+        logAndUpdate(filter, updateObject, updateOptions.getUpdateOptions());
         cursor = queryExecutor.aggregate(query);
         return Optional.of(cursor);
 
       case NONE:
-        logAndUpdate(filter, updateObject);
+        logAndUpdate(filter, updateObject, updateOptions.getUpdateOptions());
         return Optional.empty();
 
       default:
@@ -113,12 +113,12 @@ public class MongoUpdateExecutor {
     }
   }
 
-  private void logAndUpdate(final BasicDBObject filter, final BasicDBObject setObject)
+  private void logAndUpdate(final BasicDBObject filter, final BasicDBObject setObject, com.mongodb.client.model.UpdateOptions updateOptions)
       throws IOException {
     try {
       log.debug(
           "Updating {} using {} with filter {}", collection.getNamespace(), setObject, filter);
-      collection.updateMany(filter, setObject);
+      collection.updateMany(filter, setObject, updateOptions);
     } catch (Exception e) {
       throw new IOException("Error while updating", e);
     }
