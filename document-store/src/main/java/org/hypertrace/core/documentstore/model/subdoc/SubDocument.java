@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.model.subdoc;
 import static lombok.AccessLevel.PRIVATE;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.CREATED_TIME;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATE_TIME;
 
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -29,6 +30,10 @@ public class SubDocument {
 
   public static SubDocument implicitUpdatedTime() {
     return new SubDocument(LAST_UPDATED_TIME);
+  }
+
+  public static SubDocument implicitUpdateTime() {
+    return new SubDocument(LAST_UPDATE_TIME);
   }
 
   @SuppressWarnings("unused")

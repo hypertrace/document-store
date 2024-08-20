@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -313,8 +314,9 @@ public class MongoCollection implements Collection {
                     new BsonValue[] {new BsonString(PREFIX + CREATED_TIME), new BsonInt64(now)})));
     final BasicDBObject set =
         new BasicDBObject(SET_CLAUSE, prepareDocumentWithLiteralWrapping(key, document, now));
+    final BasicDBObject lastUpdateTime = new BasicDBObject(LAST_UPDATE_TIME, new Date(now));
 
-    return List.of(project, set);
+    return List.of(project, set, lastUpdateTime);
   }
 
   private BasicDBObject prepareUpsert(Key key, Document document) throws JsonProcessingException {

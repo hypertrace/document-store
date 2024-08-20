@@ -5,6 +5,8 @@
     "props": {
       "brand": "Dettol"
     },
-    "lastUpdatedTime": 1660721309000
+    "_lastUpdateTime": {
+      "$date": "2022-08-17T07:28:29Z"
+    }
   }
 }

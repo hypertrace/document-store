@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import com.mongodb.BasicDBObject;
 import java.time.Clock;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -41,6 +42,6 @@ public class MongoUpdateParser {
   }
 
   private SubDocumentUpdate getLastUpdatedTimeUpdate() {
-    return SubDocumentUpdate.of(SubDocument.implicitUpdatedTime(), clock.millis());
+    return SubDocumentUpdate.of(SubDocument.implicitUpdateTime(), new Date(clock.millis()));
   }
 }
