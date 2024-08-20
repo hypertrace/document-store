@@ -113,7 +113,10 @@ public class MongoUpdateExecutor {
     }
   }
 
-  private void logAndUpdate(final BasicDBObject filter, final BasicDBObject setObject, com.mongodb.client.model.UpdateOptions updateOptions)
+  private void logAndUpdate(
+      final BasicDBObject filter,
+      final BasicDBObject setObject,
+      com.mongodb.client.model.UpdateOptions updateOptions)
       throws IOException {
     try {
       log.debug(

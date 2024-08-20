@@ -10,7 +10,9 @@ import lombok.Value;
 @Builder
 public class UpdateOptions {
   public static UpdateOptions DEFAULT_UPDATE_OPTIONS =
-      UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).updateOptions(new com.mongodb.client.model.UpdateOptions())
+      UpdateOptions.builder()
+          .returnDocumentType(AFTER_UPDATE)
+          .updateOptions(new com.mongodb.client.model.UpdateOptions())
           .findOneAndUpdateOptions(new FindOneAndUpdateOptions())
           .build();
 
