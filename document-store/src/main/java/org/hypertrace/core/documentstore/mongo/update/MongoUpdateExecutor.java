@@ -53,7 +53,8 @@ public class MongoUpdateExecutor {
     try {
       final BasicDBObject selections = getSelections(query);
       final BasicDBObject sorts = getOrders(query);
-      final FindOneAndUpdateOptions options = updateOptions.getFindOneAndUpdateOptions();
+      final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
+      options.upsert(updateOptions.isUpsert());
       final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
 
       options.returnDocument(getReturnDocument(returnDocumentType));
@@ -91,21 +92,24 @@ public class MongoUpdateExecutor {
     final BasicDBObject filter = getFilter(query, Query::getFilter);
     final BasicDBObject updateObject = updateParser.buildUpdateClause(updates);
     final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
+    final com.mongodb.client.model.UpdateOptions mongoUpdateOptions =
+        new com.mongodb.client.model.UpdateOptions();
+    mongoUpdateOptions.upsert(updateOptions.isUpsert());
     final MongoCursor<BasicDBObject> cursor;
 
     switch (returnDocumentType) {
       case BEFORE_UPDATE:
         cursor = queryExecutor.aggregate(query);
-        logAndUpdate(filter, updateObject, updateOptions.getUpdateOptions());
+        logAndUpdate(filter, updateObject, mongoUpdateOptions);
         return Optional.of(cursor);
 
       case AFTER_UPDATE:
-        logAndUpdate(filter, updateObject, updateOptions.getUpdateOptions());
+        logAndUpdate(filter, updateObject, mongoUpdateOptions);
         cursor = queryExecutor.aggregate(query);
         return Optional.of(cursor);
 
       case NONE:
-        logAndUpdate(filter, updateObject, updateOptions.getUpdateOptions());
+        logAndUpdate(filter, updateObject, mongoUpdateOptions);
         return Optional.empty();
 
       default:
