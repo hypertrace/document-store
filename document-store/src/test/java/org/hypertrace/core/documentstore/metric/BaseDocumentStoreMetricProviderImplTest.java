@@ -12,6 +12,7 @@ import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.model.config.CustomMetricConfig;
 import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,8 +27,12 @@ class BaseDocumentStoreMetricProviderImplTest {
 
   private final String collectionName = "collectionName";
   private final String metricName = "metricName";
-  private final Query query = Query.builder().build();
-  private final CustomMetricConfig customMetricConfig =
+  private Query query =
+      Query.builder()
+          .addSelection(IdentifierExpression.of("label1"), "label1")
+          .addSelection(IdentifierExpression.of("label2"), "label2")
+          .build();
+  private CustomMetricConfig customMetricConfig =
       CustomMetricConfig.builder()
           .collectionName(collectionName)
           .metricName(metricName)
@@ -115,12 +120,12 @@ class BaseDocumentStoreMetricProviderImplTest {
               DocStoreMetric.builder()
                   .name(metricName)
                   .value(2)
-                  .labels(Map.of("label1", "l2value"))
+                  .labels(Map.of("label1", "l2value", "label2", "<null>"))
                   .build(),
               DocStoreMetric.builder()
                   .name(metricName)
                   .value(3)
-                  .labels(Map.of("label1", "l2value"))
+                  .labels(Map.of("label1", "l2value", "label2", "<null>"))
                   .build());
       final List<DocStoreMetric> result =
           baseDocStoreMetricProvider.getCustomMetrics(customMetricConfig);
