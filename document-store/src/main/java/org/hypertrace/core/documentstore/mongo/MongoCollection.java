@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.mongo;
 import static java.util.Objects.requireNonNull;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.CREATED_TIME;
 import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATED_TIME;
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.LAST_UPDATE_TIMESTAMP_ISO_8601;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.dbObjectToDocument;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.sanitizeJsonString;
@@ -314,9 +315,8 @@ public class MongoCollection implements Collection {
                     new BsonValue[] {new BsonString(PREFIX + CREATED_TIME), new BsonInt64(now)})));
     final BasicDBObject set =
         new BasicDBObject(SET_CLAUSE, prepareDocumentWithLiteralWrapping(key, document, now));
-    final BasicDBObject lastUpdateTime = new BasicDBObject(LAST_UPDATE_TIME, new Date(now));
 
-    return List.of(project, set, lastUpdateTime);
+    return List.of(project, set);
   }
 
   private BasicDBObject prepareUpsert(Key key, Document document) throws JsonProcessingException {
@@ -347,6 +347,7 @@ public class MongoCollection implements Collection {
     BasicDBObject basicDBObject = getSanitizedBasicDBObjectWithLiteralWrapping(document);
     basicDBObject.put(ID_KEY, key.toString());
     basicDBObject.put(LAST_UPDATED_TIME, now);
+    basicDBObject.put(LAST_UPDATE_TIMESTAMP_ISO_8601, new Date(now));
     return basicDBObject;
   }
 
