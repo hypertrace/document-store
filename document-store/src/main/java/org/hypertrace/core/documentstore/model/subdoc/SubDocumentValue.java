@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.model.subdoc;
 
 import java.util.Collection;
+import java.util.Date;
 import javax.annotation.Nonnull;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.model.Hashable;
@@ -17,6 +18,10 @@ public interface SubDocumentValue extends Hashable, Printable {
 
   public static SubDocumentValue of(@Nonnull final Number value) {
     return new PrimitiveSubDocumentValue(value);
+  }
+
+  public static SubDocumentValue of(@Nonnull final Date date) {
+    return new PrimitiveSubDocumentValue(date);
   }
 
   public static SubDocumentValue of(@Nonnull final String value) {

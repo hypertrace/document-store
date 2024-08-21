@@ -5,6 +5,7 @@ import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET;
 
 import com.google.common.base.Preconditions;
+import java.util.Date;
 import java.util.Set;
 import javax.annotation.Nonnull;
 import lombok.AllArgsConstructor;
@@ -55,6 +56,10 @@ public class SubDocumentUpdate {
 
   public static SubDocumentUpdate of(final SubDocument subDocument, final Number value) {
     return of(subDocument, SubDocumentValue.of(value));
+  }
+
+  public static SubDocumentUpdate of(final SubDocument subDocument, final Date date) {
+    return of(subDocument, SubDocumentValue.of(date));
   }
 
   public static SubDocumentUpdate of(final SubDocument subDocument, final Boolean value) {
