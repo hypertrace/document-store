@@ -7,6 +7,7 @@ import static java.util.stream.Collectors.toUnmodifiableList;
 import com.mongodb.BasicDBObject;
 import java.time.Clock;
 import java.util.Collection;
+import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -32,7 +33,8 @@ public class MongoUpdateParser {
 
   public BasicDBObject buildUpdateClause(final Collection<SubDocumentUpdate> updates) {
     final List<SubDocumentUpdate> allUpdates =
-        Stream.concat(updates.stream(), Stream.of(getLastUpdatedTimeUpdate()))
+        Stream.concat(
+                updates.stream(), Stream.of(getLastUpdatedTimeUpdate(), getLastUpdateTimestamp()))
             .collect(toUnmodifiableList());
     return OPERATOR_PARSERS.stream()
         .map(parser -> parser.parse(allUpdates))
@@ -42,5 +44,10 @@ public class MongoUpdateParser {
 
   private SubDocumentUpdate getLastUpdatedTimeUpdate() {
     return SubDocumentUpdate.of(SubDocument.implicitUpdatedTime(), clock.millis());
+  }
+
+  private SubDocumentUpdate getLastUpdateTimestamp() {
+    return SubDocumentUpdate.of(
+        SubDocument.implicitUpdatedTimestampIso8601(), new Date(clock.millis()));
   }
 }
