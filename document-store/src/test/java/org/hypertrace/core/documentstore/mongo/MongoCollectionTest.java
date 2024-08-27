@@ -53,6 +53,7 @@ import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions.MissingDocumentStrategy;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.SortingSpec;
@@ -415,7 +416,10 @@ public class MongoCollectionTest {
           mongoCollection.bulkUpdate(
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate),
-              UpdateOptions.builder().returnDocumentType(NONE).upsert(false).build());
+              UpdateOptions.builder()
+                  .returnDocumentType(NONE)
+                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
+                  .build());
 
       final ArgumentCaptor<com.mongodb.client.model.UpdateOptions> updateOptionsArgumentCaptor =
           ArgumentCaptor.forClass(com.mongodb.client.model.UpdateOptions.class);

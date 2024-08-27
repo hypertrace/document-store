@@ -9,8 +9,16 @@ import lombok.Value;
 @Builder
 public class UpdateOptions {
   public static UpdateOptions DEFAULT_UPDATE_OPTIONS =
-      UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).upsert(false).build();
+      UpdateOptions.builder()
+          .returnDocumentType(AFTER_UPDATE)
+          .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
+          .build();
 
   ReturnDocumentType returnDocumentType;
-  boolean upsert;
+  MissingDocumentStrategy missingDocumentStrategy;
+
+  public enum MissingDocumentStrategy {
+    CREATE_USING_UPDATES,
+    SKIP_UPDATES,
+  }
 }

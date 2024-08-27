@@ -21,6 +21,7 @@ import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions.MissingDocumentStrategy;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.mongo.MongoUtils;
 import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
@@ -54,7 +55,10 @@ public class MongoUpdateExecutor {
       final BasicDBObject selections = getSelections(query);
       final BasicDBObject sorts = getOrders(query);
       final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
-      options.upsert(updateOptions.isUpsert());
+      options.upsert(
+          updateOptions
+              .getMissingDocumentStrategy()
+              .equals(MissingDocumentStrategy.CREATE_USING_UPDATES));
       final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
 
       options.returnDocument(getReturnDocument(returnDocumentType));
@@ -94,7 +98,10 @@ public class MongoUpdateExecutor {
     final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
     final com.mongodb.client.model.UpdateOptions mongoUpdateOptions =
         new com.mongodb.client.model.UpdateOptions();
-    mongoUpdateOptions.upsert(updateOptions.isUpsert());
+    mongoUpdateOptions.upsert(
+        updateOptions
+            .getMissingDocumentStrategy()
+            .equals(MissingDocumentStrategy.CREATE_USING_UPDATES));
     final MongoCursor<BasicDBObject> cursor;
 
     switch (returnDocumentType) {
@@ -124,7 +131,11 @@ public class MongoUpdateExecutor {
       throws IOException {
     try {
       log.debug(
-          "Updating {} using {} with filter {}", collection.getNamespace(), setObject, filter);
+          "Updating {} using {} with filter {} and updateOptions: {}",
+          collection.getNamespace(),
+          setObject,
+          filter,
+          updateOptions);
       collection.updateMany(filter, setObject, updateOptions);
     } catch (Exception e) {
       throw new IOException("Error while updating", e);
