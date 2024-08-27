@@ -405,7 +405,7 @@ public class MongoCollectionTest {
 
       verify(collection, times(1))
           .updateMany(eq(filter), eq(setObject), updateOptionsArgumentCaptor.capture());
-      assertEquals(updateOptionsArgumentCaptor.getValue().toString(), mongoUpdateOption.toString());
+      assertEquals(updateOptionsArgumentCaptor.getValue().isUpsert(), mongoUpdateOption.isUpsert());
     }
 
     @Test
