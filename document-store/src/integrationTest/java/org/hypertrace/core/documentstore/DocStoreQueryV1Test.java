@@ -2659,7 +2659,6 @@ public class DocStoreQueryV1Test {
                   .returnDocumentType(AFTER_UPDATE)
                   .missingDocumentStrategy(MissingDocumentStrategy.CREATE_USING_UPDATES)
                   .build());
-      //      assertSizeEqual(iterator, "query/update_operator/updated4.json");
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, iterator, "query/update_operator/updated4.json", 1);
     }
