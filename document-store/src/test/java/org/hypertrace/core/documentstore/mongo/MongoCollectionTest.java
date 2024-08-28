@@ -311,7 +311,10 @@ public class MongoCollectionTest {
           mongoCollection.update(
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate),
-              UpdateOptions.builder().returnDocumentType(NONE).build());
+              UpdateOptions.builder()
+                  .returnDocumentType(NONE)
+                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
+                  .build());
 
       assertFalse(result.isPresent());
 
