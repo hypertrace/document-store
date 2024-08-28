@@ -2661,6 +2661,32 @@ public class DocStoreQueryV1Test {
                   .build());
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, iterator, "query/update_operator/updated4.json", 1);
+      Filter filter1 =
+          Filter.builder()
+              .expression(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("shirt"))))
+              .build();
+      final Query query1 = Query.builder().setFilter(filter1).build();
+      final SubDocumentUpdate add =
+          SubDocumentUpdate.builder()
+              .subDocument("quantity")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+      final List<SubDocumentUpdate> update1 = List.of(add);
+      final CloseableIterator<Document> iterator1 =
+          collection.bulkUpdate(
+              query1,
+              update1,
+              UpdateOptions.builder()
+                  .returnDocumentType(AFTER_UPDATE)
+                  .missingDocumentStrategy(MissingDocumentStrategy.CREATE_USING_UPDATES)
+                  .build());
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, iterator1, "query/update_operator/updated5.json", 1);
     }
 
     @ParameterizedTest
