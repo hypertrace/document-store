@@ -2168,10 +2168,7 @@ public class DocStoreQueryV1Test {
             return collection.update(
                 query,
                 List.of(dateUpdate, quantityUpdate, propsUpdate),
-                UpdateOptions.builder()
-                    .returnDocumentType(BEFORE_UPDATE)
-                    .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                    .build());
+                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
           };
 
       final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -2251,10 +2248,7 @@ public class DocStoreQueryV1Test {
             return collection.update(
                 query,
                 List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty),
-                UpdateOptions.builder()
-                    .returnDocumentType(AFTER_UPDATE)
-                    .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                    .build());
+                UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
           };
 
       final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -2323,10 +2317,7 @@ public class DocStoreQueryV1Test {
             return collection.update(
                 query,
                 List.of(dateUpdate, quantityUpdate, propsUpdate),
-                UpdateOptions.builder()
-                    .returnDocumentType(BEFORE_UPDATE)
-                    .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                    .build());
+                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
           };
 
       final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -2397,10 +2388,7 @@ public class DocStoreQueryV1Test {
             return collection.update(
                 query,
                 List.of(dateUpdate),
-                UpdateOptions.builder()
-                    .returnDocumentType(BEFORE_UPDATE)
-                    .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                    .build());
+                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
           };
 
       final ExecutorService executor = Executors.newFixedThreadPool(2);
@@ -2450,12 +2438,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
-              query,
-              updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName, iterator, "query/update_operator/updated3.json", 9);
     }
@@ -2511,12 +2494,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
-              query,
-              updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName, iterator, "query/update_operator/updated1.json", 9);
 
@@ -2560,12 +2538,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator_new =
           collection.bulkUpdate(
-              query,
-              new_updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName, iterator_new, "query/update_operator/updated2.json", 9);
     }
@@ -2594,12 +2567,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
-              query,
-              updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName, iterator, "query/update_operator/add_updated1.json", 9);
 
@@ -2619,12 +2587,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator_new =
           collection.bulkUpdate(
-              query,
-              new_updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName, iterator_new, "query/update_operator/add_updated2.json", 9);
     }
@@ -2749,12 +2712,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
-              query,
-              updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName, iterator, "query/update_operator/object_updated1.json", 9);
 
@@ -2807,12 +2765,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator_new =
           collection.bulkUpdate(
-              query,
-              new_updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName, iterator_new, "query/update_operator/object_updated2.json", 9);
     }
@@ -2835,12 +2788,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
-              query,
-              updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName,
@@ -2859,12 +2807,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> newIterator =
           collection.bulkUpdate(
-              query,
-              newUpdates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, newUpdates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName,
@@ -2892,12 +2835,7 @@ public class DocStoreQueryV1Test {
       final List<SubDocumentUpdate> updates = List.of(set, unset);
 
       collection.bulkUpdate(
-          query,
-          updates,
-          UpdateOptions.builder()
-              .returnDocumentType(NONE)
-              .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-              .build());
+          query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
 
       final SubDocumentUpdate remove =
           SubDocumentUpdate.builder()
@@ -2909,12 +2847,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator_new =
           collection.bulkUpdate(
-              query,
-              new_updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName,
           iterator_new,
@@ -2942,12 +2875,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator =
           collection.bulkUpdate(
-              query,
-              updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(NONE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, updates, UpdateOptions.builder().returnDocumentType(NONE).build());
 
       final SubDocumentUpdate remove =
           SubDocumentUpdate.builder()
@@ -2959,12 +2887,7 @@ public class DocStoreQueryV1Test {
 
       final CloseableIterator<Document> iterator_new =
           collection.bulkUpdate(
-              query,
-              new_updates,
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName,
           iterator_new,
@@ -3049,12 +2972,7 @@ public class DocStoreQueryV1Test {
           IOException.class,
           () ->
               collection.bulkUpdate(
-                  query,
-                  updates,
-                  UpdateOptions.builder()
-                      .returnDocumentType(NONE)
-                      .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                      .build()));
+                  query, updates, UpdateOptions.builder().returnDocumentType(NONE).build()));
     }
   }
 
@@ -3106,10 +3024,7 @@ public class DocStoreQueryV1Test {
           collection.bulkUpdate(
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-              UpdateOptions.builder()
-                  .returnDocumentType(NONE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              UpdateOptions.builder().returnDocumentType(NONE).build());
 
       assertFalse(docIterator.hasNext());
       assertDocsAndSizeEqual(
@@ -3173,10 +3088,7 @@ public class DocStoreQueryV1Test {
           collection.bulkUpdate(
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
       // Since the date is updated to conflict with the filter, there will not be any documents
       assertFalse(docIterator.hasNext());
@@ -3232,10 +3144,7 @@ public class DocStoreQueryV1Test {
           collection.bulkUpdate(
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-              UpdateOptions.builder()
-                  .returnDocumentType(AFTER_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
       assertDocsAndSizeEqual(
           datastoreName,
@@ -3294,10 +3203,7 @@ public class DocStoreQueryV1Test {
           collection.bulkUpdate(
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-              UpdateOptions.builder()
-                  .returnDocumentType(BEFORE_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
       assertDocsAndSizeEqual(
           datastoreName,
@@ -3358,10 +3264,7 @@ public class DocStoreQueryV1Test {
           collection.bulkUpdate(
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-              UpdateOptions.builder()
-                  .returnDocumentType(BEFORE_UPDATE)
-                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
-                  .build());
+              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
       assertFalse(docIterator.hasNext());
       assertDocsAndSizeEqual(
