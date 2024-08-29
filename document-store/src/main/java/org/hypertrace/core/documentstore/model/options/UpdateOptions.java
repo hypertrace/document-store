@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.model.options;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 
 import lombok.Builder;
+import lombok.Builder.Default;
 import lombok.Value;
 
 @Value
@@ -14,8 +15,10 @@ public class UpdateOptions {
           .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
           .build();
 
-  @Default ReturnDocumentType returnDocumentType = AFTER_UPDATE;
-  MissingDocumentStrategy missingDocumentStrategy;
+  @Default
+  ReturnDocumentType returnDocumentType = AFTER_UPDATE;
+  @Default
+  MissingDocumentStrategy missingDocumentStrategy = MissingDocumentStrategy.SKIP_UPDATES;
 
   public enum MissingDocumentStrategy {
     CREATE_USING_UPDATES,
