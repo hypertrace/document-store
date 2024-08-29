@@ -53,6 +53,7 @@ import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions.MissingDocumentStrategy;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.SortingSpec;
@@ -310,7 +311,10 @@ public class MongoCollectionTest {
           mongoCollection.update(
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate),
-              UpdateOptions.builder().returnDocumentType(NONE).build());
+              UpdateOptions.builder()
+                  .returnDocumentType(NONE)
+                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
+                  .build());
 
       assertFalse(result.isPresent());
 
@@ -392,13 +396,19 @@ public class MongoCollectionTest {
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate),
               UpdateOptions.DEFAULT_UPDATE_OPTIONS);
-
+      final ArgumentCaptor<com.mongodb.client.model.UpdateOptions> updateOptionsArgumentCaptor =
+          ArgumentCaptor.forClass(com.mongodb.client.model.UpdateOptions.class);
+      com.mongodb.client.model.UpdateOptions mongoUpdateOption =
+          new com.mongodb.client.model.UpdateOptions();
+      mongoUpdateOption.upsert(false);
       assertTrue(result.hasNext());
       assertJsonEquals(
           readFileFromResource("atomic_read_and_update/response.json").orElseThrow(),
           result.next().toJson());
 
-      verify(collection, times(1)).updateMany(filter, setObject);
+      verify(collection, times(1))
+          .updateMany(eq(filter), eq(setObject), updateOptionsArgumentCaptor.capture());
+      assertEquals(updateOptionsArgumentCaptor.getValue().isUpsert(), mongoUpdateOption.isUpsert());
     }
 
     @Test
@@ -409,10 +419,21 @@ public class MongoCollectionTest {
           mongoCollection.bulkUpdate(
               query,
               List.of(dateUpdate, quantityUpdate, propsUpdate),
-              UpdateOptions.builder().returnDocumentType(NONE).build());
+              UpdateOptions.builder()
+                  .returnDocumentType(NONE)
+                  .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
+                  .build());
+
+      final ArgumentCaptor<com.mongodb.client.model.UpdateOptions> updateOptionsArgumentCaptor =
+          ArgumentCaptor.forClass(com.mongodb.client.model.UpdateOptions.class);
 
       assertFalse(result.hasNext());
-      verify(collection, times(1)).updateMany(filter, setObject);
+      com.mongodb.client.model.UpdateOptions mongoUpdateOption =
+          new com.mongodb.client.model.UpdateOptions();
+      mongoUpdateOption.upsert(false);
+      verify(collection, times(1))
+          .updateMany(eq(filter), eq(setObject), updateOptionsArgumentCaptor.capture());
+      assertEquals(updateOptionsArgumentCaptor.getValue().toString(), mongoUpdateOption.toString());
     }
 
     @Test
