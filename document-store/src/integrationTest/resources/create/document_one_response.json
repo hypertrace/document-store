@@ -8,7 +8,7 @@
       },
       {
         "name": "Mars",
-        "color": "Red",
+        "color": "$Red",
         "humans_live": "possibly in future",
         "tags": {}
       }

@@ -14,8 +14,10 @@ import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import com.mongodb.BasicDBObject;
 import com.mongodb.client.model.ReturnDocument;
 import java.io.IOException;
@@ -35,6 +37,7 @@ import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 public final class MongoUtils {
   public static final String FIELD_SEPARATOR = ".";
   public static final String PREFIX = "$";
+  private static final String UNICODE_FOR_FIELD_PREFIX = "\\u0024";
   private static final String LITERAL = PREFIX + "literal";
   private static final String UNSUPPORTED_OPERATION = "No MongoDB support available for: '%s'";
   private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -54,7 +57,9 @@ public final class MongoUtils {
       return null;
     }
 
-    return key.replace("\\", "\\\\").replace(PREFIX, "\\u0024").replace(FIELD_SEPARATOR, "\\u002e");
+    return key.replace("\\", "\\\\")
+        .replace(PREFIX, UNICODE_FOR_FIELD_PREFIX)
+        .replace(FIELD_SEPARATOR, "\\u002e");
   }
 
   public static String decodeKey(final String key) {
@@ -62,7 +67,9 @@ public final class MongoUtils {
       return null;
     }
 
-    return key.replace("\\u002e", FIELD_SEPARATOR).replace("\\u0024", PREFIX).replace("\\\\", "\\");
+    return key.replace("\\u002e", FIELD_SEPARATOR)
+        .replace(UNICODE_FOR_FIELD_PREFIX, PREFIX)
+        .replace("\\\\", "\\");
   }
 
   public static String getLastField(final String fieldPath) {
@@ -99,6 +106,10 @@ public final class MongoUtils {
       JsonNode src,
       UnaryOperator<String> function,
       final UnaryOperator<ObjectNode> emptyObjectConverter) {
+    if (src.isTextual()) {
+      return new TextNode(function.apply(src.asText()));
+    }
+
     if (!src.isObject()) {
       return src;
     }
@@ -112,6 +123,17 @@ public final class MongoUtils {
       JsonNode newValue = value;
       if (value.isObject()) {
         newValue = recursiveClone(value, function, emptyObjectConverter);
+      }
+      if (value.isArray()) {
+        newValue = new ArrayNode(JsonNodeFactory.instance);
+        for (int i = 0; i < value.size(); i++) {
+          final JsonNode elementValue =
+              recursiveClone(value.get(i), function, emptyObjectConverter);
+          ((ArrayNode) newValue).add(elementValue);
+        }
+      }
+      if (newValue.isTextual()) {
+        newValue = new TextNode(function.apply(newValue.asText()));
       }
       tgt.set(newFieldName, newValue);
     }
