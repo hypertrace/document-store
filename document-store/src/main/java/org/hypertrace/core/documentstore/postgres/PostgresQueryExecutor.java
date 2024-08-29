@@ -28,6 +28,7 @@ public class PostgresQueryExecutor {
     try {
       final PreparedStatement preparedStatement =
           buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build(), connection);
+
       log.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
       final ResultSet resultSet = preparedStatement.executeQuery();
       return query.getSelections().size() > 0

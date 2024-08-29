@@ -10,6 +10,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 
 import com.google.common.collect.Maps;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 
@@ -24,8 +25,18 @@ class PostgresStandardRelationalOperatorMapper {
               entry(GTE, ">="),
               entry(LTE, "<=")));
 
-  String getMapping(final RelationalOperator operator) {
-    return Optional.ofNullable(mapping.get(operator))
-        .orElseThrow(() -> new UnsupportedOperationException("Unsupported operator: " + operator));
+  private static final Map<RelationalOperator, String> nullRhsOperatorMapping =
+      Maps.immutableEnumMap(Map.ofEntries(entry(EQ, "IS"), entry(NEQ, "IS NOT")));
+
+  String getMapping(final RelationalOperator operator, Object parsedRhs) {
+    if (Objects.nonNull(parsedRhs)) {
+      return Optional.ofNullable(mapping.get(operator))
+          .orElseThrow(
+              () -> new UnsupportedOperationException("Unsupported operator: " + operator));
+    } else {
+      return Optional.ofNullable(nullRhsOperatorMapping.get(operator))
+          .orElseThrow(
+              () -> new UnsupportedOperationException("Unsupported operator: " + operator));
+    }
   }
 }
