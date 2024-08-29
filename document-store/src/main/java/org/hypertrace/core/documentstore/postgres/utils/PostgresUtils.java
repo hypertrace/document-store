@@ -20,7 +20,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -595,9 +594,7 @@ public class PostgresUtils {
         .forEach(
             (k, v) -> {
               try {
-                if (Objects.isNull(v)) {
-                  preparedStatement.setNull(k, java.sql.Types.OTHER);
-                } else if (isValidPrimitiveType(v)) {
+                if (isValidPrimitiveType(v)) {
                   preparedStatement.setObject(k, v);
                 } else {
                   throw new UnsupportedOperationException("Un-supported object types in filter");

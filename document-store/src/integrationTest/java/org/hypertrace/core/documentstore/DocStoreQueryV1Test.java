@@ -585,20 +585,6 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
-  public void testNullRhsValueInRelationalFilter(String dataStoreName) throws IOException {
-    Collection collection = getCollection(dataStoreName);
-    Query query =
-        Query.builder()
-            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
-            .build();
-
-    Iterator<Document> resultDocs = collection.aggregate(query);
-    assertDocsAndSizeEqualWithoutOrder(dataStoreName, resultDocs, "query/count_response.json", 1);
-    testCountApi(dataStoreName, query, "query/count_response.json");
-  }
-
-  @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
   public void testOptionalFieldCount(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
     Query query =
