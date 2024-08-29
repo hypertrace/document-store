@@ -14,7 +14,7 @@ public class UpdateOptions {
           .missingDocumentStrategy(MissingDocumentStrategy.SKIP_UPDATES)
           .build();
 
-  ReturnDocumentType returnDocumentType;
+  @Default ReturnDocumentType returnDocumentType = AFTER_UPDATE;
   MissingDocumentStrategy missingDocumentStrategy;
 
   public enum MissingDocumentStrategy {
