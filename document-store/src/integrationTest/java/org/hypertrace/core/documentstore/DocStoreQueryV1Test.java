@@ -846,6 +846,9 @@ public class DocStoreQueryV1Test {
             .operator(AND)
             .operand(
                 RelationalExpression.of(
+                    IdentifierExpression.of("item"), NEQ, ConstantExpression.of((String) null)))
+            .operand(
+                RelationalExpression.of(
                     IdentifierExpression.of("sales.medium.type"),
                     EQ,
                     ConstantExpression.of("distributionChannel")))
