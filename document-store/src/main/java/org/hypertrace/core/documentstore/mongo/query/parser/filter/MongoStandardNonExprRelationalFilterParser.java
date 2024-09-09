@@ -1,5 +1,8 @@
 package org.hypertrace.core.documentstore.mongo.query.parser.filter;
 
+import static java.util.Collections.unmodifiableMap;
+
+import java.util.HashMap;
 import java.util.Map;
 import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -16,6 +19,11 @@ public class MongoStandardNonExprRelationalFilterParser implements MongoRelation
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
     final String operator = mapping.getOperator(expression.getOperator());
     final Object parsedRhs = expression.getRhs().accept(context.rhsParser());
-    return Map.of(parsedLhs, Map.of(operator, parsedRhs));
+
+    // using HashMap instead of Map.of() as RHS value can be null
+    // but Map.of() doesn't support null values
+    final Map<String, Object> operatorToRhsMap = new HashMap<>();
+    operatorToRhsMap.put(operator, parsedRhs);
+    return Map.of(parsedLhs, unmodifiableMap(operatorToRhsMap));
   }
 }

@@ -90,6 +90,7 @@ import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions.MissingDocumentStrategy;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.Aggregation;
@@ -843,6 +844,9 @@ public class DocStoreQueryV1Test {
     final FilterTypeExpression filter =
         LogicalExpression.builder()
             .operator(AND)
+            .operand(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"), NEQ, ConstantExpression.of((String) null)))
             .operand(
                 RelationalExpression.of(
                     IdentifierExpression.of("sales.medium.type"),
@@ -2589,6 +2593,66 @@ public class DocStoreQueryV1Test {
               query, new_updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
       assertDocsAndSizeEqualWithoutOrder(
           datastoreName, iterator_new, "query/update_operator/add_updated2.json", 9);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(MongoProvider.class)
+    void testUpdateWithUpsertOptions(final String dataStoreName) throws IOException {
+      final Collection collection = getCollection(dataStoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+      final SubDocumentUpdate set =
+          SubDocumentUpdate.builder()
+              .subDocument("props.brand")
+              .operator(SET)
+              .subDocumentValue(SubDocumentValue.of(new JSONDocument(Map.of("value", "nike"))))
+              .build();
+      Filter filter =
+          Filter.builder()
+              .expression(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("shoes"))))
+              .build();
+
+      final Query query = Query.builder().setFilter(filter).build();
+      final List<SubDocumentUpdate> updates = List.of(set);
+      final CloseableIterator<Document> iterator =
+          collection.bulkUpdate(
+              query,
+              updates,
+              UpdateOptions.builder()
+                  .returnDocumentType(AFTER_UPDATE)
+                  .missingDocumentStrategy(MissingDocumentStrategy.CREATE_USING_UPDATES)
+                  .build());
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, iterator, "query/update_operator/updated4.json", 1);
+      Filter filter1 =
+          Filter.builder()
+              .expression(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("shirt"))))
+              .build();
+      final Query query1 = Query.builder().setFilter(filter1).build();
+      final SubDocumentUpdate add =
+          SubDocumentUpdate.builder()
+              .subDocument("quantity")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+      final List<SubDocumentUpdate> update1 = List.of(add);
+      final CloseableIterator<Document> iterator1 =
+          collection.bulkUpdate(
+              query1,
+              update1,
+              UpdateOptions.builder()
+                  .returnDocumentType(AFTER_UPDATE)
+                  .missingDocumentStrategy(MissingDocumentStrategy.CREATE_USING_UPDATES)
+                  .build());
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, iterator1, "query/update_operator/updated5.json", 1);
     }
 
     @ParameterizedTest

@@ -10,10 +10,14 @@ class PostgresStandardRelationalFilterParser implements PostgresRelationalFilter
   public String parse(
       final RelationalExpression expression, final PostgresRelationalFilterContext context) {
     final Object parsedLhs = expression.getLhs().accept(context.lhsParser());
-    final String operator = mapper.getMapping(expression.getOperator());
     final Object parsedRhs = expression.getRhs().accept(context.rhsParser());
+    final String operator = mapper.getMapping(expression.getOperator(), parsedRhs);
 
-    context.getParamsBuilder().addObjectParam(parsedRhs);
-    return String.format("%s %s ?", parsedLhs, operator);
+    if (parsedRhs != null) {
+      context.getParamsBuilder().addObjectParam(parsedRhs);
+      return String.format("%s %s ?", parsedLhs, operator);
+    } else {
+      return String.format("%s %s NULL", parsedLhs, operator);
+    }
   }
 }
