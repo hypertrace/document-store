@@ -554,8 +554,7 @@ public class MongoCollection implements Collection {
   @Override
   public CloseableIterator<Document> query(
       final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
-    // TODO Auto-generated method stub
-    throw new UnsupportedOperationException("Unimplemented method 'query'");
+    return convertToDocumentIterator(queryExecutor.aggregate(query, queryOptions));
   }
 
   @Override
