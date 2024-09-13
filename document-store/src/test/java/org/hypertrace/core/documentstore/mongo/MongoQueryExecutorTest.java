@@ -20,8 +20,8 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
-import static org.hypertrace.core.documentstore.model.options.DataFreshness.NEAR_REAL_TIME_FRESHNESS;
-import static org.hypertrace.core.documentstore.model.options.DataFreshness.REAL_TIME_FRESHNESS;
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.NEAR_REALTIME_FRESHNESS;
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.REALTIME_FRESHNESS;
 import static org.hypertrace.core.documentstore.model.options.DataFreshness.SYSTEM_DEFAULT;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -632,7 +632,7 @@ class MongoQueryExecutorTest {
               .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
               .build();
 
-      when(connectionConfig.dataFreshness()).thenReturn(NEAR_REAL_TIME_FRESHNESS);
+      when(connectionConfig.dataFreshness()).thenReturn(NEAR_REALTIME_FRESHNESS);
       executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
 
       // Fire query twice to test the cache behaviour
@@ -680,11 +680,11 @@ class MongoQueryExecutorTest {
               .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
               .build();
 
-      when(connectionConfig.dataFreshness()).thenReturn(NEAR_REAL_TIME_FRESHNESS);
-      executor.aggregate(query, QueryOptions.builder().dataFreshness(REAL_TIME_FRESHNESS).build());
+      when(connectionConfig.dataFreshness()).thenReturn(NEAR_REALTIME_FRESHNESS);
+      executor.aggregate(query, QueryOptions.builder().dataFreshness(REALTIME_FRESHNESS).build());
 
       // Fire query twice to test the cache behaviour
-      executor.aggregate(query, QueryOptions.builder().dataFreshness(REAL_TIME_FRESHNESS).build());
+      executor.aggregate(query, QueryOptions.builder().dataFreshness(REALTIME_FRESHNESS).build());
 
       testQueryOptions(ReadPreference.primary());
     }
@@ -698,11 +698,11 @@ class MongoQueryExecutorTest {
 
       when(connectionConfig.dataFreshness()).thenReturn(SYSTEM_DEFAULT);
       executor.aggregate(
-          query, QueryOptions.builder().dataFreshness(NEAR_REAL_TIME_FRESHNESS).build());
+          query, QueryOptions.builder().dataFreshness(NEAR_REALTIME_FRESHNESS).build());
 
       // Fire query twice to test the cache behaviour
       executor.aggregate(
-          query, QueryOptions.builder().dataFreshness(NEAR_REAL_TIME_FRESHNESS).build());
+          query, QueryOptions.builder().dataFreshness(NEAR_REALTIME_FRESHNESS).build());
 
       testQueryOptions(ReadPreference.secondaryPreferred());
     }
