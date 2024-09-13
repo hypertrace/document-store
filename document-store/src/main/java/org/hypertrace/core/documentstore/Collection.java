@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 
@@ -126,6 +127,16 @@ public interface Collection {
    * @return {@link CloseableIterator} of matching documents
    */
   CloseableIterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query);
+
+  /**
+   * Query the documents conforming to the query specification.
+   *
+   * @param query The query specification
+   * @param queryOptions The query options
+   * @return {@link CloseableIterator} of matching documents
+   */
+  CloseableIterator<Document> query(
+      final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions);
 
   /**
    * Delete the document with the given key.

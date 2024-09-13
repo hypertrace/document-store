@@ -33,6 +33,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
+import com.mongodb.ReadPreference;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
@@ -94,6 +95,7 @@ class MongoQueryExecutorTest {
     executor = new MongoQueryExecutor(collection, connectionConfig);
 
     when(collection.find(any(BasicDBObject.class))).thenReturn(iterable);
+    when(collection.withReadPreference(any(ReadPreference.class))).thenReturn(collection);
     when(collection.aggregate(anyList())).thenReturn(aggIterable);
 
     when(iterable.projection(any(BasicDBObject.class))).thenReturn(iterable);
@@ -607,6 +609,7 @@ class MongoQueryExecutorTest {
 
     executor.aggregate(query);
     verify(collection).getNamespace();
+    verify(collection).withReadPreference(ReadPreference.primary());
     verify(collection).aggregate(pipeline);
     verify(aggIterable).allowDiskUse(true);
     verify(aggIterable).cursor();

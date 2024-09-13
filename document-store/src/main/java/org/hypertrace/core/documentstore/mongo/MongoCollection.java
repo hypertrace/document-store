@@ -61,6 +61,7 @@ import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
 import org.hypertrace.core.documentstore.mongo.update.MongoUpdateExecutor;
@@ -548,6 +549,13 @@ public class MongoCollection implements Collection {
   public CloseableIterator<Document> aggregate(
       final org.hypertrace.core.documentstore.query.Query query) {
     return convertToDocumentIterator(queryExecutor.aggregate(query));
+  }
+
+  @Override
+  public CloseableIterator<Document> query(
+      final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
+    // TODO Auto-generated method stub
+    throw new UnsupportedOperationException("Unimplemented method 'query'");
   }
 
   @Override
