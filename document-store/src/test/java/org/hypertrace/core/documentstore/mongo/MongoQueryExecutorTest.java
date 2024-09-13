@@ -20,11 +20,13 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.NEAR_REAL_TIME_FRESHNESS;
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.REAL_TIME_FRESHNESS;
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.SYSTEM_DEFAULT;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -53,6 +55,7 @@ import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -62,6 +65,7 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -82,6 +86,8 @@ class MongoQueryExecutorTest {
 
   @Mock private MongoCursor<BasicDBObject> cursor;
 
+  @Mock private ConnectionConfig connectionConfig;
+
   private MongoQueryExecutor executor;
 
   private static final VerificationMode NOT_INVOKED = times(0);
@@ -89,7 +95,6 @@ class MongoQueryExecutorTest {
 
   @BeforeEach
   void setUp() {
-    ConnectionConfig connectionConfig = mock(ConnectionConfig.class);
     when(connectionConfig.aggregationPipelineMode())
         .thenReturn(AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE);
     executor = new MongoQueryExecutor(collection, connectionConfig);
@@ -601,6 +606,114 @@ class MongoQueryExecutorTest {
 
     testAggregation(
         query, "mongo/pipeline/optimize_sorts_sort_in_selection_selection_with_alias.json");
+  }
+
+  @SuppressWarnings("resource")
+  @Nested
+  class MongoQueryOptionsTest {
+    @Test
+    void testDefault() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      // Fire query twice to test the cache behaviour
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      testQueryOptions(ReadPreference.primary());
+    }
+
+    @Test
+    void testConnectionLevelReadPreference() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+
+      when(connectionConfig.dataFreshness()).thenReturn(NEAR_REAL_TIME_FRESHNESS);
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      // Fire query twice to test the cache behaviour
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      testQueryOptions(ReadPreference.secondaryPreferred());
+    }
+
+    @Test
+    void testConnectionLevelReadPreferenceWithNullValue() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+
+      when(connectionConfig.dataFreshness()).thenReturn(null);
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      // Fire query twice to test the cache behaviour
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      testQueryOptions(ReadPreference.primary());
+    }
+
+    @Test
+    void testConnectionLevelReadPreferenceWithSystemDefaultValue() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+
+      when(connectionConfig.dataFreshness()).thenReturn(SYSTEM_DEFAULT);
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      // Fire query twice to test the cache behaviour
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      testQueryOptions(ReadPreference.primary());
+    }
+
+    @Test
+    void testQueryLevelReadPreferenceOverride() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+
+      when(connectionConfig.dataFreshness()).thenReturn(NEAR_REAL_TIME_FRESHNESS);
+      executor.aggregate(query, QueryOptions.builder().dataFreshness(REAL_TIME_FRESHNESS).build());
+
+      // Fire query twice to test the cache behaviour
+      executor.aggregate(query, QueryOptions.builder().dataFreshness(REAL_TIME_FRESHNESS).build());
+
+      testQueryOptions(ReadPreference.primary());
+    }
+
+    @Test
+    void testQueryLevelReadPreference() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+
+      when(connectionConfig.dataFreshness()).thenReturn(SYSTEM_DEFAULT);
+      executor.aggregate(
+          query, QueryOptions.builder().dataFreshness(NEAR_REAL_TIME_FRESHNESS).build());
+
+      // Fire query twice to test the cache behaviour
+      executor.aggregate(
+          query, QueryOptions.builder().dataFreshness(NEAR_REAL_TIME_FRESHNESS).build());
+
+      testQueryOptions(ReadPreference.secondaryPreferred());
+    }
+
+    private void testQueryOptions(final ReadPreference readPreference) {
+      verify(collection, times(2)).getNamespace();
+      verify(collection, times(1)).withReadPreference(readPreference);
+      verify(collection, times(2)).aggregate(anyList());
+      verify(aggIterable, times(2)).allowDiskUse(true);
+      verify(aggIterable, times(2)).cursor();
+    }
   }
 
   private void testAggregation(Query query, final String filePath)

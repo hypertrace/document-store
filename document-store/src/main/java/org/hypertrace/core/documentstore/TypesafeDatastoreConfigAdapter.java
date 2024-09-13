@@ -32,7 +32,7 @@ interface TypesafeDatastoreConfigAdapter {
               null,
               null,
               AggregatePipelineMode.DEFAULT_ALWAYS,
-              DataFreshness.REAL_TIME_FRESHNESS) {
+              DataFreshness.SYSTEM_DEFAULT) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
                   MongoClientSettings.builder()

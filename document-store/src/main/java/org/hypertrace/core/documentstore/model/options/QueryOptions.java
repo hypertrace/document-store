@@ -11,5 +11,5 @@ import lombok.experimental.Accessors;
 public class QueryOptions {
   public static final QueryOptions DEFAULT_QUERY_OPTIONS = QueryOptions.builder().build();
 
-  @Default DataFreshness dataFreshness = DataFreshness.REAL_TIME_FRESHNESS;
+  @Default DataFreshness dataFreshness = DataFreshness.SYSTEM_DEFAULT;
 }

@@ -42,7 +42,7 @@ public class ConnectionConfig {
         database,
         credentials,
         AggregatePipelineMode.DEFAULT_ALWAYS,
-        DataFreshness.REAL_TIME_FRESHNESS);
+        DataFreshness.SYSTEM_DEFAULT);
   }
 
   public static ConnectionConfigBuilder builder() {
@@ -62,7 +62,7 @@ public class ConnectionConfig {
     String replicaSet;
     ConnectionPoolConfig connectionPoolConfig;
     AggregatePipelineMode aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ALWAYS;
-    DataFreshness dataFreshness = DataFreshness.REAL_TIME_FRESHNESS;
+    DataFreshness dataFreshness = DataFreshness.SYSTEM_DEFAULT;
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;

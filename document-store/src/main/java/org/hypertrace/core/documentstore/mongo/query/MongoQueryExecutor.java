@@ -5,6 +5,7 @@ import static java.util.Collections.singleton;
 import static java.util.function.Function.identity;
 import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.model.options.QueryOptions.DEFAULT_QUERY_OPTIONS;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.getCountClause;
@@ -21,7 +22,6 @@ import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSortType
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoCommandException;
-import com.mongodb.ReadPreference;
 import com.mongodb.ServerAddress;
 import com.mongodb.ServerCursor;
 import com.mongodb.client.AggregateIterable;
@@ -41,6 +41,7 @@ import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.QueryOptions;
+import org.hypertrace.core.documentstore.mongo.collection.MongoCollectionOptionsApplier;
 import org.hypertrace.core.documentstore.mongo.query.parser.AliasParser;
 import org.hypertrace.core.documentstore.mongo.query.parser.MongoFromTypeExpressionParser;
 import org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser;
@@ -118,9 +119,7 @@ public class MongoQueryExecutor {
         }
       };
 
-  private final MongoReadPreferenceMapper mongoReadPreferenceMapper =
-      new MongoReadPreferenceMapper();
-
+  private final MongoCollectionOptionsApplier optionsApplier = new MongoCollectionOptionsApplier();
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
   private final ConnectionConfig connectionConfig;
 
@@ -162,15 +161,16 @@ public class MongoQueryExecutor {
         aggregatePipeline.stream()
             .flatMap(function -> function.apply(query).stream())
             .filter(not(BasicDBObject::isEmpty))
-            .collect(toList());
+            .collect(toUnmodifiableList());
 
     logPipeline(pipeline, queryOptions);
 
     try {
-      final ReadPreference readPreference =
-          mongoReadPreferenceMapper.readPreferenceFor(queryOptions.dataFreshness());
+      final com.mongodb.client.MongoCollection<BasicDBObject> collectionWithOptions =
+          optionsApplier.applyOptions(connectionConfig, queryOptions, collection);
+
       final AggregateIterable<BasicDBObject> iterable =
-          collection.withReadPreference(readPreference).aggregate(pipeline).allowDiskUse(true);
+          collectionWithOptions.aggregate(pipeline).allowDiskUse(true);
       return iterable.cursor();
     } catch (final MongoCommandException e) {
       log.error("Execution failed for query: {}. Aggregation Pipeline: {}", query, pipeline);

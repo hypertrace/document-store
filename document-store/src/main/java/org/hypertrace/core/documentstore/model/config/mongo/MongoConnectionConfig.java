@@ -28,7 +28,6 @@ import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.Endpoint;
 import org.hypertrace.core.documentstore.model.options.DataFreshness;
-import org.hypertrace.core.documentstore.mongo.query.MongoReadPreferenceMapper;
 
 @Value
 @NonFinal
@@ -36,9 +35,6 @@ import org.hypertrace.core.documentstore.mongo.query.MongoReadPreferenceMapper;
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class MongoConnectionConfig extends ConnectionConfig {
-  private static final MongoReadPreferenceMapper mongoReadPreferenceMapper =
-      new MongoReadPreferenceMapper();
-
   @NonNull String applicationName;
   @Nullable String replicaSetName;
   @NonNull ConnectionPoolConfig connectionPoolConfig;
@@ -72,8 +68,7 @@ public class MongoConnectionConfig extends ConnectionConfig {
         MongoClientSettings.builder()
             .applicationName(applicationName())
             .retryWrites(true)
-            .retryReads(true)
-            .readPreference(mongoReadPreferenceMapper.readPreferenceFor(dataFreshness()));
+            .retryReads(true);
 
     applyClusterSettings(settingsBuilder);
     applyConnectionPoolSettings(settingsBuilder);
