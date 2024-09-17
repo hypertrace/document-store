@@ -10,6 +10,7 @@ import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
 import com.mongodb.connection.ClusterSettings;
 import com.mongodb.connection.ConnectionPoolSettings;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -51,13 +52,15 @@ public class MongoConnectionConfig extends ConnectionConfig {
       @Nullable final String replicaSetName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig,
       @NonNull final AggregatePipelineMode aggregationPipelineMode,
-      @NonNull final DataFreshness dataFreshness) {
+      @NonNull final DataFreshness dataFreshness,
+      @NonNull final Duration queryTimeout) {
     super(
         ensureAtLeastOneEndpoint(endpoints),
         getDatabaseOrDefault(database),
         getCredentialsOrDefault(credentials, database),
         aggregationPipelineMode,
-        dataFreshness);
+        dataFreshness,
+        queryTimeout);
     this.applicationName = applicationName;
     this.replicaSetName = replicaSetName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);

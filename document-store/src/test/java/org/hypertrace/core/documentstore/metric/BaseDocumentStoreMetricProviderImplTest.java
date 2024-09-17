@@ -1,10 +1,12 @@
 package org.hypertrace.core.documentstore.metric;
 
 import static java.util.Collections.emptyList;
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.NEAR_REALTIME_FRESHNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.hypertrace.core.documentstore.CloseableIterator;
@@ -14,6 +16,7 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.model.config.CustomMetricConfig;
+import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -27,6 +30,11 @@ class BaseDocumentStoreMetricProviderImplTest {
 
   private final String collectionName = "collectionName";
   private final String metricName = "metricName";
+  private final QueryOptions queryOptions =
+      QueryOptions.builder()
+          .queryTimeout(Duration.ofMinutes(20))
+          .dataFreshness(NEAR_REALTIME_FRESHNESS)
+          .build();
   private Query query =
       Query.builder()
           .addSelection(IdentifierExpression.of("label1"), "label1")
@@ -65,7 +73,7 @@ class BaseDocumentStoreMetricProviderImplTest {
 
     @Test
     void queryExecutionThrowsException_returnsEmptyList() {
-      when(mockCollection.aggregate(query)).thenThrow(new RuntimeException());
+      when(mockCollection.query(query, queryOptions)).thenThrow(new RuntimeException());
       final List<DocStoreMetric> result =
           baseDocStoreMetricProvider.getCustomMetrics(customMetricConfig);
       assertEquals(emptyList(), result);
@@ -73,7 +81,7 @@ class BaseDocumentStoreMetricProviderImplTest {
 
     @Test
     void queryReturnsEmptyIterator_returnsEmptyList() {
-      when(mockCollection.aggregate(query)).thenReturn(CloseableIterator.emptyIterator());
+      when(mockCollection.query(query, queryOptions)).thenReturn(CloseableIterator.emptyIterator());
       final List<DocStoreMetric> result =
           baseDocStoreMetricProvider.getCustomMetrics(customMetricConfig);
       assertEquals(emptyList(), result);
@@ -81,7 +89,7 @@ class BaseDocumentStoreMetricProviderImplTest {
 
     @Test
     void queryReturnsInvalidJson_returnsEmptyList() {
-      when(mockCollection.aggregate(query)).thenReturn(mockIterator);
+      when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
       when(mockIterator.next()).thenReturn(() -> "invalid-json");
       final List<DocStoreMetric> result =
@@ -91,7 +99,7 @@ class BaseDocumentStoreMetricProviderImplTest {
 
     @Test
     void queryReturnsDocumentWithMissingValue_returnsEmptyList() throws IOException {
-      when(mockCollection.aggregate(query)).thenReturn(mockIterator);
+      when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
       when(mockIterator.next()).thenReturn(new JSONDocument(Map.of("label1", "l1value")));
       final List<DocStoreMetric> result =
@@ -101,7 +109,7 @@ class BaseDocumentStoreMetricProviderImplTest {
 
     @Test
     void queryReturnsValidAndInvalidDocument_returnsEmptyList() throws IOException {
-      when(mockCollection.aggregate(query)).thenReturn(mockIterator);
+      when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, true, true, true, true, false);
       when(mockIterator.next())
           .thenReturn(

@@ -490,15 +490,9 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public CloseableIterator<Document> aggregate(
-      final org.hypertrace.core.documentstore.query.Query query) {
-    return queryExecutor.execute(client.getConnection(), query);
-  }
-
-  @Override
   public CloseableIterator<Document> query(
       final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
-    return aggregate(query);
+    return queryExecutor.execute(client.getConnection(), query);
   }
 
   @Override
@@ -612,7 +606,8 @@ public class PostgresCollection implements Collection {
   }
 
   @Override
-  public long count(org.hypertrace.core.documentstore.query.Query query) {
+  public long count(
+      org.hypertrace.core.documentstore.query.Query query, QueryOptions queryOptions) {
     org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
             tableIdentifier, query);

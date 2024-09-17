@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.model.config;
 import static java.util.Collections.unmodifiableList;
 
 import com.google.common.base.Preconditions;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -32,6 +33,7 @@ public class ConnectionConfig {
   @Nullable ConnectionCredentials credentials;
   @NonNull AggregatePipelineMode aggregationPipelineMode;
   @NonNull DataFreshness dataFreshness;
+  @NonNull Duration queryTimeout;
 
   public ConnectionConfig(
       @NonNull List<@NonNull Endpoint> endpoints,
@@ -42,7 +44,8 @@ public class ConnectionConfig {
         database,
         credentials,
         AggregatePipelineMode.DEFAULT_ALWAYS,
-        DataFreshness.SYSTEM_DEFAULT);
+        DataFreshness.SYSTEM_DEFAULT,
+        Duration.ofMinutes(1));
   }
 
   public static ConnectionConfigBuilder builder() {
@@ -63,6 +66,7 @@ public class ConnectionConfig {
     ConnectionPoolConfig connectionPoolConfig;
     AggregatePipelineMode aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ALWAYS;
     DataFreshness dataFreshness = DataFreshness.SYSTEM_DEFAULT;
+    Duration queryTimeout = Duration.ofMinutes(20);
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;
@@ -91,7 +95,8 @@ public class ConnectionConfig {
               replicaSet,
               connectionPoolConfig,
               aggregationPipelineMode,
-              dataFreshness);
+              dataFreshness,
+              queryTimeout);
 
         case POSTGRES:
           return new PostgresConnectionConfig(

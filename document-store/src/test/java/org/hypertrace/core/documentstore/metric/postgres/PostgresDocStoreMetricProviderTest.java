@@ -3,11 +3,13 @@ package org.hypertrace.core.documentstore.metric.postgres;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.model.config.CustomMetricConfig.VALUE_KEY;
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.NEAR_REALTIME_FRESHNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
@@ -19,6 +21,7 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.metric.DocStoreMetric;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
+import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
@@ -33,6 +36,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class PostgresDocStoreMetricProviderTest {
 
   private final String postgresClientAppName = "PostgresClientAppName";
+  private final QueryOptions queryOptions =
+      QueryOptions.builder()
+          .queryTimeout(Duration.ofMinutes(20))
+          .dataFreshness(NEAR_REALTIME_FRESHNESS)
+          .build();
+
   private final PostgresConnectionConfig connectionConfig =
       (PostgresConnectionConfig)
           PostgresConnectionConfig.builder().applicationName(postgresClientAppName).build();
@@ -73,14 +82,14 @@ class PostgresDocStoreMetricProviderTest {
 
     @Test
     void withEmptyIterator_returnsDefaultMetric() {
-      when(mockCollection.aggregate(query)).thenReturn(CloseableIterator.emptyIterator());
+      when(mockCollection.query(query, queryOptions)).thenReturn(CloseableIterator.emptyIterator());
       final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
     @Test
     void withNoValueColumnIterator_returnsDefaultMetric() throws IOException {
-      when(mockCollection.aggregate(query)).thenReturn(mockIterator);
+      when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
       when(mockIterator.next())
           .thenReturn(new JSONDocument(Map.of("application_name", postgresClientAppName)));
@@ -90,14 +99,14 @@ class PostgresDocStoreMetricProviderTest {
 
     @Test
     void withQueryExecutionException_returnsDefaultMetric() {
-      when(mockCollection.aggregate(query)).thenThrow(new RuntimeException());
+      when(mockCollection.query(query, queryOptions)).thenThrow(new RuntimeException());
       final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
 
     @Test
     void withInvalidJson_returnsDefaultMetric() {
-      when(mockCollection.aggregate(query)).thenReturn(mockIterator);
+      when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
       when(mockIterator.next()).thenReturn(() -> "invalid-json");
       final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
@@ -106,7 +115,7 @@ class PostgresDocStoreMetricProviderTest {
 
     @Test
     void withMultipleDocuments_returnsDefaultMetric() throws IOException {
-      when(mockCollection.aggregate(query)).thenReturn(mockIterator);
+      when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, true, false);
       when(mockIterator.next())
           .thenReturn(
@@ -119,7 +128,7 @@ class PostgresDocStoreMetricProviderTest {
     @Test
     void withMultipleInvalidDocumentsFollowedByValidDocument_returnsTheRightMetric()
         throws IOException {
-      when(mockCollection.aggregate(query)).thenReturn(mockIterator);
+      when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, true, true, false);
       when(mockIterator.next())
           .thenReturn(
@@ -139,7 +148,7 @@ class PostgresDocStoreMetricProviderTest {
 
     @Test
     void withValidDocument_returnsTheRightMetric() throws IOException {
-      when(mockCollection.aggregate(query)).thenReturn(mockIterator);
+      when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
       when(mockIterator.next())
           .thenReturn(

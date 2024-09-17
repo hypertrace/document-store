@@ -2,6 +2,8 @@ package org.hypertrace.core.documentstore.mongo.query;
 
 import static java.lang.Long.parseLong;
 import static java.util.Collections.singleton;
+import static java.util.Comparator.comparing;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.function.Function.identity;
 import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toList;
@@ -27,6 +29,7 @@ import com.mongodb.ServerCursor;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -168,9 +171,13 @@ public class MongoQueryExecutor {
     try {
       final com.mongodb.client.MongoCollection<BasicDBObject> collectionWithOptions =
           optionsApplier.applyOptions(connectionConfig, queryOptions, collection);
+      final Duration queryTimeout = queryTimeout(connectionConfig, queryOptions);
 
       final AggregateIterable<BasicDBObject> iterable =
-          collectionWithOptions.aggregate(pipeline).allowDiskUse(true);
+          collectionWithOptions
+              .aggregate(pipeline)
+              .maxTime(queryTimeout.toMillis(), MILLISECONDS)
+              .allowDiskUse(true);
       return iterable.cursor();
     } catch (final MongoCommandException e) {
       log.error("Execution failed for query: {}. Aggregation Pipeline: {}", query, pipeline);
@@ -179,6 +186,10 @@ public class MongoQueryExecutor {
   }
 
   public long count(final Query originalQuery) {
+    return count(originalQuery, DEFAULT_QUERY_OPTIONS);
+  }
+
+  public long count(final Query originalQuery, final QueryOptions queryOptions) {
     final Query query = transformAndLog(originalQuery);
 
     final List<BasicDBObject> pipeline =
@@ -189,8 +200,15 @@ public class MongoQueryExecutor {
             .filter(not(BasicDBObject::isEmpty))
             .collect(toList());
 
-    logPipeline(pipeline, DEFAULT_QUERY_OPTIONS);
-    final AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
+    logPipeline(pipeline, queryOptions);
+    final com.mongodb.client.MongoCollection<BasicDBObject> collectionWithOptions =
+        optionsApplier.applyOptions(connectionConfig, queryOptions, collection);
+    final Duration queryTimeout = queryTimeout(connectionConfig, queryOptions);
+    final AggregateIterable<BasicDBObject> iterable =
+        collectionWithOptions
+            .aggregate(pipeline)
+            .maxTime(queryTimeout.toMillis(), MILLISECONDS)
+            .allowDiskUse(true);
 
     try (final MongoCursor<BasicDBObject> cursor = iterable.cursor()) {
       if (cursor.hasNext()) {
@@ -303,5 +321,12 @@ public class MongoQueryExecutor {
     Boolean isAggregationExpression =
         selectionSpec.getExpression().accept(new AggregateExpressionChecker());
     return isFunctionExpression || isAggregationExpression;
+  }
+
+  private Duration queryTimeout(
+      final ConnectionConfig connectionConfig, final QueryOptions queryOptions) {
+    return Stream.of(connectionConfig.queryTimeout(), queryOptions.queryTimeout())
+        .min(comparing(Duration::toMillis))
+        .orElseThrow();
   }
 }

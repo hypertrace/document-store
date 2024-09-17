@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.hypertrace.core.documentstore.TestUtil.readFileFromResource;
 import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.and;
@@ -41,6 +42,7 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import org.hypertrace.core.documentstore.SingleValueKey;
@@ -108,8 +110,12 @@ class MongoQueryExecutorTest {
     when(iterable.limit(anyInt())).thenReturn(iterable);
     when(iterable.sort(any(BasicDBObject.class))).thenReturn(iterable);
 
+    when(connectionConfig.queryTimeout()).thenReturn(Duration.ofMinutes(1));
+
     when(iterable.cursor()).thenReturn(cursor);
     when(aggIterable.allowDiskUse(true)).thenReturn(aggIterable);
+    when(aggIterable.maxTime(Duration.ofMinutes(1).toMillis(), MILLISECONDS))
+        .thenReturn(aggIterable);
     when(aggIterable.cursor()).thenReturn(cursor);
   }
 
@@ -713,6 +719,7 @@ class MongoQueryExecutorTest {
       verify(collection, times(2)).aggregate(anyList());
       verify(aggIterable, times(2)).allowDiskUse(true);
       verify(aggIterable, times(2)).cursor();
+      verify(aggIterable, times(2)).maxTime(Duration.ofMinutes(1).toMillis(), MILLISECONDS);
     }
   }
 
@@ -725,6 +732,7 @@ class MongoQueryExecutorTest {
     verify(collection).withReadPreference(ReadPreference.primary());
     verify(collection).aggregate(pipeline);
     verify(aggIterable).allowDiskUse(true);
+    verify(aggIterable).maxTime(Duration.ofMinutes(1).toMillis(), MILLISECONDS);
     verify(aggIterable).cursor();
   }
 

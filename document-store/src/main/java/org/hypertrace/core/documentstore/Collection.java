@@ -1,5 +1,7 @@
 package org.hypertrace.core.documentstore;
 
+import static org.hypertrace.core.documentstore.model.options.QueryOptions.DEFAULT_QUERY_OPTIONS;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +104,8 @@ public interface Collection {
   /**
    * Search for documents matching the query.
    *
-   * @deprecated Use {@link #aggregate(org.hypertrace.core.documentstore.query.Query)} instead
+   * @deprecated Use {@link #query(org.hypertrace.core.documentstore.query.Query, QueryOptions)}
+   *     instead
    * @param query filter to query matching documents
    * @return {@link CloseableIterator} of matching documents
    */
@@ -115,7 +118,8 @@ public interface Collection {
    *
    * @param query The query definition to find
    * @return {@link CloseableIterator} of matching documents
-   * @deprecated Use {@link #aggregate(org.hypertrace.core.documentstore.query.Query)} instead
+   * @deprecated Use {@link #query(org.hypertrace.core.documentstore.query.Query, QueryOptions)}
+   *     instead
    */
   @Deprecated(forRemoval = true)
   CloseableIterator<Document> find(final org.hypertrace.core.documentstore.query.Query query);
@@ -126,7 +130,10 @@ public interface Collection {
    * @param query The aggregate query specification
    * @return {@link CloseableIterator} of matching documents
    */
-  CloseableIterator<Document> aggregate(final org.hypertrace.core.documentstore.query.Query query);
+  default CloseableIterator<Document> aggregate(
+      final org.hypertrace.core.documentstore.query.Query query) {
+    return query(query, DEFAULT_QUERY_OPTIONS);
+  }
 
   /**
    * Query the documents conforming to the query specification.
@@ -197,7 +204,21 @@ public interface Collection {
    * @param query The query definition whose result-set size is to be determined
    * @return The number of documents conforming to the input query
    */
-  long count(final org.hypertrace.core.documentstore.query.Query query);
+  default long count(final org.hypertrace.core.documentstore.query.Query query) {
+    return count(query, DEFAULT_QUERY_OPTIONS);
+  }
+
+  /**
+   * Count the result-set size of executing the given query. Note that this method is a generic
+   * version of {@link #count()}, {@link #count(org.hypertrace.core.documentstore.query.Query)} and
+   * {@link #total(Query)}
+   *
+   * @param query The query definition whose result-set size is to be determined
+   * @param queryOptions The query options to be used while fetching the results
+   * @return The number of documents conforming to the input query
+   */
+  long count(
+      final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions);
 
   /**
    * @param documents to be upserted in bulk
