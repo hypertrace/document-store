@@ -75,7 +75,7 @@ public class MongoDocStoreTest {
   @BeforeAll
   public static void init() {
     mongo =
-        new GenericContainer<>(DockerImageName.parse("mongo:4.4.0"))
+        new GenericContainer<>(DockerImageName.parse("mongo:7.0.14"))
             .withExposedPorts(27017)
             .waitingFor(Wait.forListeningPort());
     mongo.start();
