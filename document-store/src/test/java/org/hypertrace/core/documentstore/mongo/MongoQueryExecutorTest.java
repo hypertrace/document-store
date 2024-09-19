@@ -711,10 +711,10 @@ class MongoQueryExecutorTest {
       executor.aggregate(
           query, QueryOptions.builder().dataFreshness(NEAR_REALTIME_FRESHNESS).build());
 
-      testQueryOptions(ReadPreference.secondaryPreferred());
+      validate(ReadPreference.secondaryPreferred());
     }
 
-    private void testQueryOptions(final ReadPreference readPreference) {
+    private void validate(final ReadPreference readPreference) {
       verify(collection, times(2)).getNamespace();
       verify(collection, times(1)).withReadPreference(readPreference);
       verify(collection, times(2)).aggregate(anyList());

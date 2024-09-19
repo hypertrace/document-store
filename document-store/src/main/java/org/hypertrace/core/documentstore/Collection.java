@@ -146,16 +146,6 @@ public interface Collection {
       final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions);
 
   /**
-   * Query the documents conforming to the query specification.
-   *
-   * @param query The query specification
-   * @param queryOptions The query options
-   * @return {@link CloseableIterator} of matching documents
-   */
-  CloseableIterator<Document> query(
-      final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions);
-
-  /**
    * Delete the document with the given key.
    *
    * @param key The {@link Key} of the document to be deleted.

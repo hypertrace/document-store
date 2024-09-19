@@ -552,12 +552,6 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public CloseableIterator<Document> query(
-      final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
-    return convertToDocumentIterator(queryExecutor.aggregate(query, queryOptions));
-  }
-
-  @Override
   public Optional<Document> update(
       final org.hypertrace.core.documentstore.query.Query query,
       final java.util.Collection<SubDocumentUpdate> updates,
