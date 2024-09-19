@@ -179,6 +179,7 @@ public class MongoQueryExecutor {
               .aggregate(pipeline)
               .maxTime(queryTimeout.toMillis(), MILLISECONDS)
               .allowDiskUse(true);
+      
       return iterable.cursor();
     } catch (final MongoCommandException e) {
       log.error("Execution failed for query: {}. Aggregation Pipeline: {}", query, pipeline);
