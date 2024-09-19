@@ -34,7 +34,7 @@ interface TypesafeDatastoreConfigAdapter {
               null,
               AggregatePipelineMode.DEFAULT_ALWAYS,
               DataFreshness.SYSTEM_DEFAULT,
-              Duration.ofMinutes(10)) {
+              Duration.ofMinutes(20)) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
                   MongoClientSettings.builder()

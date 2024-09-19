@@ -45,7 +45,7 @@ public class ConnectionConfig {
         credentials,
         AggregatePipelineMode.DEFAULT_ALWAYS,
         DataFreshness.SYSTEM_DEFAULT,
-        Duration.ofMinutes(1));
+        Duration.ofMinutes(20));
   }
 
   public static ConnectionConfigBuilder builder() {
