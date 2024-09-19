@@ -18,6 +18,7 @@ import lombok.experimental.FieldDefaults;
 import lombok.experimental.NonFinal;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
+import org.hypertrace.core.documentstore.model.options.DataFreshness;
 
 @Value
 @NonFinal
@@ -30,12 +31,18 @@ public class ConnectionConfig {
   @NonNull String database;
   @Nullable ConnectionCredentials credentials;
   @NonNull AggregatePipelineMode aggregationPipelineMode;
+  @NonNull DataFreshness dataFreshness;
 
   public ConnectionConfig(
       @NonNull List<@NonNull Endpoint> endpoints,
       @NonNull String database,
       @Nullable ConnectionCredentials credentials) {
-    this(endpoints, database, credentials, AggregatePipelineMode.DEFAULT_ALWAYS);
+    this(
+        endpoints,
+        database,
+        credentials,
+        AggregatePipelineMode.DEFAULT_ALWAYS,
+        DataFreshness.SYSTEM_DEFAULT);
   }
 
   public static ConnectionConfigBuilder builder() {
@@ -55,6 +62,7 @@ public class ConnectionConfig {
     String replicaSet;
     ConnectionPoolConfig connectionPoolConfig;
     AggregatePipelineMode aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ALWAYS;
+    DataFreshness dataFreshness = DataFreshness.SYSTEM_DEFAULT;
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;
@@ -82,7 +90,8 @@ public class ConnectionConfig {
               applicationName,
               replicaSet,
               connectionPoolConfig,
-              aggregationPipelineMode);
+              aggregationPipelineMode,
+              dataFreshness);
 
         case POSTGRES:
           return new PostgresConnectionConfig(

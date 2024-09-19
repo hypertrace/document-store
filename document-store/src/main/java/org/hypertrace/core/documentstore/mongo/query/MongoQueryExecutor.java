@@ -5,6 +5,8 @@ import static java.util.Collections.singleton;
 import static java.util.function.Function.identity;
 import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.hypertrace.core.documentstore.model.options.QueryOptions.DEFAULT_QUERY_OPTIONS;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.COUNT_ALIAS;
 import static org.hypertrace.core.documentstore.mongo.clause.MongoCountClauseSupplier.getCountClause;
 import static org.hypertrace.core.documentstore.mongo.query.MongoPaginationHelper.applyPagination;
@@ -38,6 +40,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.options.QueryOptions;
+import org.hypertrace.core.documentstore.mongo.collection.MongoCollectionOptionsApplier;
 import org.hypertrace.core.documentstore.mongo.query.parser.AliasParser;
 import org.hypertrace.core.documentstore.mongo.query.parser.MongoFromTypeExpressionParser;
 import org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser;
@@ -52,7 +56,6 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
 @Slf4j
 @AllArgsConstructor
 public class MongoQueryExecutor {
-
   private static final List<Function<Query, Collection<BasicDBObject>>>
       DEFAULT_AGGREGATE_PIPELINE_FUNCTIONS =
           List.of(
@@ -116,6 +119,7 @@ public class MongoQueryExecutor {
         }
       };
 
+  private final MongoCollectionOptionsApplier optionsApplier = new MongoCollectionOptionsApplier();
   private final com.mongodb.client.MongoCollection<BasicDBObject> collection;
   private final ConnectionConfig connectionConfig;
 
@@ -138,6 +142,11 @@ public class MongoQueryExecutor {
   }
 
   public MongoCursor<BasicDBObject> aggregate(final Query originalQuery) {
+    return aggregate(originalQuery, DEFAULT_QUERY_OPTIONS);
+  }
+
+  public MongoCursor<BasicDBObject> aggregate(
+      final Query originalQuery, final QueryOptions queryOptions) {
     if (originalQuery.getPagination().map(Pagination::getLimit).map(ZERO::equals).orElse(false)) {
       log.debug("Not executing query because of a 0 limit");
       return EMPTY_CURSOR;
@@ -152,13 +161,16 @@ public class MongoQueryExecutor {
         aggregatePipeline.stream()
             .flatMap(function -> function.apply(query).stream())
             .filter(not(BasicDBObject::isEmpty))
-            .collect(toList());
+            .collect(toUnmodifiableList());
 
-    logPipeline(pipeline);
+    logPipeline(pipeline, queryOptions);
 
     try {
+      final com.mongodb.client.MongoCollection<BasicDBObject> collectionWithOptions =
+          optionsApplier.applyOptions(connectionConfig, queryOptions, collection);
+
       final AggregateIterable<BasicDBObject> iterable =
-          collection.aggregate(pipeline).allowDiskUse(true);
+          collectionWithOptions.aggregate(pipeline).allowDiskUse(true);
       return iterable.cursor();
     } catch (final MongoCommandException e) {
       log.error("Execution failed for query: {}. Aggregation Pipeline: {}", query, pipeline);
@@ -177,7 +189,7 @@ public class MongoQueryExecutor {
             .filter(not(BasicDBObject::isEmpty))
             .collect(toList());
 
-    logPipeline(pipeline);
+    logPipeline(pipeline, DEFAULT_QUERY_OPTIONS);
     final AggregateIterable<BasicDBObject> iterable = collection.aggregate(pipeline);
 
     try (final MongoCursor<BasicDBObject> cursor = iterable.cursor()) {
@@ -206,11 +218,12 @@ public class MongoQueryExecutor {
         pagination);
   }
 
-  private void logPipeline(final List<BasicDBObject> pipeline) {
+  private void logPipeline(final List<BasicDBObject> pipeline, final QueryOptions queryOptions) {
     log.debug(
-        "MongoDB aggregation():\n Collection: {}\n Pipeline: {}",
+        "MongoDB aggregation():\n Collection: {}\n Pipeline: {}\n QueryOptions: {}",
         collection.getNamespace(),
-        pipeline);
+        pipeline,
+        queryOptions);
   }
 
   private Query transformAndLog(Query query) {

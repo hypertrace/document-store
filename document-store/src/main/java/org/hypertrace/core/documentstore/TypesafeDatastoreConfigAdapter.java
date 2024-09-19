@@ -11,6 +11,7 @@ import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.TypesafeConfigDatastoreConfigExtractor;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
+import org.hypertrace.core.documentstore.model.options.DataFreshness;
 
 @Deprecated(forRemoval = true)
 interface TypesafeDatastoreConfigAdapter {
@@ -24,7 +25,14 @@ interface TypesafeDatastoreConfigAdapter {
     public DatastoreConfig convert(final Config config) {
       final MongoConnectionConfig overridingConnectionConfig =
           new MongoConnectionConfig(
-              emptyList(), null, null, "", null, null, AggregatePipelineMode.DEFAULT_ALWAYS) {
+              emptyList(),
+              null,
+              null,
+              "",
+              null,
+              null,
+              AggregatePipelineMode.DEFAULT_ALWAYS,
+              DataFreshness.SYSTEM_DEFAULT) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
                   MongoClientSettings.builder()

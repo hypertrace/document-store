@@ -70,6 +70,7 @@ import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -492,6 +493,12 @@ public class PostgresCollection implements Collection {
   public CloseableIterator<Document> aggregate(
       final org.hypertrace.core.documentstore.query.Query query) {
     return queryExecutor.execute(client.getConnection(), query);
+  }
+
+  @Override
+  public CloseableIterator<Document> query(
+      final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
+    return aggregate(query);
   }
 
   @Override

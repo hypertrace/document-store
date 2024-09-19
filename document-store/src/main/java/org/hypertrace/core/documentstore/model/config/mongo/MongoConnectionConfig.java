@@ -27,6 +27,7 @@ import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.Endpoint;
+import org.hypertrace.core.documentstore.model.options.DataFreshness;
 
 @Value
 @NonFinal
@@ -49,12 +50,14 @@ public class MongoConnectionConfig extends ConnectionConfig {
       @NonNull final String applicationName,
       @Nullable final String replicaSetName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig,
-      AggregatePipelineMode aggregationPipelineMode) {
+      @NonNull final AggregatePipelineMode aggregationPipelineMode,
+      @NonNull final DataFreshness dataFreshness) {
     super(
         ensureAtLeastOneEndpoint(endpoints),
         getDatabaseOrDefault(database),
         getCredentialsOrDefault(credentials, database),
-        aggregationPipelineMode);
+        aggregationPipelineMode,
+        dataFreshness);
     this.applicationName = applicationName;
     this.replicaSetName = replicaSetName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);

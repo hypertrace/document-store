@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.hypertrace.core.documentstore.model.config.mongo.MongoConnectionConfig;
+import org.hypertrace.core.documentstore.model.options.DataFreshness;
 import org.junit.jupiter.api.Test;
 
 class MongoConnectionConfigTest {
@@ -166,5 +167,17 @@ class MongoConnectionConfigTest {
 
     final MongoClientSettings actual = mongoConnectionConfig.toSettings();
     assertEquals(expected, actual);
+  }
+
+  @Test
+  void testBuildWithDataFreshnessOption() {
+    final MongoConnectionConfig mongoConnectionConfig =
+        (MongoConnectionConfig)
+            ConnectionConfig.builder()
+                .type(DatabaseType.MONGO)
+                .dataFreshness(DataFreshness.NEAR_REALTIME_FRESHNESS)
+                .build();
+
+    assertEquals(DataFreshness.NEAR_REALTIME_FRESHNESS, mongoConnectionConfig.dataFreshness());
   }
 }

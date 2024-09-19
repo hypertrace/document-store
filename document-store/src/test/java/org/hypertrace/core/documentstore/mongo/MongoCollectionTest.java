@@ -29,6 +29,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoNamespace;
+import com.mongodb.ReadPreference;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
@@ -85,6 +86,7 @@ public class MongoCollectionTest {
 
     MongoNamespace namespace = new MongoNamespace("Mongo.test_collection");
     when(collection.getNamespace()).thenReturn(namespace);
+    when(collection.withReadPreference(any(ReadPreference.class))).thenReturn(collection);
   }
 
   @Test
