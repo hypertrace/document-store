@@ -34,6 +34,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -326,6 +327,7 @@ public class MongoQueryExecutor {
   private Duration queryTimeout(
       final ConnectionConfig connectionConfig, final QueryOptions queryOptions) {
     return Stream.of(connectionConfig.queryTimeout(), queryOptions.queryTimeout())
+        .filter(Objects::nonNull)
         .min(comparing(Duration::toMillis))
         .orElseThrow();
   }

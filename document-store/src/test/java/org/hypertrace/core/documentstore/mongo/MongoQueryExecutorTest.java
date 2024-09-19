@@ -28,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -114,8 +116,7 @@ class MongoQueryExecutorTest {
 
     when(iterable.cursor()).thenReturn(cursor);
     when(aggIterable.allowDiskUse(true)).thenReturn(aggIterable);
-    when(aggIterable.maxTime(Duration.ofMinutes(1).toMillis(), MILLISECONDS))
-        .thenReturn(aggIterable);
+    when(aggIterable.maxTime(anyLong(), eq(MILLISECONDS))).thenReturn(aggIterable);
     when(aggIterable.cursor()).thenReturn(cursor);
   }
 
@@ -616,7 +617,7 @@ class MongoQueryExecutorTest {
 
   @SuppressWarnings("resource")
   @Nested
-  class MongoQueryOptionsTest {
+  class MongoReadPreferenceTest {
     @Test
     void testDefault() {
       final Query query =
@@ -628,7 +629,7 @@ class MongoQueryExecutorTest {
       // Fire query twice to test the cache behaviour
       executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
 
-      testQueryOptions(ReadPreference.primary());
+      validate(ReadPreference.primary());
     }
 
     @Test
@@ -644,7 +645,7 @@ class MongoQueryExecutorTest {
       // Fire query twice to test the cache behaviour
       executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
 
-      testQueryOptions(ReadPreference.secondaryPreferred());
+      validate(ReadPreference.secondaryPreferred());
     }
 
     @Test
@@ -660,7 +661,7 @@ class MongoQueryExecutorTest {
       // Fire query twice to test the cache behaviour
       executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
 
-      testQueryOptions(ReadPreference.primary());
+      validate(ReadPreference.primary());
     }
 
     @Test
@@ -676,7 +677,7 @@ class MongoQueryExecutorTest {
       // Fire query twice to test the cache behaviour
       executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
 
-      testQueryOptions(ReadPreference.primary());
+      validate(ReadPreference.primary());
     }
 
     @Test
@@ -692,7 +693,7 @@ class MongoQueryExecutorTest {
       // Fire query twice to test the cache behaviour
       executor.aggregate(query, QueryOptions.builder().dataFreshness(REALTIME_FRESHNESS).build());
 
-      testQueryOptions(ReadPreference.primary());
+      validate(ReadPreference.primary());
     }
 
     @Test
@@ -710,16 +711,96 @@ class MongoQueryExecutorTest {
       executor.aggregate(
           query, QueryOptions.builder().dataFreshness(NEAR_REALTIME_FRESHNESS).build());
 
-      testQueryOptions(ReadPreference.secondaryPreferred());
+      validate(ReadPreference.secondaryPreferred());
     }
 
-    private void testQueryOptions(final ReadPreference readPreference) {
+    private void validate(final ReadPreference readPreference) {
       verify(collection, times(2)).getNamespace();
       verify(collection, times(1)).withReadPreference(readPreference);
       verify(collection, times(2)).aggregate(anyList());
       verify(aggIterable, times(2)).allowDiskUse(true);
       verify(aggIterable, times(2)).cursor();
       verify(aggIterable, times(2)).maxTime(Duration.ofMinutes(1).toMillis(), MILLISECONDS);
+    }
+  }
+
+  @SuppressWarnings("resource")
+  @Nested
+  class MongoQueryTimeoutTest {
+    @Test
+    void testDefault() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      validate(Duration.ofMinutes(1));
+    }
+
+    @Test
+    void testConnectionLevelQueryTimeout() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+
+      final Duration duration = Duration.ofSeconds(30);
+      when(connectionConfig.queryTimeout()).thenReturn(duration);
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      validate(duration);
+    }
+
+    @Test
+    void testConnectionLevelQueryTimeoutWithNullValue() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+
+      when(connectionConfig.queryTimeout()).thenReturn(null);
+      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
+
+      validate(Duration.ofMinutes(1));
+    }
+
+    @Test
+    void testConnectionAndQueryLevelQueryTimeout() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+
+      final Duration connectionLevelDuration = Duration.ofSeconds(20);
+      final Duration queryLevelDuration = Duration.ofSeconds(40);
+      when(connectionConfig.queryTimeout()).thenReturn(connectionLevelDuration);
+      executor.aggregate(query, QueryOptions.builder().queryTimeout(queryLevelDuration).build());
+
+      // Pick the minimum among the two
+      validate(connectionLevelDuration);
+    }
+
+    @Test
+    void testQueryLevelQueryTimeout() {
+      final Query query =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
+              .build();
+
+      final Duration queryLevelDuration = Duration.ofSeconds(30);
+      executor.aggregate(query, QueryOptions.builder().queryTimeout(queryLevelDuration).build());
+
+      validate(queryLevelDuration);
+    }
+
+    private void validate(final Duration timeout) {
+      verify(collection, times(1)).getNamespace();
+      verify(collection, times(1)).withReadPreference(ReadPreference.primary());
+      verify(collection, times(1)).aggregate(anyList());
+      verify(aggIterable, times(1)).allowDiskUse(true);
+      verify(aggIterable, times(1)).cursor();
+      verify(aggIterable, times(1)).maxTime(timeout.toMillis(), MILLISECONDS);
     }
   }
 
