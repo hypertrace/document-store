@@ -5,6 +5,7 @@ import static java.util.Collections.emptyList;
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.typesafe.config.Config;
+import java.time.Duration;
 import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
@@ -32,7 +33,8 @@ interface TypesafeDatastoreConfigAdapter {
               null,
               null,
               AggregatePipelineMode.DEFAULT_ALWAYS,
-              DataFreshness.SYSTEM_DEFAULT) {
+              DataFreshness.SYSTEM_DEFAULT,
+              Duration.ofMinutes(20)) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
                   MongoClientSettings.builder()

@@ -546,12 +546,6 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public CloseableIterator<Document> aggregate(
-      final org.hypertrace.core.documentstore.query.Query query) {
-    return convertToDocumentIterator(queryExecutor.aggregate(query));
-  }
-
-  @Override
   public CloseableIterator<Document> query(
       final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
     return convertToDocumentIterator(queryExecutor.aggregate(query, queryOptions));
@@ -579,8 +573,9 @@ public class MongoCollection implements Collection {
   }
 
   @Override
-  public long count(org.hypertrace.core.documentstore.query.Query query) {
-    return queryExecutor.count(query);
+  public long count(
+      final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
+    return queryExecutor.count(query, queryOptions);
   }
 
   @Override

@@ -3,11 +3,13 @@ package org.hypertrace.core.documentstore.metric;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 import static org.hypertrace.core.documentstore.model.config.CustomMetricConfig.VALUE_KEY;
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.NEAR_REALTIME_FRESHNESS;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +27,7 @@ import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.model.config.CustomMetricConfig;
+import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
@@ -55,63 +58,70 @@ public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricPr
               });
 
       final Collection collection = dataStore.getCollection(collectionName);
-      final CloseableIterator<Document> iterator = collection.aggregate(query);
-
       final List<DocStoreMetric> metrics = new ArrayList<>();
 
-      while (iterator.hasNext()) {
-        final Document document = iterator.next();
-        final JsonNode node;
+      try (final CloseableIterator<Document> iterator =
+          collection.query(
+              query,
+              QueryOptions.builder()
+                  .dataFreshness(NEAR_REALTIME_FRESHNESS)
+                  .queryTimeout(Duration.ofMinutes(20))
+                  .build())) {
 
-        try {
-          node = mapper.readTree(document.toJson());
-        } catch (final JsonProcessingException e) {
-          log.warn(
-              "Invalid JSON document {} for metric {} with query {}",
-              document.toJson(),
-              customMetricConfig.metricName(),
-              query);
-          continue;
+        while (iterator.hasNext()) {
+          final Document document = iterator.next();
+          final JsonNode node;
+
+          try {
+            node = mapper.readTree(document.toJson());
+          } catch (final JsonProcessingException e) {
+            log.warn(
+                "Invalid JSON document {} for metric {} with query {}",
+                document.toJson(),
+                customMetricConfig.metricName(),
+                query);
+            continue;
+          }
+
+          final double metricValue;
+          if (node.has(VALUE_KEY)) {
+            metricValue = node.get(VALUE_KEY).doubleValue();
+          } else {
+            log.warn(
+                "No value found in JSON document {} for metric {} with query {}",
+                document.toJson(),
+                customMetricConfig.metricName(),
+                query);
+            continue;
+          }
+
+          Map<String, JsonNode> jsonNodeMap =
+              query.getSelections().stream()
+                  .collect(
+                      Collectors.toUnmodifiableMap(
+                          SelectionSpec::getAlias,
+                          selectionSpec ->
+                              Optional.ofNullable(node.get(selectionSpec.getAlias()))
+                                  .orElse(TextNode.valueOf(NULL_LABEL_VALUE_PLACEHOLDER))));
+
+          final Map<String, String> labels =
+              StreamSupport.stream(
+                      Spliterators.spliteratorUnknownSize(
+                          jsonNodeMap.entrySet().iterator(), Spliterator.ORDERED),
+                      false)
+                  .filter(entry -> !VALUE_KEY.equals(entry.getKey()))
+                  .collect(
+                      toUnmodifiableMap(
+                          Entry::getKey, entry -> getStringLabelValue(entry.getValue())));
+
+          final DocStoreMetric metric =
+              DocStoreMetric.builder()
+                  .name(customMetricConfig.metricName())
+                  .value(metricValue)
+                  .labels(labels)
+                  .build();
+          metrics.add(metric);
         }
-
-        final double metricValue;
-        if (node.has(VALUE_KEY)) {
-          metricValue = node.get(VALUE_KEY).doubleValue();
-        } else {
-          log.warn(
-              "No value found in JSON document {} for metric {} with query {}",
-              document.toJson(),
-              customMetricConfig.metricName(),
-              query);
-          continue;
-        }
-
-        Map<String, JsonNode> jsonNodeMap =
-            query.getSelections().stream()
-                .collect(
-                    Collectors.toUnmodifiableMap(
-                        SelectionSpec::getAlias,
-                        selectionSpec ->
-                            Optional.ofNullable(node.get(selectionSpec.getAlias()))
-                                .orElse(TextNode.valueOf(NULL_LABEL_VALUE_PLACEHOLDER))));
-
-        final Map<String, String> labels =
-            StreamSupport.stream(
-                    Spliterators.spliteratorUnknownSize(
-                        jsonNodeMap.entrySet().iterator(), Spliterator.ORDERED),
-                    false)
-                .filter(entry -> !VALUE_KEY.equals(entry.getKey()))
-                .collect(
-                    toUnmodifiableMap(
-                        Entry::getKey, entry -> getStringLabelValue(entry.getValue())));
-
-        final DocStoreMetric metric =
-            DocStoreMetric.builder()
-                .name(customMetricConfig.metricName())
-                .value(metricValue)
-                .labels(labels)
-                .build();
-        metrics.add(metric);
       }
 
       log.debug("Returning metrics: {}", metrics);
