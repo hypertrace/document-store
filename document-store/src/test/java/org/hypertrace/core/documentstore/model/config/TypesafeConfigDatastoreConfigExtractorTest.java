@@ -1,6 +1,8 @@
 package org.hypertrace.core.documentstore.model.config;
 
 import static java.util.Map.entry;
+import static org.hypertrace.core.documentstore.model.config.AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE;
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.NEAR_REALTIME_FRESHNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -9,6 +11,7 @@ import com.typesafe.config.ConfigFactory;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.hypertrace.core.documentstore.model.options.DataFreshness;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -27,7 +30,9 @@ class TypesafeConfigDatastoreConfigExtractorTest {
   private static final String MAX_CONNECTIONS_KEY = "maxConnectionsKey";
   private static final String CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
   private static final String CONNECTION_SURRENDER_TIMEOUT_KEY = "connectionSurrenderTimeout";
-  private static final String AGGREGATION_PIPELINE_MODE = "aggregationPipelineMode";
+  private static final String AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
+  private static final String DATA_FRESHNESS_KEY = "dataFreshness";
+  private static final String QUERY_TIMEOUT_KEY = "queryTimeout";
 
   private static final String host = "red.planet";
   private static final String host1 = "RED_PLANET";
@@ -42,6 +47,9 @@ class TypesafeConfigDatastoreConfigExtractorTest {
   private static final int maxConnections = 7;
   private static final Duration accessTimeout = Duration.ofSeconds(67);
   private static final Duration surrenderTimeout = Duration.ofSeconds(56);
+  private static final AggregatePipelineMode aggregatePipelineMode = SORT_OPTIMIZED_IF_POSSIBLE;
+  private static final DataFreshness dataFreshness = NEAR_REALTIME_FRESHNESS;
+  private static final Duration queryTimeout = Duration.ofSeconds(45);
 
   @SuppressWarnings("ConstantConditions")
   @Test
@@ -98,6 +106,9 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
+            .aggregationPipelineMode(AGGREGATION_PIPELINE_MODE_KEY)
+            .dataFreshnessKey(DATA_FRESHNESS_KEY)
+            .queryTimeoutKey(QUERY_TIMEOUT_KEY)
             .extract()
             .connectionConfig();
     final ConnectionConfig expected =
@@ -119,7 +130,10 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                     .connectionAccessTimeout(accessTimeout)
                     .connectionSurrenderTimeout(surrenderTimeout)
                     .build())
-            .aggregationPipelineMode(AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE)
+            .aggregationPipelineMode(aggregatePipelineMode)
+            .dataFreshness(dataFreshness)
+            .aggregationPipelineMode(aggregatePipelineMode)
+            .queryTimeout(queryTimeout)
             .build();
 
     assertEquals(expected, config);
@@ -160,7 +174,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                     .connectionAccessTimeout(accessTimeout)
                     .connectionSurrenderTimeout(surrenderTimeout)
                     .build())
-            .aggregationPipelineMode(AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE)
+            .aggregationPipelineMode(SORT_OPTIMIZED_IF_POSSIBLE)
             .build();
 
     assertEquals(expected, config);
@@ -274,6 +288,9 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                     .connectionSurrenderTimeout(surrenderTimeout)
                     .build())
             .replicaSet(replicaSet)
+            .aggregationPipelineMode(aggregatePipelineMode)
+            .dataFreshness(dataFreshness)
+            .queryTimeout(queryTimeout)
             .build();
 
     assertEquals(expected, config);
@@ -318,7 +335,9 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             entry(MAX_CONNECTIONS_KEY, maxConnections),
             entry(CONNECTION_ACCESS_TIMEOUT_KEY, accessTimeout),
             entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout),
-            entry(AGGREGATION_PIPELINE_MODE, "SORT_OPTIMIZED_IF_POSSIBLE")));
+            entry(AGGREGATION_PIPELINE_MODE_KEY, SORT_OPTIMIZED_IF_POSSIBLE.name()),
+            entry(DATA_FRESHNESS_KEY, NEAR_REALTIME_FRESHNESS.name()),
+            entry(QUERY_TIMEOUT_KEY, queryTimeout)));
   }
 
   private Config buildConfigMapWithDefaultKeysForPostgres() {
@@ -350,7 +369,10 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             entry("mongo.replicaSet", replicaSet),
             entry("maxPoolSize", maxConnections),
             entry("connectionAccessTimeout", accessTimeout),
-            entry("connectionIdleTime", surrenderTimeout)));
+            entry("connectionIdleTime", surrenderTimeout),
+            entry("aggregationPipelineMode", aggregatePipelineMode.name()),
+            entry("dataFreshness", dataFreshness.name()),
+            entry("queryTimeout", queryTimeout)));
   }
 
   private Config buildPostgresConfigMapUsingEndpointsKey() {

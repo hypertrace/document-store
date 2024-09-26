@@ -10,22 +10,25 @@ import org.hypertrace.core.documentstore.model.config.ConnectionCredentials.Conn
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.ConnectionPoolConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig.DatastoreConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.Endpoint.EndpointBuilder;
+import org.hypertrace.core.documentstore.model.options.DataFreshness;
 
 @Value
 public class TypesafeConfigDatastoreConfigExtractor {
-  private static final String HOST_KEY = "host";
-  private static final String PORT_KEY = "port";
-  private static final String ENDPOINTS_KEY = "endpoints";
-  private static final String AUTH_DB_KEY = "authDb";
-  private static final String REPLICA_SET_KEY = "replicaSet";
-  private static final String DATABASE_KEY = "database";
-  private static final String USER_KEY = "user";
-  private static final String PASSWORD_KEY = "password";
-  private static final String APP_NAME_KEY = "appName";
-  private static final String MAX_POOL_SIZE_KEY = "maxPoolSize";
-  private static final String CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
-  private static final String CONNECTION_IDLE_TIME_KEY = "connectionIdleTime";
-  private static final String AGGREGATION_PIPELINE_MODE = "aggregationPipelineMode";
+  private static final String DEFAULT_HOST_KEY = "host";
+  private static final String DEFAULT_PORT_KEY = "port";
+  private static final String DEFAULT_ENDPOINTS_KEY = "endpoints";
+  private static final String DEFAULT_AUTH_DB_KEY = "authDb";
+  private static final String DEFAULT_REPLICA_SET_KEY = "replicaSet";
+  private static final String DEFAULT_DATABASE_KEY = "database";
+  private static final String DEFAULT_USER_KEY = "user";
+  private static final String DEFAULT_PASSWORD_KEY = "password";
+  private static final String DEFAULT_APP_NAME_KEY = "appName";
+  private static final String DEFAULT_MAX_POOL_SIZE_KEY = "maxPoolSize";
+  private static final String DEFAULT_CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
+  private static final String DEFAULT_CONNECTION_IDLE_TIME_KEY = "connectionIdleTime";
+  private static final String DEFAULT_AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
+  private static final String DEFAULT_DATA_FRESHNESS_KEY = "dataFreshness";
+  private static final String DEFAULT_QUERY_TIMEOUT_KEY = "queryTimeout";
 
   @NonNull Config config;
   DatastoreConfigBuilder datastoreConfigBuilder;
@@ -56,19 +59,22 @@ public class TypesafeConfigDatastoreConfigExtractor {
     this.endpointBuilder = Endpoint.builder();
 
     final String dataStoreType = type.type();
-    this.hostKey(dataStoreType + "." + HOST_KEY)
-        .portKey(dataStoreType + "." + PORT_KEY)
-        .keysForEndpoints(dataStoreType + "." + ENDPOINTS_KEY, HOST_KEY, PORT_KEY)
-        .authDatabaseKey(dataStoreType + "." + AUTH_DB_KEY)
-        .replicaSetKey(dataStoreType + "." + REPLICA_SET_KEY)
-        .databaseKey(dataStoreType + "." + DATABASE_KEY)
-        .usernameKey(dataStoreType + "." + USER_KEY)
-        .passwordKey(dataStoreType + "." + PASSWORD_KEY)
-        .applicationNameKey(APP_NAME_KEY)
-        .poolMaxConnectionsKey(MAX_POOL_SIZE_KEY)
-        .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
-        .poolConnectionSurrenderTimeoutKey(CONNECTION_IDLE_TIME_KEY)
-        .aggregationPipelineMode(AGGREGATION_PIPELINE_MODE);
+    this.hostKey(dataStoreType + "." + DEFAULT_HOST_KEY)
+        .portKey(dataStoreType + "." + DEFAULT_PORT_KEY)
+        .keysForEndpoints(
+            dataStoreType + "." + DEFAULT_ENDPOINTS_KEY, DEFAULT_HOST_KEY, DEFAULT_PORT_KEY)
+        .authDatabaseKey(dataStoreType + "." + DEFAULT_AUTH_DB_KEY)
+        .replicaSetKey(dataStoreType + "." + DEFAULT_REPLICA_SET_KEY)
+        .databaseKey(dataStoreType + "." + DEFAULT_DATABASE_KEY)
+        .usernameKey(dataStoreType + "." + DEFAULT_USER_KEY)
+        .passwordKey(dataStoreType + "." + DEFAULT_PASSWORD_KEY)
+        .applicationNameKey(DEFAULT_APP_NAME_KEY)
+        .poolMaxConnectionsKey(DEFAULT_MAX_POOL_SIZE_KEY)
+        .poolConnectionAccessTimeoutKey(DEFAULT_CONNECTION_ACCESS_TIMEOUT_KEY)
+        .poolConnectionSurrenderTimeoutKey(DEFAULT_CONNECTION_IDLE_TIME_KEY)
+        .aggregationPipelineMode(DEFAULT_AGGREGATION_PIPELINE_MODE_KEY)
+        .dataFreshnessKey(DEFAULT_DATA_FRESHNESS_KEY)
+        .queryTimeoutKey(DEFAULT_QUERY_TIMEOUT_KEY);
   }
 
   public static TypesafeConfigDatastoreConfigExtractor from(
@@ -190,10 +196,24 @@ public class TypesafeConfigDatastoreConfigExtractor {
     if (config.hasPath(key)) {
       connectionConfigBuilder.aggregationPipelineMode(
           AggregatePipelineMode.valueOf(config.getString(key)));
-      return this;
     }
 
-    connectionConfigBuilder.aggregationPipelineMode(AggregatePipelineMode.DEFAULT_ALWAYS);
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor dataFreshnessKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionConfigBuilder.dataFreshness(DataFreshness.valueOf(config.getString(key)));
+    }
+
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor queryTimeoutKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionConfigBuilder.queryTimeout(config.getDuration(key));
+    }
+
     return this;
   }
 
