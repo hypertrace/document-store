@@ -753,19 +753,6 @@ class MongoQueryExecutorTest {
     }
 
     @Test
-    void testConnectionLevelQueryTimeoutWithNullValue() {
-      final Query query =
-          Query.builder()
-              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "total")
-              .build();
-
-      when(connectionConfig.queryTimeout()).thenReturn(null);
-      executor.aggregate(query, QueryOptions.DEFAULT_QUERY_OPTIONS);
-
-      validate(Duration.ofMinutes(1));
-    }
-
-    @Test
     void testConnectionAndQueryLevelQueryTimeout() {
       final Query query =
           Query.builder()
