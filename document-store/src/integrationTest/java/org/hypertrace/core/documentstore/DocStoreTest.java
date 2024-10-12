@@ -71,7 +71,7 @@ public class DocStoreTest {
   public static void init() {
     datastoreMap = Maps.newHashMap();
     mongo =
-        new GenericContainer<>(DockerImageName.parse("mongo:7.0.14"))
+        new GenericContainer<>(DockerImageName.parse("mongo:8.0.1"))
             .withExposedPorts(27017)
             .waitingFor(Wait.forListeningPort());
     mongo.start();
