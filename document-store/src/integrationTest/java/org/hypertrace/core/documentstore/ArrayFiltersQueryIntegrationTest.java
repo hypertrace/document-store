@@ -97,7 +97,7 @@ class ArrayFiltersQueryIntegrationTest {
 
   private static void initializeAndConnectToMongo() {
     mongo =
-        new GenericContainer<>(DockerImageName.parse("mongo:7.0.14"))
+        new GenericContainer<>(DockerImageName.parse("mongo:8.0.1"))
             .withExposedPorts(27017)
             .waitingFor(Wait.forListeningPort());
     mongo.start();
