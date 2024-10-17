@@ -5,6 +5,7 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_ARRAY;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.LAST;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
@@ -30,6 +31,7 @@ final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionPars
               put(MIN, "$min");
               put(MAX, "$max");
               put(COUNT, "$push");
+              put(LAST, "$last");
             }
           });
 
