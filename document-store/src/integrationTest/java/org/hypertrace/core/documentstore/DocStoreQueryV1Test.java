@@ -11,6 +11,7 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_ARRAY;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.DISTINCT_COUNT;
+import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.LAST;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MAX;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.MIN;
 import static org.hypertrace.core.documentstore.expression.operators.AggregationOperator.SUM;
@@ -1332,6 +1333,24 @@ public class DocStoreQueryV1Test {
     Iterator<Document> resultDocs = collection.aggregate(query);
     assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, "query/test_aggr_filter_and_where_filter_result.json", 2);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testQueryV1LastAggregationOperator(String dataStoreName) throws IOException {
+    Collection collection = getCollection(dataStoreName);
+
+    org.hypertrace.core.documentstore.query.Query query =
+        org.hypertrace.core.documentstore.query.Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addSelection(
+                AggregateExpression.of(LAST, IdentifierExpression.of("price")), "last_price")
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/test_last_aggregation_operator.json", 4);
   }
 
   @Nested
