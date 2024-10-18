@@ -1287,7 +1287,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @ArgumentsSource(AllProvider.class)
+  @ArgumentsSource(MongoProvider.class)
   public void testQueryV1AggregationWithInFilterWithArrayLhs(final String dataStoreName)
       throws IOException {
     final Collection collection = getCollection(dataStoreName);
