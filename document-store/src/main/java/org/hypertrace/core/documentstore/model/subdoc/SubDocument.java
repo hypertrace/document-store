@@ -19,7 +19,7 @@ public class SubDocument {
 
   private static final Set<String> IMPLICIT_PATHS = Set.of(CREATED_TIME, LAST_UPDATED_TIME);
   private static final Pattern ALLOWED_CHARACTERS =
-      Pattern.compile("^[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)*$");
+      Pattern.compile("^[a-zA-Z0-9_-]+(.[a-zA-Z0-9_-]+)*$");
 
   String path;
 
