@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.mongo.update;
 
+import static org.hypertrace.core.documentstore.model.options.DataFreshness.REALTIME_FRESHNESS;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getReturnDocument;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilter;
@@ -19,6 +20,7 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
+import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions.MissingDocumentStrategy;
@@ -106,13 +108,17 @@ public class MongoUpdateExecutor {
 
     switch (returnDocumentType) {
       case BEFORE_UPDATE:
-        cursor = queryExecutor.aggregate(query);
+        cursor =
+            queryExecutor.aggregate(
+                query, QueryOptions.builder().dataFreshness(REALTIME_FRESHNESS).build());
         logAndUpdate(filter, updateObject, mongoUpdateOptions);
         return Optional.of(cursor);
 
       case AFTER_UPDATE:
         logAndUpdate(filter, updateObject, mongoUpdateOptions);
-        cursor = queryExecutor.aggregate(query);
+        cursor =
+            queryExecutor.aggregate(
+                query, QueryOptions.builder().dataFreshness(REALTIME_FRESHNESS).build());
         return Optional.of(cursor);
 
       case NONE:
