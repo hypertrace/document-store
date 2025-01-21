@@ -23,7 +23,6 @@ import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSortType
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSortTypeExpressionParser.getSortClause;
 
 import com.mongodb.BasicDBObject;
-import com.mongodb.MongoCommandException;
 import com.mongodb.ServerAddress;
 import com.mongodb.ServerCursor;
 import com.mongodb.client.AggregateIterable;
@@ -181,7 +180,7 @@ public class MongoQueryExecutor {
               .allowDiskUse(true);
 
       return iterable.cursor();
-    } catch (final MongoCommandException e) {
+    } catch (final Exception e) {
       log.error("Execution failed for query: {}. Aggregation Pipeline: {}", query, pipeline);
       throw e;
     }
