@@ -6,8 +6,8 @@ import static org.hypertrace.core.documentstore.mongo.collection.MongoReadPrefer
 import com.mongodb.BasicDBObject;
 import com.mongodb.ReadPreference;
 import com.mongodb.client.MongoCollection;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.Builder;
 import lombok.Value;
 import lombok.experimental.Accessors;
@@ -18,7 +18,7 @@ public class MongoCollectionOptionsApplier {
   private final Map<CacheKey, MongoCollection<BasicDBObject>> collectionCache;
 
   public MongoCollectionOptionsApplier() {
-    this.collectionCache = new HashMap<>();
+    this.collectionCache = new ConcurrentHashMap<>();
   }
 
   public MongoCollection<BasicDBObject> applyOptions(
