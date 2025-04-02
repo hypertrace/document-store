@@ -1,12 +1,9 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.FromTypeExpression;
-import org.hypertrace.core.documentstore.query.FromClause;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 
@@ -82,7 +79,6 @@ AND sa.scan_run_number = latest.latest_scan_run_number;
     JoinExpression joinExpression = JoinExpression.builder()
         .left(leftTable)
         .right(rightSubQuery)
-        .joinType(JoinType.INNER)
         .onCondition(onCondition)
         .build();
 
