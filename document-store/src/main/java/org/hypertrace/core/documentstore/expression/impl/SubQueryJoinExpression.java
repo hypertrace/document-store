@@ -10,8 +10,8 @@ import org.hypertrace.core.documentstore.parser.FromTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 
 /**
- * Expression representing a join operation where the right side expression is a subquery.
- * Note that this currently supports a self-join only, so the collection to be joined with is implicit.
+ * Expression representing a join operation where the right side expression is a subquery. Note that
+ * this currently supports a self-join only, so the collection to be joined with is implicit.
  */
 @Value
 @Builder(toBuilder = true)
@@ -26,4 +26,3 @@ public class SubQueryJoinExpression implements FromTypeExpression {
     return visitor.visit(this);
   }
 }
-

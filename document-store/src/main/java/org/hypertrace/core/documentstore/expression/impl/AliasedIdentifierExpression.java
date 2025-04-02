@@ -27,5 +27,4 @@ public class AliasedIdentifierExpression extends IdentifierExpression {
   public String toString() {
     return "`" + getName() + "` AS `" + getAlias() + "`";
   }
-
 }
