@@ -24,6 +24,7 @@ public interface MongoRelationalFilterParserFactory {
 
     @Default FilterLocation location = OUTSIDE_EXPR;
     @Default MongoSelectTypeExpressionParser lhsParser = new MongoIdentifierExpressionParser();
+    // FIXME: how to parse AliasedIdentifierExpression / IdentifierExpression in rhs?
     @Default MongoSelectTypeExpressionParser rhsParser = new MongoConstantExpressionParser();
   }
 

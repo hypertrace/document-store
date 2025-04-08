@@ -58,11 +58,17 @@ class SubQueryJoinExpressionTest {
                     RelationalExpression.of(
                         IdentifierExpression.of("suite_id"),
                         RelationalOperator.EQ,
-                        IdentifierExpression.of("latest.suite_id")),
+                        AliasedIdentifierExpression.builder()
+                            .name("suite_id")
+                            .alias("latest")
+                            .build()),
                     RelationalExpression.of(
                         IdentifierExpression.of("scan_run_number"),
                         RelationalOperator.EQ,
-                        IdentifierExpression.of("latest.latest_scan_run_number"))))
+                        AliasedIdentifierExpression.builder()
+                            .name("latest_scan_run_number")
+                            .alias("latest")
+                            .build())))
             .build();
 
     /*

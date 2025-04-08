@@ -17,14 +17,35 @@ public class AliasedIdentifierExpression extends IdentifierExpression {
     this.alias = alias;
   }
 
-  public static AliasedIdentifierExpression of(final String name, final String alias) {
-    Preconditions.checkArgument(name != null && !name.isBlank(), "name is null or blank");
-    Preconditions.checkArgument(alias != null && !alias.isBlank(), "alias is null or blank");
-    return new AliasedIdentifierExpression(name, alias);
-  }
-
   @Override
   public String toString() {
     return "`" + getName() + "` AS `" + getAlias() + "`";
+  }
+
+  public static AliasedIdentifierExpressionBuilder builder() {
+    return new AliasedIdentifierExpressionBuilder();
+  }
+
+  public static class AliasedIdentifierExpressionBuilder {
+    private String name;
+    private String alias;
+
+    public AliasedIdentifierExpressionBuilder name(final String name) {
+      this.name = name;
+      return this;
+    }
+
+    public AliasedIdentifierExpressionBuilder alias(final String alias) {
+      this.alias = alias;
+      return this;
+    }
+
+    public AliasedIdentifierExpression build() {
+      Preconditions.checkArgument(
+          this.name != null && !this.name.isBlank(), "name is null or blank");
+      Preconditions.checkArgument(
+          this.alias != null && !this.alias.isBlank(), "alias is null or blank");
+      return new AliasedIdentifierExpression(this.name, this.alias);
+    }
   }
 }

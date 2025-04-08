@@ -59,11 +59,11 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
 @Slf4j
 @AllArgsConstructor
 public class MongoQueryExecutor {
-  private static final List<Function<Query, Collection<BasicDBObject>>>
+  private final List<Function<Query, Collection<BasicDBObject>>>
       DEFAULT_AGGREGATE_PIPELINE_FUNCTIONS =
           List.of(
               query -> singleton(getFilterClause(query, Query::getFilter)),
-              MongoFromTypeExpressionParser::getFromClauses,
+              query -> new MongoFromTypeExpressionParser(this).getFromClauses(query),
               MongoGroupTypeExpressionParser::getGroupClauses,
               query -> singleton(getProjectClause(query)),
               query -> singleton(getFilterClause(query, Query::getAggregationFilter)),
@@ -71,11 +71,11 @@ public class MongoQueryExecutor {
               query -> singleton(getSkipClause(query)),
               query -> singleton(getLimitClause(query)));
 
-  private static final List<Function<Query, Collection<BasicDBObject>>>
+  private final List<Function<Query, Collection<BasicDBObject>>>
       SORT_OPTIMISED_AGGREGATE_PIPELINE_FUNCTIONS =
           List.of(
               query -> singleton(getFilterClause(query, Query::getFilter)),
-              MongoFromTypeExpressionParser::getFromClauses,
+              query -> new MongoFromTypeExpressionParser(this).getFromClauses(query),
               query -> singleton(getNonProjectedSortClause(query)),
               query -> singleton(getSkipClause(query)),
               query -> singleton(getLimitClause(query)),
@@ -157,14 +157,7 @@ public class MongoQueryExecutor {
 
     Query query = transformAndLog(originalQuery);
 
-    List<Function<Query, Collection<BasicDBObject>>> aggregatePipeline =
-        getAggregationPipeline(query);
-
-    List<BasicDBObject> pipeline =
-        aggregatePipeline.stream()
-            .flatMap(function -> function.apply(query).stream())
-            .filter(not(BasicDBObject::isEmpty))
-            .collect(toUnmodifiableList());
+    List<BasicDBObject> pipeline = convertToAggregatePipeline(query);
 
     logPipeline(pipeline, queryOptions);
 
@@ -218,6 +211,22 @@ public class MongoQueryExecutor {
     }
 
     return 0;
+  }
+
+  public String getCollectionName() {
+    return collection.getNamespace().getCollectionName();
+  }
+
+  public List<BasicDBObject> convertToAggregatePipeline(Query query) {
+    List<Function<Query, Collection<BasicDBObject>>> aggregatePipeline =
+        getAggregationPipeline(query);
+
+    List<BasicDBObject> pipeline =
+        aggregatePipeline.stream()
+            .flatMap(function -> function.apply(query).stream())
+            .filter(not(BasicDBObject::isEmpty))
+            .collect(toUnmodifiableList());
+    return pipeline;
   }
 
   private void logClauses(

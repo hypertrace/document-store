@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.parser;
 
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -16,4 +17,8 @@ public interface SelectTypeExpressionVisitor {
   <T> T visit(final FunctionExpression expression);
 
   <T> T visit(final IdentifierExpression expression);
+
+  default <T> T visit(final AliasedIdentifierExpression expression) {
+    throw new UnsupportedOperationException();
+  }
 }
