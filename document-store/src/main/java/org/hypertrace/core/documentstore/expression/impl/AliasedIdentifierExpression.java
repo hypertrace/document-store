@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.expression.impl;
 
 import com.google.common.base.Preconditions;
 import lombok.Value;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
 /**
  * Expression representing an identifier/column name with an alias
@@ -18,8 +19,13 @@ public class AliasedIdentifierExpression extends IdentifierExpression {
   }
 
   @Override
+  public <T> T accept(final SelectTypeExpressionVisitor visitor) {
+    return visitor.visit(this);
+  }
+
+  @Override
   public String toString() {
-    return "`" + getName() + "` AS `" + getAlias() + "`";
+    return "`" + getAlias() + "." + getName() + "`";
   }
 
   public static AliasedIdentifierExpressionBuilder builder() {

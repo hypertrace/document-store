@@ -25,4 +25,9 @@ public class SubQueryJoinExpression implements FromTypeExpression {
   public <T> T accept(FromTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
+
+  @Override
+  public String toString() {
+    return String.format("JOIN (%s) AS %s ON %s", subQuery, subQueryAlias, joinCondition);
+  }
 }
