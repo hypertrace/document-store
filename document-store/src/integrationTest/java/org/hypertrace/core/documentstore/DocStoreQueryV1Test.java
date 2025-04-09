@@ -80,13 +80,16 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
@@ -3476,6 +3479,94 @@ public class DocStoreQueryV1Test {
     Iterator<Document> resultDocs = collection.find(query);
     assertDocsAndSizeEqualWithoutOrder(
         dataStoreName, resultDocs, "query/case_insensitive_exact_match_response.json", 2);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  void testSelfJoinWithSubQuery(String dataStoreName) throws IOException {
+    Collection collection = getCollection(dataStoreName);
+
+    /*
+    This is the query we want to execute:
+    SELECT item, quantity, date
+    FROM <implicit_collection>
+    JOIN (
+        SELECT item, MAX(date) AS latest_date
+        FROM <implicit_collection>
+        GROUP BY item
+    ) latest
+    ON item = latest.item
+    AND date = latest.latest_date
+    ORDER BY `item` ASC;
+    */
+
+    /*
+    The right subquery:
+    SELECT item, MAX(date) AS latest_date
+    FROM <implicit_collection>
+    GROUP BY item
+    */
+    Query subQuery =
+        Query.builder()
+            .addSelection(
+                SelectionSpec.of(
+                    IdentifierExpression.of("item")))
+            .addSelection(
+                SelectionSpec.of(
+                    AggregateExpression.of(
+                        AggregationOperator.MAX, IdentifierExpression.of("date")),
+                    "latest_date"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .build();
+
+    /*
+    The FROM expression representing a join with the right subquery:
+    FROM <implicit_collection>
+    JOIN (
+       SELECT item, MAX(date) AS latest_date
+       FROM <implicit_collection>
+       GROUP BY item
+    ) latest
+    ON item = latest.item
+    AND date = latest.latest_date;
+    */
+    SubQueryJoinExpression subQueryJoinExpression =
+        SubQueryJoinExpression.builder()
+            .subQuery(subQuery)
+            .subQueryAlias("latest")
+            .joinCondition(
+                LogicalExpression.and(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("item"),
+                        RelationalOperator.EQ,
+                        AliasedIdentifierExpression.builder()
+                            .name("item")
+                            .alias("latest")
+                            .build()),
+                    RelationalExpression.of(
+                        IdentifierExpression.of("date"),
+                        RelationalOperator.EQ,
+                        AliasedIdentifierExpression.builder()
+                            .name("latest_date")
+                            .alias("latest")
+                            .build())))
+            .build();
+
+    /*
+    Now build the top-level Query:
+    SELECT item, quantity, date FROM <subQueryJoinExpression> ORDER BY `item` ASC;
+    */
+    Query mainQuery =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("date"))
+            .addFromClause(subQueryJoinExpression)
+            .addSort(IdentifierExpression.of("item"), ASC)
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(mainQuery);
+    assertDocsAndSizeEqual(dataStoreName, iterator, "self_join_with_sub_query_response.json", 4);
   }
 
   private static Collection getCollection(final String dataStoreName) {
