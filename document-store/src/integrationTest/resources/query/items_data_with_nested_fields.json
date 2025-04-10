@@ -1,0 +1,50 @@
+[
+  {
+    "_id": 1,
+    "itemDetails": {
+      "item": "suite-1",
+      "date": 1,
+      "quantity": 10
+    }
+  },
+  {
+    "_id": 2,
+    "itemDetails": {
+      "item": "suite-2",
+      "date": 1,
+      "quantity": 10
+    }
+  },
+  {
+    "_id": 3,
+    "itemDetails": {
+      "item": "suite-2",
+      "date": 2,
+      "quantity": 20
+    }
+  },
+  {
+    "_id": 4,
+    "itemDetails": {
+      "item": "suite-2",
+      "date": 3,
+      "quantity": 30
+    }
+  },
+  {
+    "_id": 5,
+    "itemDetails": {
+      "item": "suite-3",
+      "date": 2,
+      "quantity": 20
+    }
+  },
+  {
+    "_id": 6,
+    "itemDetails": {
+      "item": "suite-3",
+      "date": 1,
+      "quantity": 10
+    }
+  }
+]

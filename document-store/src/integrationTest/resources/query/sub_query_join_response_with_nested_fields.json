@@ -1,0 +1,23 @@
+[
+  {
+    "itemDetails": {
+      "item": "suite-1",
+      "date": 1,
+      "quantity": 10
+    }
+  },
+  {
+    "itemDetails": {
+      "item": "suite-2",
+      "date": 3,
+      "quantity": 30
+    }
+  },
+  {
+    "itemDetails": {
+      "item": "suite-3",
+      "date": 2,
+      "quantity": 20
+    }
+  }
+]

@@ -3568,6 +3568,95 @@ public class DocStoreQueryV1Test {
         dataStoreName, iterator, "query/self_join_with_sub_query_response.json", 4);
   }
 
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  void testSelfJoinWithSubQueryWithNestedFields(String dataStoreName) throws IOException {
+    createCollectionData(
+        "query/items_data_with_nested_fields.json", "items_data_with_nested_fields");
+    Collection collection = getCollection(dataStoreName, "items_data_with_nested_fields");
+
+    /*
+    This is the query we want to execute:
+    SELECT itemDetails.item, itemDetails.quantity, itemDetails.date
+    FROM <implicit_collection>
+    JOIN (
+        SELECT itemDetails.item, MAX(itemDetails.date) AS latest_date
+        FROM <implicit_collection>
+        GROUP BY itemDetails.item
+    ) latest
+    ON itemDetails.item = latest.itemDetails.item
+    AND itemDetails.date = latest.latest_date
+    ORDER BY `itemDetails.item` ASC;
+    */
+
+    /*
+    The right subquery:
+    SELECT itemDetails.item, MAX(itemDetails.date) AS latest_date
+    FROM <implicit_collection>
+    GROUP BY itemDetails.item
+    */
+    Query subQuery =
+        Query.builder()
+            .addSelection(SelectionSpec.of(IdentifierExpression.of("itemDetails.item")))
+            .addSelection(
+                SelectionSpec.of(
+                    AggregateExpression.of(
+                        AggregationOperator.MAX, IdentifierExpression.of("itemDetails.date")),
+                    "latest_date"))
+            .addAggregation(IdentifierExpression.of("itemDetails.item"))
+            .build();
+
+    /*
+    The FROM expression representing a join with the right subquery:
+    FROM <implicit_collection>
+    JOIN (
+       SELECT itemDetails.item, MAX(itemDetails.date) AS latest_date
+       FROM <implicit_collection>
+       GROUP BY itemDetails.item
+    ) latest
+    ON itemDetails.item = latest.itemDetails.item
+    AND itemDetails.date = latest.latest_date;
+    */
+    SubQueryJoinExpression subQueryJoinExpression =
+        SubQueryJoinExpression.builder()
+            .subQuery(subQuery)
+            .subQueryAlias("latest")
+            .joinCondition(
+                LogicalExpression.and(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("itemDetails.item"),
+                        RelationalOperator.EQ,
+                        AliasedIdentifierExpression.builder()
+                            .name("itemDetails.item")
+                            .contextAlias("latest")
+                            .build()),
+                    RelationalExpression.of(
+                        IdentifierExpression.of("itemDetails.date"),
+                        RelationalOperator.EQ,
+                        AliasedIdentifierExpression.builder()
+                            .name("latest_date")
+                            .contextAlias("latest")
+                            .build())))
+            .build();
+
+    /*
+    Now build the top-level Query:
+    SELECT itemDetails.item, itemDetails.quantity, itemDetails.date FROM <subQueryJoinExpression> ORDER BY `itemDetails.item` ASC;
+    */
+    Query mainQuery =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("itemDetails.item"))
+            .addSelection(IdentifierExpression.of("itemDetails.quantity"))
+            .addSelection(IdentifierExpression.of("itemDetails.date"))
+            .addFromClause(subQueryJoinExpression)
+            .addSort(IdentifierExpression.of("itemDetails.item"), ASC)
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(mainQuery);
+    assertDocsAndSizeEqual(
+        dataStoreName, iterator, "query/sub_query_join_response_with_nested_fields.json", 3);
+  }
+
   private static Collection getCollection(final String dataStoreName) {
     return getCollection(dataStoreName, COLLECTION_NAME);
   }
