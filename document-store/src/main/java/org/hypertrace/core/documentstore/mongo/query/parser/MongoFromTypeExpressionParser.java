@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import com.mongodb.BasicDBObject;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -9,7 +10,7 @@ import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.mongo.MongoUtils;
-import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
+import org.hypertrace.core.documentstore.mongo.query.MongoAggregationPipelineConverter;
 import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.FilterLocation;
 import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelationalFilterParserFactory.MongoRelationalFilterContext;
 import org.hypertrace.core.documentstore.mongo.query.transformer.MongoQueryTransformer;
@@ -26,15 +27,21 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
   private static final String MATCH_OPERATOR = "$match";
   private static final String REPLACE_ROOT_OPERATOR = "$replaceRoot";
   private static final String EXPR_OPERATOR = "$expr";
+  private static final String LOOKUP_FROM_FIELD = "from";
+  private static final String LOOKUP_LET_FIELD = "let";
+  private static final String LOOKUP_PIPELINE_FIELD = "pipeline";
+  private static final String LOOKUP_AS_FIELD = "as";
+  private static final String NEW_ROOT_FIELD = "newRoot";
+  private static final String JOINED_RESULT_FIELD_NAME_PREFIX = "__joined_result_with_";
 
   private static final MongoIdentifierPrefixingParser mongoIdentifierPrefixingParser =
       new MongoIdentifierPrefixingParser(new MongoIdentifierExpressionParser());
 
-  private final MongoQueryExecutor mongoQueryExecutor;
+  private final MongoAggregationPipelineConverter pipelineConverter;
   private MongoLetClauseBuilder mongoLetClauseBuilder;
 
-  public MongoFromTypeExpressionParser(MongoQueryExecutor mongoQueryExecutor) {
-    this.mongoQueryExecutor = mongoQueryExecutor;
+  public MongoFromTypeExpressionParser(MongoAggregationPipelineConverter pipelineConverter) {
+    this.pipelineConverter = pipelineConverter;
   }
 
   @SuppressWarnings("unchecked")
@@ -70,8 +77,11 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
     Query transformedSubQuery =
         MongoQueryTransformer.transform(subQueryJoinExpression.getSubQuery());
     List<BasicDBObject> aggregatePipeline =
-        new ArrayList<>(mongoQueryExecutor.convertToAggregatePipeline(transformedSubQuery));
+        new ArrayList<>(pipelineConverter.convertToAggregatePipeline(transformedSubQuery));
 
+    // This is the field name in which the joined results will be put after the lookup stage. This
+    // field name can be used by subsequent stages in the aggregate pipeline to do operations on the
+    // joined result.
     String joinedResultFieldName =
         getJoinedResultFieldName(subQueryJoinExpression.getSubQueryAlias());
     // Add the lookup stage to join the subquery results with the main collection
@@ -84,7 +94,7 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
     // Replace root with the joined document
     aggregatePipeline.add(createReplaceRootStage(joinedResultFieldName));
 
-    return aggregatePipeline;
+    return Collections.unmodifiableList(aggregatePipeline);
   }
 
   private BasicDBObject createLookupStage(
@@ -92,19 +102,18 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
     BasicDBObject lookupStage = new BasicDBObject();
     BasicDBObject lookupSpec = new BasicDBObject();
 
-    lookupSpec.put("from", mongoQueryExecutor.getCollectionName());
-    lookupSpec.put("let", subQueryJoinExpression.getJoinCondition().accept(mongoLetClauseBuilder));
-    lookupSpec.put("pipeline", createLookupPipeline(subQueryJoinExpression));
-    lookupSpec.put("as", joinedResultFieldName);
+    lookupSpec.put(LOOKUP_FROM_FIELD, pipelineConverter.getCollectionName());
+    lookupSpec.put(
+        LOOKUP_LET_FIELD, subQueryJoinExpression.getJoinCondition().accept(mongoLetClauseBuilder));
+    lookupSpec.put(LOOKUP_PIPELINE_FIELD, createLookupPipeline(subQueryJoinExpression));
+    lookupSpec.put(LOOKUP_AS_FIELD, joinedResultFieldName);
 
     lookupStage.put(LOOKUP_OPERATOR, lookupSpec);
     return lookupStage;
   }
 
   private List<BasicDBObject> createLookupPipeline(SubQueryJoinExpression subQueryJoinExpression) {
-    List<BasicDBObject> pipeline = new ArrayList<>();
-    pipeline.add(createMatchStage(subQueryJoinExpression));
-    return pipeline;
+    return List.of(createMatchStage(subQueryJoinExpression));
   }
 
   private BasicDBObject createMatchStage(SubQueryJoinExpression subQueryJoinExpression) {
@@ -123,15 +132,14 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
                 .lhsParser(
                     new MongoDollarPrefixingIdempotentParser(new MongoIdentifierExpressionParser()))
                 .rhsParser(
-                    new MongoDollarPrefixingIdempotentParser(
-                        new MongoAliasedIdentifierExpressionParser()))
+                    new MongoDollarPrefixingIdempotentParser(new MongoIdentifierExpressionParser()))
                 .build());
     final Map<String, Object> filter = joinCondition.accept(parser);
     return new BasicDBObject(filter);
   }
 
   private String getJoinedResultFieldName(String subQueryAlias) {
-    return "__joined_result_with_" + subQueryAlias;
+    return JOINED_RESULT_FIELD_NAME_PREFIX + subQueryAlias;
   }
 
   private BasicDBObject createUnwindStage(String joinedResultFieldName) {
@@ -149,7 +157,7 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
     BasicDBObject replaceRootStage = new BasicDBObject();
     BasicDBObject newRoot = new BasicDBObject();
 
-    newRoot.put("newRoot", MongoUtils.PREFIX + joinedResultFieldName);
+    newRoot.put(NEW_ROOT_FIELD, MongoUtils.PREFIX + joinedResultFieldName);
     replaceRootStage.put(REPLACE_ROOT_OPERATOR, newRoot);
 
     return replaceRootStage;
@@ -157,7 +165,7 @@ public class MongoFromTypeExpressionParser implements FromTypeExpressionVisitor 
 
   public List<BasicDBObject> getFromClauses(final Query query) {
     MongoFromTypeExpressionParser mongoFromTypeExpressionParser =
-        new MongoFromTypeExpressionParser(mongoQueryExecutor);
+        new MongoFromTypeExpressionParser(pipelineConverter);
     return query.getFromTypeExpressions().stream()
         .flatMap(
             fromTypeExpression ->

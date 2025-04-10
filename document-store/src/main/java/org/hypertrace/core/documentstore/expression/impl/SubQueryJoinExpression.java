@@ -31,6 +31,6 @@ public class SubQueryJoinExpression implements FromTypeExpression {
 
   @Override
   public String toString() {
-    return String.format("JOIN (%s) AS %s ON %s", subQuery, subQueryAlias, joinCondition);
+    return String.format("JOIN (%s) AS %s ON (%s)", subQuery, subQueryAlias, joinCondition);
   }
 }

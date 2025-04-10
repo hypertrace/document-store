@@ -3564,7 +3564,8 @@ public class DocStoreQueryV1Test {
             .build();
 
     Iterator<Document> iterator = collection.aggregate(mainQuery);
-    assertDocsAndSizeEqual(dataStoreName, iterator, "self_join_with_sub_query_response.json", 4);
+    assertDocsAndSizeEqual(
+        dataStoreName, iterator, "query/self_join_with_sub_query_response.json", 4);
   }
 
   private static Collection getCollection(final String dataStoreName) {
