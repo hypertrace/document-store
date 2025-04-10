@@ -2,48 +2,48 @@
   {
     "_id": 1,
     "itemDetails": {
-      "item": "suite-1",
-      "date": 1,
+      "item": "Comb",
+      "date": "2012-01-01",
       "quantity": 10
     }
   },
   {
     "_id": 2,
     "itemDetails": {
-      "item": "suite-2",
-      "date": 1,
+      "item": "Shampoo",
+      "date": "2012-01-01",
       "quantity": 10
     }
   },
   {
     "_id": 3,
     "itemDetails": {
-      "item": "suite-2",
-      "date": 2,
+      "item": "Shampoo",
+      "date": "2012-02-02",
       "quantity": 20
     }
   },
   {
     "_id": 4,
     "itemDetails": {
-      "item": "suite-2",
-      "date": 3,
+      "item": "Shampoo",
+      "date": "2012-03-03",
       "quantity": 30
     }
   },
   {
     "_id": 5,
     "itemDetails": {
-      "item": "suite-3",
-      "date": 2,
+      "item": "Soap",
+      "date": "2012-02-02",
       "quantity": 20
     }
   },
   {
     "_id": 6,
     "itemDetails": {
-      "item": "suite-3",
-      "date": 1,
+      "item": "Soap",
+      "date": "2012-01-01",
       "quantity": 10
     }
   }
