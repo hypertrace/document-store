@@ -3508,9 +3508,7 @@ public class DocStoreQueryV1Test {
     */
     Query subQuery =
         Query.builder()
-            .addSelection(
-                SelectionSpec.of(
-                    IdentifierExpression.of("item")))
+            .addSelection(SelectionSpec.of(IdentifierExpression.of("item")))
             .addSelection(
                 SelectionSpec.of(
                     AggregateExpression.of(
@@ -3541,14 +3539,14 @@ public class DocStoreQueryV1Test {
                         RelationalOperator.EQ,
                         AliasedIdentifierExpression.builder()
                             .name("item")
-                            .alias("latest")
+                            .contextAlias("latest")
                             .build()),
                     RelationalExpression.of(
                         IdentifierExpression.of("date"),
                         RelationalOperator.EQ,
                         AliasedIdentifierExpression.builder()
                             .name("latest_date")
-                            .alias("latest")
+                            .contextAlias("latest")
                             .build())))
             .build();
 

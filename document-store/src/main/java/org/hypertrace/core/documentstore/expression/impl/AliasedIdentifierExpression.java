@@ -5,17 +5,28 @@ import lombok.Value;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
 /**
- * Expression representing an identifier/column name with an alias
+ * Expression for referencing an identifier/column name within a context having an alias.
  *
- * <p>Example: AliasedIdentifierExpression.of("col1", "col1_alias");
+ * <p>Example: In this query: <code>
+ *     SELECT item, quantity, date
+ *     FROM <implicit_collection>
+ *     JOIN (
+ *         SELECT item, MAX(date) AS latest_date
+ *         FROM <implicit_collection>
+ *         GROUP BY item
+ *     ) AS latest
+ *     ON item = latest.item
+ *     ORDER BY `item` ASC;
+ * </code> the rhs of the join condition "latest.item" can be expressed as: <code>
+ *  AliasedIdentifierExpression.builder().name("item").alias("alias1").build() </code>
  */
 @Value
 public class AliasedIdentifierExpression extends IdentifierExpression {
-  String alias;
+  String contextAlias;
 
-  private AliasedIdentifierExpression(final String name, final String alias) {
+  private AliasedIdentifierExpression(final String name, final String contextAlias) {
     super(name);
-    this.alias = alias;
+    this.contextAlias = contextAlias;
   }
 
   @Override
@@ -25,7 +36,7 @@ public class AliasedIdentifierExpression extends IdentifierExpression {
 
   @Override
   public String toString() {
-    return "`" + getAlias() + "." + getName() + "`";
+    return "`" + getContextAlias() + "." + getName() + "`";
   }
 
   public static AliasedIdentifierExpressionBuilder builder() {
@@ -34,15 +45,15 @@ public class AliasedIdentifierExpression extends IdentifierExpression {
 
   public static class AliasedIdentifierExpressionBuilder {
     private String name;
-    private String alias;
+    private String contextAlias;
 
     public AliasedIdentifierExpressionBuilder name(final String name) {
       this.name = name;
       return this;
     }
 
-    public AliasedIdentifierExpressionBuilder alias(final String alias) {
-      this.alias = alias;
+    public AliasedIdentifierExpressionBuilder contextAlias(final String contextAlias) {
+      this.contextAlias = contextAlias;
       return this;
     }
 
@@ -50,8 +61,9 @@ public class AliasedIdentifierExpression extends IdentifierExpression {
       Preconditions.checkArgument(
           this.name != null && !this.name.isBlank(), "name is null or blank");
       Preconditions.checkArgument(
-          this.alias != null && !this.alias.isBlank(), "alias is null or blank");
-      return new AliasedIdentifierExpression(this.name, this.alias);
+          this.contextAlias != null && !this.contextAlias.isBlank(),
+          "contextAlias is null or blank");
+      return new AliasedIdentifierExpression(this.name, this.contextAlias);
     }
   }
 }

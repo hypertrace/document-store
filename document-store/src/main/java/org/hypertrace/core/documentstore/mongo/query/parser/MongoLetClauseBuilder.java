@@ -96,7 +96,7 @@ class MongoLetClauseBuilder implements FilterTypeExpressionVisitor {
   private BasicDBObject createLetClause(
       AliasedIdentifierExpression aliasedExpression, String subQueryAlias) {
     BasicDBObject letClause = new BasicDBObject();
-    if (aliasedExpression.getAlias().equals(subQueryAlias)) {
+    if (aliasedExpression.getContextAlias().equals(subQueryAlias)) {
       letClause.put(aliasedExpression.getName(), "$" + aliasedExpression.getName());
     }
     return letClause;

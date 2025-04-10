@@ -12,6 +12,9 @@ import org.hypertrace.core.documentstore.query.Query;
 /**
  * Expression representing a join operation where the right side expression is a subquery. Note that
  * this currently supports a self-join only, so the collection to be joined with is implicit.
+ *
+ * <p>For an example of using this expression, see the testSelfJoinWithSubQuery method in
+ * DocStoreQueryV1Test.
  */
 @Value
 @Builder(toBuilder = true)
