@@ -21,7 +21,7 @@ public final class MongoIdentifierExpressionParser extends MongoSelectTypeExpres
   @SuppressWarnings("unchecked")
   @Override
   public String visit(final AliasedIdentifierExpression expression) {
-    return MongoUtils.PREFIX + parse(expression);
+    return MongoUtils.PREFIX + MongoUtils.encodeVariableName(parse(expression));
   }
 
   String parse(final IdentifierExpression expression) {

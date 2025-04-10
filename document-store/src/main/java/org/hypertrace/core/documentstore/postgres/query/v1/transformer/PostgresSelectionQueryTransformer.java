@@ -5,6 +5,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -109,6 +110,11 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
     public Boolean visit(IdentifierExpression expression) {
       return false;
     }
+
+    @Override
+    public Boolean visit(AliasedIdentifierExpression expression) {
+      throw new UnsupportedOperationException("This operation is not supported");
+    }
   }
 
   private static class LocalSelectTypeIdentifierExpressionSelector
@@ -136,6 +142,11 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
     @Override
     public Boolean visit(IdentifierExpression expression) {
       return true;
+    }
+
+    @Override
+    public Boolean visit(AliasedIdentifierExpression expression) {
+      throw new UnsupportedOperationException("This operation is not supported");
     }
   }
 

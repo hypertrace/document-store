@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
@@ -18,6 +19,7 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
@@ -179,6 +181,11 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     public UnnestExpression visit(UnnestExpression unnestExpression) {
       return unnestExpression;
     }
+
+    @Override
+    public String visit(SubQueryJoinExpression subQueryJoinExpression) {
+      throw new UnsupportedOperationException("This operation is not supported");
+    }
   }
 
   @SuppressWarnings("unchecked")
@@ -210,6 +217,11 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
     @Override
     public List<String> visit(IdentifierExpression expression) {
       return List.of(expression.getName());
+    }
+
+    @Override
+    public List<String> visit(AliasedIdentifierExpression expression) {
+      throw new UnsupportedOperationException("This operation is not supported");
     }
   }
 

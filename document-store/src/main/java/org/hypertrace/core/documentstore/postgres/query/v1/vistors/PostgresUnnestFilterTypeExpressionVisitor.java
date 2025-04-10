@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.parser.FromTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
@@ -21,6 +22,11 @@ public class PostgresUnnestFilterTypeExpressionVisitor implements FromTypeExpres
         PostgresFilterTypeExpressionVisitor.prepareFilterClause(
             Optional.ofNullable(unnestExpression.getFilterTypeExpression()), postgresQueryParser);
     return where.orElse("");
+  }
+
+  @Override
+  public String visit(SubQueryJoinExpression subQueryJoinExpression) {
+    throw new UnsupportedOperationException("This operation is not supported");
   }
 
   public static Optional<String> getFilterClause(PostgresQueryParser postgresQueryParser) {

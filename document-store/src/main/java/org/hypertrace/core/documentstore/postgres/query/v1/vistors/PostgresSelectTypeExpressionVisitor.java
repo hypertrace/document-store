@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import lombok.AllArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -62,6 +63,11 @@ public abstract class PostgresSelectTypeExpressionVisitor implements SelectTypeE
   @Override
   public <T> T visit(final IdentifierExpression expression) {
     return baseVisitor.visit(expression);
+  }
+
+  @Override
+  public <T> T visit(final AliasedIdentifierExpression expression) {
+    throw new UnsupportedOperationException("This operation is not supported");
   }
 
   public abstract PostgresQueryParser getPostgresQueryParser();

@@ -2,12 +2,14 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.query.SelectionSpec;
 
 public class AliasParser implements SelectTypeExpressionVisitor, SortTypeExpressionVisitor {
 
@@ -39,5 +41,11 @@ public class AliasParser implements SelectTypeExpressionVisitor, SortTypeExpress
   @Override
   public Optional<String> visit(DocumentConstantExpression expression) {
     return Optional.empty();
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Optional<SelectionSpec> visit(final AliasedIdentifierExpression expression) {
+    throw new UnsupportedOperationException("This operation is not supported");
   }
 }

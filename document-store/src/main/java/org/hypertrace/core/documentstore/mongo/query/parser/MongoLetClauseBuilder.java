@@ -3,20 +3,15 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
-import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
-import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
-import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.mongo.MongoUtils;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
 // Visitor for building the let clause in lookup stage from filter expressions
 class MongoLetClauseBuilder implements FilterTypeExpressionVisitor {
@@ -44,42 +39,15 @@ class MongoLetClauseBuilder implements FilterTypeExpressionVisitor {
     return Collections.unmodifiableMap(letClause);
   }
 
-  private class MongoLetClauseSelectTypeExpressionVisitor implements SelectTypeExpressionVisitor {
-    @Override
-    public Map<String, Object> visit(AggregateExpression expression) {
-      return Collections.emptyMap();
-    }
+  private class MongoLetClauseSelectTypeExpressionVisitor extends MongoEmptySelectionTypeParser {
 
     @Override
-    public Map<String, Object> visit(ConstantExpression expression) {
-      return Collections.emptyMap();
-    }
-
-    @Override
-    public Map<String, Object> visit(ConstantExpression.DocumentConstantExpression expression) {
-      return Collections.emptyMap();
-    }
-
-    @Override
-    public Map<String, Object> visit(FunctionExpression expression) {
-      return Collections.emptyMap();
-    }
-
-    @Override
-    public Map<String, Object> visit(IdentifierExpression expression) {
-      return Collections.emptyMap();
-    }
-
-    @Override
-    public Map<String, Object> visit(AliasedIdentifierExpression expression) {
-      return createLetClause(expression, subQueryAlias);
-    }
-
-    private Map<String, Object> createLetClause(
-        AliasedIdentifierExpression aliasedExpression, String subQueryAlias) {
+    public Map<String, Object> visit(AliasedIdentifierExpression aliasedExpression) {
       Map<String, Object> letClause = new HashMap<>();
       if (aliasedExpression.getContextAlias().equals(subQueryAlias)) {
-        letClause.put(aliasedExpression.getName(), MongoUtils.PREFIX + aliasedExpression.getName());
+        letClause.put(
+            MongoUtils.encodeVariableName(aliasedExpression.getName()),
+            MongoUtils.PREFIX + aliasedExpression.getName());
       }
       return Collections.unmodifiableMap(letClause);
     }

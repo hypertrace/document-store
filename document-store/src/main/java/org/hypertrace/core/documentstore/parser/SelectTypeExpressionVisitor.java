@@ -18,7 +18,5 @@ public interface SelectTypeExpressionVisitor {
 
   <T> T visit(final IdentifierExpression expression);
 
-  default <T> T visit(final AliasedIdentifierExpression expression) {
-    throw new UnsupportedOperationException();
-  }
+  <T> T visit(final AliasedIdentifierExpression expression);
 }

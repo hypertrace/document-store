@@ -15,6 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -130,6 +131,12 @@ final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressio
     String alias = Optional.ofNullable(source.getAlias()).orElse(key);
 
     return SelectionSpec.of(IdentifierExpression.of(identifier), alias);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public SelectionSpec visit(final AliasedIdentifierExpression expression) {
+    throw new UnsupportedOperationException("This operation is not supported");
   }
 
   private SelectionSpec substitute(final AggregateExpression expression) {

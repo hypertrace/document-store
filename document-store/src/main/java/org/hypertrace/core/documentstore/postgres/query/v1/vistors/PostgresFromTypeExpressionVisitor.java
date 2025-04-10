@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.parser.FromTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
@@ -60,6 +61,11 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
             : WITHOUT_PRESERVE_NULL_AND_EMPTY_TABLE_QUERY_FMT;
 
     return String.format(fmt, newTable, preTable, tableAlias, unwindExpr, unwindExprAlias);
+  }
+
+  @Override
+  public String visit(SubQueryJoinExpression subQueryJoinExpression) {
+    throw new UnsupportedOperationException("This operation is not supported");
   }
 
   public static Optional<String> getFromClause(PostgresQueryParser postgresQueryParser) {
