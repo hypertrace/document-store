@@ -65,6 +65,13 @@ public final class MongoUtils {
     return key.replace("\\u002e", FIELD_SEPARATOR).replace("\\u0024", PREFIX).replace("\\\\", "\\");
   }
 
+  public static String encodeVariableName(final String variableName) {
+    if (variableName == null) {
+      return null;
+    }
+    return variableName.replace(".", "_");
+  }
+
   public static String getLastField(final String fieldPath) {
     final String[] fields = fieldPath.split("\\" + FIELD_SEPARATOR);
     return fields[fields.length - 1];

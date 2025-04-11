@@ -8,6 +8,7 @@ import static org.hypertrace.core.documentstore.mongo.MongoUtils.encodeKey;
 import java.util.Optional;
 import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -122,5 +123,11 @@ final class MongoSelectionsAddingTransformation implements SelectTypeExpressionV
   @Override
   public Optional<SelectionSpec> visit(final IdentifierExpression expression) {
     return Optional.empty();
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Optional<SelectionSpec> visit(final AliasedIdentifierExpression expression) {
+    throw new UnsupportedOperationException("This operation is not supported");
   }
 }

@@ -4,6 +4,7 @@ import com.google.common.base.Preconditions;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Value;
+import lombok.experimental.NonFinal;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
@@ -17,7 +18,8 @@ import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
  * <p>Example: IdentifierExpression.of("col1");
  */
 @Value
-@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@NonFinal
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 public class IdentifierExpression
     implements GroupTypeExpression, SelectTypeExpression, SortTypeExpression {
 

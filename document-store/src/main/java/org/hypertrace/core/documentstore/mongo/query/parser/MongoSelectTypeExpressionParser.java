@@ -10,6 +10,7 @@ import com.mongodb.BasicDBObject;
 import java.util.List;
 import java.util.Map;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -56,6 +57,11 @@ public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpre
 
   @Override
   public <T> T visit(final IdentifierExpression expression) {
+    return baseParser.visit(expression);
+  }
+
+  @Override
+  public <T> T visit(final AliasedIdentifierExpression expression) {
     return baseParser.visit(expression);
   }
 

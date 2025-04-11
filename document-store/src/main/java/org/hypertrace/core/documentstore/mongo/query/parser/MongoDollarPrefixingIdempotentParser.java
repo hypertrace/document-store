@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.PREFIX;
 
 import java.util.Optional;
+import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
 final class MongoDollarPrefixingIdempotentParser extends MongoSelectTypeExpressionParser {
@@ -16,6 +17,15 @@ final class MongoDollarPrefixingIdempotentParser extends MongoSelectTypeExpressi
     return Optional.ofNullable(baseParser.visit(expression))
         .map(Object::toString)
         .map(this::idempotentPrefix)
+        .orElse(null);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public String visit(final AliasedIdentifierExpression expression) {
+    return Optional.ofNullable(baseParser.visit(expression))
+        .map(Object::toString)
+        .map(identifier -> PREFIX + identifier)
         .orElse(null);
   }
 

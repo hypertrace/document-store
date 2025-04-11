@@ -1,0 +1,22 @@
+[
+  {
+    "date": "2015-09-10T08:43:00Z",
+    "item": "Comb",
+    "quantity": 10
+  },
+  {
+    "date": "2014-03-01T09:00:00Z",
+    "item": "Mirror",
+    "quantity": 1
+  },
+  {
+    "date": "2014-04-04T11:21:39.736Z",
+    "item": "Shampoo",
+    "quantity": 20
+  },
+  {
+    "date": "2016-02-06T20:20:13Z",
+    "item": "Soap",
+    "quantity": 5
+  }
+]

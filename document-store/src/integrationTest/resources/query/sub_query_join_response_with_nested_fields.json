@@ -1,0 +1,23 @@
+[
+  {
+    "itemDetails": {
+      "item": "Comb",
+      "date": "2012-01-01",
+      "quantity": 10
+    }
+  },
+  {
+    "itemDetails": {
+      "item": "Shampoo",
+      "date": "2012-03-03",
+      "quantity": 30
+    }
+  },
+  {
+    "itemDetails": {
+      "item": "Soap",
+      "date": "2012-02-02",
+      "quantity": 20
+    }
+  }
+]
