@@ -39,20 +39,6 @@ class MongoLetClauseBuilder implements FilterTypeExpressionVisitor {
     return Collections.unmodifiableMap(letClause);
   }
 
-  private class MongoLetClauseSelectTypeExpressionVisitor extends MongoEmptySelectionTypeParser {
-
-    @Override
-    public Map<String, Object> visit(AliasedIdentifierExpression aliasedExpression) {
-      Map<String, Object> letClause = new HashMap<>();
-      if (aliasedExpression.getContextAlias().equals(subQueryAlias)) {
-        letClause.put(
-            MongoUtils.encodeVariableName(aliasedExpression.getName()),
-            MongoUtils.PREFIX + aliasedExpression.getName());
-      }
-      return Collections.unmodifiableMap(letClause);
-    }
-  }
-
   @Override
   public Map<String, Object> visit(KeyExpression expression) {
     return Collections.emptyMap();
@@ -66,5 +52,19 @@ class MongoLetClauseBuilder implements FilterTypeExpressionVisitor {
   @Override
   public Map<String, Object> visit(DocumentArrayFilterExpression expression) {
     return Collections.emptyMap();
+  }
+
+  private class MongoLetClauseSelectTypeExpressionVisitor extends MongoEmptySelectionTypeParser {
+
+    @Override
+    public Map<String, Object> visit(AliasedIdentifierExpression aliasedExpression) {
+      Map<String, Object> letClause = new HashMap<>();
+      if (aliasedExpression.getContextAlias().equals(subQueryAlias)) {
+        letClause.put(
+            MongoUtils.encodeVariableName(aliasedExpression.getName()),
+            MongoUtils.PREFIX + aliasedExpression.getName());
+      }
+      return Collections.unmodifiableMap(letClause);
+    }
   }
 }
