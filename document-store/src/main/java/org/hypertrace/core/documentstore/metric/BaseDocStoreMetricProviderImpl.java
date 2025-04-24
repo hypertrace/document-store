@@ -140,6 +140,8 @@ public abstract class BaseDocStoreMetricProviderImpl implements DocStoreMetricPr
         return String.valueOf(jsonNode.numberValue());
       case BOOLEAN:
         return String.valueOf(jsonNode.booleanValue());
+      case NULL:
+        return NULL_LABEL_VALUE_PLACEHOLDER;
       default:
         throw new IllegalArgumentException(
             String.format("Unsupported JSON node type: %s", jsonNode.getNodeType()));
