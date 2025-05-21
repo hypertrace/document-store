@@ -16,6 +16,10 @@ public class FieldToPgColumnTransformer {
   }
 
   public FieldToPgColumn transform(String orgFieldName) {
+    // TODO: Forcing to map to the first class fields
+    if (postgresQueryParser.getTableIdentifier().getQuotedTable().equals("\"api_entities\"")) {
+      return new FieldToPgColumn(null, orgFieldName);
+    }
     Optional<String> parentField =
         postgresQueryParser.getPgColumnNames().keySet().stream()
             .filter(orgFieldName::startsWith)
