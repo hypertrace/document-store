@@ -21,15 +21,24 @@ public class PostgresQueryExecutor {
   private final PostgresTableIdentifier tableIdentifier;
 
   public CloseableIterator<Document> execute(final Connection connection, final Query query) {
+    return execute(connection, query, null);
+  }
+
+  public CloseableIterator<Document> execute(
+      final Connection connection, final Query query, String flatStructureCollectionName) {
     final org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
         new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-            tableIdentifier, transformAndLog(query));
+            tableIdentifier, transformAndLog(query), flatStructureCollectionName);
     final String sqlQuery = queryParser.parse();
     try {
       final PreparedStatement preparedStatement =
           buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build(), connection);
       log.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
       final ResultSet resultSet = preparedStatement.executeQuery();
+
+      if ((tableIdentifier.getTableName().equals(flatStructureCollectionName))) {
+        return new PostgresCollection.PostgresResultIteratorWithBasicTypes(resultSet);
+      }
       return query.getSelections().size() > 0
           ? new PostgresResultIteratorWithMetaData(resultSet)
           : new PostgresResultIterator(resultSet);

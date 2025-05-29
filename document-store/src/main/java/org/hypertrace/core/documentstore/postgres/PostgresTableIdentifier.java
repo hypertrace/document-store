@@ -14,6 +14,7 @@ public class PostgresTableIdentifier {
   @Nullable private final String schema;
 
   @Getter @Nonnull private final String quotedTable;
+  @Getter @Nonnull private final String tableName;
 
   public Optional<String> getSchema() {
     return Optional.ofNullable(this.schema);
@@ -26,6 +27,7 @@ public class PostgresTableIdentifier {
   PostgresTableIdentifier(@Nullable String schema, @Nonnull String tableName) {
     this.schema = schema;
     this.quotedTable = "\"" + tableName + "\"";
+    this.tableName = tableName;
   }
 
   public static PostgresTableIdentifier parse(String tableString) {

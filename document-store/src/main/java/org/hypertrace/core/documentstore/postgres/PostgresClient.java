@@ -6,6 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
@@ -49,6 +50,10 @@ class PostgresClient {
 
   public Connection getPooledConnection() throws SQLException {
     return connectionPool.getConnection();
+  }
+
+  public Map<String, String> getCustomParameters() {
+    return connectionConfig.customParameters();
   }
 
   public void close() {
