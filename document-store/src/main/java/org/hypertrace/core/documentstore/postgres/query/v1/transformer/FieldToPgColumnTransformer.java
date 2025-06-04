@@ -21,7 +21,7 @@ public class FieldToPgColumnTransformer {
         .getFlatStructureCollectionName()
         .map(name -> name.equals(postgresQueryParser.getTableIdentifier().getTableName()))
         .orElse(false)) {
-      return new FieldToPgColumn(null, orgFieldName);
+      return new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(orgFieldName));
     }
     Optional<String> parentField =
         postgresQueryParser.getPgColumnNames().keySet().stream()
