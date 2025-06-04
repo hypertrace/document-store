@@ -79,7 +79,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .build();
 
     return new PostgresRelationalFilterParserFactoryImpl()
-        .parser(expression)
+        .parser(expression, postgresQueryParser)
         .parse(expression, context);
   }
 

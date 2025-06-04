@@ -547,6 +547,10 @@ public class PostgresUtils {
     return "\"" + fieldName + "\"";
   }
 
+  public static String wrapFieldNamesWithDoubleQuotes(String fieldName) {
+    return "\"" + fieldName + "\"";
+  }
+
   public static String formatSubDocPath(String subDocPath) {
     return "{" + subDocPath.replaceAll(DOC_PATH_SEPARATOR, ",") + "}";
   }

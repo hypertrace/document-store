@@ -1,19 +1,33 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter;
 
-import static org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresContainsRelationalFilterParser.prepareJsonValueForContainsOp;
-
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresContainsRelationalFilterParserNonJsonField;
 
 class PostgresNotContainsRelationalFilterParser implements PostgresRelationalFilterParser {
+  private static final PostgresContainsRelationalFilterParser jsonContainsParser =
+      new PostgresContainsRelationalFilterParser();
+  private static final PostgresContainsRelationalFilterParserNonJsonField nonJsonContainsParser =
+      new PostgresContainsRelationalFilterParserNonJsonField();
+
   @Override
   public String parse(
       final RelationalExpression expression, final PostgresRelationalFilterContext context) {
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
-    final Object parsedRhs = expression.getRhs().accept(context.rhsParser());
 
-    final Object convertedRhs = prepareJsonValueForContainsOp(parsedRhs);
-    context.getParamsBuilder().addObjectParam(convertedRhs);
+    boolean isFirstClassField =
+        context
+            .getFlatStructureCollectionName()
+            .map(name -> name.equals(context.getTableIdentifier().getTableName()))
+            .orElse(false);
 
-    return String.format("%s IS NULL OR NOT %s @> ?::jsonb", parsedLhs, parsedLhs);
+    if (isFirstClassField) {
+      // Use the non-JSON logic for first-class fields
+      String containsExpression = nonJsonContainsParser.parse(expression, context);
+      return String.format("%s IS NULL OR NOT (%s)", parsedLhs, containsExpression);
+    } else {
+      // Use the JSON logic for document fields.
+      jsonContainsParser.parse(expression, context); // This adds the parameter.
+      return String.format("%s IS NULL OR NOT %s @> ?::jsonb", parsedLhs, parsedLhs);
+    }
   }
 }
