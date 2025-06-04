@@ -28,7 +28,7 @@ public class PostgresQueryParser {
 
   @Getter private final PostgresTableIdentifier tableIdentifier;
   @Getter private final Query query;
-  @Getter private final Optional<String> flatStructureCollectionName;
+  @Getter private final String flatStructureCollectionName;
 
   @Setter String finalTableName;
   @Getter private final Builder paramsBuilder = Params.newBuilder();
@@ -49,7 +49,7 @@ public class PostgresQueryParser {
       PostgresTableIdentifier tableIdentifier, Query query, String flatStructureCollectionName) {
     this.tableIdentifier = tableIdentifier;
     this.query = query;
-    this.flatStructureCollectionName = Optional.ofNullable(flatStructureCollectionName);
+    this.flatStructureCollectionName = flatStructureCollectionName;
     this.finalTableName = tableIdentifier.toString();
     toPgColumnTransformer = new FieldToPgColumnTransformer(this);
   }

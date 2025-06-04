@@ -51,11 +51,11 @@ public class PostgresRelationalFilterParserFactoryImpl
   public PostgresRelationalFilterParser parser(
       final RelationalExpression expression, final PostgresQueryParser postgresQueryParser) {
 
+    String flatStructureCollection = postgresQueryParser.getFlatStructureCollectionName();
     boolean isFirstClassField =
-        postgresQueryParser
-            .getFlatStructureCollectionName()
-            .map(name -> name.equals(postgresQueryParser.getTableIdentifier().getTableName()))
-            .orElse(false);
+        flatStructureCollection != null
+            && flatStructureCollection.equals(
+                postgresQueryParser.getTableIdentifier().getTableName());
 
     if (expression.getOperator() == CONTAINS) {
       return isFirstClassField ? nonJsonFieldContainsParser : jsonFieldContainsParser;

@@ -1295,7 +1295,7 @@ public class PostgresCollection implements Collection {
       }
 
       // Remove document ID if needed
-      if (removeDocumentId) {
+      if (shouldRemoveDocumentId()) {
         jsonNode.remove(DOCUMENT_ID);
       }
 
@@ -1386,7 +1386,7 @@ public class PostgresCollection implements Collection {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
     protected ResultSet resultSet;
-    final boolean removeDocumentId;
+    private final boolean removeDocumentId;
     protected boolean cursorMovedForward = false;
     protected boolean hasNext = false;
 
@@ -1438,7 +1438,7 @@ public class PostgresCollection implements Collection {
       String documentString = resultSet.getString(DOCUMENT);
       ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
       // internal iterators may need document id
-      if (removeDocumentId) {
+      if (shouldRemoveDocumentId()) {
         jsonNode.remove(DOCUMENT_ID);
       }
       // Add Timestamps to Document
@@ -1463,6 +1463,10 @@ public class PostgresCollection implements Collection {
     @Override
     public void close() {
       closeResultSet();
+    }
+
+    protected boolean shouldRemoveDocumentId() {
+      return removeDocumentId;
     }
   }
 

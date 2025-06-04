@@ -71,7 +71,7 @@ public class ConnectionConfig {
     String replicaSet;
     Map<String, String> customParameters = new HashMap<>();
 
-    public ConnectionConfigBuilder customParameters(String key, String value) {
+    public ConnectionConfigBuilder customParameter(String key, String value) {
       this.customParameters.put(key, value);
       return this;
     }

@@ -184,7 +184,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
             .entrySet()
             .forEach(
                 entry -> {
-                  connectionConfigBuilder.customParameters(
+                  connectionConfigBuilder.customParameter(
                       entry.getKey(), paramConfig.getString(entry.getKey()));
                 });
       } catch (Exception e) {

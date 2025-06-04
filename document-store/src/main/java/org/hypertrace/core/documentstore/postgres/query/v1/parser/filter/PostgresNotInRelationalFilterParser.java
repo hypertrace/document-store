@@ -22,11 +22,10 @@ class PostgresNotInRelationalFilterParser implements PostgresRelationalFilterPar
 
   private PostgresInRelationalFilterParserInterface getInFilterParser(
       PostgresRelationalFilterContext context) {
+    String flatStructureCollection = context.getFlatStructureCollectionName();
     boolean isFirstClassField =
-        context
-            .getFlatStructureCollectionName()
-            .map(name -> name.equals(context.getTableIdentifier().getTableName()))
-            .orElse(false);
+        flatStructureCollection != null
+            && flatStructureCollection.equals(context.getTableIdentifier().getTableName());
 
     return isFirstClassField ? nonJsonFieldInFilterParser : jsonFieldInFilterParser;
   }

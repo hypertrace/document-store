@@ -14,11 +14,10 @@ class PostgresNotContainsRelationalFilterParser implements PostgresRelationalFil
       final RelationalExpression expression, final PostgresRelationalFilterContext context) {
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
 
+    String flatStructureCollection = context.getFlatStructureCollectionName();
     boolean isFirstClassField =
-        context
-            .getFlatStructureCollectionName()
-            .map(name -> name.equals(context.getTableIdentifier().getTableName()))
-            .orElse(false);
+        flatStructureCollection != null
+            && flatStructureCollection.equals(context.getTableIdentifier().getTableName());
 
     if (isFirstClassField) {
       // Use the non-JSON logic for first-class fields
