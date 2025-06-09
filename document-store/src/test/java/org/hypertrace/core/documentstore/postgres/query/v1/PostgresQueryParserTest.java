@@ -638,6 +638,7 @@ public class PostgresQueryParserTest {
             .setPagination(pagination)
             .build();
 
+    // json field
     PostgresQueryParser postgresQueryParser =
         new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
     String sql = postgresQueryParser.parse();
@@ -661,6 +662,21 @@ public class PostgresQueryParserTest {
     assertEquals("Bottle", params.getObjectParams().get(7));
     assertEquals(1, params.getObjectParams().get(9));
     assertEquals(3, params.getObjectParams().get(10));
+
+    // non-json field
+    postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE, PostgresQueryTransformer.transform(query), "testCollection");
+    assertEquals(
+        "SELECT \"item\" AS \"item\", "
+            + "\"price\" AS \"price\", "
+            + "\"quantity\" AS \"quantity\", "
+            + "\"date\" AS \"date\" "
+            + "FROM \"testCollection\" "
+            + "WHERE \"item\" && ARRAY[?, ?, ?, ?]::text[] "
+            + "ORDER BY \"quantity\" DESC NULLS LAST,\"item\" ASC NULLS FIRST "
+            + "OFFSET ? LIMIT ?",
+        postgresQueryParser.parse());
   }
 
   @Test

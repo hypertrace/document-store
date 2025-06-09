@@ -321,6 +321,32 @@ class TypesafeConfigDatastoreConfigExtractorTest {
     assertEquals(expected, config);
   }
 
+  @Test
+  void testBuildPostgresUsingDefaultKeysAndCustomParams() {
+    final ConnectionConfig config =
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildConfigMapWithDefaultKeysAndCustomParamsForPostgres(), TYPE_KEY)
+            .extract()
+            .connectionConfig();
+    final ConnectionConfig expected =
+        ConnectionConfig.builder()
+            .type(DatabaseType.POSTGRES)
+            .addEndpoint(Endpoint.builder().host(host).port(port).build())
+            .database(database)
+            .credentials(ConnectionCredentials.builder().username(user).password(password).build())
+            .applicationName(appName)
+            .connectionPoolConfig(
+                ConnectionPoolConfig.builder()
+                    .maxConnections(maxConnections)
+                    .connectionAccessTimeout(accessTimeout)
+                    .connectionSurrenderTimeout(surrenderTimeout)
+                    .build())
+            .customParameter("flatStructureCollection", "earth")
+            .build();
+
+    assertEquals(expected, config);
+  }
+
   private Config buildConfigMap() {
     return ConfigFactory.parseMap(
         Map.ofEntries(
@@ -353,6 +379,22 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             entry("maxPoolSize", maxConnections),
             entry("connectionAccessTimeout", accessTimeout),
             entry("connectionIdleTime", surrenderTimeout)));
+  }
+
+  private Config buildConfigMapWithDefaultKeysAndCustomParamsForPostgres() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(TYPE_KEY, "postgres"),
+            entry("postgres.host", host),
+            entry("postgres.port", port),
+            entry("postgres.database", database),
+            entry("postgres.user", user),
+            entry("postgres.password", password),
+            entry("appName", appName),
+            entry("maxPoolSize", maxConnections),
+            entry("connectionAccessTimeout", accessTimeout),
+            entry("connectionIdleTime", surrenderTimeout),
+            entry("customParams.flatStructureCollection", "earth")));
   }
 
   private Config buildConfigMapUsingDefaultKeysForMongo() {
