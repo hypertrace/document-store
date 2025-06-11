@@ -673,7 +673,7 @@ public class PostgresQueryParserTest {
             + "\"quantity\" AS \"quantity\", "
             + "\"date\" AS \"date\" "
             + "FROM \"testCollection\" "
-            + "WHERE \"item\" && ARRAY[?, ?, ?, ?]::text[] "
+            + "WHERE ARRAY[\"item\"]::text[] && ARRAY[?, ?, ?, ?]::text[] "
             + "ORDER BY \"quantity\" DESC NULLS LAST,\"item\" ASC NULLS FIRST "
             + "OFFSET ? LIMIT ?",
         postgresQueryParser.parse());
