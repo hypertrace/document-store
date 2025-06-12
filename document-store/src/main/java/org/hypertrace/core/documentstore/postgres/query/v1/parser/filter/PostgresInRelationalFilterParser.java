@@ -5,7 +5,7 @@ import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 
-class PostgresInRelationalFilterParser implements PostgresRelationalFilterParser {
+class PostgresInRelationalFilterParser implements PostgresInRelationalFilterParserInterface {
 
   @Override
   public String parse(

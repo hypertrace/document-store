@@ -5,7 +5,10 @@ import static java.util.Collections.unmodifiableList;
 import com.google.common.base.Preconditions;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import javax.annotation.Nullable;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -34,18 +37,21 @@ public class ConnectionConfig {
   @NonNull AggregatePipelineMode aggregationPipelineMode;
   @NonNull DataFreshness dataFreshness;
   @NonNull Duration queryTimeout;
+  @NonNull Map<String, String> customParameters;
 
   public ConnectionConfig(
       @NonNull List<@NonNull Endpoint> endpoints,
       @NonNull String database,
-      @Nullable ConnectionCredentials credentials) {
+      @Nullable ConnectionCredentials credentials,
+      Map<String, String> customParameters) {
     this(
         endpoints,
         database,
         credentials,
         AggregatePipelineMode.DEFAULT_ALWAYS,
         DataFreshness.SYSTEM_DEFAULT,
-        Duration.ofMinutes(20));
+        Duration.ofMinutes(20),
+        customParameters != null ? customParameters : Collections.emptyMap());
   }
 
   public static ConnectionConfigBuilder builder() {
@@ -63,6 +69,13 @@ public class ConnectionConfig {
     ConnectionCredentials credentials;
     String applicationName = DEFAULT_APP_NAME;
     String replicaSet;
+    Map<String, String> customParameters = new HashMap<>();
+
+    public ConnectionConfigBuilder customParameter(String key, String value) {
+      this.customParameters.put(key, value);
+      return this;
+    }
+
     ConnectionPoolConfig connectionPoolConfig;
     AggregatePipelineMode aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ALWAYS;
     DataFreshness dataFreshness = DataFreshness.SYSTEM_DEFAULT;
@@ -96,7 +109,8 @@ public class ConnectionConfig {
               connectionPoolConfig,
               aggregationPipelineMode,
               dataFreshness,
-              queryTimeout);
+              queryTimeout,
+              customParameters);
 
         case POSTGRES:
           return new PostgresConnectionConfig(
@@ -104,7 +118,8 @@ public class ConnectionConfig {
               database,
               credentials,
               applicationName,
-              connectionPoolConfig);
+              connectionPoolConfig,
+              customParameters);
       }
 
       throw new IllegalArgumentException("Unsupported database type: " + type);

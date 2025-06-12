@@ -11,9 +11,13 @@ import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.Conne
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig.DatastoreConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.Endpoint.EndpointBuilder;
 import org.hypertrace.core.documentstore.model.options.DataFreshness;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Value
 public class TypesafeConfigDatastoreConfigExtractor {
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(TypesafeConfigDatastoreConfigExtractor.class);
   private static final String DEFAULT_HOST_KEY = "host";
   private static final String DEFAULT_PORT_KEY = "port";
   private static final String DEFAULT_ENDPOINTS_KEY = "endpoints";
@@ -29,6 +33,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
   private static final String DEFAULT_AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
   private static final String DEFAULT_DATA_FRESHNESS_KEY = "dataFreshness";
   private static final String DEFAULT_QUERY_TIMEOUT_KEY = "queryTimeout";
+  private static final String DEFAULT_CUSTOM_PARAMETERS_PREFIX = "customParams";
 
   @NonNull Config config;
   DatastoreConfigBuilder datastoreConfigBuilder;
@@ -74,7 +79,8 @@ public class TypesafeConfigDatastoreConfigExtractor {
         .poolConnectionSurrenderTimeoutKey(DEFAULT_CONNECTION_IDLE_TIME_KEY)
         .aggregationPipelineMode(DEFAULT_AGGREGATION_PIPELINE_MODE_KEY)
         .dataFreshnessKey(DEFAULT_DATA_FRESHNESS_KEY)
-        .queryTimeoutKey(DEFAULT_QUERY_TIMEOUT_KEY);
+        .queryTimeoutKey(DEFAULT_QUERY_TIMEOUT_KEY)
+        .customParametersKey(DEFAULT_CUSTOM_PARAMETERS_PREFIX);
   }
 
   public static TypesafeConfigDatastoreConfigExtractor from(
@@ -169,6 +175,27 @@ public class TypesafeConfigDatastoreConfigExtractor {
     return this;
   }
 
+  public TypesafeConfigDatastoreConfigExtractor customParametersKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      try {
+        // Try to extract parameters as an object (Config)
+        Config paramConfig = config.getConfig(key);
+        paramConfig
+            .entrySet()
+            .forEach(
+                entry -> {
+                  connectionConfigBuilder.customParameter(
+                      entry.getKey(), paramConfig.getString(entry.getKey()));
+                });
+      } catch (Exception e) {
+        // If not a Config object, log warning
+        LOGGER.warn("Custom parameters key '{}' exists but is not a config object", key);
+      }
+    }
+
+    return this;
+  }
+
   public TypesafeConfigDatastoreConfigExtractor poolMaxConnectionsKey(@NonNull final String key) {
     if (config.hasPath(key)) {
       connectionPoolConfigBuilder.maxConnections(config.getInt(key));
@@ -228,6 +255,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
             connectionConfigBuilder
                 .connectionPoolConfig(connectionPoolConfigBuilder.build())
                 .credentials(connectionCredentialsBuilder.build())
+                .customParameters(connectionConfigBuilder.customParameters())
                 .build())
         .build();
   }

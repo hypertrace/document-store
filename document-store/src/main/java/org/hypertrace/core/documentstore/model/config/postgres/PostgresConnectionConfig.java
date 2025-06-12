@@ -5,6 +5,7 @@ import static java.util.function.Predicate.not;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Properties;
 import javax.annotation.Nullable;
@@ -45,11 +46,13 @@ public class PostgresConnectionConfig extends ConnectionConfig {
       @Nullable final String database,
       @Nullable final ConnectionCredentials credentials,
       @NonNull final String applicationName,
-      @Nullable final ConnectionPoolConfig connectionPoolConfig) {
+      @Nullable final ConnectionPoolConfig connectionPoolConfig,
+      @NonNull final Map<String, String> customParameters) {
     super(
         ensureSingleEndpoint(endpoints),
         getDatabaseOrDefault(database),
-        getCredentialsOrDefault(credentials));
+        getCredentialsOrDefault(credentials),
+        customParameters);
     this.applicationName = applicationName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);
   }

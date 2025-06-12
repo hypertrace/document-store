@@ -16,6 +16,13 @@ public class FieldToPgColumnTransformer {
   }
 
   public FieldToPgColumn transform(String orgFieldName) {
+    // TODO: Forcing to map to the first class fields
+    String flatStructureCollection = postgresQueryParser.getFlatStructureCollectionName();
+    if (flatStructureCollection != null
+        && flatStructureCollection.equals(
+            postgresQueryParser.getTableIdentifier().getTableName())) {
+      return new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(orgFieldName));
+    }
     Optional<String> parentField =
         postgresQueryParser.getPgColumnNames().keySet().stream()
             .filter(orgFieldName::startsWith)

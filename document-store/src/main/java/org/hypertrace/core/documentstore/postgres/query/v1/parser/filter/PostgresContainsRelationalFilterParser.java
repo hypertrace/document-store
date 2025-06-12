@@ -6,7 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 
-class PostgresContainsRelationalFilterParser implements PostgresRelationalFilterParser {
+class PostgresContainsRelationalFilterParser
+    implements PostgresContainsRelationalFilterParserInterface {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   @Override

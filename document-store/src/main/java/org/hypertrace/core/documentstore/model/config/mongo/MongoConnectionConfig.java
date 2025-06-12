@@ -13,6 +13,7 @@ import com.mongodb.connection.ConnectionPoolSettings;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -53,14 +54,16 @@ public class MongoConnectionConfig extends ConnectionConfig {
       @Nullable final ConnectionPoolConfig connectionPoolConfig,
       @NonNull final AggregatePipelineMode aggregationPipelineMode,
       @NonNull final DataFreshness dataFreshness,
-      @NonNull final Duration queryTimeout) {
+      @NonNull final Duration queryTimeout,
+      @NonNull final Map<String, String> customParameters) {
     super(
         ensureAtLeastOneEndpoint(endpoints),
         getDatabaseOrDefault(database),
         getCredentialsOrDefault(credentials, database),
         aggregationPipelineMode,
         dataFreshness,
-        queryTimeout);
+        queryTimeout,
+        customParameters);
     this.applicationName = applicationName;
     this.replicaSetName = replicaSetName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);

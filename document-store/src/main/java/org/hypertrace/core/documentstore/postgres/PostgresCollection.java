@@ -32,6 +32,7 @@ import com.fasterxml.jackson.databind.node.TextNode;
 import com.google.common.annotations.VisibleForTesting;
 import java.io.IOException;
 import java.math.BigInteger;
+import java.sql.Array;
 import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -96,6 +97,7 @@ public class PostgresCollection implements Collection {
   private static final String CREATED_NOW_ALIAS = "created_now_alias";
   private static final CloseableIterator<Document> EMPTY_ITERATOR =
       CloseableIterator.emptyIterator();
+  private static final String FLAT_STRUCTURE_COLLECTION_KEY = "flatStructureCollection";
 
   private final PostgresClient client;
   private final PostgresTableIdentifier tableIdentifier;
@@ -492,7 +494,9 @@ public class PostgresCollection implements Collection {
   @Override
   public CloseableIterator<Document> query(
       final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
-    return queryExecutor.execute(client.getConnection(), query);
+    String flatStructureCollectionName =
+        client.getCustomParameters().get(FLAT_STRUCTURE_COLLECTION_KEY);
+    return queryExecutor.execute(client.getConnection(), query, flatStructureCollectionName);
   }
 
   @Override
@@ -1254,6 +1258,130 @@ public class PostgresCollection implements Collection {
         tableIdentifier, DOCUMENT, DOCUMENT, ID);
   }
 
+  static class PostgresResultIteratorWithBasicTypes extends PostgresResultIterator {
+
+    public PostgresResultIteratorWithBasicTypes(ResultSet resultSet) {
+      super(resultSet);
+    }
+
+    @Override
+    public Document next() {
+      try {
+        if (!cursorMovedForward) {
+          resultSet.next();
+        }
+        // reset the cursorMovedForward state, if it was forwarded in hasNext.
+        cursorMovedForward = false;
+        return prepareDocument();
+      } catch (IOException | SQLException e) {
+        System.out.println("prepare document failed!");
+        closeResultSet();
+        return JSONDocument.errorDocument(e.getMessage());
+      }
+    }
+
+    protected Document prepareDocument() throws SQLException, IOException {
+      ObjectNode jsonNode = MAPPER.createObjectNode();
+
+      // Get metadata to iterate through all columns
+      ResultSetMetaData metaData = resultSet.getMetaData();
+      int columnCount = metaData.getColumnCount();
+
+      for (int i = 1; i <= columnCount; i++) {
+        String columnName = metaData.getColumnName(i);
+        String columnType = metaData.getColumnTypeName(i);
+
+        addColumnToJsonNode(jsonNode, columnName, columnType, i);
+      }
+
+      // Remove document ID if needed
+      if (shouldRemoveDocumentId()) {
+        jsonNode.remove(DOCUMENT_ID);
+      }
+
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+    }
+
+    private void addColumnToJsonNode(
+        ObjectNode jsonNode, String columnName, String columnType, int columnIndex)
+        throws SQLException {
+      switch (columnType.toLowerCase()) {
+        case "bool":
+        case "boolean":
+          boolean boolValue = resultSet.getBoolean(columnIndex);
+          if (!resultSet.wasNull()) {
+            jsonNode.put(columnName, boolValue);
+          }
+          break;
+
+        case "int4":
+        case "integer":
+          int intValue = resultSet.getInt(columnIndex);
+          if (!resultSet.wasNull()) {
+            jsonNode.put(columnName, intValue);
+          }
+          break;
+
+        case "int8":
+        case "bigint":
+          long longValue = resultSet.getLong(columnIndex);
+          if (!resultSet.wasNull()) {
+            jsonNode.put(columnName, longValue);
+          }
+          break;
+
+        case "float8":
+        case "double":
+          double doubleValue = resultSet.getDouble(columnIndex);
+          if (!resultSet.wasNull()) {
+            jsonNode.put(columnName, doubleValue);
+          }
+          break;
+
+        case "text":
+        case "varchar":
+          String stringValue = resultSet.getString(columnIndex);
+          if (stringValue != null) {
+            jsonNode.put(columnName, stringValue);
+          }
+          break;
+
+        case "_text": // text array
+          Array array = resultSet.getArray(columnIndex);
+          if (array != null) {
+            String[] stringArray = (String[]) array.getArray();
+            ArrayNode arrayNode = MAPPER.createArrayNode();
+            for (String item : stringArray) {
+              arrayNode.add(item);
+            }
+            jsonNode.set(columnName, arrayNode);
+          }
+          break;
+
+        case "jsonb":
+        case "json":
+          String jsonString = resultSet.getString(columnIndex);
+          if (jsonString != null) {
+            try {
+              JsonNode jsonValue = MAPPER.readTree(jsonString);
+              jsonNode.set(columnName, jsonValue);
+            } catch (IOException e) {
+              // Fallback to string if JSON parsing fails
+              jsonNode.put(columnName, jsonString);
+            }
+          }
+          break;
+
+        default:
+          Object objectValue = resultSet.getObject(columnIndex);
+          if (objectValue != null) {
+            jsonNode.put(columnName, objectValue.toString());
+          }
+          break;
+      }
+    }
+  }
+
   static class PostgresResultIterator implements CloseableIterator<Document> {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
@@ -1310,7 +1438,7 @@ public class PostgresCollection implements Collection {
       String documentString = resultSet.getString(DOCUMENT);
       ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
       // internal iterators may need document id
-      if (removeDocumentId) {
+      if (shouldRemoveDocumentId()) {
         jsonNode.remove(DOCUMENT_ID);
       }
       // Add Timestamps to Document
@@ -1335,6 +1463,10 @@ public class PostgresCollection implements Collection {
     @Override
     public void close() {
       closeResultSet();
+    }
+
+    protected boolean shouldRemoveDocumentId() {
+      return removeDocumentId;
     }
   }
 
