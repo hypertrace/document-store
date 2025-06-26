@@ -29,7 +29,9 @@ public class DatastoreProvider {
           entry(DatabaseType.MONGO, MongoTypesafeDatastoreConfigAdapter::new),
           entry(DatabaseType.POSTGRES, PostgresTypesafeDatastoreConfigAdapter::new));
 
-  /** @deprecated Use {@link DatastoreProvider#getDatastore(DatastoreConfig)} instead */
+  /**
+   * @deprecated Use {@link DatastoreProvider#getDatastore(DatastoreConfig)} instead
+   */
   @Deprecated
   public static Datastore getDatastore(String type, Config config) {
     return Optional.ofNullable(type)
