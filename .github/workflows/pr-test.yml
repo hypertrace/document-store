@@ -7,11 +7,11 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       # Set fetch-depth: 0 to fetch commit history and tags for use in version calculation
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -60,7 +60,9 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           files: ./**/build/test-results/**/*.xml
   dependency-check:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Dependency Check
         uses: hypertrace/github-actions/dependency-check@main
+        with:
+          nvd-api-key: ${{ secrets.NVD_API_KEY }}
