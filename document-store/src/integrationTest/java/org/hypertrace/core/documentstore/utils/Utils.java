@@ -40,6 +40,7 @@ public class Utils {
   public static final String MONGO_LAST_UPDATE_TIME_KEY = "_lastUpdateTime";
   public static final String MONGO_LAST_UPDATED_TIME_KEY = "lastUpdatedTime";
   public static final String MONGO_CREATED_TIME_KEY = "createdTime";
+
   /** Postgres related time fields */
   public static final String POSTGRES_UPDATED_AT = "updated_at";
 

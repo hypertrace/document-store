@@ -188,7 +188,9 @@ public interface Collection {
    */
   boolean deleteAll();
 
-  /** @return the number of documents in the collection */
+  /**
+   * @return the number of documents in the collection
+   */
   long count();
 
   /**

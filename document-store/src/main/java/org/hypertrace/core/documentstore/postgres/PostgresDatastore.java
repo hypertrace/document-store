@@ -65,7 +65,9 @@ public class PostgresDatastore implements Datastore {
     }
   }
 
-  /** @return Returns Tables for a particular database */
+  /**
+   * @return Returns Tables for a particular database
+   */
   @Override
   public Set<String> listCollections() {
     //  Relevant bits of the table metadata schema:

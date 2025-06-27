@@ -8,11 +8,11 @@ on:
 
 jobs:
   publish-artifacts:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       # Set fetch-depth: 0 to fetch commit history and tags for use in version calculation
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -21,8 +21,6 @@ jobs:
         with: 
           args: publish
         env:
-          ORG_GRADLE_PROJECT_artifactory_contextUrl: ${{ secrets.ARTIFACTORY_CONTEXT_URL }}
-          ORG_GRADLE_PROJECT_artifactory_user: ${{ secrets.ARTIFACTORY_PUBLISH_USER }}
-          ORG_GRADLE_PROJECT_artifactory_password: ${{ secrets.ARTIFACTORY_PUBLISH_TOKEN }}
-
-
+          ORG_GRADLE_PROJECT_maven_repo_url: ${{ secrets.HAR_REPO_URL }}
+          ORG_GRADLE_PROJECT_maven_user: ${{ secrets.HAR_PUBLISH_USER }}
+          ORG_GRADLE_PROJECT_maven_password: ${{ secrets.HAR_PUBLISH_TOKEN }}

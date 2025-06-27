@@ -4,14 +4,14 @@ pluginManagement {
   repositories {
     mavenLocal()
     gradlePluginPortal()
-    maven("https://hypertrace.jfrog.io/artifactory/maven")
+    maven("https://us-maven.pkg.dev/hypertrace-repos/maven")
   }
 }
 
 plugins {
-  id("org.hypertrace.version-settings") version "0.2.1"
-  id("org.hypertrace.jacoco-report-plugin") version "0.2.1" apply false
-  id("org.hypertrace.integration-test-plugin") version "0.2.0" apply false
+  id("org.hypertrace.version-settings") version "0.3.0"
+  id("org.hypertrace.jacoco-report-plugin") version "0.3.0" apply false
+  id("org.hypertrace.integration-test-plugin") version "0.3.0" apply false
 }
 
 include(":document-store")
