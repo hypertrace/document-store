@@ -22,7 +22,6 @@ dependencies {
 
   testImplementation(libs.org.junit.jupiter.junit.jupiter)
   testImplementation(libs.org.mockito.mockito.core)
-  testImplementation(libs.org.mockito.mockito.inline)
   testImplementation(libs.org.mockito.mockito.junit.jupiter)
 
   integrationTestImplementation(libs.org.junit.jupiter.junit.jupiter)

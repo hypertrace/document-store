@@ -1,7 +1,7 @@
 [versions]
 org-jacoco = "0.8.8"
 org-jetbrains-kotlin = "1.7.10"
-org-mockito = "5.2.0"
+org-mockito = "5.8.0"
 org-testcontainers = "1.17.6"
 
 [libraries]
@@ -24,7 +24,6 @@ org-jetbrains-kotlin-kotlin-stdlib-jdk7 = { module = "org.jetbrains.kotlin:kotli
 org-jetbrains-kotlin-kotlin-stdlib-jdk8 = { module = "org.jetbrains.kotlin:kotlin-stdlib-jdk8", version.ref = "org-jetbrains-kotlin" }
 org-junit-jupiter-junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version = "5.9.2" }
 org-mockito-mockito-core = { module = "org.mockito:mockito-core", version.ref = "org-mockito" }
-org-mockito-mockito-inline = { module = "org.mockito:mockito-inline", version.ref = "org-mockito" }
 org-mockito-mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version.ref = "org-mockito" }
 org-mongodb-mongodb-driver-sync = { module = "org.mongodb:mongodb-driver-sync", version = "5.2.0" }
 org-postgresql = { module = "org.postgresql:postgresql", version = "42.5.5" }
