@@ -24,6 +24,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
   private static final String PRESERVE_NULL_AND_EMPTY_TABLE_QUERY_FMT =
       "%s as (SELECT * from %s %s LEFT JOIN LATERAL %s %s on TRUE)";
   private static final String UNWIND_EXP_FMT = "jsonb_array_elements(%s)";
+  private static final String UNWIND_TEXT_ARRAY_EXP_FMT = "unnest(%s)";
   private static final String UNWIND_EXP_ALIAS_FMT = "p%s(%s)";
 
   private PostgresQueryParser postgresQueryParser;
@@ -52,8 +53,16 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
     String preTable = "table" + preIndex;
     String newTable = "table" + nextIndex;
     String tableAlias = "t" + preIndex;
-    String unwindExpr = String.format(UNWIND_EXP_FMT, transformedFieldName);
     String unwindExprAlias = String.format(UNWIND_EXP_ALIAS_FMT, nextIndex, pgColumnName);
+
+    // patch if the collection has non-json fields
+    String flatStructureCollection = postgresQueryParser.getFlatStructureCollectionName();
+    String unwindExpr =
+        (flatStructureCollection != null
+                && flatStructureCollection.equals(
+                    postgresQueryParser.getTableIdentifier().getTableName()))
+            ? String.format(UNWIND_TEXT_ARRAY_EXP_FMT, transformedFieldName)
+            : String.format(UNWIND_EXP_FMT, transformedFieldName);
 
     String fmt =
         unnestExpression.isPreserveNullAndEmptyArrays()
