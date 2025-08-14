@@ -77,6 +77,7 @@ import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
+import org.hypertrace.core.documentstore.postgres.registry.PostgresColumnRegistry;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentUpdater;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.postgresql.util.PSQLException;
@@ -101,19 +102,36 @@ public class PostgresCollection implements Collection {
 
   private final PostgresClient client;
   private final PostgresTableIdentifier tableIdentifier;
+  private final PostgresColumnRegistry columnRegistry;
   private final PostgresSubDocumentUpdater subDocUpdater;
   private final PostgresQueryExecutor queryExecutor;
   private final UpdateValidator updateValidator;
 
   public PostgresCollection(final PostgresClient client, final String collectionName) {
-    this(client, PostgresTableIdentifier.parse(collectionName));
+    this(client, PostgresTableIdentifier.parse(collectionName), null);
+  }
+
+  public PostgresCollection(
+      final PostgresClient client,
+      final String collectionName,
+      final PostgresColumnRegistry columnRegistry) {
+    this(client, PostgresTableIdentifier.parse(collectionName), columnRegistry);
   }
 
   PostgresCollection(final PostgresClient client, final PostgresTableIdentifier tableIdentifier) {
+    this(client, tableIdentifier, null);
+  }
+
+  PostgresCollection(
+      final PostgresClient client,
+      final PostgresTableIdentifier tableIdentifier,
+      final PostgresColumnRegistry columnRegistry) {
     this.client = client;
     this.tableIdentifier = tableIdentifier;
+    this.columnRegistry = columnRegistry;
     this.subDocUpdater =
-        new PostgresSubDocumentUpdater(new PostgresQueryBuilder(this.tableIdentifier));
+        new PostgresSubDocumentUpdater(
+            new PostgresQueryBuilder(this.tableIdentifier, this.columnRegistry));
     this.queryExecutor = new PostgresQueryExecutor(this.tableIdentifier);
     this.updateValidator = new CommonUpdateValidator();
   }
@@ -488,7 +506,7 @@ public class PostgresCollection implements Collection {
   @Override
   public CloseableIterator<Document> find(
       final org.hypertrace.core.documentstore.query.Query query) {
-    return queryExecutor.execute(client.getConnection(), query);
+    return queryExecutor.execute(client.getConnection(), query, null, columnRegistry);
   }
 
   @Override
@@ -496,7 +514,8 @@ public class PostgresCollection implements Collection {
       final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
     String flatStructureCollectionName =
         client.getCustomParameters().get(FLAT_STRUCTURE_COLLECTION_KEY);
-    return queryExecutor.execute(client.getConnection(), query, flatStructureCollectionName);
+    return queryExecutor.execute(
+        client.getConnection(), query, flatStructureCollectionName, columnRegistry);
   }
 
   @Override
@@ -510,7 +529,7 @@ public class PostgresCollection implements Collection {
     try (final Connection connection = client.getPooledConnection()) {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-              tableIdentifier, query);
+              tableIdentifier, query, columnRegistry);
       final String selectQuery = parser.buildSelectQueryForUpdate();
 
       try (final PreparedStatement preparedStatement =
@@ -545,7 +564,7 @@ public class PostgresCollection implements Collection {
                   .build();
 
           try (final CloseableIterator<Document> iterator =
-              queryExecutor.execute(connection, findByIdQuery)) {
+              queryExecutor.execute(connection, findByIdQuery, null, columnRegistry)) {
             returnDocument = getFirstDocument(iterator).orElseThrow();
           }
         } else if (updateOptions.getReturnDocumentType() == NONE) {
@@ -1566,6 +1585,34 @@ public class PostgresCollection implements Collection {
         return Optional.of(FloatNode.valueOf(Float.valueOf(columnValue)));
       default:
         return Optional.empty();
+    }
+  }
+
+  /**
+   * Iterator that extracts clean documents from the 'document' column for queries without
+   * selections, removing the wrapper structure.
+   */
+  static class PostgresResultIteratorCleanDocument extends PostgresResultIterator {
+
+    public PostgresResultIteratorCleanDocument(ResultSet resultSet) {
+      super(resultSet, true);
+    }
+
+    @Override
+    protected Document prepareDocument() throws SQLException, IOException {
+      // For queries without selections, extract the document content directly
+      String documentString = resultSet.getString(DOCUMENT);
+      if (documentString != null) {
+        ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(documentString);
+        // Remove document ID if needed
+        if (shouldRemoveDocumentId()) {
+          jsonNode.remove(DOCUMENT_ID);
+        }
+        return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      }
+
+      // Fallback to empty document if no document column
+      return new JSONDocument("{}");
     }
   }
 }

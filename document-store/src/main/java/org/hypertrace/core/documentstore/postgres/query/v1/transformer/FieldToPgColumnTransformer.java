@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.postgres.registry.PostgresColumnRegistry;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class FieldToPgColumnTransformer {
@@ -16,11 +17,22 @@ public class FieldToPgColumnTransformer {
   }
 
   public FieldToPgColumn transform(String orgFieldName) {
-    // TODO: Forcing to map to the first class fields
-    String flatStructureCollection = postgresQueryParser.getFlatStructureCollectionName();
-    if (flatStructureCollection != null
-        && flatStructureCollection.equals(
-            postgresQueryParser.getTableIdentifier().getTableName())) {
+    // Use registry-based type resolution if available
+    PostgresColumnRegistry registry = postgresQueryParser.getColumnRegistry();
+    boolean isFirstClassField = false;
+
+    if (registry != null) {
+      isFirstClassField = registry.isFirstClassColumn(orgFieldName);
+    } else {
+      // Fallback to flatStructureCollection for backward compatibility
+      String flatStructureCollection = postgresQueryParser.getFlatStructureCollectionName();
+      isFirstClassField =
+          flatStructureCollection != null
+              && flatStructureCollection.equals(
+                  postgresQueryParser.getTableIdentifier().getTableName());
+    }
+
+    if (isFirstClassField) {
       return new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(orgFieldName));
     }
     Optional<String> parentField =
