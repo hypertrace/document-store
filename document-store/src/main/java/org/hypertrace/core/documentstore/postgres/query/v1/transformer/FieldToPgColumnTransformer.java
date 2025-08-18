@@ -16,11 +16,24 @@ public class FieldToPgColumnTransformer {
   }
 
   public FieldToPgColumn transform(String orgFieldName) {
-    // TODO: Forcing to map to the first class fields
+    // Check if field is a first-class typed column - support both old and new patterns
+    boolean isFirstClassField = false;
+
+    // NEW: Registry-based check (preferred)
+    if (postgresQueryParser.getColumnRegistry() != null
+        && postgresQueryParser.getColumnRegistry().isFirstClassColumn(orgFieldName)) {
+      isFirstClassField = true;
+    }
+
+    // OLD: flatStructureCollection check (for backward compatibility)
     String flatStructureCollection = postgresQueryParser.getFlatStructureCollectionName();
     if (flatStructureCollection != null
         && flatStructureCollection.equals(
             postgresQueryParser.getTableIdentifier().getTableName())) {
+      isFirstClassField = true;
+    }
+
+    if (isFirstClassField) {
       return new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(orgFieldName));
     }
     Optional<String> parentField =
