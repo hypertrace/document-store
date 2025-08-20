@@ -332,6 +332,7 @@ public class MongoCollection implements Collection {
     long now = System.currentTimeMillis();
     BasicDBObject insertDbObject = prepareDocument(key, document, now);
     insertDbObject.put(CREATED_TIME, now);
+    insertDbObject.put(LAST_UPDATE_TIMESTAMP_ISO_8601, new Date(now));
     return insertDbObject;
   }
 
