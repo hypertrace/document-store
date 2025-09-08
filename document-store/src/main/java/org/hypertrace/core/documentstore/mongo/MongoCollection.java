@@ -558,7 +558,28 @@ public class MongoCollection implements Collection {
       final java.util.Collection<SubDocumentUpdate> updates,
       final org.hypertrace.core.documentstore.model.options.UpdateOptions updateOptions)
       throws IOException {
-    return updateExecutor.update(query, updates, updateOptions);
+    try {
+      return updateExecutor.update(query, updates, updateOptions);
+    } catch (final MongoWriteException e) {
+      if (e.getCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE) {
+        throw new DuplicateDocumentException();
+      }
+      LOGGER.error(
+          "Exception updating document(s). query: {} updates:{} options:{}",
+          query,
+          updates,
+          updateOptions,
+          e);
+      throw new IOException(e);
+    } catch (final Exception e) {
+      LOGGER.error(
+          "Exception updating document(s). query: {} updates:{} options:{}",
+          query,
+          updates,
+          updateOptions,
+          e);
+      throw new IOException(e);
+    }
   }
 
   @Override
