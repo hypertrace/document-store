@@ -36,7 +36,7 @@ public class MongoRelationalFilterParserFactoryImpl implements MongoRelationalFi
 
       case NOT_IN:
         if (INSIDE_EXPR.equals(context.location())) {
-          return new MongoStandardExprNotInRelationalFilterParser();
+          return new MongoNotInExprRelationalFilterParser();
         } else if (OUTSIDE_EXPR.equals(context.location())) {
           return new MongoStandardNonExprRelationalFilterParser();
         } else {

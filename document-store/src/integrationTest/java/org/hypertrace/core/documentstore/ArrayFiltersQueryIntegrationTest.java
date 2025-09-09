@@ -296,6 +296,58 @@ class ArrayFiltersQueryIntegrationTest {
     JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
   }
 
+  /**
+   * Tests returning documents where environment IDs are a subset of the provided allowed
+   * environment IDs.
+   */
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  void getDocumentsWithEnvironmentIdsSubsetOfGivenList(final String dataStoreName)
+      throws JSONException, IOException {
+    // Create a temporary collection for this test
+    final String testCollectionName = "environment_scope_test";
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+
+    // Setup test data
+    final Map<Key, Document> testDocuments =
+        Utils.buildDocumentsFromResource("query/array_operators/environment_scope_test.json");
+    datastore.deleteCollection(testCollectionName);
+    datastore.createCollection(testCollectionName, null);
+    final Collection collection = datastore.getCollection(testCollectionName);
+    collection.bulkUpsert(testDocuments);
+
+    final java.util.List<String> environmentIds = java.util.List.of("env-1", "env-2", "env-3");
+
+    final Query query =
+        Query.builder()
+            .setFilter(
+                and(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("scope.environmentScope.environmentIds"),
+                        RelationalOperator.EXISTS,
+                        ConstantExpression.of(true)),
+                    not(
+                        ArrayRelationalFilterExpression.builder()
+                            .operator(ANY)
+                            .filter(
+                                RelationalExpression.of(
+                                    IdentifierExpression.of(
+                                        "scope.environmentScope.environmentIds"),
+                                    RelationalOperator.NOT_IN,
+                                    ConstantExpression.ofStrings(environmentIds)))
+                            .build())))
+            .build();
+
+    final Iterator<Document> documents = collection.aggregate(query);
+    final String expected = readResource("environment_ids_subset.json");
+    final String actual = iteratorToJson(documents);
+
+    // Cleanup
+    datastore.deleteCollection(testCollectionName);
+
+    JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
+  }
+
   private String readResource(final String fileName) {
     try {
       return new String(

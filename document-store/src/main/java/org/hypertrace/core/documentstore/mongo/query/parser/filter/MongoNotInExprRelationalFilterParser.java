@@ -10,7 +10,7 @@ import org.hypertrace.core.documentstore.mongo.query.parser.filter.MongoRelation
  * IN" functionality by combining the $not and $in operators.
  */
 @AllArgsConstructor
-public class MongoStandardExprNotInRelationalFilterParser implements MongoRelationalFilterParser {
+public class MongoNotInExprRelationalFilterParser implements MongoRelationalFilterParser {
   private static final String NOT_OP = "$not";
   private static final String IN_OP = "$in";
   private static final MongoStandardRelationalOperatorMapping mapping =
