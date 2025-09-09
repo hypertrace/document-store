@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.Collection;
@@ -24,6 +25,9 @@ import org.hypertrace.core.documentstore.metric.postgres.PostgresDocStoreMetricP
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
+import org.hypertrace.core.documentstore.postgres.registry.PostgresColumnRegistry;
+import org.hypertrace.core.documentstore.postgres.registry.PostgresColumnRegistryImpl;
+import org.hypertrace.core.documentstore.postgres.registry.PostgresColumnType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,6 +40,9 @@ public class PostgresDatastore implements Datastore {
   private final PostgresClient client;
   private final String database;
   private final DocStoreMetricProvider docStoreMetricProvider;
+
+  // Cache for PostgreSQL column registries per table
+  private final Map<String, PostgresColumnRegistry> registryCache = new ConcurrentHashMap<>();
 
   public PostgresDatastore(@NonNull final DatastoreConfig datastoreConfig) {
     final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
@@ -148,7 +155,81 @@ public class PostgresDatastore implements Datastore {
     if (!tables.contains(collectionName)) {
       createCollection(collectionName, null);
     }
-    return new PostgresCollection(client, collectionName);
+
+    // Create or get cached registry for this collection
+    PostgresColumnRegistry registry = createOrGetRegistry(collectionName);
+
+    return new PostgresCollection(client, collectionName, registry);
+  }
+
+  /**
+   * Creates or retrieves a cached PostgresColumnRegistry for the specified collection. The registry
+   * is cached to avoid repeated database schema queries.
+   *
+   * @param collectionName the collection name to create/get registry for
+   * @return the PostgresColumnRegistry for the collection
+   */
+  private PostgresColumnRegistry createOrGetRegistry(String collectionName) {
+    return registryCache.computeIfAbsent(
+        collectionName,
+        tableName -> {
+          try {
+            PostgresColumnRegistry registry =
+                new PostgresColumnRegistryImpl(client.getConnection(), tableName);
+
+            LOGGER.debug(
+                "Created PostgresColumnRegistry for collection '{}' with {} first-class columns",
+                tableName,
+                registry.getAllFirstClassColumns().size());
+
+            return registry;
+          } catch (SQLException e) {
+            LOGGER.warn(
+                "Failed to create PostgresColumnRegistry for collection '{}': {}. "
+                    + "Falling back to JSONB-only behavior.",
+                tableName,
+                e.getMessage());
+
+            // Return an empty registry that treats all fields as JSONB
+            return createEmptyRegistry(tableName);
+          }
+        });
+  }
+
+  /**
+   * Creates an empty registry that treats all fields as JSONB fields. This is used as a fallback
+   * when registry creation fails.
+   *
+   * @param tableName the table name
+   * @return an empty registry
+   */
+  private PostgresColumnRegistry createEmptyRegistry(String tableName) {
+    return new PostgresColumnRegistry() {
+      @Override
+      public boolean isFirstClassColumn(String fieldName) {
+        return false; // All fields are treated as JSONB
+      }
+
+      @Override
+      public Optional<PostgresColumnType> getColumnType(String fieldName) {
+        return Optional.empty();
+      }
+
+      @Override
+      public Optional<String> getColumnName(String fieldName) {
+        return Optional.empty();
+      }
+
+      @Override
+      public Set<String> getAllFirstClassColumns() {
+        return Set.of(); // No first-class columns
+      }
+
+      @Override
+      public String getTableName() {
+        return tableName;
+      }
+    };
   }
 
   @Override

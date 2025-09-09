@@ -19,6 +19,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresGroup
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSortTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresUnnestFilterTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.registry.PostgresColumnRegistry;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 
@@ -29,6 +30,7 @@ public class PostgresQueryParser {
   @Getter private final PostgresTableIdentifier tableIdentifier;
   @Getter private final Query query;
   @Getter private final String flatStructureCollectionName;
+  @Getter private final PostgresColumnRegistry columnRegistry;
 
   @Setter String finalTableName;
   @Getter private final Builder paramsBuilder = Params.newBuilder();
@@ -47,15 +49,29 @@ public class PostgresQueryParser {
 
   public PostgresQueryParser(
       PostgresTableIdentifier tableIdentifier, Query query, String flatStructureCollectionName) {
+    this(tableIdentifier, query, flatStructureCollectionName, null);
+  }
+
+  public PostgresQueryParser(
+      PostgresTableIdentifier tableIdentifier,
+      Query query,
+      String flatStructureCollectionName,
+      PostgresColumnRegistry columnRegistry) {
     this.tableIdentifier = tableIdentifier;
     this.query = query;
     this.flatStructureCollectionName = flatStructureCollectionName;
+    this.columnRegistry = columnRegistry;
     this.finalTableName = tableIdentifier.toString();
     toPgColumnTransformer = new FieldToPgColumnTransformer(this);
   }
 
   public PostgresQueryParser(PostgresTableIdentifier tableIdentifier, Query query) {
-    this(tableIdentifier, query, null);
+    this(tableIdentifier, query, null, null);
+  }
+
+  public PostgresQueryParser(
+      PostgresTableIdentifier tableIdentifier, Query query, PostgresColumnRegistry columnRegistry) {
+    this(tableIdentifier, query, null, columnRegistry);
   }
 
   public String parse() {

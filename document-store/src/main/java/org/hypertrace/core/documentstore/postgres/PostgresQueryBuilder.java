@@ -21,6 +21,7 @@ import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.postgres.registry.PostgresColumnRegistry;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddToListIfAbsentParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddValueParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAppendToListParser;
@@ -44,12 +45,14 @@ public class PostgresQueryBuilder {
           entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
 
   @Getter private final PostgresTableIdentifier tableIdentifier;
+  private final PostgresColumnRegistry columnRegistry;
 
   public String getSubDocUpdateQuery(
       final Query query,
       final Collection<SubDocumentUpdate> updates,
       final Params.Builder paramBuilder) {
-    final PostgresQueryParser baseQueryParser = new PostgresQueryParser(tableIdentifier, query);
+    final PostgresQueryParser baseQueryParser =
+        new PostgresQueryParser(tableIdentifier, query, columnRegistry);
     String selectQuery =
         String.format(
             "(SELECT %s, %s FROM %s AS t0 %s)",
