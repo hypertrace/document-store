@@ -5,6 +5,6 @@ public interface Document {
   String toJson();
 
   default DocumentType getDocumentType() {
-    return null;
+    return DocumentType.DOCUMENT_STORE;
   }
 }
