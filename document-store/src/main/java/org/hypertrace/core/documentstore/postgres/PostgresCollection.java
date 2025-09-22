@@ -61,6 +61,7 @@ import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
@@ -879,7 +880,7 @@ public class PostgresCollection implements Collection {
       if (docRoot.isObject()) {
         ((ObjectNode) docRoot).put(DocStoreConstants.LAST_UPDATED_TIME, System.currentTimeMillis());
       }
-      upsertMap.put(Key.from(id), new JSONDocument(docRoot));
+      upsertMap.put(Key.from(id), JSONDocument.fromJsonNode(docRoot, DocumentType.SQL_STORE));
     }
     return upsertDocs(upsertMap);
   }
@@ -908,7 +909,7 @@ public class PostgresCollection implements Collection {
       candidateArray.removeAll();
       candidateArray.addAll(existingItems);
       String id = docRoot.findValue(DOCUMENT_ID).asText();
-      upsertMap.put(Key.from(id), new JSONDocument(docRoot));
+      upsertMap.put(Key.from(id), JSONDocument.fromJsonNode(docRoot, DocumentType.SQL_STORE));
     }
     return upsertDocs(upsertMap);
   }
@@ -933,7 +934,7 @@ public class PostgresCollection implements Collection {
       if (docRoot.isObject()) {
         ((ObjectNode) docRoot).put(DocStoreConstants.LAST_UPDATED_TIME, System.currentTimeMillis());
       }
-      upsertMap.put(Key.from(id), new JSONDocument(docRoot));
+      upsertMap.put(Key.from(id), JSONDocument.fromJsonNode(docRoot, DocumentType.SQL_STORE));
     }
     return upsertDocs(upsertMap);
   }
@@ -1276,7 +1277,7 @@ public class PostgresCollection implements Collection {
       } catch (IOException | SQLException e) {
         System.out.println("prepare document failed!");
         closeResultSet();
-        return JSONDocument.errorDocument(e.getMessage());
+        return JSONDocument.errorDocument(e.getMessage(), DocumentType.SQL_STORE);
       }
     }
 
@@ -1299,7 +1300,7 @@ public class PostgresCollection implements Collection {
         jsonNode.remove(DOCUMENT_ID);
       }
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      return JSONDocument.fromJson(MAPPER.writeValueAsString(jsonNode), DocumentType.SQL_STORE);
     }
 
     private void addColumnToJsonNode(
@@ -1430,7 +1431,7 @@ public class PostgresCollection implements Collection {
         return prepareDocument();
       } catch (IOException | SQLException e) {
         closeResultSet();
-        return JSONDocument.errorDocument(e.getMessage());
+        return JSONDocument.errorDocument(e.getMessage(), DocumentType.SQL_STORE);
       }
     }
 
@@ -1447,7 +1448,7 @@ public class PostgresCollection implements Collection {
       jsonNode.put(CREATED_AT, String.valueOf(createdAt));
       jsonNode.put(UPDATED_AT, String.valueOf(updatedAt));
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      return JSONDocument.fromJson(MAPPER.writeValueAsString(jsonNode), DocumentType.SQL_STORE);
     }
 
     protected void closeResultSet() {
@@ -1508,7 +1509,7 @@ public class PostgresCollection implements Collection {
           }
         }
       }
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      return JSONDocument.fromJson(MAPPER.writeValueAsString(jsonNode), DocumentType.SQL_STORE);
     }
 
     private String getColumnValue(

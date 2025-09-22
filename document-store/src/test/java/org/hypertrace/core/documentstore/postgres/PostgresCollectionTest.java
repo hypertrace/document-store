@@ -59,6 +59,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class PostgresCollectionTest {
+
   private static final String COLLECTION_NAME = "test_collection";
   private static final long currentTime = 1658956123L;
 
@@ -84,7 +85,7 @@ class PostgresCollectionTest {
   @Test
   void testCreateOrReplace() throws Exception {
     final Key key = Key.from("some_key");
-    final Document document = new JSONDocument("{\"planet\": \"Mars\"}");
+    final Document document = JSONDocument.fromJson("{\"planet\": \"Mars\"}");
 
     when(mockClient.getConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(
@@ -923,7 +924,7 @@ class PostgresCollectionTest {
     final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
     final SubDocumentUpdate propsUpdate =
         SubDocumentUpdate.of(
-            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
+            "props", SubDocumentValue.of(JSONDocument.fromJson("{\"brand\": \"Dettol\"}")));
     return List.of(dateUpdate, quantityUpdate, propsUpdate);
   }
 
