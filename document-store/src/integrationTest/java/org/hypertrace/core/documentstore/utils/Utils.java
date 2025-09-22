@@ -27,6 +27,7 @@ import org.hypertrace.core.documentstore.mongo.MongoCollection;
 import org.testcontainers.shaded.org.apache.commons.io.IOUtils;
 
 public class Utils {
+
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   public static final String MONGO_STORE = "Mongo";
@@ -62,13 +63,13 @@ public class Utils {
         objectNode.putPOJO(pairs[i].getLeft(), pairs[i].getRight());
       }
     }
-    return new JSONDocument(objectNode);
+    return JSONDocument.fromJsonNode(objectNode);
   }
 
   public static Document createDocument(String key, String value) {
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
     objectNode.put(key, value);
-    return new JSONDocument(objectNode);
+    return JSONDocument.fromJsonNode(objectNode);
   }
 
   public static Document createDocument(String... keys) {
@@ -76,7 +77,7 @@ public class Utils {
     for (int i = 0; i < keys.length - 1; i++) {
       objectNode.put(keys[i], keys[i + 1]);
     }
-    return new JSONDocument(objectNode);
+    return JSONDocument.fromJsonNode(objectNode);
   }
 
   public static Optional<String> readFileFromResource(String filePath) throws IOException {
@@ -135,7 +136,7 @@ public class Utils {
     Map<Key, Document> documentMap = new HashMap<>();
     for (Map<String, Object> map : maps) {
       Key key = new SingleValueKey(TENANT_ID, map.get(MongoCollection.ID_KEY).toString());
-      Document value = new JSONDocument(map);
+      Document value = JSONDocument.fromObject(map);
       documentMap.put(key, value);
     }
 
