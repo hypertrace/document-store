@@ -13,6 +13,7 @@ import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.model.config.CustomMetricConfig;
@@ -91,7 +92,19 @@ class BaseDocumentStoreMetricProviderImplTest {
     void queryReturnsInvalidJson_returnsEmptyList() {
       when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
-      when(mockIterator.next()).thenReturn(() -> "invalid-json");
+      when(mockIterator.next())
+          .thenReturn(
+              new Document() {
+                @Override
+                public String toJson() {
+                  return "invalid-json";
+                }
+
+                @Override
+                public DocumentType getDocumentType() {
+                  return null;
+                }
+              });
       final List<DocStoreMetric> result =
           baseDocStoreMetricProvider.getCustomMetrics(customMetricConfig);
       assertEquals(emptyList(), result);
@@ -101,7 +114,7 @@ class BaseDocumentStoreMetricProviderImplTest {
     void queryReturnsDocumentWithMissingValue_returnsEmptyList() throws IOException {
       when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
-      when(mockIterator.next()).thenReturn(new JSONDocument(Map.of("label1", "l1value")));
+      when(mockIterator.next()).thenReturn(JSONDocument.fromObject(Map.of("label1", "l1value")));
       final List<DocStoreMetric> result =
           baseDocStoreMetricProvider.getCustomMetrics(customMetricConfig);
       assertEquals(emptyList(), result);
@@ -113,11 +126,22 @@ class BaseDocumentStoreMetricProviderImplTest {
       when(mockIterator.hasNext()).thenReturn(true, true, true, true, true, false);
       when(mockIterator.next())
           .thenReturn(
-              () -> "invalid-json",
-              new JSONDocument(Map.of("label1", "l1value", "label2", "l2value", "metric_value", 1)),
-              new JSONDocument(Map.of("label1", "l1value")),
-              new JSONDocument(Map.of("label1", "l2value", "metric_value", 2)),
-              new JSONDocument(Map.of("label1", "l2value", "metric_value", 3)));
+              new Document() {
+                @Override
+                public String toJson() {
+                  return "invalid-json";
+                }
+
+                @Override
+                public DocumentType getDocumentType() {
+                  return null;
+                }
+              },
+              JSONDocument.fromObject(
+                  Map.of("label1", "l1value", "label2", "l2value", "metric_value", 1)),
+              JSONDocument.fromObject(Map.of("label1", "l1value")),
+              JSONDocument.fromObject(Map.of("label1", "l2value", "metric_value", 2)),
+              JSONDocument.fromObject(Map.of("label1", "l2value", "metric_value", 3)));
       final List<DocStoreMetric> expected =
           List.of(
               DocStoreMetric.builder()

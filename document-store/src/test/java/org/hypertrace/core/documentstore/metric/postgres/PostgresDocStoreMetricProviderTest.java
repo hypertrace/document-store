@@ -14,6 +14,7 @@ import java.util.Map;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
@@ -46,12 +47,9 @@ class PostgresDocStoreMetricProviderTest {
       (PostgresConnectionConfig)
           PostgresConnectionConfig.builder().applicationName(postgresClientAppName).build();
 
-  @Mock
-  private PostgresDatastore mockDatastore;
-  @Mock
-  private Collection mockCollection;
-  @Mock
-  private CloseableIterator<Document> mockIterator;
+  @Mock private PostgresDatastore mockDatastore;
+  @Mock private Collection mockCollection;
+  @Mock private CloseableIterator<Document> mockIterator;
 
   private PostgresDocStoreMetricProvider postgresDocStoreMetricProvider;
 
@@ -111,7 +109,19 @@ class PostgresDocStoreMetricProviderTest {
     void withInvalidJson_returnsDefaultMetric() {
       when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
-      when(mockIterator.next()).thenReturn(() -> "invalid-json");
+      when(mockIterator.next())
+          .thenReturn(
+              new Document() {
+                @Override
+                public String toJson() {
+                  return "invalid-json";
+                }
+
+                @Override
+                public DocumentType getDocumentType() {
+                  return null;
+                }
+              });
       final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
@@ -135,7 +145,17 @@ class PostgresDocStoreMetricProviderTest {
       when(mockIterator.hasNext()).thenReturn(true, true, true, false);
       when(mockIterator.next())
           .thenReturn(
-              () -> "invalid-json",
+              new Document() {
+                @Override
+                public String toJson() {
+                  return "invalid-json";
+                }
+
+                @Override
+                public DocumentType getDocumentType() {
+                  return null;
+                }
+              },
               JSONDocument.fromObject(Map.of("value_missing", postgresClientAppName)),
               JSONDocument.fromObject(
                   Map.of("application_name", postgresClientAppName, "metric_value", 1)));
