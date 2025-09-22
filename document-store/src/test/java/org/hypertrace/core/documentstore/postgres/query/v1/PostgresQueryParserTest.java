@@ -1333,7 +1333,7 @@ public class PostgresQueryParserTest {
                 RelationalExpression.of(
                     IdentifierExpression.of("sales"),
                     CONTAINS,
-                    ConstantExpression.of(JSONDocument.fromJson("\"a\""))))
+                    ConstantExpression.of(new JSONDocument("\"a\""))))
             .build();
     PostgresQueryParser postgresQueryParser =
         new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
@@ -1359,7 +1359,7 @@ public class PostgresQueryParserTest {
                             IdentifierExpression.of("sales.medium"),
                             CONTAINS,
                             ConstantExpression.of(
-                                JSONDocument.fromJson("{\"type\": \"retail\",\"volume\": 500}"))))
+                                new JSONDocument("{\"type\": \"retail\",\"volume\": 500}"))))
                     .build())
             .build();
 
@@ -1394,7 +1394,7 @@ public class PostgresQueryParserTest {
                             IdentifierExpression.of("sales.medium"),
                             NOT_CONTAINS,
                             ConstantExpression.of(
-                                JSONDocument.fromJson("{\"type\": \"retail\",\"volume\": 500}"))))
+                                new JSONDocument("{\"type\": \"retail\",\"volume\": 500}"))))
                     .build())
             .build();
 

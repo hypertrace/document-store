@@ -46,12 +46,9 @@ class PostgresDocStoreMetricProviderTest {
       (PostgresConnectionConfig)
           PostgresConnectionConfig.builder().applicationName(postgresClientAppName).build();
 
-  @Mock
-  private PostgresDatastore mockDatastore;
-  @Mock
-  private Collection mockCollection;
-  @Mock
-  private CloseableIterator<Document> mockIterator;
+  @Mock private PostgresDatastore mockDatastore;
+  @Mock private Collection mockCollection;
+  @Mock private CloseableIterator<Document> mockIterator;
 
   private PostgresDocStoreMetricProvider postgresDocStoreMetricProvider;
 
@@ -95,7 +92,7 @@ class PostgresDocStoreMetricProviderTest {
       when(mockCollection.query(query, queryOptions)).thenReturn(mockIterator);
       when(mockIterator.hasNext()).thenReturn(true, false);
       when(mockIterator.next())
-          .thenReturn(JSONDocument.fromObject(Map.of("application_name", postgresClientAppName)));
+          .thenReturn(new JSONDocument(Map.of("application_name", postgresClientAppName)));
       final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
     }
@@ -122,7 +119,7 @@ class PostgresDocStoreMetricProviderTest {
       when(mockIterator.hasNext()).thenReturn(true, true, false);
       when(mockIterator.next())
           .thenReturn(
-              JSONDocument.fromObject(
+              new JSONDocument(
                   Map.of("application_name", postgresClientAppName, "metric_value", 1)));
       final DocStoreMetric result = postgresDocStoreMetricProvider.getConnectionCountMetric();
       assertEquals(defaultMetric, result);
@@ -136,8 +133,8 @@ class PostgresDocStoreMetricProviderTest {
       when(mockIterator.next())
           .thenReturn(
               () -> "invalid-json",
-              JSONDocument.fromObject(Map.of("value_missing", postgresClientAppName)),
-              JSONDocument.fromObject(
+              new JSONDocument(Map.of("value_missing", postgresClientAppName)),
+              new JSONDocument(
                   Map.of("application_name", postgresClientAppName, "metric_value", 1)));
       final DocStoreMetric expected =
           DocStoreMetric.builder()
@@ -155,7 +152,7 @@ class PostgresDocStoreMetricProviderTest {
       when(mockIterator.hasNext()).thenReturn(true, false);
       when(mockIterator.next())
           .thenReturn(
-              JSONDocument.fromObject(
+              new JSONDocument(
                   Map.of("application_name", postgresClientAppName, "metric_value", 1)));
       final DocStoreMetric expected =
           DocStoreMetric.builder()

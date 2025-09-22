@@ -215,7 +215,7 @@ public class MongoCollectionTest {
     @Test
     void testCreateOrReplace() throws IOException {
       final Key key = Key.from("some-key");
-      final Document document = JSONDocument.fromJson("{\"planet\": \"Mars\"}");
+      final Document document = new JSONDocument("{\"planet\": \"Mars\"}");
       @SuppressWarnings("unchecked")
       final ArgumentCaptor<List<BasicDBObject>> valueCaptor = ArgumentCaptor.forClass(List.class);
 
@@ -263,7 +263,7 @@ public class MongoCollectionTest {
     private final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
     private final SubDocumentUpdate propsUpdate =
         SubDocumentUpdate.of(
-            "props", SubDocumentValue.of(JSONDocument.fromJson("{\"brand\": \"Dettol\"}")));
+            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
     private final BasicDBObject setObject =
         readBasicDBObject("atomic_read_and_update/set_object.json");
     private final BasicDBObject selections =
@@ -370,7 +370,7 @@ public class MongoCollectionTest {
     private final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
     private final SubDocumentUpdate propsUpdate =
         SubDocumentUpdate.of(
-            "props", SubDocumentValue.of(JSONDocument.fromJson("{\"brand\": \"Dettol\"}")));
+            "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
     private final BasicDBObject setObject =
         readBasicDBObject("atomic_read_and_update/set_object.json");
     private final BasicDBObject selections =
