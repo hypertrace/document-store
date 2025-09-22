@@ -33,7 +33,7 @@ public class TestUtil {
   }
 
   public static Document readDocument(final String filePath) throws IOException {
-    return new JSONDocument(readFileFromResource(filePath).orElseThrow());
+    return JSONDocument.fromJson(readFileFromResource(filePath).orElseThrow());
   }
 
   @SuppressWarnings("unchecked")
