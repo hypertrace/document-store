@@ -125,7 +125,7 @@ public class MongoDocStoreTest {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
     objectNode.put("foo1", "bar1");
-    Document document = JSONDocument.fromObject(objectNode);
+    Document document = new JSONDocument(objectNode);
     Document persistedDocument =
         collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
 
@@ -140,7 +140,7 @@ public class MongoDocStoreTest {
 
     objectNode = OBJECT_MAPPER.createObjectNode();
     objectNode.put("foo2", "bar2");
-    document = JSONDocument.fromObject(objectNode);
+    document = new JSONDocument(objectNode);
 
     // Upsert again and verify that createdTime does not change, while lastUpdatedTime
     // has changed and values have merged
@@ -161,7 +161,7 @@ public class MongoDocStoreTest {
     Collection collection = datastore.getCollection(COLLECTION_NAME);
     ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
     objectNode.put("foo1", "bar1");
-    Document document = JSONDocument.fromObject(objectNode);
+    Document document = new JSONDocument(objectNode);
     collection.bulkUpsert(Map.of(new SingleValueKey("default", "testKey"), document));
 
     Query query = new Query();

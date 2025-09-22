@@ -36,7 +36,6 @@ import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
 
 @Slf4j
 public class PostgresUtils {
-
   public static final String JSON_FIELD_ACCESSOR = "->";
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String QUESTION_MARK = "?";
@@ -134,9 +133,8 @@ public class PostgresUtils {
   public static String prepareCastForFieldAccessor(String field, Object value) {
     String fmt = "CAST (%s AS %s)";
     Type type = getType(value);
-    if (type.equals(Type.STRING) || type.equals(Type.STRING_ARRAY)) {
+    if (type.equals(Type.STRING) || type.equals(Type.STRING_ARRAY))
       return String.format(fmt, field, "TEXT");
-    }
     return prepareCast(field, type);
   }
 
@@ -589,8 +587,7 @@ public class PostgresUtils {
         new ObjectMapper()
             .readValue(document.toJson(), new TypeReference<Map<String, Object>>() {});
     final String id = String.valueOf(requireNonNull(map.remove(IMPLICIT_ID)));
-    final Document documentWithoutId =
-        JSONDocument.fromJson(new ObjectMapper().writeValueAsString(map));
+    final Document documentWithoutId = new JSONDocument(new ObjectMapper().writeValueAsString(map));
     return new DocumentAndId(documentWithoutId, id);
   }
 
