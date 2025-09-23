@@ -560,8 +560,8 @@ public class MongoCollection implements Collection {
       throws IOException {
     try {
       return updateExecutor.update(query, updates, updateOptions);
-    } catch (final MongoWriteException e) {
-      if (e.getCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE) {
+    } catch (final MongoCommandException | MongoWriteException e1) {
+      if (e1.getCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE) {
         throw new DuplicateDocumentException();
       }
       LOGGER.error(
@@ -569,8 +569,8 @@ public class MongoCollection implements Collection {
           query,
           updates,
           updateOptions,
-          e);
-      throw new IOException(e);
+          e1);
+      throw new IOException(e1);
     } catch (final Exception e) {
       LOGGER.error(
           "Exception updating document(s). query: {} updates:{} options:{}",
