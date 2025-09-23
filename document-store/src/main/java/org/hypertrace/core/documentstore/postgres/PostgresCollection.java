@@ -1277,7 +1277,7 @@ public class PostgresCollection implements Collection {
       } catch (IOException | SQLException e) {
         System.out.println("prepare document failed!");
         closeResultSet();
-        return JSONDocument.errorDocument(e.getMessage(), DocumentType.SQL_STORE);
+        return JSONDocument.errorDocument(e.getMessage(), DocumentType.FLAT);
       }
     }
 
@@ -1300,7 +1300,7 @@ public class PostgresCollection implements Collection {
         jsonNode.remove(DOCUMENT_ID);
       }
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), DocumentType.SQL_STORE);
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), DocumentType.FLAT);
     }
 
     private void addColumnToJsonNode(
@@ -1431,7 +1431,7 @@ public class PostgresCollection implements Collection {
         return prepareDocument();
       } catch (IOException | SQLException e) {
         closeResultSet();
-        return JSONDocument.errorDocument(e.getMessage(), DocumentType.SQL_STORE);
+        return JSONDocument.errorDocument(e.getMessage(), DocumentType.FLAT);
       }
     }
 
@@ -1448,7 +1448,7 @@ public class PostgresCollection implements Collection {
       jsonNode.put(CREATED_AT, String.valueOf(createdAt));
       jsonNode.put(UPDATED_AT, String.valueOf(updatedAt));
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), DocumentType.SQL_STORE);
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), DocumentType.FLAT);
     }
 
     protected void closeResultSet() {
@@ -1509,7 +1509,7 @@ public class PostgresCollection implements Collection {
           }
         }
       }
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), DocumentType.SQL_STORE);
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), DocumentType.FLAT);
     }
 
     private String getColumnValue(

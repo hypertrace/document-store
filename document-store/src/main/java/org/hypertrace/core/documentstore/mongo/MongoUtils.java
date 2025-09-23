@@ -29,12 +29,10 @@ import java.util.function.UnaryOperator;
 import org.bson.json.JsonMode;
 import org.bson.json.JsonWriterSettings;
 import org.hypertrace.core.documentstore.Document;
-import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 
 public final class MongoUtils {
-
   public static final String FIELD_SEPARATOR = ".";
   public static final String PREFIX = "$";
   private static final String LITERAL = PREFIX + "literal";
@@ -139,10 +137,10 @@ public final class MongoUtils {
       jsonString = dbObject.toJson(relaxed);
       JsonNode jsonNode = MAPPER.readTree(jsonString);
       JsonNode decodedJsonNode = recursiveClone(jsonNode, MongoUtils::decodeKey, identity());
-      return new JSONDocument(decodedJsonNode, DocumentType.DOCUMENT_STORE);
+      return new JSONDocument(decodedJsonNode);
     } catch (IOException e) {
       // throwing exception is not very useful here.
-      return JSONDocument.errorDocument(e.getMessage(), DocumentType.DOCUMENT_STORE);
+      return JSONDocument.errorDocument(e.getMessage());
     }
   }
 

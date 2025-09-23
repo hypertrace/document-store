@@ -11,7 +11,7 @@ public class JSONDocument implements Document {
 
   private static ObjectMapper mapper = new ObjectMapper();
   private JsonNode node;
-  private DocumentType documentType;
+  private DocumentType documentType = DocumentType.NESTED;
 
   public JSONDocument(String json) throws IOException {
     node = mapper.readTree(json);
