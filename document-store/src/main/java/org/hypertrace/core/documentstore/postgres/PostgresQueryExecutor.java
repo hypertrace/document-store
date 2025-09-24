@@ -10,6 +10,7 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.postgres.PostgresCollection.PostgresResultIterator;
 import org.hypertrace.core.documentstore.postgres.PostgresCollection.PostgresResultIteratorWithMetaData;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
@@ -18,6 +19,7 @@ import org.hypertrace.core.documentstore.query.Query;
 @Slf4j
 @AllArgsConstructor
 public class PostgresQueryExecutor {
+
   private final PostgresTableIdentifier tableIdentifier;
 
   public CloseableIterator<Document> execute(final Connection connection, final Query query) {
@@ -37,7 +39,8 @@ public class PostgresQueryExecutor {
       final ResultSet resultSet = preparedStatement.executeQuery();
 
       if ((tableIdentifier.getTableName().equals(flatStructureCollectionName))) {
-        return new PostgresCollection.PostgresResultIteratorWithBasicTypes(resultSet);
+        return new PostgresCollection.PostgresResultIteratorWithBasicTypes(
+            resultSet, DocumentType.FLAT);
       }
       return query.getSelections().size() > 0
           ? new PostgresResultIteratorWithMetaData(resultSet)

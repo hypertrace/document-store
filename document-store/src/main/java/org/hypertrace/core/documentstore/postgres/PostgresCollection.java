@@ -1265,6 +1265,10 @@ public class PostgresCollection implements Collection {
       super(resultSet);
     }
 
+    public PostgresResultIteratorWithBasicTypes(ResultSet resultSet, DocumentType documentType) {
+      super(resultSet, documentType);
+    }
+
     @Override
     public Document next() {
       try {
@@ -1277,7 +1281,7 @@ public class PostgresCollection implements Collection {
       } catch (IOException | SQLException e) {
         System.out.println("prepare document failed!");
         closeResultSet();
-        return JSONDocument.errorDocument(e.getMessage(), DocumentType.FLAT);
+        return JSONDocument.errorDocument(e.getMessage());
       }
     }
 
@@ -1300,7 +1304,7 @@ public class PostgresCollection implements Collection {
         jsonNode.remove(DOCUMENT_ID);
       }
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), DocumentType.FLAT);
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), documentType);
     }
 
     private void addColumnToJsonNode(
@@ -1387,17 +1391,29 @@ public class PostgresCollection implements Collection {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
     protected ResultSet resultSet;
-    private final boolean removeDocumentId;
     protected boolean cursorMovedForward = false;
     protected boolean hasNext = false;
+
+    private final boolean removeDocumentId;
+    protected DocumentType documentType;
 
     public PostgresResultIterator(ResultSet resultSet) {
       this(resultSet, true);
     }
 
     PostgresResultIterator(ResultSet resultSet, boolean removeDocumentId) {
+      this(resultSet, removeDocumentId, DocumentType.NESTED);
+    }
+
+    public PostgresResultIterator(ResultSet resultSet, DocumentType documentType) {
+      this(resultSet, true, documentType);
+    }
+
+    PostgresResultIterator(
+        ResultSet resultSet, boolean removeDocumentId, DocumentType documentType) {
       this.resultSet = resultSet;
       this.removeDocumentId = removeDocumentId;
+      this.documentType = documentType;
     }
 
     @Override
@@ -1431,7 +1447,7 @@ public class PostgresCollection implements Collection {
         return prepareDocument();
       } catch (IOException | SQLException e) {
         closeResultSet();
-        return JSONDocument.errorDocument(e.getMessage(), DocumentType.FLAT);
+        return JSONDocument.errorDocument(e.getMessage());
       }
     }
 
@@ -1448,7 +1464,7 @@ public class PostgresCollection implements Collection {
       jsonNode.put(CREATED_AT, String.valueOf(createdAt));
       jsonNode.put(UPDATED_AT, String.valueOf(updatedAt));
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), DocumentType.FLAT);
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), documentType);
     }
 
     protected void closeResultSet() {
@@ -1509,7 +1525,7 @@ public class PostgresCollection implements Collection {
           }
         }
       }
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), DocumentType.FLAT);
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), documentType);
     }
 
     private String getColumnValue(

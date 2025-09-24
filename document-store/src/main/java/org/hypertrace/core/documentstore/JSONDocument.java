@@ -60,12 +60,6 @@ public class JSONDocument implements Document {
     return new JSONDocument(objectNode);
   }
 
-  public static JSONDocument errorDocument(String message, DocumentType documentType) {
-    ObjectNode objectNode = mapper.createObjectNode();
-    objectNode.put("errorMessage", message);
-    return new JSONDocument(objectNode, documentType);
-  }
-
   @Override
   public String toString() {
     return toJson();
