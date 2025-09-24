@@ -75,6 +75,6 @@ public class JSONDocument implements Document {
     }
 
     JSONDocument other = (JSONDocument) obj;
-    return Objects.equals(node, other.node);
+    return Objects.equals(node, other.node) && documentType == other.documentType;
   }
 }

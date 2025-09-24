@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.postgres;
 import static java.sql.Types.INTEGER;
 import static java.sql.Types.VARCHAR;
 import static java.util.Collections.emptyList;
+import static org.bson.assertions.Assertions.assertNotNull;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
@@ -25,6 +26,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
 import java.io.IOException;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -36,6 +38,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
@@ -186,6 +189,7 @@ class PostgresCollectionTest {
 
     assertTrue(oldDocument.isPresent());
     assertEquals(document, oldDocument.get());
+    assertEquals(DocumentType.NESTED, document.getDocumentType());
 
     verify(mockClient, times(1)).getPooledConnection();
     verify(mockConnection, times(1)).prepareStatement(selectQuery);
@@ -935,6 +939,127 @@ class PostgresCollectionTest {
     when(mockResultSetMetaData.getColumnName(5)).thenReturn("_implicit_id");
     when(mockResultSetMetaData.getColumnType(5)).thenReturn(VARCHAR);
     when(mockResultSet.getString(5)).thenReturn(id);
+  }
+
+  @Test
+  void testPostgresResultIteratorWithBasicTypesUsage() throws SQLException, IOException {
+    // Test that PostgresResultIteratorWithBasicTypes can handle various column types
+    when(mockResultSet.next()).thenReturn(true, false);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    when(mockResultSetMetaData.getColumnCount()).thenReturn(6);
+
+    // Setup different column types to test the addColumnToJsonNode method
+    when(mockResultSetMetaData.getColumnName(1)).thenReturn("boolean_field");
+    when(mockResultSetMetaData.getColumnTypeName(1)).thenReturn("bool");
+    when(mockResultSet.getBoolean(1)).thenReturn(true);
+    when(mockResultSet.wasNull()).thenReturn(false);
+
+    when(mockResultSetMetaData.getColumnName(2)).thenReturn("integer_field");
+    when(mockResultSetMetaData.getColumnTypeName(2)).thenReturn("int4");
+    when(mockResultSet.getInt(2)).thenReturn(42);
+
+    when(mockResultSetMetaData.getColumnName(3)).thenReturn("bigint_field");
+    when(mockResultSetMetaData.getColumnTypeName(3)).thenReturn("int8");
+    when(mockResultSet.getLong(3)).thenReturn(123456789L);
+
+    when(mockResultSetMetaData.getColumnName(4)).thenReturn("double_field");
+    when(mockResultSetMetaData.getColumnTypeName(4)).thenReturn("float8");
+    when(mockResultSet.getDouble(4)).thenReturn(3.14159);
+
+    when(mockResultSetMetaData.getColumnName(5)).thenReturn("text_field");
+    when(mockResultSetMetaData.getColumnTypeName(5)).thenReturn("text");
+    when(mockResultSet.getString(5)).thenReturn("sample text");
+
+    when(mockResultSetMetaData.getColumnName(6)).thenReturn("jsonb_field");
+    when(mockResultSetMetaData.getColumnTypeName(6)).thenReturn("jsonb");
+    when(mockResultSet.getString(6)).thenReturn("{\"nested\":\"value\"}");
+
+    // Create and test the iterator directly
+    PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
+        new PostgresCollection.PostgresResultIteratorWithBasicTypes(
+            mockResultSet, DocumentType.FLAT);
+
+    assertTrue(iterator.hasNext());
+    Document result = iterator.next();
+
+    assertNotNull(result);
+    assertEquals(DocumentType.FLAT, result.getDocumentType());
+
+    String json = result.toJson();
+    assertTrue(json.contains("\"boolean_field\":true"));
+    assertTrue(json.contains("\"integer_field\":42"));
+    assertTrue(json.contains("\"bigint_field\":123456789"));
+    assertTrue(json.contains("\"double_field\":3.14159"));
+    assertTrue(json.contains("\"text_field\":\"sample text\""));
+    assertTrue(json.contains("\"jsonb_field\":{\"nested\":\"value\"}"));
+
+    assertFalse(iterator.hasNext());
+    iterator.close();
+  }
+
+  @Test
+  void testPostgresResultIteratorWithBasicTypesNullHandling() throws SQLException, IOException {
+    // Test null value handling in PostgresResultIteratorWithBasicTypes
+    when(mockResultSet.next()).thenReturn(true, false);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    when(mockResultSetMetaData.getColumnCount()).thenReturn(3);
+
+    when(mockResultSetMetaData.getColumnName(1)).thenReturn("nullable_int");
+    when(mockResultSetMetaData.getColumnTypeName(1)).thenReturn("int4");
+    when(mockResultSet.getInt(1)).thenReturn(0);
+    when(mockResultSet.wasNull()).thenReturn(true);
+
+    when(mockResultSetMetaData.getColumnName(2)).thenReturn("nullable_text");
+    when(mockResultSetMetaData.getColumnTypeName(2)).thenReturn("text");
+    when(mockResultSet.getString(2)).thenReturn(null);
+
+    when(mockResultSetMetaData.getColumnName(3)).thenReturn("valid_text");
+    when(mockResultSetMetaData.getColumnTypeName(3)).thenReturn("text");
+    when(mockResultSet.getString(3)).thenReturn("not null");
+
+    PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
+        new PostgresCollection.PostgresResultIteratorWithBasicTypes(mockResultSet);
+
+    assertTrue(iterator.hasNext());
+    Document result = iterator.next();
+
+    assertNotNull(result);
+    String json = result.toJson();
+
+    // Null values should not appear in the JSON
+    assertFalse(json.contains("nullable_int"));
+    assertFalse(json.contains("nullable_text"));
+    assertTrue(json.contains("\"valid_text\":\"not null\""));
+
+    iterator.close();
+  }
+
+  @Test
+  void testPostgresResultIteratorWithBasicTypesArrayColumn() throws SQLException, IOException {
+    // Test array column handling
+    when(mockResultSet.next()).thenReturn(true, false);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    when(mockResultSetMetaData.getColumnCount()).thenReturn(1);
+
+    when(mockResultSetMetaData.getColumnName(1)).thenReturn("array_field");
+    when(mockResultSetMetaData.getColumnTypeName(1)).thenReturn("_text");
+
+    Array mockArray = mock(Array.class);
+    String[] arrayData = {"item1", "item2", "item3"};
+    when(mockResultSet.getArray(1)).thenReturn(mockArray);
+    when(mockArray.getArray()).thenReturn(arrayData);
+
+    PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
+        new PostgresCollection.PostgresResultIteratorWithBasicTypes(mockResultSet);
+
+    assertTrue(iterator.hasNext());
+    Document result = iterator.next();
+
+    assertNotNull(result);
+    String json = result.toJson();
+    assertTrue(json.contains("\"array_field\":[\"item1\",\"item2\",\"item3\"]"));
+
+    iterator.close();
   }
 
   private void mockResultSetMetadata() throws SQLException {
