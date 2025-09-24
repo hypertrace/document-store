@@ -87,11 +87,6 @@ import org.slf4j.LoggerFactory;
 /** Provides {@link Collection} implementation on Postgres using jsonb format */
 public abstract class PostgresCollection implements Collection {
 
-  public enum PostgresCollectionType {
-    FLAT,
-    LEGACY
-  }
-
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
   public static final String ID = "id";
   public static final String DOCUMENT_ID = "_id";
