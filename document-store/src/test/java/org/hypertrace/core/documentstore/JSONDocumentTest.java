@@ -124,13 +124,10 @@ public class JSONDocumentTest {
   @Test
   public void testStringConstructorWithInvalidJson() {
     // Test invalid JSON handling
-    Assertions.assertThrows(
-        IOException.class,
-        () -> new JSONDocument("invalid json {"));
+    Assertions.assertThrows(IOException.class, () -> new JSONDocument("invalid json {"));
 
     Assertions.assertThrows(
-        IOException.class,
-        () -> new JSONDocument("invalid json {", DocumentType.FLAT));
+        IOException.class, () -> new JSONDocument("invalid json {", DocumentType.FLAT));
   }
 
   @Test
