@@ -36,6 +36,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
@@ -186,6 +187,7 @@ class PostgresCollectionTest {
 
     assertTrue(oldDocument.isPresent());
     assertEquals(document, oldDocument.get());
+    assertEquals(DocumentType.NESTED, document.getDocumentType());
 
     verify(mockClient, times(1)).getPooledConnection();
     verify(mockConnection, times(1)).prepareStatement(selectQuery);
