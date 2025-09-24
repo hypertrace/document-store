@@ -61,6 +61,7 @@ import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
@@ -1264,6 +1265,10 @@ public class PostgresCollection implements Collection {
       super(resultSet);
     }
 
+    public PostgresResultIteratorWithBasicTypes(ResultSet resultSet, DocumentType documentType) {
+      super(resultSet, documentType);
+    }
+
     @Override
     public Document next() {
       try {
@@ -1299,7 +1304,7 @@ public class PostgresCollection implements Collection {
         jsonNode.remove(DOCUMENT_ID);
       }
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), documentType);
     }
 
     private void addColumnToJsonNode(
@@ -1386,17 +1391,29 @@ public class PostgresCollection implements Collection {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
     protected ResultSet resultSet;
-    private final boolean removeDocumentId;
     protected boolean cursorMovedForward = false;
     protected boolean hasNext = false;
+
+    private final boolean removeDocumentId;
+    protected DocumentType documentType;
 
     public PostgresResultIterator(ResultSet resultSet) {
       this(resultSet, true);
     }
 
     PostgresResultIterator(ResultSet resultSet, boolean removeDocumentId) {
+      this(resultSet, removeDocumentId, DocumentType.NESTED);
+    }
+
+    public PostgresResultIterator(ResultSet resultSet, DocumentType documentType) {
+      this(resultSet, true, documentType);
+    }
+
+    PostgresResultIterator(
+        ResultSet resultSet, boolean removeDocumentId, DocumentType documentType) {
       this.resultSet = resultSet;
       this.removeDocumentId = removeDocumentId;
+      this.documentType = documentType;
     }
 
     @Override
@@ -1447,7 +1464,7 @@ public class PostgresCollection implements Collection {
       jsonNode.put(CREATED_AT, String.valueOf(createdAt));
       jsonNode.put(UPDATED_AT, String.valueOf(updatedAt));
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), documentType);
     }
 
     protected void closeResultSet() {
@@ -1508,7 +1525,7 @@ public class PostgresCollection implements Collection {
           }
         }
       }
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), documentType);
     }
 
     private String getColumnValue(
