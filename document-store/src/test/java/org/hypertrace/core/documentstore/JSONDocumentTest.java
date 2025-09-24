@@ -64,7 +64,8 @@ public class JSONDocumentTest {
     JSONDocument flatDoc = new JSONDocument(data, DocumentType.FLAT);
 
     // Current implementation only compares JsonNode, not DocumentType
-    // This test documents the current behavior - documents with same content but different types are equal
+    // This test documents the current behavior - documents with same content but different types
+    // are equal
     Assertions.assertNotEquals(nestedDoc, flatDoc);
     Assertions.assertEquals(nestedDoc.toJson(), flatDoc.toJson());
   }
