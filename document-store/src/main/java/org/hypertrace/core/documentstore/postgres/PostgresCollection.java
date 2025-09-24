@@ -852,7 +852,7 @@ public abstract class PostgresCollection implements Collection {
             ? new PostgresResultIteratorWithMetaData(resultSet)
             : new PostgresResultIterator(resultSet);
       } else {
-        return new PostgresResultIteratorWithBasicTypes(resultSet);
+        return new PostgresResultIteratorWithBasicTypes(resultSet, DocumentType.FLAT);
       }
     } catch (Exception e) {
       throw new RuntimeException(e);
