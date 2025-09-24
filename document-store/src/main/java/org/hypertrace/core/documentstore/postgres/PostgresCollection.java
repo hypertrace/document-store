@@ -61,6 +61,7 @@ import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
@@ -71,12 +72,12 @@ import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
-import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.NestedPostgresColTransformer;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentUpdater;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.postgresql.util.PSQLException;
@@ -84,7 +85,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Provides {@link Collection} implementation on Postgres using jsonb format */
-public class PostgresCollection implements Collection {
+public abstract class PostgresCollection implements Collection {
+
+  public enum PostgresCollectionType {
+    FLAT,
+    LEGACY
+  }
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
   public static final String ID = "id";
@@ -97,12 +103,11 @@ public class PostgresCollection implements Collection {
   private static final String CREATED_NOW_ALIAS = "created_now_alias";
   private static final CloseableIterator<Document> EMPTY_ITERATOR =
       CloseableIterator.emptyIterator();
-  private static final String FLAT_STRUCTURE_COLLECTION_KEY = "flatStructureCollection";
 
-  private final PostgresClient client;
-  private final PostgresTableIdentifier tableIdentifier;
+  protected final PostgresClient client;
+  protected final PostgresTableIdentifier tableIdentifier;
   private final PostgresSubDocumentUpdater subDocUpdater;
-  private final PostgresQueryExecutor queryExecutor;
+  protected final PostgresQueryExecutor queryExecutor;
   private final UpdateValidator updateValidator;
 
   public PostgresCollection(final PostgresClient client, final String collectionName) {
@@ -479,24 +484,10 @@ public class PostgresCollection implements Collection {
       return closeableIterator;
     } catch (SQLException e) {
       LOGGER.error(
-          "SQLException in querying documents - query: {}, sqlQuery:{}", query, pgSqlQuery, e);
+          "SQLException in querying documents - query: {}, sqlQuery: {}", query, pgSqlQuery, e);
     }
 
     return EMPTY_ITERATOR;
-  }
-
-  @Override
-  public CloseableIterator<Document> find(
-      final org.hypertrace.core.documentstore.query.Query query) {
-    return queryExecutor.execute(client.getConnection(), query);
-  }
-
-  @Override
-  public CloseableIterator<Document> query(
-      final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
-    String flatStructureCollectionName =
-        client.getCustomParameters().get(FLAT_STRUCTURE_COLLECTION_KEY);
-    return queryExecutor.execute(client.getConnection(), query, flatStructureCollectionName);
   }
 
   @Override
@@ -510,7 +501,7 @@ public class PostgresCollection implements Collection {
     try (final Connection connection = client.getPooledConnection()) {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-              tableIdentifier, query);
+              tableIdentifier, query, new NestedPostgresColTransformer());
       final String selectQuery = parser.buildSelectQueryForUpdate();
 
       try (final PreparedStatement preparedStatement =
@@ -545,7 +536,10 @@ public class PostgresCollection implements Collection {
                   .build();
 
           try (final CloseableIterator<Document> iterator =
-              queryExecutor.execute(connection, findByIdQuery)) {
+              queryWithParser(
+                  findByIdQuery,
+                  new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
+                      tableIdentifier, query))) {
             returnDocument = getFirstDocument(iterator).orElseThrow();
           }
         } else if (updateOptions.getReturnDocumentType() == NONE) {
@@ -606,28 +600,6 @@ public class PostgresCollection implements Collection {
         iterator.close();
       }
       throw new IOException(e);
-    }
-  }
-
-  @Override
-  public long count(
-      org.hypertrace.core.documentstore.query.Query query, QueryOptions queryOptions) {
-    org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
-        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-            tableIdentifier, query);
-    String subQuery = queryParser.parse();
-    String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(count)", subQuery);
-    try {
-      PreparedStatement preparedStatement =
-          queryExecutor.buildPreparedStatement(
-              sqlQuery, queryParser.getParamsBuilder().build(), client.getConnection());
-      ResultSet resultSet = preparedStatement.executeQuery();
-      resultSet.next();
-      return resultSet.getLong(1);
-    } catch (SQLException e) {
-      LOGGER.error(
-          "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
-      throw new RuntimeException(e);
     }
   }
 
@@ -772,7 +744,7 @@ public class PostgresCollection implements Collection {
         count = resultSet.getLong(1);
       }
     } catch (SQLException e) {
-      LOGGER.error("SQLException querying documents. query: {}", query, e);
+      LOGGER.error("SQLException querying documents. query: {}, sqlQuery: {}", query, sqlQuery, e);
     }
     return count;
   }
@@ -852,6 +824,43 @@ public class PostgresCollection implements Collection {
       preparedStatement.executeUpdate();
     } catch (SQLException e) {
       LOGGER.error("Exception deleting table name: {}", tableIdentifier);
+    }
+  }
+
+  protected long countWithParser(
+      org.hypertrace.core.documentstore.query.Query query,
+      org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
+    String subQuery = queryParser.parse();
+    String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(countWithParser)", subQuery);
+    try {
+      PreparedStatement preparedStatement =
+          queryExecutor.buildPreparedStatement(
+              sqlQuery, queryParser.getParamsBuilder().build(), client.getConnection());
+      ResultSet resultSet = preparedStatement.executeQuery();
+      resultSet.next();
+      return resultSet.getLong(1);
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException querying documents. Original query: {}, sql query: {}", query, sqlQuery, e);
+      throw new RuntimeException(e);
+    }
+  }
+
+  protected CloseableIterator<Document> queryWithParser(
+      org.hypertrace.core.documentstore.query.Query query,
+      org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
+    try {
+      ResultSet resultSet = queryExecutor.execute(client.getConnection(), queryParser);
+
+      if (queryParser.getPgColTransformer() instanceof NestedPostgresColTransformer) {
+        return !query.getSelections().isEmpty()
+            ? new PostgresResultIteratorWithMetaData(resultSet)
+            : new PostgresResultIterator(resultSet);
+      } else {
+        return new PostgresResultIteratorWithBasicTypes(resultSet);
+      }
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 
@@ -1264,6 +1273,10 @@ public class PostgresCollection implements Collection {
       super(resultSet);
     }
 
+    public PostgresResultIteratorWithBasicTypes(ResultSet resultSet, DocumentType documentType) {
+      super(resultSet, documentType);
+    }
+
     @Override
     public Document next() {
       try {
@@ -1299,7 +1312,7 @@ public class PostgresCollection implements Collection {
         jsonNode.remove(DOCUMENT_ID);
       }
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), documentType);
     }
 
     private void addColumnToJsonNode(
@@ -1364,7 +1377,13 @@ public class PostgresCollection implements Collection {
           if (jsonString != null) {
             try {
               JsonNode jsonValue = MAPPER.readTree(jsonString);
-              jsonNode.set(columnName, jsonValue);
+              // Handle like MetaData iterator - check for encoded nested fields
+              if (PostgresUtils.isEncodedNestedField(columnName)) {
+                handleNestedField(
+                    PostgresUtils.decodeAliasForNestedField(columnName), jsonNode, jsonValue);
+              } else {
+                jsonNode.set(columnName, jsonValue);
+              }
             } catch (IOException e) {
               // Fallback to string if JSON parsing fails
               jsonNode.put(columnName, jsonString);
@@ -1380,23 +1399,54 @@ public class PostgresCollection implements Collection {
           break;
       }
     }
+
+    private void handleNestedField(String columnName, ObjectNode rootNode, JsonNode leafNodeValue) {
+      List<String> keys = PostgresUtils.splitNestedField(columnName);
+      // Find the leaf node or create one for adding property value
+      ObjectNode curNode = rootNode;
+      for (int l = 0; l < keys.size() - 1; l++) {
+        String key = keys.get(l);
+        JsonNode node = curNode.get(key);
+        if (node == null || !node.isObject()) {
+          ObjectNode newNode = MAPPER.createObjectNode();
+          curNode.set(key, newNode);
+          curNode = newNode;
+        } else {
+          curNode = (ObjectNode) node;
+        }
+      }
+      String leafKey = keys.get(keys.size() - 1);
+      curNode.set(leafKey, leafNodeValue);
+    }
   }
 
   static class PostgresResultIterator implements CloseableIterator<Document> {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
     protected ResultSet resultSet;
-    private final boolean removeDocumentId;
     protected boolean cursorMovedForward = false;
     protected boolean hasNext = false;
+
+    private final boolean removeDocumentId;
+    protected DocumentType documentType;
 
     public PostgresResultIterator(ResultSet resultSet) {
       this(resultSet, true);
     }
 
     PostgresResultIterator(ResultSet resultSet, boolean removeDocumentId) {
+      this(resultSet, removeDocumentId, DocumentType.NESTED);
+    }
+
+    public PostgresResultIterator(ResultSet resultSet, DocumentType documentType) {
+      this(resultSet, true, documentType);
+    }
+
+    PostgresResultIterator(
+        ResultSet resultSet, boolean removeDocumentId, DocumentType documentType) {
       this.resultSet = resultSet;
       this.removeDocumentId = removeDocumentId;
+      this.documentType = documentType;
     }
 
     @Override
@@ -1447,7 +1497,7 @@ public class PostgresCollection implements Collection {
       jsonNode.put(CREATED_AT, String.valueOf(createdAt));
       jsonNode.put(UPDATED_AT, String.valueOf(updatedAt));
 
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), documentType);
     }
 
     protected void closeResultSet() {
@@ -1508,7 +1558,7 @@ public class PostgresCollection implements Collection {
           }
         }
       }
-      return new JSONDocument(MAPPER.writeValueAsString(jsonNode));
+      return new JSONDocument(MAPPER.writeValueAsString(jsonNode), documentType);
     }
 
     private String getColumnValue(

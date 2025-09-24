@@ -4,7 +4,6 @@ import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumn;
-import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
 @NoArgsConstructor
@@ -41,12 +40,9 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
 
   @Override
   public String visit(final IdentifierExpression expression) {
-    FieldToPgColumn fieldToPgColumn =
-        getPostgresQueryParser().getToPgColumnTransformer().transform(expression.getName());
-    if (fieldToPgColumn.getTransformedField() == null) return fieldToPgColumn.getPgColumn();
-    String dataAccessor =
-        PostgresUtils.prepareFieldDataAccessorExpr(
-            fieldToPgColumn.getTransformedField(), fieldToPgColumn.getPgColumn());
-    return PostgresUtils.prepareCast(dataAccessor, type);
+    FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression.getName());
+    return getPostgresQueryParser()
+        .getPgColTransformer()
+        .buildFieldAccessorWithCast(fieldToPgColumn, type);
   }
 }

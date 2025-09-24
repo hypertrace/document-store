@@ -11,17 +11,38 @@ public class JSONDocument implements Document {
 
   private static ObjectMapper mapper = new ObjectMapper();
   private JsonNode node;
+  private DocumentType documentType = DocumentType.NESTED;
 
   public JSONDocument(String json) throws IOException {
     node = mapper.readTree(json);
+  }
+
+  public JSONDocument(String json, DocumentType documentType) throws IOException {
+    node = mapper.readTree(json);
+    this.documentType = documentType;
   }
 
   public JSONDocument(Object object) throws IOException {
     node = mapper.readTree(mapper.writeValueAsString(object));
   }
 
+  public JSONDocument(Object object, DocumentType documentType) throws IOException {
+    node = mapper.readTree(mapper.writeValueAsString(object));
+    this.documentType = documentType;
+  }
+
   public JSONDocument(JsonNode node) {
     this.node = node;
+  }
+
+  public JSONDocument(JsonNode node, DocumentType documentType) {
+    this.node = node;
+    this.documentType = documentType;
+  }
+
+  @Override
+  public DocumentType getDocumentType() {
+    return this.documentType;
   }
 
   @Override

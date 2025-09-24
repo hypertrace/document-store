@@ -2,8 +2,10 @@ package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter;
 
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresContainsRelationalFilterParserNonJsonField;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 
 class PostgresNotContainsRelationalFilterParser implements PostgresRelationalFilterParser {
+
   private static final PostgresContainsRelationalFilterParser jsonContainsParser =
       new PostgresContainsRelationalFilterParser();
   private static final PostgresContainsRelationalFilterParserNonJsonField nonJsonContainsParser =
@@ -14,11 +16,8 @@ class PostgresNotContainsRelationalFilterParser implements PostgresRelationalFil
       final RelationalExpression expression, final PostgresRelationalFilterContext context) {
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
 
-    String flatStructureCollection = context.getFlatStructureCollectionName();
     boolean isFirstClassField =
-        flatStructureCollection != null
-            && flatStructureCollection.equals(context.getTableIdentifier().getTableName());
-
+        context.getPgColTransformer() instanceof FlatPostgresFieldTransformer;
     if (isFirstClassField) {
       // Use the non-JSON logic for first-class fields
       String containsExpression = nonJsonContainsParser.parse(expression, context);

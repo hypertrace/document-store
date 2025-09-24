@@ -65,4 +65,5 @@ jobs:
       - name: Dependency Check
         uses: hypertrace/github-actions/dependency-check@main
         with:
+          args: dependencyCheckAggregate -Danalyzer.central.enabled=false -Danalyzer.ossindex.enabled=false ${{steps.suppressions.outputs.args}}
           nvd-api-key: ${{ secrets.NVD_API_KEY }}

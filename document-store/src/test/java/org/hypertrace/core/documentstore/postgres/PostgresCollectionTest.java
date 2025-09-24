@@ -77,7 +77,7 @@ class PostgresCollectionTest {
   void setUp() {
     try (final MockedStatic<Clock> clockMock = Mockito.mockStatic(Clock.class)) {
       clockMock.when(Clock::systemUTC).thenReturn(mockClock);
-      postgresCollection = new PostgresCollection(mockClient, COLLECTION_NAME);
+      postgresCollection = new NestedPostgresCollection(mockClient, COLLECTION_NAME);
     }
   }
 
