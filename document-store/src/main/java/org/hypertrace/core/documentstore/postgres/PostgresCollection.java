@@ -119,7 +119,7 @@ public abstract class PostgresCollection implements Collection {
     this.tableIdentifier = tableIdentifier;
     this.subDocUpdater =
         new PostgresSubDocumentUpdater(new PostgresQueryBuilder(this.tableIdentifier));
-    this.queryExecutor = new PostgresQueryExecutor(this.tableIdentifier);
+    this.queryExecutor = new PostgresQueryExecutor();
     this.updateValidator = new CommonUpdateValidator();
   }
 

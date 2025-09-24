@@ -15,8 +15,6 @@ import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQ
 @AllArgsConstructor
 public class PostgresQueryExecutor {
 
-  private final PostgresTableIdentifier tableIdentifier;
-
   static org.hypertrace.core.documentstore.query.Query transformAndLog(
       org.hypertrace.core.documentstore.query.Query query) {
     log.debug("Original query before transformation: {}", query);
