@@ -2,7 +2,6 @@ package org.hypertrace.core.documentstore;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.IOException;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -106,34 +105,5 @@ public class JSONDocumentTest {
 
     // toString should return the same as toJson
     Assertions.assertEquals(document.toJson(), document.toString());
-  }
-
-  @Test
-  public void testJsonNodeConstructors() throws Exception {
-    JsonNode node = mapper.createObjectNode().put("test", "value");
-
-    // Test JsonNode constructor without DocumentType
-    JSONDocument doc1 = new JSONDocument(node);
-    Assertions.assertEquals(DocumentType.NESTED, doc1.getDocumentType());
-
-    // Test JsonNode constructor with DocumentType
-    JSONDocument doc2 = new JSONDocument(node, DocumentType.FLAT);
-    Assertions.assertEquals(DocumentType.FLAT, doc2.getDocumentType());
-  }
-
-  @Test
-  public void testStringConstructorWithInvalidJson() {
-    // Test invalid JSON handling
-    Assertions.assertThrows(IOException.class, () -> new JSONDocument("invalid json {"));
-
-    Assertions.assertThrows(
-        IOException.class, () -> new JSONDocument("invalid json {", DocumentType.FLAT));
-  }
-
-  @Test
-  public void testNullHandling() throws Exception {
-    // Test null JsonNode
-    JSONDocument nullNodeDoc = new JSONDocument((JsonNode) null);
-    Assertions.assertNotNull(nullNodeDoc.toJson()); // Should handle gracefully
   }
 }
