@@ -53,12 +53,14 @@ import static org.hypertrace.core.documentstore.utils.Utils.assertDocsAndSizeEqu
 import static org.hypertrace.core.documentstore.utils.Utils.assertDocsAndSizeEqualWithoutOrder;
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -97,6 +99,7 @@ import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions.MissingDocumentStrategy;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
+import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Aggregation;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -109,6 +112,7 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -126,6 +130,9 @@ public class DocStoreQueryV1Test {
 
   private static final String COLLECTION_NAME = "myTest";
   private static final String UPDATABLE_COLLECTION_NAME = "updatable_collection";
+  private static final String FLAT_COLLECTION_NAME = "myTestFlat";
+  private static final String PG_FLAT_COLLECTION_INSERT_STATMENTS_FILE_LOC =
+      "query/pg_flat_collection_insert.json";
 
   private static Map<String, Datastore> datastoreMap;
 
@@ -175,12 +182,79 @@ public class DocStoreQueryV1Test {
     createCollectionData("query/collection_data.json", COLLECTION_NAME);
   }
 
+  private static void createFlatCollectionSchema(
+      Datastore postgresDatastore, String collectionName) {
+    String createTableSQL =
+        String.format(
+            "CREATE TABLE \"%s\" ("
+                + "\"_id\" INTEGER PRIMARY KEY,"
+                + "\"item\" TEXT,"
+                + "\"price\" INTEGER,"
+                + "\"quantity\" INTEGER,"
+                + "\"date\" TIMESTAMPTZ,"
+                + "\"props\" JSONB,"
+                + "\"sales\" JSONB"
+                + ");",
+            collectionName);
+
+    // Access PostgresDatastore directly to get client connection
+    PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+    try {
+
+      // Execute the CREATE TABLE SQL directly using the public getPostgresClient method
+      try (java.sql.Connection connection = pgDatastore.getPostgresClient();
+          java.sql.PreparedStatement statement = connection.prepareStatement(createTableSQL)) {
+        statement.execute();
+        System.out.println("Created flat collection table: " + collectionName);
+      }
+    } catch (Exception e) {
+      System.err.println("Failed to create flat collection schema: " + e.getMessage());
+      e.printStackTrace();
+    }
+  }
+
+  private static void executeInsertStatements(PostgresDatastore pgDatastore) {
+    try {
+      // Read JSON file from resources
+      String jsonContent =
+          readFileFromResource(PG_FLAT_COLLECTION_INSERT_STATMENTS_FILE_LOC).orElseThrow();
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode rootNode = mapper.readTree(jsonContent);
+
+      // Extract statements array
+      JsonNode statementsNode = rootNode.get("statements");
+      if (statementsNode == null || !statementsNode.isArray()) {
+        throw new RuntimeException("Invalid JSON format: 'statements' array not found");
+      }
+
+      try (java.sql.Connection connection = pgDatastore.getPostgresClient()) {
+        for (com.fasterxml.jackson.databind.JsonNode statementNode : statementsNode) {
+          String statement = statementNode.asText().trim();
+          if (!statement.isEmpty()) {
+            try (java.sql.PreparedStatement preparedStatement =
+                connection.prepareStatement(statement)) {
+              preparedStatement.executeUpdate();
+            }
+          }
+        }
+      }
+    } catch (Exception e) {
+      System.err.println("Failed to execute INSERT statements: " + e.getMessage());
+    }
+  }
+
   private static void createCollectionData(final String resourcePath, final String collectionName)
       throws IOException {
     final Map<Key, Document> documents = Utils.buildDocumentsFromResource(resourcePath);
     datastoreMap.forEach(
         (k, v) -> {
           v.deleteCollection(collectionName);
+          // for Postgres, we also create the flat collection
+          if (v instanceof PostgresDatastore) {
+            createFlatCollectionSchema(v, FLAT_COLLECTION_NAME);
+            executeInsertStatements((PostgresDatastore) v);
+          }
           v.createCollection(collectionName, null);
           Collection collection = v.getCollection(collectionName);
           collection.bulkUpsert(documents);
@@ -3673,5 +3747,151 @@ public class DocStoreQueryV1Test {
     final String fileContent = readFileFromResource(filePath).orElseThrow();
     final long expectedSize = convertJsonToMap(fileContent).size();
     assertEquals(expectedSize, actualSize);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  void testFlatPostgresCollectionFindAll(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection flatCollection =
+        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+    // Test basic query to retrieve all documents
+    Query query = Query.builder().build();
+    CloseableIterator<Document> iterator = flatCollection.find(query);
+
+    // Count documents
+    long count = 0;
+    while (iterator.hasNext()) {
+      Document doc = iterator.next();
+      count++;
+      // Verify document has content (basic validation)
+      assertNotNull(doc);
+      assertNotNull(doc.toJson());
+      assertTrue(doc.toJson().length() > 0);
+      assertEquals(DocumentType.FLAT, doc.getDocumentType());
+    }
+    iterator.close();
+
+    // Should have 8 documents from the INSERT statements
+    assertEquals(8, count);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  void testFlatPostgresCollectionFilterByItem(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection flatCollection =
+        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+    // Test filtering by item
+    Query itemQuery =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+            .build();
+
+    CloseableIterator<Document> soapIterator = flatCollection.find(itemQuery);
+    long soapCount = 0;
+    while (soapIterator.hasNext()) {
+      Document doc = soapIterator.next();
+      // Verify it's a soap document by checking JSON contains "Soap"
+      assertTrue(doc.toJson().contains("\"Soap\""));
+      soapCount++;
+    }
+    soapIterator.close();
+
+    // Should have 3 soap documents (IDs 1, 5, 8)
+    assertEquals(3, soapCount);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  void testFlatPostgresCollectionCount(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection flatCollection =
+        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+    // Test count method - all documents
+    long totalCount = flatCollection.count(Query.builder().build());
+    assertEquals(8, totalCount);
+
+    // Test count with filter - soap documents only
+    Query soapQuery =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+            .build();
+    long soapCountQuery = flatCollection.count(soapQuery);
+    assertEquals(3, soapCountQuery);
+  }
+
+  /**
+   * This test is disabled for now because flat collections do not support search on nested queries
+   * in JSONB fields (ex. props.brand)
+   *
+   * @param dataStoreName the datastore name, in this case, Postgres
+   * @throws IOException
+   */
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  @Disabled
+  void testFlatPostgresCollectionNestedFieldQuery(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    Collection flatCollection =
+        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+    // Test querying nested field in props JSONB column - filter by brand
+    Query brandQuery =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props.brand"), EQ, ConstantExpression.of("Dettol")))
+            .build();
+
+    CloseableIterator<Document> brandIterator = flatCollection.find(brandQuery);
+    long brandCount = 0;
+    while (brandIterator.hasNext()) {
+      Document doc = brandIterator.next();
+      // Verify it contains the expected brand
+      assertTrue(doc.toJson().contains("\"Dettol\""));
+      brandCount++;
+    }
+    brandIterator.close();
+
+    // Should have 1 Dettol document (ID 1)
+    assertEquals(1, brandCount);
+
+    // Test querying deeply nested field - filter by seller city
+    Query cityQuery =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props.seller.address.city"),
+                    EQ,
+                    ConstantExpression.of("Mumbai")))
+            .build();
+
+    CloseableIterator<Document> cityIterator = flatCollection.find(cityQuery);
+    long cityCount = 0;
+    while (cityIterator.hasNext()) {
+      Document doc = cityIterator.next();
+      // Verify it contains Mumbai
+      assertTrue(doc.toJson().contains("\"Mumbai\""));
+      cityCount++;
+    }
+    cityIterator.close();
+
+    // Should have 2 Mumbai documents (IDs 1, 3)
+    assertEquals(2, cityCount);
+
+    // Test count with nested field filter
+    long brandCountQuery = flatCollection.count(brandQuery);
+    assertEquals(1, brandCountQuery);
+
+    long cityCountQuery = flatCollection.count(cityQuery);
+    assertEquals(2, cityCountQuery);
   }
 }

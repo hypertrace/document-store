@@ -4,6 +4,7 @@ import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 import org.hypertrace.core.documentstore.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
  * PostgreSQL collection implementation for flat documents. All fields are stored as top-level
  * PostgreSQL columns.
  */
+// todo: Throw unsupported op exception for all write methods
 public class FlatPostgresCollection extends PostgresCollection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(FlatPostgresCollection.class);
@@ -37,11 +39,19 @@ public class FlatPostgresCollection extends PostgresCollection {
   @Override
   public long count(
       org.hypertrace.core.documentstore.query.Query query, QueryOptions queryOptions) {
-    PostgresQueryParser queryParser = new PostgresQueryParser(tableIdentifier, query);
+    PostgresQueryParser queryParser =
+        new PostgresQueryParser(
+            tableIdentifier,
+            query,
+            new org.hypertrace.core.documentstore.postgres.query.v1.transformer
+                .FlatPostgresFieldTransformer());
     return countWithParser(query, queryParser);
   }
 
   private PostgresQueryParser createParser(Query query) {
-    return new PostgresQueryParser(tableIdentifier, PostgresQueryExecutor.transformAndLog(query));
+    return new PostgresQueryParser(
+        tableIdentifier,
+        PostgresQueryExecutor.transformAndLog(query),
+        new FlatPostgresFieldTransformer());
   }
 }

@@ -25,6 +25,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.sql.Array;
 import java.sql.Connection;
@@ -62,6 +64,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class PostgresCollectionTest {
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String COLLECTION_NAME = "test_collection";
   private static final long currentTime = 1658956123L;
 
@@ -1060,6 +1063,73 @@ class PostgresCollectionTest {
     assertTrue(json.contains("\"array_field\":[\"item1\",\"item2\",\"item3\"]"));
 
     iterator.close();
+  }
+
+  @Test
+  void testPostgresResultIteratorWithBasicTypesHandleNestedField()
+      throws SQLException, IOException {
+    // Test nested field handling with encoded field names
+    when(mockResultSet.next()).thenReturn(true, false);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    when(mockResultSetMetaData.getColumnCount()).thenReturn(3);
+
+    when(mockResultSetMetaData.getColumnName(1)).thenReturn("user·profile·name");
+    when(mockResultSetMetaData.getColumnTypeName(1)).thenReturn("jsonb");
+    when(mockResultSet.getString(1)).thenReturn("\"John Doe\"");
+
+    when(mockResultSetMetaData.getColumnName(2)).thenReturn("user·profile·age");
+    when(mockResultSetMetaData.getColumnTypeName(2)).thenReturn("jsonb");
+    when(mockResultSet.getString(2)).thenReturn("30");
+
+    when(mockResultSetMetaData.getColumnName(3)).thenReturn("user·settings·theme");
+    when(mockResultSetMetaData.getColumnTypeName(3)).thenReturn("jsonb");
+    when(mockResultSet.getString(3)).thenReturn("\"dark\"");
+
+    PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
+        new PostgresCollection.PostgresResultIteratorWithBasicTypes(mockResultSet);
+
+    assertTrue(iterator.hasNext());
+    Document result = iterator.next();
+
+    assertNotNull(result);
+    String json = result.toJson();
+
+    // Convert to JsonNode for precise assertions
+    JsonNode jsonNode = OBJECT_MAPPER.readTree(json);
+
+    // Verify the encoded field names are present (not decoded yet in this implementation)
+    assertTrue(jsonNode.has("user·profile·name"));
+    assertTrue(jsonNode.has("user·profile·age"));
+    assertTrue(jsonNode.has("user·settings·theme"));
+
+    assertEquals("John Doe", jsonNode.get("user·profile·name").asText());
+    assertEquals(30, jsonNode.get("user·profile·age").asInt());
+    assertEquals("dark", jsonNode.get("user·settings·theme").asText());
+
+    iterator.close();
+  }
+
+  @Test
+  void testUpsertSQLException() throws SQLException, IOException {
+    final Key key = Key.from("test_key");
+    final Document document = new JSONDocument("{\"field\": \"value\"}");
+    final PreparedStatement mockUpsertPreparedStatement = mock(PreparedStatement.class);
+    final PreparedStatement mockSearchPreparedStatement = mock(PreparedStatement.class);
+
+    when(mockClient.getConnection()).thenReturn(mockConnection);
+    when(mockConnection.prepareStatement(any(String.class), eq(1)))
+        .thenReturn(mockUpsertPreparedStatement);
+    when(mockConnection.prepareStatement(any(String.class)))
+        .thenReturn(mockSearchPreparedStatement);
+    when(mockSearchPreparedStatement.executeQuery()).thenReturn(mockResultSet);
+    when(mockResultSet.next()).thenReturn(false);
+    when(mockUpsertPreparedStatement.executeUpdate()).thenThrow(new SQLException("Database error"));
+
+    assertThrows(IOException.class, () -> postgresCollection.upsert(key, document));
+
+    verify(mockUpsertPreparedStatement).setString(1, key.toString());
+    verify(mockUpsertPreparedStatement, times(1)).setString(eq(2), any());
+    verify(mockUpsertPreparedStatement, times(1)).setString(eq(3), any());
   }
 
   private void mockResultSetMetadata() throws SQLException {
