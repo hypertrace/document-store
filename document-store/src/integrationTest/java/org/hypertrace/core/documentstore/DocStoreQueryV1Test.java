@@ -3894,4 +3894,136 @@ public class DocStoreQueryV1Test {
     long cityCountQuery = flatCollection.count(cityQuery);
     assertEquals(2, cityCountQuery);
   }
+
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  void testFlatVsNestedCollectionConsistency(String dataStoreName) throws IOException {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+
+    // Get both collection types
+    Collection nestedCollection =
+        datastore.getCollection(COLLECTION_NAME); // Default nested collection
+    Collection flatCollection =
+        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+    // Test 1: Count all documents - should be equal
+    Query countAllQuery = Query.builder().build();
+    long nestedCount = nestedCollection.count(countAllQuery);
+    long flatCount = flatCollection.count(countAllQuery);
+    assertEquals(
+        nestedCount, flatCount, "Total document count should be equal in both collections");
+
+    // Test 2: Filter by top-level field - item
+    Query itemFilterQuery =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+            .build();
+
+    long nestedSoapCount = nestedCollection.count(itemFilterQuery);
+    long flatSoapCount = flatCollection.count(itemFilterQuery);
+    assertEquals(nestedSoapCount, flatSoapCount, "Soap count should be equal in both collections");
+
+    // Test 3: Filter by numeric field - price
+    Query priceFilterQuery =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"), GT, ConstantExpression.of(10)))
+            .build();
+
+    long nestedPriceCount = nestedCollection.count(priceFilterQuery);
+    long flatPriceCount = flatCollection.count(priceFilterQuery);
+    assertEquals(
+        nestedPriceCount, flatPriceCount, "Price > 10 count should be equal in both collections");
+
+    // Test 4: Compare actual document content for same filter
+    CloseableIterator<Document> nestedIterator = nestedCollection.find(itemFilterQuery);
+    CloseableIterator<Document> flatIterator = flatCollection.find(itemFilterQuery);
+
+    // Collect documents from both collections
+    java.util.List<String> nestedDocs = new java.util.ArrayList<>();
+    java.util.List<String> flatDocs = new java.util.ArrayList<>();
+
+    while (nestedIterator.hasNext()) {
+      nestedDocs.add(nestedIterator.next().toJson());
+    }
+    nestedIterator.close();
+
+    while (flatIterator.hasNext()) {
+      flatDocs.add(flatIterator.next().toJson());
+    }
+    flatIterator.close();
+
+    // Both should return the same number of documents
+    assertEquals(
+        nestedDocs.size(),
+        flatDocs.size(),
+        "Both collections should return same number of documents");
+
+    // Test 5: Verify document structure consistency
+    if (!nestedDocs.isEmpty() && !flatDocs.isEmpty()) {
+      // Parse and compare first document from each collection
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode nestedDoc = mapper.readTree(nestedDocs.get(0));
+      JsonNode flatDoc = mapper.readTree(flatDocs.get(0));
+
+      // Verify both have the same top-level fields
+      assertTrue(nestedDoc.has("item") && flatDoc.has("item"), "Both should have 'item' field");
+      assertTrue(nestedDoc.has("price") && flatDoc.has("price"), "Both should have 'price' field");
+      assertTrue(
+          nestedDoc.has("quantity") && flatDoc.has("quantity"),
+          "Both should have 'quantity' field");
+      assertTrue(nestedDoc.has("date") && flatDoc.has("date"), "Both should have 'date' field");
+
+      // Verify the values are the same for basic fields
+      assertEquals(
+          nestedDoc.get("item").asText(), flatDoc.get("item").asText(), "Item values should match");
+      assertEquals(
+          nestedDoc.get("price").asInt(),
+          flatDoc.get("price").asInt(),
+          "Price values should match");
+      assertEquals(
+          nestedDoc.get("quantity").asInt(),
+          flatDoc.get("quantity").asInt(),
+          "Quantity values should match");
+    }
+
+    // Test 6: Test with different filter - quantity
+    Query quantityFilterQuery =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), EQ, ConstantExpression.of(10)))
+            .build();
+
+    long nestedQuantityCount = nestedCollection.count(quantityFilterQuery);
+    long flatQuantityCount = flatCollection.count(quantityFilterQuery);
+    assertEquals(
+        nestedQuantityCount,
+        flatQuantityCount,
+        "Quantity = 10 count should be equal in both collections");
+
+    // Test 7: Verify DocumentType is different
+    CloseableIterator<Document> nestedDocIterator = nestedCollection.find(Query.builder().build());
+    CloseableIterator<Document> flatDocIterator = flatCollection.find(Query.builder().build());
+
+    if (nestedDocIterator.hasNext() && flatDocIterator.hasNext()) {
+      Document nestedDocument = nestedDocIterator.next();
+      Document flatDocument = flatDocIterator.next();
+
+      assertEquals(
+          DocumentType.NESTED,
+          nestedDocument.getDocumentType(),
+          "Nested collection should return NESTED documents");
+      assertEquals(
+          DocumentType.FLAT,
+          flatDocument.getDocumentType(),
+          "Flat collection should return FLAT documents");
+    }
+
+    nestedDocIterator.close();
+    flatDocIterator.close();
+  }
 }
