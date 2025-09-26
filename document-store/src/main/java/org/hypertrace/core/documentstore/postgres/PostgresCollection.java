@@ -105,18 +105,48 @@ public class PostgresCollection implements Collection {
   private final PostgresSubDocumentUpdater subDocUpdater;
   private final PostgresQueryExecutor queryExecutor;
   private final UpdateValidator updateValidator;
+  private final PostgresColumnRegistry columnRegistry;
 
   public PostgresCollection(final PostgresClient client, final String collectionName) {
-    this(client, PostgresTableIdentifier.parse(collectionName));
+    this(
+        client,
+        PostgresTableIdentifier.parse(collectionName),
+        new PostgresColumnRegistryFallback());
+  }
+
+  public PostgresCollection(
+      final PostgresClient client,
+      final String collectionName,
+      final PostgresColumnRegistry columnRegistry) {
+    this(client, PostgresTableIdentifier.parse(collectionName), columnRegistry);
   }
 
   PostgresCollection(final PostgresClient client, final PostgresTableIdentifier tableIdentifier) {
+    this(client, tableIdentifier, new PostgresColumnRegistryFallback());
+  }
+
+  PostgresCollection(
+      final PostgresClient client,
+      final PostgresTableIdentifier tableIdentifier,
+      final PostgresColumnRegistry columnRegistry) {
     this.client = client;
     this.tableIdentifier = tableIdentifier;
+    this.columnRegistry =
+        columnRegistry != null ? columnRegistry : new PostgresColumnRegistryFallback();
     this.subDocUpdater =
-        new PostgresSubDocumentUpdater(new PostgresQueryBuilder(this.tableIdentifier));
+        new PostgresSubDocumentUpdater(
+            new PostgresQueryBuilder(this.tableIdentifier, this.columnRegistry));
     this.queryExecutor = new PostgresQueryExecutor(this.tableIdentifier);
     this.updateValidator = new CommonUpdateValidator();
+  }
+
+  /**
+   * Gets the column registry for this collection.
+   *
+   * @return the PostgresColumnRegistry instance
+   */
+  public PostgresColumnRegistry getColumnRegistry() {
+    return columnRegistry;
   }
 
   @Override
@@ -489,7 +519,7 @@ public class PostgresCollection implements Collection {
   @Override
   public CloseableIterator<Document> find(
       final org.hypertrace.core.documentstore.query.Query query) {
-    return queryExecutor.execute(client.getConnection(), query);
+    return queryExecutor.execute(client.getConnection(), query, null, columnRegistry);
   }
 
   @Override
@@ -497,7 +527,8 @@ public class PostgresCollection implements Collection {
       final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
     String flatStructureCollectionName =
         client.getCustomParameters().get(FLAT_STRUCTURE_COLLECTION_KEY);
-    return queryExecutor.execute(client.getConnection(), query, flatStructureCollectionName);
+    return queryExecutor.execute(
+        client.getConnection(), query, flatStructureCollectionName, columnRegistry);
   }
 
   @Override
@@ -546,7 +577,7 @@ public class PostgresCollection implements Collection {
                   .build();
 
           try (final CloseableIterator<Document> iterator =
-              queryExecutor.execute(connection, findByIdQuery)) {
+              queryExecutor.execute(connection, findByIdQuery, null, columnRegistry)) {
             returnDocument = getFirstDocument(iterator).orElseThrow();
           }
         } else if (updateOptions.getReturnDocumentType() == NONE) {

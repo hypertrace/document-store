@@ -10,6 +10,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.PostgresColumnRegistry;
 import org.hypertrace.core.documentstore.postgres.PostgresTableIdentifier;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumnTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresAggregationFilterTypeExpressionVisitor;
@@ -29,6 +30,7 @@ public class PostgresQueryParser {
   @Getter private final PostgresTableIdentifier tableIdentifier;
   @Getter private final Query query;
   @Getter private final String flatStructureCollectionName;
+  @Getter private final PostgresColumnRegistry columnRegistry;
 
   @Setter String finalTableName;
   @Getter private final Builder paramsBuilder = Params.newBuilder();
@@ -46,16 +48,25 @@ public class PostgresQueryParser {
   @Getter private final FieldToPgColumnTransformer toPgColumnTransformer;
 
   public PostgresQueryParser(
-      PostgresTableIdentifier tableIdentifier, Query query, String flatStructureCollectionName) {
+      PostgresTableIdentifier tableIdentifier,
+      Query query,
+      String flatStructureCollectionName,
+      PostgresColumnRegistry columnRegistry) {
     this.tableIdentifier = tableIdentifier;
     this.query = query;
     this.flatStructureCollectionName = flatStructureCollectionName;
+    this.columnRegistry = columnRegistry;
     this.finalTableName = tableIdentifier.toString();
     toPgColumnTransformer = new FieldToPgColumnTransformer(this);
   }
 
+  public PostgresQueryParser(
+      PostgresTableIdentifier tableIdentifier, Query query, String flatStructureCollectionName) {
+    this(tableIdentifier, query, flatStructureCollectionName, null);
+  }
+
   public PostgresQueryParser(PostgresTableIdentifier tableIdentifier, Query query) {
-    this(tableIdentifier, query, null);
+    this(tableIdentifier, query, null, null);
   }
 
   public String parse() {

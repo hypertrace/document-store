@@ -16,7 +16,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Stack;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
@@ -31,7 +30,6 @@ import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUpdateOp
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUpdateOperationParser.UpdateParserInput;
 import org.hypertrace.core.documentstore.query.Query;
 
-@RequiredArgsConstructor
 public class PostgresQueryBuilder {
 
   private static final Map<UpdateOperator, PostgresUpdateOperationParser> UPDATE_PARSER_MAP =
@@ -44,12 +42,24 @@ public class PostgresQueryBuilder {
           entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
 
   @Getter private final PostgresTableIdentifier tableIdentifier;
+  @Getter private final PostgresColumnRegistry columnRegistry;
+
+  public PostgresQueryBuilder(
+      PostgresTableIdentifier tableIdentifier, PostgresColumnRegistry columnRegistry) {
+    this.tableIdentifier = tableIdentifier;
+    this.columnRegistry = columnRegistry;
+  }
+
+  public PostgresQueryBuilder(PostgresTableIdentifier tableIdentifier) {
+    this(tableIdentifier, null);
+  }
 
   public String getSubDocUpdateQuery(
       final Query query,
       final Collection<SubDocumentUpdate> updates,
       final Params.Builder paramBuilder) {
-    final PostgresQueryParser baseQueryParser = new PostgresQueryParser(tableIdentifier, query);
+    final PostgresQueryParser baseQueryParser =
+        new PostgresQueryParser(tableIdentifier, query, null, columnRegistry);
     String selectQuery =
         String.format(
             "(SELECT %s, %s FROM %s AS t0 %s)",

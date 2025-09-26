@@ -15,6 +15,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.Collection;
@@ -36,6 +37,7 @@ public class PostgresDatastore implements Datastore {
   private final PostgresClient client;
   private final String database;
   private final DocStoreMetricProvider docStoreMetricProvider;
+  private final Map<String, PostgresColumnRegistry> registryCache = new ConcurrentHashMap<>();
 
   public PostgresDatastore(@NonNull final DatastoreConfig datastoreConfig) {
     final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
@@ -148,7 +150,25 @@ public class PostgresDatastore implements Datastore {
     if (!tables.contains(collectionName)) {
       createCollection(collectionName, null);
     }
-    return new PostgresCollection(client, collectionName);
+
+    // Create or retrieve cached registry for this collection
+    PostgresColumnRegistry registry =
+        registryCache.computeIfAbsent(
+            collectionName,
+            name -> {
+              try {
+                return new PostgresColumnRegistryImpl(client.getConnection(), name);
+              } catch (Exception e) {
+                log.warn(
+                    "Failed to create column registry for collection '{}': {}. Using fallback registry.",
+                    name,
+                    e.getMessage());
+                // Return a fallback registry that behaves like the original hardcoded approach
+                return new PostgresColumnRegistryFallback();
+              }
+            });
+
+    return new PostgresCollection(client, collectionName, registry);
   }
 
   @Override

@@ -14,7 +14,7 @@ import java.util.Objects;
 import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 
-class PostgresStandardRelationalOperatorMapper {
+public class PostgresStandardRelationalOperatorMapper {
   private static final Map<RelationalOperator, String> mapping =
       Maps.immutableEnumMap(
           Map.ofEntries(
@@ -28,7 +28,7 @@ class PostgresStandardRelationalOperatorMapper {
   private static final Map<RelationalOperator, String> nullRhsOperatorMapping =
       Maps.immutableEnumMap(Map.ofEntries(entry(EQ, "IS"), entry(NEQ, "IS NOT")));
 
-  String getMapping(final RelationalOperator operator, Object parsedRhs) {
+  public String getMapping(final RelationalOperator operator, Object parsedRhs) {
     if (Objects.nonNull(parsedRhs)) {
       return Optional.ofNullable(mapping.get(operator))
           .orElseThrow(
