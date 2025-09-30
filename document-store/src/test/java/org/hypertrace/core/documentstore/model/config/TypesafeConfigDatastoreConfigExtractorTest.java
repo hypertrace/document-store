@@ -33,6 +33,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
   private static final String AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
   private static final String DATA_FRESHNESS_KEY = "dataFreshness";
   private static final String QUERY_TIMEOUT_KEY = "queryTimeout";
+  private static final String CONNECTION_TIMEOUT_KEY = "connectionTimeout";
 
   private static final String host = "red.planet";
   private static final String host1 = "RED_PLANET";
@@ -50,6 +51,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
   private static final AggregatePipelineMode aggregatePipelineMode = SORT_OPTIMIZED_IF_POSSIBLE;
   private static final DataFreshness dataFreshness = NEAR_REALTIME_FRESHNESS;
   private static final Duration queryTimeout = Duration.ofSeconds(45);
+  private static final Duration connectionTimeout = Duration.ofSeconds(30);
 
   @SuppressWarnings("ConstantConditions")
   @Test
@@ -109,6 +111,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             .aggregationPipelineMode(AGGREGATION_PIPELINE_MODE_KEY)
             .dataFreshnessKey(DATA_FRESHNESS_KEY)
             .queryTimeoutKey(QUERY_TIMEOUT_KEY)
+            .connectionTimeoutKey(CONNECTION_TIMEOUT_KEY)
             .extract()
             .connectionConfig();
     final ConnectionConfig expected =
@@ -134,6 +137,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             .dataFreshness(dataFreshness)
             .aggregationPipelineMode(aggregatePipelineMode)
             .queryTimeout(queryTimeout)
+            .connectionTimeout(connectionTimeout)
             .build();
 
     assertEquals(expected, config);
@@ -363,6 +367,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout),
             entry(AGGREGATION_PIPELINE_MODE_KEY, SORT_OPTIMIZED_IF_POSSIBLE.name()),
             entry(DATA_FRESHNESS_KEY, NEAR_REALTIME_FRESHNESS.name()),
+            entry(CONNECTION_TIMEOUT_KEY, connectionTimeout),
             entry(QUERY_TIMEOUT_KEY, queryTimeout)));
   }
 

@@ -1,11 +1,12 @@
 package org.hypertrace.core.documentstore;
 
 import static java.util.Collections.emptyList;
+import static org.hypertrace.core.documentstore.model.config.ConnectionConfig.DEFAULT_CONNECTION_TIMEOUT;
+import static org.hypertrace.core.documentstore.model.config.ConnectionConfig.DEFAULT_QUERY_TIMEOUT;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.typesafe.config.Config;
-import java.time.Duration;
 import java.util.Collections;
 import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
@@ -35,7 +36,8 @@ interface TypesafeDatastoreConfigAdapter {
               null,
               AggregatePipelineMode.DEFAULT_ALWAYS,
               DataFreshness.SYSTEM_DEFAULT,
-              Duration.ofMinutes(20),
+              DEFAULT_QUERY_TIMEOUT,
+              DEFAULT_CONNECTION_TIMEOUT,
               Collections.emptyMap()) {
             public MongoClientSettings toSettings() {
               final MongoClientSettings.Builder settingsBuilder =
