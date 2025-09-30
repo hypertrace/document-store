@@ -10,6 +10,7 @@ import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
 import com.mongodb.connection.ClusterSettings;
 import com.mongodb.connection.ConnectionPoolSettings;
+import com.mongodb.connection.SocketSettings;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -55,6 +56,7 @@ public class MongoConnectionConfig extends ConnectionConfig {
       @NonNull final AggregatePipelineMode aggregationPipelineMode,
       @NonNull final DataFreshness dataFreshness,
       @NonNull final Duration queryTimeout,
+      @NonNull final Duration connectionTimeout,
       @NonNull final Map<String, String> customParameters) {
     super(
         ensureAtLeastOneEndpoint(endpoints),
@@ -63,6 +65,7 @@ public class MongoConnectionConfig extends ConnectionConfig {
         aggregationPipelineMode,
         dataFreshness,
         queryTimeout,
+        connectionTimeout,
         customParameters);
     this.applicationName = applicationName;
     this.replicaSetName = replicaSetName;
@@ -79,6 +82,7 @@ public class MongoConnectionConfig extends ConnectionConfig {
     applyClusterSettings(settingsBuilder);
     applyConnectionPoolSettings(settingsBuilder);
     applyCredentialSettings(settingsBuilder);
+    applyConnectionTimeoutSettings(settingsBuilder);
 
     return settingsBuilder.build();
   }
@@ -173,5 +177,13 @@ public class MongoConnectionConfig extends ConnectionConfig {
               credentials.password().toCharArray());
       settingsBuilder.credential(credential);
     }
+  }
+
+  private void applyConnectionTimeoutSettings(final Builder settingsBuilder) {
+    SocketSettings socketSettings =
+        SocketSettings.builder()
+            .connectTimeout(connectionTimeout().toMillis(), TimeUnit.MILLISECONDS)
+            .build();
+    settingsBuilder.applyToSocketSettings(builder -> builder.applySettings(socketSettings));
   }
 }
