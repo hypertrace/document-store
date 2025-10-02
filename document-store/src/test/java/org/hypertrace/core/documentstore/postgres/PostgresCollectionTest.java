@@ -1186,9 +1186,9 @@ class PostgresCollectionTest {
     assertTrue(jsonNode.has("app"));
     assertEquals("MyApp", jsonNode.get("app").get("name").asText());
 
-    // Verify invalid JSON fallback
-    assertTrue(jsonNode.has("debug"));
-    assertEquals("invalid json {", jsonNode.get("debug").get("info").asText());
+    // Verify invalid JSON fallback - should be stored as flat key since JSON parsing failed
+    assertTrue(jsonNode.has("debug_dot_info"));
+    assertEquals("invalid json {", jsonNode.get("debug_dot_info").asText());
 
     iterator.close();
   }
