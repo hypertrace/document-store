@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
 import java.util.Map;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
@@ -27,5 +28,10 @@ public class FlatPostgresFieldTransformer implements PostgresColTransformer {
   public String buildFieldAccessorWithoutCast(FieldToPgColumn fieldToPgColumn) {
     // Flat structure fields are direct columns
     return fieldToPgColumn.getPgColumn();
+  }
+
+  @Override
+  public DocumentType getDocumentType() {
+    return DocumentType.FLAT;
   }
 }

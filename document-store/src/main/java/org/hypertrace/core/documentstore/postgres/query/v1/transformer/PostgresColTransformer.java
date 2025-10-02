@@ -1,11 +1,12 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
 import java.util.Map;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
 /**
  * Interface for transforming logical field names to PostgreSQL column representations.
- * Implementations handle different storage patterns (top-level columns vs JSONB nested fields).
+ * Implementations handle different storage patterns (nested vs flat).
  */
 public interface PostgresColTransformer {
 
@@ -35,4 +36,11 @@ public interface PostgresColTransformer {
    * @return SQL expression for accessing the field without casting
    */
   String buildFieldAccessorWithoutCast(FieldToPgColumn fieldToPgColumn);
+
+  /**
+   * Returns the kind of document this transformer is handling - Flat vs nested
+   *
+   * @return the corresponding document type
+   */
+  DocumentType getDocumentType();
 }
