@@ -847,7 +847,7 @@ public abstract class PostgresCollection implements Collection {
     try {
       ResultSet resultSet = queryExecutor.execute(client.getConnection(), queryParser);
 
-      if (queryParser.getPgColTransformer() instanceof NestedPostgresColTransformer) {
+      if (queryParser.getPgColTransformer().getDocumentType() == DocumentType.NESTED) {
         return !query.getSelections().isEmpty()
             ? new PostgresResultIteratorWithMetaData(resultSet)
             : new PostgresResultIterator(resultSet);
@@ -855,7 +855,7 @@ public abstract class PostgresCollection implements Collection {
         return new PostgresResultIteratorWithBasicTypes(resultSet, DocumentType.FLAT);
       }
     } catch (Exception e) {
-      throw new RuntimeException(e);
+      throw new UnsupportedOperationException(e);
     }
   }
 
