@@ -15,7 +15,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
-import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
 import org.hypertrace.core.documentstore.metric.mongo.MongoDocStoreMetricProvider;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
@@ -26,7 +25,6 @@ import org.slf4j.LoggerFactory;
 
 @Slf4j
 public class MongoDatastore implements Datastore {
-
   private static final Logger LOGGER = LoggerFactory.getLogger(MongoDatastore.class);
 
   private final ConnectionConfig connectionConfig;
@@ -78,16 +76,6 @@ public class MongoDatastore implements Datastore {
         database.getCollection(collectionName);
     collection.drop();
     return true;
-  }
-
-  @Override
-  public Collection getCollectionForType(String collectionName, DocumentType documentType) {
-    // We support nested mongo docs
-    if (documentType == DocumentType.NESTED) {
-      return getCollection(collectionName);
-    }
-    throw new IllegalArgumentException(
-        "Unsupported document type: " + documentType + " for Mongo collection");
   }
 
   @Override
