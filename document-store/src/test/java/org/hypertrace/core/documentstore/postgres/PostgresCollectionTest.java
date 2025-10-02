@@ -1068,22 +1068,28 @@ class PostgresCollectionTest {
   @Test
   void testPostgresResultIteratorWithBasicTypesHandleNestedField()
       throws SQLException, IOException {
-    // Test nested field handling with encoded field names
+    // Test nested field handling with properly encoded field names
     when(mockResultSet.next()).thenReturn(true, false);
     when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
-    when(mockResultSetMetaData.getColumnCount()).thenReturn(3);
+    when(mockResultSetMetaData.getColumnCount()).thenReturn(4);
 
-    when(mockResultSetMetaData.getColumnName(1)).thenReturn("user·profile·name");
+    // Use _dot_ encoding to trigger isEncodedNestedField detection
+    when(mockResultSetMetaData.getColumnName(1)).thenReturn("user_dot_profile_dot_name");
     when(mockResultSetMetaData.getColumnTypeName(1)).thenReturn("jsonb");
     when(mockResultSet.getString(1)).thenReturn("\"John Doe\"");
 
-    when(mockResultSetMetaData.getColumnName(2)).thenReturn("user·profile·age");
+    when(mockResultSetMetaData.getColumnName(2)).thenReturn("user_dot_profile_dot_age");
     when(mockResultSetMetaData.getColumnTypeName(2)).thenReturn("jsonb");
     when(mockResultSet.getString(2)).thenReturn("30");
 
-    when(mockResultSetMetaData.getColumnName(3)).thenReturn("user·settings·theme");
+    when(mockResultSetMetaData.getColumnName(3)).thenReturn("user_dot_settings_dot_theme");
     when(mockResultSetMetaData.getColumnTypeName(3)).thenReturn("jsonb");
     when(mockResultSet.getString(3)).thenReturn("\"dark\"");
+
+    // Also test with regular dot notation
+    when(mockResultSetMetaData.getColumnName(4)).thenReturn("app.version");
+    when(mockResultSetMetaData.getColumnTypeName(4)).thenReturn("jsonb");
+    when(mockResultSet.getString(4)).thenReturn("\"1.0.0\"");
 
     PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
         new PostgresCollection.PostgresResultIteratorWithBasicTypes(mockResultSet);
@@ -1097,14 +1103,92 @@ class PostgresCollectionTest {
     // Convert to JsonNode for precise assertions
     JsonNode jsonNode = OBJECT_MAPPER.readTree(json);
 
-    // Verify the encoded field names are present (not decoded yet in this implementation)
-    assertTrue(jsonNode.has("user·profile·name"));
-    assertTrue(jsonNode.has("user·profile·age"));
-    assertTrue(jsonNode.has("user·settings·theme"));
+    // Verify the nested structure is created by handleNestedField method
+    assertTrue(jsonNode.has("user"));
+    assertTrue(jsonNode.get("user").has("profile"));
+    assertTrue(jsonNode.get("user").get("profile").has("name"));
+    assertTrue(jsonNode.get("user").get("profile").has("age"));
+    assertTrue(jsonNode.get("user").has("settings"));
+    assertTrue(jsonNode.get("user").get("settings").has("theme"));
 
-    assertEquals("John Doe", jsonNode.get("user·profile·name").asText());
-    assertEquals(30, jsonNode.get("user·profile·age").asInt());
-    assertEquals("dark", jsonNode.get("user·settings·theme").asText());
+    // Also verify the regular dot notation field
+    assertTrue(jsonNode.has("app"));
+    assertTrue(jsonNode.get("app").has("version"));
+
+    // Verify the values
+    assertEquals("John Doe", jsonNode.get("user").get("profile").get("name").asText());
+    assertEquals(30, jsonNode.get("user").get("profile").get("age").asInt());
+    assertEquals("dark", jsonNode.get("user").get("settings").get("theme").asText());
+    assertEquals("1.0.0", jsonNode.get("app").get("version").asText());
+
+    iterator.close();
+  }
+
+  @Test
+  void testPostgresResultIteratorWithBasicTypesHandleNestedFieldEdgeCases()
+      throws SQLException, IOException {
+    // Test edge cases in handleNestedField: existing objects, non-object nodes, deep nesting
+    when(mockResultSet.next()).thenReturn(true, false);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    when(mockResultSetMetaData.getColumnCount()).thenReturn(5);
+
+    // Test case where same parent path is used multiple times
+    when(mockResultSetMetaData.getColumnName(1)).thenReturn("config_dot_database_dot_host");
+    when(mockResultSetMetaData.getColumnTypeName(1)).thenReturn("jsonb");
+    when(mockResultSet.getString(1)).thenReturn("\"localhost\"");
+
+    when(mockResultSetMetaData.getColumnName(2)).thenReturn("config_dot_database_dot_port");
+    when(mockResultSetMetaData.getColumnTypeName(2)).thenReturn("jsonb");
+    when(mockResultSet.getString(2)).thenReturn("5432");
+
+    // Test deeply nested path
+    when(mockResultSetMetaData.getColumnName(3))
+        .thenReturn("config_dot_cache_dot_redis_dot_settings_dot_timeout");
+    when(mockResultSetMetaData.getColumnTypeName(3)).thenReturn("jsonb");
+    when(mockResultSet.getString(3)).thenReturn("30000");
+
+    // Test single level nested field
+    when(mockResultSetMetaData.getColumnName(4)).thenReturn("app_dot_name");
+    when(mockResultSetMetaData.getColumnTypeName(4)).thenReturn("jsonb");
+    when(mockResultSet.getString(4)).thenReturn("\"MyApp\"");
+
+    // Test invalid JSON that should fallback to string
+    when(mockResultSetMetaData.getColumnName(5)).thenReturn("debug_dot_info");
+    when(mockResultSetMetaData.getColumnTypeName(5)).thenReturn("jsonb");
+    when(mockResultSet.getString(5)).thenReturn("invalid json {");
+
+    PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
+        new PostgresCollection.PostgresResultIteratorWithBasicTypes(mockResultSet);
+
+    assertTrue(iterator.hasNext());
+    Document result = iterator.next();
+
+    assertNotNull(result);
+    String json = result.toJson();
+
+    JsonNode jsonNode = OBJECT_MAPPER.readTree(json);
+
+    // Verify config.database object with multiple fields
+    assertTrue(jsonNode.has("config"));
+    assertTrue(jsonNode.get("config").has("database"));
+    assertEquals("localhost", jsonNode.get("config").get("database").get("host").asText());
+    assertEquals(5432, jsonNode.get("config").get("database").get("port").asInt());
+
+    // Verify deep nesting
+    assertTrue(jsonNode.get("config").has("cache"));
+    assertTrue(jsonNode.get("config").get("cache").has("redis"));
+    assertTrue(jsonNode.get("config").get("cache").get("redis").has("settings"));
+    assertEquals(
+        30000,
+        jsonNode.get("config").get("cache").get("redis").get("settings").get("timeout").asInt());
+
+    // Verify single level nesting
+    assertTrue(jsonNode.has("app"));
+    assertEquals("MyApp", jsonNode.get("app").get("name").asText());
+
+    // Verify invalid JSON fallback
+    assertTrue(jsonNode.has("debug"));
+    assertEquals("invalid json {", jsonNode.get("debug").get("info").asText());
 
     iterator.close();
   }
