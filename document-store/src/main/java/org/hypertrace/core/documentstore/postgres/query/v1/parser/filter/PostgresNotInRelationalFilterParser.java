@@ -1,10 +1,11 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter;
 
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
-import org.hypertrace.core.documentstore.postgres.FlatPostgresCollection;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserNonJsonField;
 
 class PostgresNotInRelationalFilterParser implements PostgresRelationalFilterParser {
+
   private static final PostgresInRelationalFilterParserInterface jsonFieldInFilterParser =
       new PostgresInRelationalFilterParser();
   private static final PostgresInRelationalFilterParserInterface nonJsonFieldInFilterParser =
@@ -23,7 +24,8 @@ class PostgresNotInRelationalFilterParser implements PostgresRelationalFilterPar
 
   private PostgresInRelationalFilterParserInterface getInFilterParser(
       PostgresRelationalFilterContext context) {
-    boolean isFirstClassField = context.getPgColTransformer() instanceof FlatPostgresCollection;
+    boolean isFirstClassField =
+        context.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
 
     return isFirstClassField ? nonJsonFieldInFilterParser : jsonFieldInFilterParser;
   }

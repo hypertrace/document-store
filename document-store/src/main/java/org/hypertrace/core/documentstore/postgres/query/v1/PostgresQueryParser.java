@@ -73,7 +73,6 @@ public class PostgresQueryParser {
     if (fromClause.isPresent()) {
       startIndexOfSelection = fromClause.get().length();
       sqlBuilder.append(fromClause.get());
-      // Update transformer with unnest column mappings
     }
 
     // handle where clause

@@ -4,6 +4,7 @@ import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
@@ -64,5 +65,10 @@ public class NestedPostgresColTransformer implements PostgresColTransformer {
     return PostgresUtils.prepareFieldAccessorExpr(
             fieldToPgColumn.getTransformedField(), fieldToPgColumn.getPgColumn())
         .toString();
+  }
+
+  @Override
+  public DocumentType getDocumentType() {
+    return DocumentType.NESTED;
   }
 }
