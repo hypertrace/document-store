@@ -3075,6 +3075,342 @@ public class DocStoreQueryV1Test {
     }
   }
 
+  class FlatPostgresCollectionTest {
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionFindAll(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test basic query to retrieve all documents
+      Query query = Query.builder().build();
+      CloseableIterator<Document> iterator = flatCollection.find(query);
+
+      // Count documents
+      long count = 0;
+      while (iterator.hasNext()) {
+        Document doc = iterator.next();
+        count++;
+        // Verify document has content (basic validation)
+        assertNotNull(doc);
+        assertNotNull(doc.toJson());
+        assertTrue(doc.toJson().length() > 0);
+        assertEquals(DocumentType.FLAT, doc.getDocumentType());
+      }
+      iterator.close();
+
+      // Should have 8 documents from the INSERT statements
+      assertEquals(8, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionFilterByItem(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test filtering by item
+      Query itemQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .build();
+
+      CloseableIterator<Document> soapIterator = flatCollection.find(itemQuery);
+      long soapCount = 0;
+      while (soapIterator.hasNext()) {
+        Document doc = soapIterator.next();
+        // Verify it's a soap document by checking JSON contains "Soap"
+        assertTrue(doc.toJson().contains("\"Soap\""));
+        soapCount++;
+      }
+      soapIterator.close();
+
+      // Should have 3 soap documents (IDs 1, 5, 8)
+      assertEquals(3, soapCount);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionCount(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test count method - all documents
+      long totalCount = flatCollection.count(Query.builder().build());
+      assertEquals(8, totalCount);
+
+      // Test count with filter - soap documents only
+      Query soapQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .build();
+      long soapCountQuery = flatCollection.count(soapQuery);
+      assertEquals(3, soapCountQuery);
+    }
+
+    /**
+     * This test is disabled for now because flat collections do not support search on nested
+     * queries in JSONB fields (ex. props.brand)
+     *
+     * @param dataStoreName the datastore name, in this case, Postgres
+     * @throws IOException
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    @Disabled
+    void testFlatPostgresCollectionNestedFieldQuery(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test querying nested field in props JSONB column - filter by brand
+      Query brandQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("props.brand"), EQ, ConstantExpression.of("Dettol")))
+              .build();
+
+      CloseableIterator<Document> brandIterator = flatCollection.find(brandQuery);
+      long brandCount = 0;
+      while (brandIterator.hasNext()) {
+        Document doc = brandIterator.next();
+        // Verify it contains the expected brand
+        assertTrue(doc.toJson().contains("\"Dettol\""));
+        brandCount++;
+      }
+      brandIterator.close();
+
+      // Should have 1 Dettol document (ID 1)
+      assertEquals(1, brandCount);
+
+      // Test querying deeply nested field - filter by seller city
+      Query cityQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("props.seller.address.city"),
+                      EQ,
+                      ConstantExpression.of("Mumbai")))
+              .build();
+
+      CloseableIterator<Document> cityIterator = flatCollection.find(cityQuery);
+      long cityCount = 0;
+      while (cityIterator.hasNext()) {
+        Document doc = cityIterator.next();
+        // Verify it contains Mumbai
+        assertTrue(doc.toJson().contains("\"Mumbai\""));
+        cityCount++;
+      }
+      cityIterator.close();
+
+      // Should have 2 Mumbai documents (IDs 1, 3)
+      assertEquals(2, cityCount);
+
+      // Test count with nested field filter
+      long brandCountQuery = flatCollection.count(brandQuery);
+      assertEquals(1, brandCountQuery);
+
+      long cityCountQuery = flatCollection.count(cityQuery);
+      assertEquals(2, cityCountQuery);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatVsNestedCollectionConsistency(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+
+      // Get both collection types
+      Collection nestedCollection =
+          datastore.getCollection(COLLECTION_NAME); // Default nested collection
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test 1: Count all documents - should be equal
+      Query countAllQuery = Query.builder().build();
+      long nestedCount = nestedCollection.count(countAllQuery);
+      long flatCount = flatCollection.count(countAllQuery);
+      assertEquals(
+          nestedCount, flatCount, "Total document count should be equal in both collections");
+
+      // Test 2: Filter by top-level field - item
+      Query itemFilterQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .build();
+
+      long nestedSoapCount = nestedCollection.count(itemFilterQuery);
+      long flatSoapCount = flatCollection.count(itemFilterQuery);
+      assertEquals(
+          nestedSoapCount, flatSoapCount, "Soap count should be equal in both collections");
+
+      // Test 3: Filter by numeric field - price
+      Query priceFilterQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"), GT, ConstantExpression.of(10)))
+              .build();
+
+      long nestedPriceCount = nestedCollection.count(priceFilterQuery);
+      long flatPriceCount = flatCollection.count(priceFilterQuery);
+      assertEquals(
+          nestedPriceCount, flatPriceCount, "Price > 10 count should be equal in both collections");
+
+      // Test 4: Compare actual document content for same filter
+      CloseableIterator<Document> nestedIterator = nestedCollection.find(itemFilterQuery);
+      CloseableIterator<Document> flatIterator = flatCollection.find(itemFilterQuery);
+
+      // Collect documents from both collections
+      java.util.List<String> nestedDocs = new java.util.ArrayList<>();
+      java.util.List<String> flatDocs = new java.util.ArrayList<>();
+
+      while (nestedIterator.hasNext()) {
+        nestedDocs.add(nestedIterator.next().toJson());
+      }
+      nestedIterator.close();
+
+      while (flatIterator.hasNext()) {
+        flatDocs.add(flatIterator.next().toJson());
+      }
+      flatIterator.close();
+
+      // Both should return the same number of documents
+      assertEquals(
+          nestedDocs.size(),
+          flatDocs.size(),
+          "Both collections should return same number of documents");
+
+      // Test 5: Verify document structure consistency
+      if (!nestedDocs.isEmpty() && !flatDocs.isEmpty()) {
+        // Parse and compare first document from each collection
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode nestedDoc = mapper.readTree(nestedDocs.get(0));
+        JsonNode flatDoc = mapper.readTree(flatDocs.get(0));
+
+        // Verify both have the same top-level fields
+        assertTrue(nestedDoc.has("item") && flatDoc.has("item"), "Both should have 'item' field");
+        assertTrue(
+            nestedDoc.has("price") && flatDoc.has("price"), "Both should have 'price' field");
+        assertTrue(
+            nestedDoc.has("quantity") && flatDoc.has("quantity"),
+            "Both should have 'quantity' field");
+        assertTrue(nestedDoc.has("date") && flatDoc.has("date"), "Both should have 'date' field");
+
+        // Verify the values are the same for basic fields
+        assertEquals(
+            nestedDoc.get("item").asText(),
+            flatDoc.get("item").asText(),
+            "Item values should match");
+        assertEquals(
+            nestedDoc.get("price").asInt(),
+            flatDoc.get("price").asInt(),
+            "Price values should match");
+        assertEquals(
+            nestedDoc.get("quantity").asInt(),
+            flatDoc.get("quantity").asInt(),
+            "Quantity values should match");
+      }
+
+      // Test 6: Test with different filter - quantity
+      Query quantityFilterQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("quantity"), EQ, ConstantExpression.of(10)))
+              .build();
+
+      long nestedQuantityCount = nestedCollection.count(quantityFilterQuery);
+      long flatQuantityCount = flatCollection.count(quantityFilterQuery);
+      assertEquals(
+          nestedQuantityCount,
+          flatQuantityCount,
+          "Quantity = 10 count should be equal in both collections");
+
+      // Test 7: Verify DocumentType is different
+      CloseableIterator<Document> nestedDocIterator =
+          nestedCollection.find(Query.builder().build());
+      CloseableIterator<Document> flatDocIterator = flatCollection.find(Query.builder().build());
+
+      if (nestedDocIterator.hasNext() && flatDocIterator.hasNext()) {
+        Document nestedDocument = nestedDocIterator.next();
+        Document flatDocument = flatDocIterator.next();
+
+        assertEquals(
+            DocumentType.NESTED,
+            nestedDocument.getDocumentType(),
+            "Nested collection should return NESTED documents");
+        assertEquals(
+            DocumentType.FLAT,
+            flatDocument.getDocumentType(),
+            "Flat collection should return FLAT documents");
+      }
+
+      nestedDocIterator.close();
+      flatDocIterator.close();
+    }
+
+    // Disabling this test as unnest of top-level json fields is not supported right now
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    @Disabled
+    void testFlatPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Query to unnest tags and group by them to get counts
+      Query unnestQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("tags"))
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count")
+              .addAggregation(IdentifierExpression.of("tags"))
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
+              .build();
+
+      CloseableIterator<Document> iterator = flatCollection.aggregate(unnestQuery);
+
+      // Collect results
+      Map<String, Integer> tagCounts = new HashMap<>();
+      while (iterator.hasNext()) {
+        Document doc = iterator.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        String tag = json.get("tags").asText();
+        int count = json.get("count").asInt();
+        tagCounts.put(tag, count);
+      }
+      iterator.close();
+
+      // Verify we have results
+      assertFalse(tagCounts.isEmpty(), "Should have tag counts");
+
+      // Verify some expected tag counts based on our test data
+      // From collection_data.json, we can verify specific tags appear expected number of times
+      assertTrue(tagCounts.containsKey("hygiene"), "Should contain 'hygiene' tag");
+      assertTrue(tagCounts.containsKey("personal-care"), "Should contain 'personal-care' tag");
+      assertTrue(tagCounts.containsKey("grooming"), "Should contain 'grooming' tag");
+
+      // Verify total count matches expected (each document contributes its tag count)
+      int totalTags = tagCounts.values().stream().mapToInt(Integer::intValue).sum();
+      assertTrue(totalTags > 0, "Total tag count should be greater than 0");
+
+      // Print results for debugging
+      System.out.println("Tag counts from unnest operation:");
+      tagCounts.entrySet().stream()
+          .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+          .forEach(entry -> System.out.println(entry.getKey() + ": " + entry.getValue()));
+    }
+  }
+
   @Nested
   class BulkUpdateTest {
 
@@ -3747,335 +4083,6 @@ public class DocStoreQueryV1Test {
     final String fileContent = readFileFromResource(filePath).orElseThrow();
     final long expectedSize = convertJsonToMap(fileContent).size();
     assertEquals(expectedSize, actualSize);
-  }
-
-  @ParameterizedTest
-  @ArgumentsSource(PostgresProvider.class)
-  void testFlatPostgresCollectionFindAll(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection flatCollection =
-        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-    // Test basic query to retrieve all documents
-    Query query = Query.builder().build();
-    CloseableIterator<Document> iterator = flatCollection.find(query);
-
-    // Count documents
-    long count = 0;
-    while (iterator.hasNext()) {
-      Document doc = iterator.next();
-      count++;
-      // Verify document has content (basic validation)
-      assertNotNull(doc);
-      assertNotNull(doc.toJson());
-      assertTrue(doc.toJson().length() > 0);
-      assertEquals(DocumentType.FLAT, doc.getDocumentType());
-    }
-    iterator.close();
-
-    // Should have 8 documents from the INSERT statements
-    assertEquals(8, count);
-  }
-
-  @ParameterizedTest
-  @ArgumentsSource(PostgresProvider.class)
-  void testFlatPostgresCollectionFilterByItem(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection flatCollection =
-        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-    // Test filtering by item
-    Query itemQuery =
-        Query.builder()
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-            .build();
-
-    CloseableIterator<Document> soapIterator = flatCollection.find(itemQuery);
-    long soapCount = 0;
-    while (soapIterator.hasNext()) {
-      Document doc = soapIterator.next();
-      // Verify it's a soap document by checking JSON contains "Soap"
-      assertTrue(doc.toJson().contains("\"Soap\""));
-      soapCount++;
-    }
-    soapIterator.close();
-
-    // Should have 3 soap documents (IDs 1, 5, 8)
-    assertEquals(3, soapCount);
-  }
-
-  @ParameterizedTest
-  @ArgumentsSource(PostgresProvider.class)
-  void testFlatPostgresCollectionCount(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection flatCollection =
-        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-    // Test count method - all documents
-    long totalCount = flatCollection.count(Query.builder().build());
-    assertEquals(8, totalCount);
-
-    // Test count with filter - soap documents only
-    Query soapQuery =
-        Query.builder()
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-            .build();
-    long soapCountQuery = flatCollection.count(soapQuery);
-    assertEquals(3, soapCountQuery);
-  }
-
-  /**
-   * This test is disabled for now because flat collections do not support search on nested queries
-   * in JSONB fields (ex. props.brand)
-   *
-   * @param dataStoreName the datastore name, in this case, Postgres
-   * @throws IOException
-   */
-  @ParameterizedTest
-  @ArgumentsSource(PostgresProvider.class)
-  @Disabled
-  void testFlatPostgresCollectionNestedFieldQuery(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection flatCollection =
-        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-    // Test querying nested field in props JSONB column - filter by brand
-    Query brandQuery =
-        Query.builder()
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("props.brand"), EQ, ConstantExpression.of("Dettol")))
-            .build();
-
-    CloseableIterator<Document> brandIterator = flatCollection.find(brandQuery);
-    long brandCount = 0;
-    while (brandIterator.hasNext()) {
-      Document doc = brandIterator.next();
-      // Verify it contains the expected brand
-      assertTrue(doc.toJson().contains("\"Dettol\""));
-      brandCount++;
-    }
-    brandIterator.close();
-
-    // Should have 1 Dettol document (ID 1)
-    assertEquals(1, brandCount);
-
-    // Test querying deeply nested field - filter by seller city
-    Query cityQuery =
-        Query.builder()
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("props.seller.address.city"),
-                    EQ,
-                    ConstantExpression.of("Mumbai")))
-            .build();
-
-    CloseableIterator<Document> cityIterator = flatCollection.find(cityQuery);
-    long cityCount = 0;
-    while (cityIterator.hasNext()) {
-      Document doc = cityIterator.next();
-      // Verify it contains Mumbai
-      assertTrue(doc.toJson().contains("\"Mumbai\""));
-      cityCount++;
-    }
-    cityIterator.close();
-
-    // Should have 2 Mumbai documents (IDs 1, 3)
-    assertEquals(2, cityCount);
-
-    // Test count with nested field filter
-    long brandCountQuery = flatCollection.count(brandQuery);
-    assertEquals(1, brandCountQuery);
-
-    long cityCountQuery = flatCollection.count(cityQuery);
-    assertEquals(2, cityCountQuery);
-  }
-
-  @ParameterizedTest
-  @ArgumentsSource(PostgresProvider.class)
-  void testFlatVsNestedCollectionConsistency(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-
-    // Get both collection types
-    Collection nestedCollection =
-        datastore.getCollection(COLLECTION_NAME); // Default nested collection
-    Collection flatCollection =
-        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-    // Test 1: Count all documents - should be equal
-    Query countAllQuery = Query.builder().build();
-    long nestedCount = nestedCollection.count(countAllQuery);
-    long flatCount = flatCollection.count(countAllQuery);
-    assertEquals(
-        nestedCount, flatCount, "Total document count should be equal in both collections");
-
-    // Test 2: Filter by top-level field - item
-    Query itemFilterQuery =
-        Query.builder()
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-            .build();
-
-    long nestedSoapCount = nestedCollection.count(itemFilterQuery);
-    long flatSoapCount = flatCollection.count(itemFilterQuery);
-    assertEquals(nestedSoapCount, flatSoapCount, "Soap count should be equal in both collections");
-
-    // Test 3: Filter by numeric field - price
-    Query priceFilterQuery =
-        Query.builder()
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("price"), GT, ConstantExpression.of(10)))
-            .build();
-
-    long nestedPriceCount = nestedCollection.count(priceFilterQuery);
-    long flatPriceCount = flatCollection.count(priceFilterQuery);
-    assertEquals(
-        nestedPriceCount, flatPriceCount, "Price > 10 count should be equal in both collections");
-
-    // Test 4: Compare actual document content for same filter
-    CloseableIterator<Document> nestedIterator = nestedCollection.find(itemFilterQuery);
-    CloseableIterator<Document> flatIterator = flatCollection.find(itemFilterQuery);
-
-    // Collect documents from both collections
-    java.util.List<String> nestedDocs = new java.util.ArrayList<>();
-    java.util.List<String> flatDocs = new java.util.ArrayList<>();
-
-    while (nestedIterator.hasNext()) {
-      nestedDocs.add(nestedIterator.next().toJson());
-    }
-    nestedIterator.close();
-
-    while (flatIterator.hasNext()) {
-      flatDocs.add(flatIterator.next().toJson());
-    }
-    flatIterator.close();
-
-    // Both should return the same number of documents
-    assertEquals(
-        nestedDocs.size(),
-        flatDocs.size(),
-        "Both collections should return same number of documents");
-
-    // Test 5: Verify document structure consistency
-    if (!nestedDocs.isEmpty() && !flatDocs.isEmpty()) {
-      // Parse and compare first document from each collection
-      ObjectMapper mapper = new ObjectMapper();
-      JsonNode nestedDoc = mapper.readTree(nestedDocs.get(0));
-      JsonNode flatDoc = mapper.readTree(flatDocs.get(0));
-
-      // Verify both have the same top-level fields
-      assertTrue(nestedDoc.has("item") && flatDoc.has("item"), "Both should have 'item' field");
-      assertTrue(nestedDoc.has("price") && flatDoc.has("price"), "Both should have 'price' field");
-      assertTrue(
-          nestedDoc.has("quantity") && flatDoc.has("quantity"),
-          "Both should have 'quantity' field");
-      assertTrue(nestedDoc.has("date") && flatDoc.has("date"), "Both should have 'date' field");
-
-      // Verify the values are the same for basic fields
-      assertEquals(
-          nestedDoc.get("item").asText(), flatDoc.get("item").asText(), "Item values should match");
-      assertEquals(
-          nestedDoc.get("price").asInt(),
-          flatDoc.get("price").asInt(),
-          "Price values should match");
-      assertEquals(
-          nestedDoc.get("quantity").asInt(),
-          flatDoc.get("quantity").asInt(),
-          "Quantity values should match");
-    }
-
-    // Test 6: Test with different filter - quantity
-    Query quantityFilterQuery =
-        Query.builder()
-            .setFilter(
-                RelationalExpression.of(
-                    IdentifierExpression.of("quantity"), EQ, ConstantExpression.of(10)))
-            .build();
-
-    long nestedQuantityCount = nestedCollection.count(quantityFilterQuery);
-    long flatQuantityCount = flatCollection.count(quantityFilterQuery);
-    assertEquals(
-        nestedQuantityCount,
-        flatQuantityCount,
-        "Quantity = 10 count should be equal in both collections");
-
-    // Test 7: Verify DocumentType is different
-    CloseableIterator<Document> nestedDocIterator = nestedCollection.find(Query.builder().build());
-    CloseableIterator<Document> flatDocIterator = flatCollection.find(Query.builder().build());
-
-    if (nestedDocIterator.hasNext() && flatDocIterator.hasNext()) {
-      Document nestedDocument = nestedDocIterator.next();
-      Document flatDocument = flatDocIterator.next();
-
-      assertEquals(
-          DocumentType.NESTED,
-          nestedDocument.getDocumentType(),
-          "Nested collection should return NESTED documents");
-      assertEquals(
-          DocumentType.FLAT,
-          flatDocument.getDocumentType(),
-          "Flat collection should return FLAT documents");
-    }
-
-    nestedDocIterator.close();
-    flatDocIterator.close();
-  }
-
-  // Disabling this test as unnest of top-level json fields is not supported right now
-  @ParameterizedTest
-  @ArgumentsSource(PostgresProvider.class)
-  @Disabled
-  void testFlatPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection flatCollection =
-        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-    // Query to unnest tags and group by them to get counts
-    Query unnestQuery =
-        Query.builder()
-            .addSelection(IdentifierExpression.of("tags"))
-            .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count")
-            .addAggregation(IdentifierExpression.of("tags"))
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
-            .build();
-
-    CloseableIterator<Document> iterator = flatCollection.aggregate(unnestQuery);
-
-    // Collect results
-    Map<String, Integer> tagCounts = new HashMap<>();
-    while (iterator.hasNext()) {
-      Document doc = iterator.next();
-      JsonNode json = new ObjectMapper().readTree(doc.toJson());
-      String tag = json.get("tags").asText();
-      int count = json.get("count").asInt();
-      tagCounts.put(tag, count);
-    }
-    iterator.close();
-
-    // Verify we have results
-    assertFalse(tagCounts.isEmpty(), "Should have tag counts");
-
-    // Verify some expected tag counts based on our test data
-    // From collection_data.json, we can verify specific tags appear expected number of times
-    assertTrue(tagCounts.containsKey("hygiene"), "Should contain 'hygiene' tag");
-    assertTrue(tagCounts.containsKey("personal-care"), "Should contain 'personal-care' tag");
-    assertTrue(tagCounts.containsKey("grooming"), "Should contain 'grooming' tag");
-
-    // Verify total count matches expected (each document contributes its tag count)
-    int totalTags = tagCounts.values().stream().mapToInt(Integer::intValue).sum();
-    assertTrue(totalTags > 0, "Total tag count should be greater than 0");
-
-    // Print results for debugging
-    System.out.println("Tag counts from unnest operation:");
-    tagCounts.entrySet().stream()
-        .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-        .forEach(entry -> System.out.println(entry.getKey() + ": " + entry.getValue()));
   }
 
   @ParameterizedTest
