@@ -3075,6 +3075,7 @@ public class DocStoreQueryV1Test {
     }
   }
 
+  @Nested
   class FlatPostgresCollectionTest {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
