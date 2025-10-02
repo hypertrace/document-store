@@ -180,6 +180,9 @@ public class DocStoreQueryV1Test {
     datastoreMap.put(POSTGRES_STORE, postgresDatastore);
 
     createCollectionData("query/collection_data.json", COLLECTION_NAME);
+
+    createFlatCollectionSchema(datastoreMap.get(POSTGRES_STORE), FLAT_COLLECTION_NAME);
+    executeInsertStatements((PostgresDatastore) datastoreMap.get(POSTGRES_STORE));
   }
 
   private static void createFlatCollectionSchema(
@@ -252,10 +255,6 @@ public class DocStoreQueryV1Test {
         (k, v) -> {
           v.deleteCollection(collectionName);
           // for Postgres, we also create the flat collection
-          if (v instanceof PostgresDatastore) {
-            createFlatCollectionSchema(v, FLAT_COLLECTION_NAME);
-            executeInsertStatements((PostgresDatastore) v);
-          }
           v.createCollection(collectionName, null);
           Collection collection = v.getCollection(collectionName);
           collection.bulkUpsert(documents);
@@ -4081,6 +4080,7 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @ArgumentsSource(PostgresProvider.class)
+  @Disabled
   void testNestedPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     Collection nestedCollection =

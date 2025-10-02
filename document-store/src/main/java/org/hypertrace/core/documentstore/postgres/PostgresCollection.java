@@ -77,7 +77,6 @@ import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.internal.BulkUpdateSubDocsInternalResult;
 import org.hypertrace.core.documentstore.postgres.model.DocumentAndId;
-import org.hypertrace.core.documentstore.postgres.query.v1.transformer.NestedPostgresColTransformer;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentUpdater;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.postgresql.util.PSQLException;
@@ -496,7 +495,7 @@ public abstract class PostgresCollection implements Collection {
     try (final Connection connection = client.getPooledConnection()) {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-              tableIdentifier, query, new NestedPostgresColTransformer());
+              tableIdentifier, query);
       final String selectQuery = parser.buildSelectQueryForUpdate();
 
       try (final PreparedStatement preparedStatement =
@@ -530,11 +529,13 @@ public abstract class PostgresCollection implements Collection {
                           .build())
                   .build();
 
-          try (final CloseableIterator<Document> iterator =
-              queryWithParser(
-                  findByIdQuery,
+          final org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser
+              findByIdParser =
                   new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-                      tableIdentifier, query))) {
+                      tableIdentifier, findByIdQuery);
+
+          try (final CloseableIterator<Document> iterator =
+              queryWithParser(connection, findByIdQuery, findByIdParser)) {
             returnDocument = getFirstDocument(iterator).orElseThrow();
           }
         } else if (updateOptions.getReturnDocumentType() == NONE) {
@@ -846,6 +847,25 @@ public abstract class PostgresCollection implements Collection {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
     try {
       ResultSet resultSet = queryExecutor.execute(client.getConnection(), queryParser);
+
+      if (queryParser.getPgColTransformer().getDocumentType() == DocumentType.NESTED) {
+        return !query.getSelections().isEmpty()
+            ? new PostgresResultIteratorWithMetaData(resultSet)
+            : new PostgresResultIterator(resultSet);
+      } else {
+        return new PostgresResultIteratorWithBasicTypes(resultSet, DocumentType.FLAT);
+      }
+    } catch (Exception e) {
+      throw new UnsupportedOperationException(e);
+    }
+  }
+
+  protected CloseableIterator<Document> queryWithParser(
+      Connection connection,
+      org.hypertrace.core.documentstore.query.Query query,
+      org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
+    try {
+      ResultSet resultSet = queryExecutor.execute(connection, queryParser);
 
       if (queryParser.getPgColTransformer().getDocumentType() == DocumentType.NESTED) {
         return !query.getSelections().isEmpty()

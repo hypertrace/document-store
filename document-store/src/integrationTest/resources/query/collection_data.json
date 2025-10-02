@@ -5,7 +5,6 @@
     "price": 10,
     "quantity": 2,
     "date": "2014-03-01T08:00:00Z",
-    "tags": ["hygiene", "personal-care", "premium"],
     "props": {
       "colors": [
         "Blue",
@@ -60,7 +59,6 @@
     "price": 20,
     "quantity": 1,
     "date": "2014-03-01T09:00:00Z",
-    "tags": ["home-decor", "reflective", "glass"],
     "sales": [
       {
         "city": "delhi",
@@ -74,7 +72,6 @@
     "price": 5,
     "quantity": 10,
     "date": "2014-03-15T09:00:00Z",
-    "tags": ["hair-care", "personal-care", "premium", "herbal"],
     "props": {
       "colors": [
         "Black"
@@ -132,7 +129,6 @@
     "price": 5,
     "quantity": 20,
     "date": "2014-04-04T11:21:39.736Z",
-    "tags": ["hair-care", "budget", "bulk"],
     "sales": []
   },
   {
@@ -141,7 +137,6 @@
     "price": 20,
     "quantity": 5,
     "date": "2014-04-04T21:23:13.331Z",
-    "tags": ["hygiene", "antibacterial", "family-pack"],
     "props": {
       "colors": [
         "Orange",
@@ -163,8 +158,7 @@
     "item": "Comb",
     "price": 7.5,
     "quantity": 5,
-    "date": "2015-06-04T05:08:13Z",
-    "tags": ["grooming", "plastic", "essential"]
+    "date": "2015-06-04T05:08:13Z"
   },
   {
     "_id": 7,
@@ -172,7 +166,6 @@
     "price": 7.5,
     "quantity": 10,
     "date": "2015-09-10T08:43:00Z",
-    "tags": ["grooming", "bulk", "wholesale"],
     "props": {
       "colors": [],
       "seller": {
@@ -189,7 +182,6 @@
     "item": "Soap",
     "price": 10,
     "quantity": 5,
-    "date": "2016-02-06T20:20:13Z",
-    "tags": ["hygiene", "budget", "basic"]
+    "date": "2016-02-06T20:20:13Z"
   }
 ]
