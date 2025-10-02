@@ -40,6 +40,7 @@ import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.PostgresTableIdentifier;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 import org.hypertrace.core.documentstore.query.Filter;
 import org.hypertrace.core.documentstore.query.Pagination;
@@ -666,7 +667,9 @@ public class PostgresQueryParserTest {
     // non-json field
     postgresQueryParser =
         new PostgresQueryParser(
-            TEST_TABLE, PostgresQueryTransformer.transform(query), "testCollection");
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
     assertEquals(
         "SELECT \"item\" AS \"item\", "
             + "\"price\" AS \"price\", "

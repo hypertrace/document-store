@@ -11,7 +11,9 @@ import lombok.Setter;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.PostgresTableIdentifier;
-import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumnTransformer;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumn;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.NestedPostgresColTransformer;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresColTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresAggregationFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFromTypeExpressionVisitor;
@@ -28,7 +30,6 @@ public class PostgresQueryParser {
 
   @Getter private final PostgresTableIdentifier tableIdentifier;
   @Getter private final Query query;
-  @Getter private final String flatStructureCollectionName;
 
   @Setter String finalTableName;
   @Getter private final Builder paramsBuilder = Params.newBuilder();
@@ -43,19 +44,24 @@ public class PostgresQueryParser {
   // unwind sales.medium data will be available in the Y column.
   // The below map will maintain that mapping.
   @Getter private final Map<String, String> pgColumnNames = new HashMap<>();
-  @Getter private final FieldToPgColumnTransformer toPgColumnTransformer;
+  @Getter private final PostgresColTransformer pgColTransformer;
 
   public PostgresQueryParser(
-      PostgresTableIdentifier tableIdentifier, Query query, String flatStructureCollectionName) {
+      PostgresTableIdentifier tableIdentifier,
+      Query query,
+      PostgresColTransformer pgColTransformer) {
     this.tableIdentifier = tableIdentifier;
     this.query = query;
-    this.flatStructureCollectionName = flatStructureCollectionName;
     this.finalTableName = tableIdentifier.toString();
-    toPgColumnTransformer = new FieldToPgColumnTransformer(this);
+    this.pgColTransformer = pgColTransformer;
   }
 
+  // if no field transformer is supplied, fallback to the nested transformer
   public PostgresQueryParser(PostgresTableIdentifier tableIdentifier, Query query) {
-    this(tableIdentifier, query, null);
+    this.tableIdentifier = tableIdentifier;
+    this.query = query;
+    this.finalTableName = tableIdentifier.toString();
+    this.pgColTransformer = new NestedPostgresColTransformer();
   }
 
   public String parse() {
@@ -114,6 +120,10 @@ public class PostgresQueryParser {
 
   public String buildFilterClause() {
     return parseFilter().map(filter -> "WHERE " + filter).orElse("");
+  }
+
+  public FieldToPgColumn transformField(String name) {
+    return pgColTransformer.transform(name, this.pgColumnNames);
   }
 
   private String getSelections() {

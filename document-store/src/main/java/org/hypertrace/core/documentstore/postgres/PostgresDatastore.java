@@ -19,6 +19,7 @@ import lombok.NonNull;
 import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
 import org.hypertrace.core.documentstore.metric.postgres.PostgresDocStoreMetricProvider;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
@@ -142,13 +143,33 @@ public class PostgresDatastore implements Datastore {
     return false;
   }
 
+  /**
+   * For PG, this method returns the legacy collection
+   *
+   * @param collectionName the legacy collection name
+   * @return the legacy PG collection
+   */
   @Override
   public Collection getCollection(String collectionName) {
     Set<String> tables = listCollections();
     if (!tables.contains(collectionName)) {
       createCollection(collectionName, null);
     }
-    return new PostgresCollection(client, collectionName);
+    return new NestedPostgresCollection(client, collectionName);
+  }
+
+  @Override
+  public Collection getCollectionForType(String collectionName, DocumentType documentType) {
+    switch (documentType) {
+      case FLAT:
+        {
+          return new FlatPostgresCollection(client, collectionName);
+        }
+      case NESTED:
+        return getCollection(collectionName);
+      default:
+        throw new IllegalArgumentException("Unknown collection type: " + documentType);
+    }
   }
 
   @Override

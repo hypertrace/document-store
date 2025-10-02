@@ -72,7 +72,6 @@ import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
-import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -85,7 +84,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Provides {@link Collection} implementation on Postgres using jsonb format */
-public class PostgresCollection implements Collection {
+public abstract class PostgresCollection implements Collection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(PostgresCollection.class);
   public static final String ID = "id";
@@ -98,12 +97,11 @@ public class PostgresCollection implements Collection {
   private static final String CREATED_NOW_ALIAS = "created_now_alias";
   private static final CloseableIterator<Document> EMPTY_ITERATOR =
       CloseableIterator.emptyIterator();
-  private static final String FLAT_STRUCTURE_COLLECTION_KEY = "flatStructureCollection";
 
-  private final PostgresClient client;
-  private final PostgresTableIdentifier tableIdentifier;
+  protected final PostgresClient client;
+  protected final PostgresTableIdentifier tableIdentifier;
   private final PostgresSubDocumentUpdater subDocUpdater;
-  private final PostgresQueryExecutor queryExecutor;
+  protected final PostgresQueryExecutor queryExecutor;
   private final UpdateValidator updateValidator;
 
   public PostgresCollection(final PostgresClient client, final String collectionName) {
@@ -115,7 +113,7 @@ public class PostgresCollection implements Collection {
     this.tableIdentifier = tableIdentifier;
     this.subDocUpdater =
         new PostgresSubDocumentUpdater(new PostgresQueryBuilder(this.tableIdentifier));
-    this.queryExecutor = new PostgresQueryExecutor(this.tableIdentifier);
+    this.queryExecutor = new PostgresQueryExecutor();
     this.updateValidator = new CommonUpdateValidator();
   }
 
@@ -480,24 +478,10 @@ public class PostgresCollection implements Collection {
       return closeableIterator;
     } catch (SQLException e) {
       LOGGER.error(
-          "SQLException in querying documents - query: {}, sqlQuery:{}", query, pgSqlQuery, e);
+          "SQLException in querying documents - query: {}, sqlQuery: {}", query, pgSqlQuery, e);
     }
 
     return EMPTY_ITERATOR;
-  }
-
-  @Override
-  public CloseableIterator<Document> find(
-      final org.hypertrace.core.documentstore.query.Query query) {
-    return queryExecutor.execute(client.getConnection(), query);
-  }
-
-  @Override
-  public CloseableIterator<Document> query(
-      final org.hypertrace.core.documentstore.query.Query query, final QueryOptions queryOptions) {
-    String flatStructureCollectionName =
-        client.getCustomParameters().get(FLAT_STRUCTURE_COLLECTION_KEY);
-    return queryExecutor.execute(client.getConnection(), query, flatStructureCollectionName);
   }
 
   @Override
@@ -545,8 +529,13 @@ public class PostgresCollection implements Collection {
                           .build())
                   .build();
 
+          final org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser
+              findByIdParser =
+                  new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
+                      tableIdentifier, findByIdQuery);
+
           try (final CloseableIterator<Document> iterator =
-              queryExecutor.execute(connection, findByIdQuery)) {
+              queryWithParser(connection, findByIdQuery, findByIdParser)) {
             returnDocument = getFirstDocument(iterator).orElseThrow();
           }
         } else if (updateOptions.getReturnDocumentType() == NONE) {
@@ -607,28 +596,6 @@ public class PostgresCollection implements Collection {
         iterator.close();
       }
       throw new IOException(e);
-    }
-  }
-
-  @Override
-  public long count(
-      org.hypertrace.core.documentstore.query.Query query, QueryOptions queryOptions) {
-    org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser =
-        new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
-            tableIdentifier, query);
-    String subQuery = queryParser.parse();
-    String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(count)", subQuery);
-    try {
-      PreparedStatement preparedStatement =
-          queryExecutor.buildPreparedStatement(
-              sqlQuery, queryParser.getParamsBuilder().build(), client.getConnection());
-      ResultSet resultSet = preparedStatement.executeQuery();
-      resultSet.next();
-      return resultSet.getLong(1);
-    } catch (SQLException e) {
-      LOGGER.error(
-          "SQLException querying documents. original query: {}, sql query:", query, sqlQuery, e);
-      throw new RuntimeException(e);
     }
   }
 
@@ -773,7 +740,7 @@ public class PostgresCollection implements Collection {
         count = resultSet.getLong(1);
       }
     } catch (SQLException e) {
-      LOGGER.error("SQLException querying documents. query: {}", query, e);
+      LOGGER.error("SQLException querying documents. query: {}, sqlQuery: {}", query, sqlQuery, e);
     }
     return count;
   }
@@ -853,6 +820,62 @@ public class PostgresCollection implements Collection {
       preparedStatement.executeUpdate();
     } catch (SQLException e) {
       LOGGER.error("Exception deleting table name: {}", tableIdentifier);
+    }
+  }
+
+  protected long countWithParser(
+      org.hypertrace.core.documentstore.query.Query query,
+      org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
+    String subQuery = queryParser.parse();
+    String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(countWithParser)", subQuery);
+    try {
+      PreparedStatement preparedStatement =
+          queryExecutor.buildPreparedStatement(
+              sqlQuery, queryParser.getParamsBuilder().build(), client.getConnection());
+      ResultSet resultSet = preparedStatement.executeQuery();
+      resultSet.next();
+      return resultSet.getLong(1);
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException querying documents. Original query: {}, sql query: {}", query, sqlQuery, e);
+      throw new RuntimeException(e);
+    }
+  }
+
+  protected CloseableIterator<Document> queryWithParser(
+      org.hypertrace.core.documentstore.query.Query query,
+      org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
+    try {
+      ResultSet resultSet = queryExecutor.execute(client.getConnection(), queryParser);
+
+      if (queryParser.getPgColTransformer().getDocumentType() == DocumentType.NESTED) {
+        return !query.getSelections().isEmpty()
+            ? new PostgresResultIteratorWithMetaData(resultSet)
+            : new PostgresResultIterator(resultSet);
+      } else {
+        return new PostgresResultIteratorWithBasicTypes(resultSet, DocumentType.FLAT);
+      }
+    } catch (Exception e) {
+      throw new UnsupportedOperationException(e);
+    }
+  }
+
+  protected CloseableIterator<Document> queryWithParser(
+      Connection connection,
+      org.hypertrace.core.documentstore.query.Query query,
+      org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
+    try {
+      ResultSet resultSet = queryExecutor.execute(connection, queryParser);
+
+      if (queryParser.getPgColTransformer().getDocumentType() == DocumentType.NESTED) {
+        return !query.getSelections().isEmpty()
+            ? new PostgresResultIteratorWithMetaData(resultSet)
+            : new PostgresResultIterator(resultSet);
+      } else {
+        return new PostgresResultIteratorWithBasicTypes(resultSet, DocumentType.FLAT);
+      }
+    } catch (Exception e) {
+      throw new UnsupportedOperationException(e);
     }
   }
 
@@ -1369,7 +1392,13 @@ public class PostgresCollection implements Collection {
           if (jsonString != null) {
             try {
               JsonNode jsonValue = MAPPER.readTree(jsonString);
-              jsonNode.set(columnName, jsonValue);
+              // Handle like MetaData iterator - check for encoded nested fields
+              if (PostgresUtils.isEncodedNestedField(columnName)) {
+                handleNestedField(
+                    PostgresUtils.decodeAliasForNestedField(columnName), jsonNode, jsonValue);
+              } else {
+                jsonNode.set(columnName, jsonValue);
+              }
             } catch (IOException e) {
               // Fallback to string if JSON parsing fails
               jsonNode.put(columnName, jsonString);
@@ -1384,6 +1413,25 @@ public class PostgresCollection implements Collection {
           }
           break;
       }
+    }
+
+    private void handleNestedField(String columnName, ObjectNode rootNode, JsonNode leafNodeValue) {
+      List<String> keys = PostgresUtils.splitNestedField(columnName);
+      // Find the leaf node or create one for adding property value
+      ObjectNode curNode = rootNode;
+      for (int l = 0; l < keys.size() - 1; l++) {
+        String key = keys.get(l);
+        JsonNode node = curNode.get(key);
+        if (node == null || !node.isObject()) {
+          ObjectNode newNode = MAPPER.createObjectNode();
+          curNode.set(key, newNode);
+          curNode = newNode;
+        } else {
+          curNode = (ObjectNode) node;
+        }
+      }
+      String leafKey = keys.get(keys.size() - 1);
+      curNode.set(leafKey, leafNodeValue);
     }
   }
 

@@ -17,6 +17,7 @@ import org.hypertrace.core.documentstore.expression.operators.RelationalOperator
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresContainsRelationalFilterParserNonJsonField;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserNonJsonField;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 
 public class PostgresRelationalFilterParserFactoryImpl
     implements PostgresRelationalFilterParserFactory {
@@ -51,11 +52,8 @@ public class PostgresRelationalFilterParserFactoryImpl
   public PostgresRelationalFilterParser parser(
       final RelationalExpression expression, final PostgresQueryParser postgresQueryParser) {
 
-    String flatStructureCollection = postgresQueryParser.getFlatStructureCollectionName();
     boolean isFirstClassField =
-        flatStructureCollection != null
-            && flatStructureCollection.equals(
-                postgresQueryParser.getTableIdentifier().getTableName());
+        postgresQueryParser.getPgColTransformer() instanceof FlatPostgresFieldTransformer;
 
     if (expression.getOperator() == CONTAINS) {
       return isFirstClassField ? nonJsonFieldContainsParser : jsonFieldContainsParser;
