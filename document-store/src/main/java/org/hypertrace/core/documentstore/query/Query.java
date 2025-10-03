@@ -76,6 +76,7 @@ public class Query {
   Sort sort;
   Pagination pagination; // Missing pagination represents fetching all the records
   FromClause fromClause;
+  ColumnMetadata columnMetadata; // Column type metadata for native vs JSONB columns
 
   @Override
   public String toString() {
@@ -114,6 +115,10 @@ public class Query {
 
   public List<FromTypeExpression> getFromTypeExpressions() {
     return fromClause == null ? emptyList() : unmodifiableList(fromClause.getFromTypeExpressions());
+  }
+
+  public ColumnMetadata getColumnMetadata() {
+    return columnMetadata != null ? columnMetadata : ColumnMetadata.empty();
   }
 
   public static QueryBuilder builder() {
@@ -157,6 +162,7 @@ public class Query {
     private Sort.SortBuilder sortBuilder;
     private Pagination pagination;
     private FromClause.FromClauseBuilder fromClauseBuilder;
+    private ColumnMetadata columnMetadata;
 
     public QueryBuilder setSelection(final Selection selection) {
       this.selectionBuilder = selection.toBuilder();
@@ -306,6 +312,22 @@ public class Query {
       return this;
     }
 
+    public QueryBuilder setColumnMetadata(final ColumnMetadata columnMetadata) {
+      this.columnMetadata = columnMetadata;
+      return this;
+    }
+
+    public QueryBuilder addColumnType(final String columnName, final String type) {
+      if (this.columnMetadata == null) {
+        this.columnMetadata = ColumnMetadata.builder().build();
+      }
+      ColumnMetadata.ColumnMetadataBuilder builder = ColumnMetadata.builder();
+      this.columnMetadata.getColumns().forEach(builder::column);
+      builder.column(columnName, type);
+      this.columnMetadata = builder.build();
+      return this;
+    }
+
     public Query build() {
       return new Query(
           getSelection(),
@@ -314,7 +336,8 @@ public class Query {
           getAggregationFilter(),
           getSort(),
           pagination,
-          getFrom());
+          getFrom(),
+          columnMetadata);
     }
 
     protected Selection.SelectionBuilder getSelectionBuilder() {
