@@ -1,0 +1,42 @@
+[
+  {
+    "_id": 1,
+    "name": "Document A",
+    "scope": {
+      "environmentScope": {
+        "environmentIds": ["env-1", "env-2"]
+      }
+    }
+  },
+  {
+    "_id": 2,
+    "name": "Document B", 
+    "scope": {
+      "environmentScope": {
+        "environmentIds": ["env-1", "env-2", "env-3"]
+      }
+    }
+  },
+  {
+    "_id": 3,
+    "name": "Document C",
+    "scope": {
+      "environmentScope": {
+        "environmentIds": ["env-1", "env-4"]
+      }
+    }
+  },
+  {
+    "_id": 4,
+    "name": "Document D",
+    "scope": {
+      "environmentScope": {
+        "environmentIds": ["env-5", "env-6"]
+      }
+    }
+  },
+  {
+    "_id": 5,
+    "name": "Document E"
+  }
+]

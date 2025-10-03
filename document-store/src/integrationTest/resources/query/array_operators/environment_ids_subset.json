@@ -1,0 +1,18 @@
+[
+  {
+    "scope": {
+      "environmentScope": {
+        "environmentIds": ["env-1", "env-2"]
+      }
+    },
+    "name": "Document A"
+  },
+  {
+    "scope": {
+      "environmentScope": {
+        "environmentIds": ["env-1", "env-2", "env-3"]
+      }
+    },
+    "name": "Document B"
+  }
+]

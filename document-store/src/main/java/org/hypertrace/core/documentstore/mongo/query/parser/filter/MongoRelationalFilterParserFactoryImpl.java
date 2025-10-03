@@ -26,8 +26,22 @@ public class MongoRelationalFilterParserFactoryImpl implements MongoRelationalFi
         }
 
       case IN:
+        if (INSIDE_EXPR.equals(context.location())) {
+          return new MongoStandardExprRelationalFilterParser();
+        } else if (OUTSIDE_EXPR.equals(context.location())) {
+          return new MongoStandardNonExprRelationalFilterParser();
+        } else {
+          throw new UnsupportedOperationException("Unsupported location: " + context.location());
+        }
+
       case NOT_IN:
-        return new MongoStandardNonExprRelationalFilterParser();
+        if (INSIDE_EXPR.equals(context.location())) {
+          return new MongoNotInExprRelationalFilterParser();
+        } else if (OUTSIDE_EXPR.equals(context.location())) {
+          return new MongoStandardNonExprRelationalFilterParser();
+        } else {
+          throw new UnsupportedOperationException("Unsupported location: " + context.location());
+        }
 
       case CONTAINS:
         return new MongoContainsRelationalFilterParser();
