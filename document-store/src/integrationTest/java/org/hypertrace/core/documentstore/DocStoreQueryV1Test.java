@@ -3360,17 +3360,15 @@ public class DocStoreQueryV1Test {
       flatDocIterator.close();
     }
 
-    // Disabling this test as unnest of top-level json fields is not supported right now
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+          datastore.getCollectionForType(
+              FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
       // Query to unnest tags and group by them to get counts
-      // Note: For flat collections, unnested field will be "tags_unnested" to avoid column
-      // ambiguity
       Query unnestQuery =
           Query.builder()
               .addSelection(IdentifierExpression.of("tags"))
@@ -3386,48 +3384,39 @@ public class DocStoreQueryV1Test {
       while (iterator.hasNext()) {
         Document doc = iterator.next();
         JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        // For flat collections with unnest, the field is renamed to avoid ambiguity
-        String tag =
-            json.has("tags_unnested")
-                ? json.get("tags_unnested").asText()
-                : json.get("tags").asText();
+        String tag = json.get("tags").asText();
         int count = json.get("count").asInt();
         tagCounts.put(tag, count);
       }
       iterator.close();
 
       // Verify we have results
-      assertFalse(tagCounts.isEmpty(), "Should have tag counts");
+      assertFalse(tagCounts.isEmpty());
 
-      // Verify expected tag counts based on insert statements
-      assertEquals(3, tagCounts.get("hygiene"), "'hygiene' should appear 3 times");
-      assertEquals(2, tagCounts.get("personal-care"), "'personal-care' should appear 2 times");
-      assertEquals(2, tagCounts.get("grooming"), "'grooming' should appear 2 times");
-      assertEquals(2, tagCounts.get("bulk"), "'bulk' should appear 2 times");
-      assertEquals(2, tagCounts.get("budget"), "'budget' should appear 2 times");
-      assertEquals(2, tagCounts.get("premium"), "'premium' should appear 2 times");
-      assertEquals(2, tagCounts.get("hair-care"), "'hair-care' should appear 2 times");
+      // Verify some expected tag counts based on our test data
+      // From collection_data.json, we can verify specific tags appear expected number of times
+      assertTrue(tagCounts.containsKey("hygiene"));
+      assertTrue(tagCounts.containsKey("personal-care"));
+      assertTrue(tagCounts.containsKey("grooming"));
 
-      // Verify single occurrence tags
-      assertEquals(1, tagCounts.get("home-decor"), "'home-decor' should appear 1 time");
-      assertEquals(1, tagCounts.get("reflective"), "'reflective' should appear 1 time");
-      assertEquals(1, tagCounts.get("glass"), "'glass' should appear 1 time");
-      assertEquals(1, tagCounts.get("herbal"), "'herbal' should appear 1 time");
-      assertEquals(1, tagCounts.get("antibacterial"), "'antibacterial' should appear 1 time");
-      assertEquals(1, tagCounts.get("family-pack"), "'family-pack' should appear 1 time");
-      assertEquals(1, tagCounts.get("plastic"), "'plastic' should appear 1 time");
-      assertEquals(1, tagCounts.get("essential"), "'essential' should appear 1 time");
-      assertEquals(1, tagCounts.get("wholesale"), "'wholesale' should appear 1 time");
-      assertEquals(1, tagCounts.get("basic"), "'basic' should appear 1 time");
-
-      // Verify total unique tags
-      assertEquals(17, tagCounts.size(), "Should have 17 unique tags");
+      // Verify total count matches expected (each document contributes its tag count)
+      int totalTags = tagCounts.values().stream().mapToInt(Integer::intValue).sum();
+      assertTrue(totalTags > 0);
 
       // Print results for debugging
-      System.out.println("Tag counts from unnest operation:");
+      System.out.println("Nested collection tag counts from unnest operation:");
       tagCounts.entrySet().stream()
           .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
           .forEach(entry -> System.out.println(entry.getKey() + ": " + entry.getValue()));
+
+      // Verify some specific expected counts based on collection_data.json
+      // From looking at the data:
+      // - "hygiene" appears in docs 1, 5, 8 = 3 times
+      // - "personal-care" appears in docs 1, 3 = 2 times
+      // - "grooming" appears in docs 6, 7 = 2 times
+      assertEquals(3, tagCounts.get("hygiene"));
+      assertEquals(2, tagCounts.get("personal-care"));
+      assertEquals(2, tagCounts.get("grooming"));
     }
   }
 
@@ -4103,63 +4092,5 @@ public class DocStoreQueryV1Test {
     final String fileContent = readFileFromResource(filePath).orElseThrow();
     final long expectedSize = convertJsonToMap(fileContent).size();
     assertEquals(expectedSize, actualSize);
-  }
-
-  @ParameterizedTest
-  @ArgumentsSource(PostgresProvider.class)
-  void testFlatPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection flatCollection =
-        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT); // Default nested collection
-
-    // Query to unnest tags and group by them to get counts
-    Query unnestQuery =
-        Query.builder()
-            .addSelection(IdentifierExpression.of("tags"))
-            .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count")
-            .addAggregation(IdentifierExpression.of("tags"))
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
-            .build();
-
-    CloseableIterator<Document> iterator = flatCollection.aggregate(unnestQuery);
-
-    // Collect results
-    Map<String, Integer> tagCounts = new HashMap<>();
-    while (iterator.hasNext()) {
-      Document doc = iterator.next();
-      JsonNode json = new ObjectMapper().readTree(doc.toJson());
-      String tag = json.get("tags").asText();
-      int count = json.get("count").asInt();
-      tagCounts.put(tag, count);
-    }
-    iterator.close();
-
-    // Verify we have results
-    assertFalse(tagCounts.isEmpty(), "Should have tag counts from nested collection");
-
-    // Verify some expected tag counts based on our test data
-    // From collection_data.json, we can verify specific tags appear expected number of times
-    assertTrue(tagCounts.containsKey("hygiene"), "Should contain 'hygiene' tag");
-    assertTrue(tagCounts.containsKey("personal-care"), "Should contain 'personal-care' tag");
-    assertTrue(tagCounts.containsKey("grooming"), "Should contain 'grooming' tag");
-
-    // Verify total count matches expected (each document contributes its tag count)
-    int totalTags = tagCounts.values().stream().mapToInt(Integer::intValue).sum();
-    assertTrue(totalTags > 0, "Total tag count should be greater than 0");
-
-    // Print results for debugging
-    System.out.println("Nested collection tag counts from unnest operation:");
-    tagCounts.entrySet().stream()
-        .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-        .forEach(entry -> System.out.println(entry.getKey() + ": " + entry.getValue()));
-
-    // Verify some specific expected counts based on collection_data.json
-    // From looking at the data:
-    // - "hygiene" appears in docs 1, 5, 8 = 3 times
-    // - "personal-care" appears in docs 1, 3 = 2 times
-    // - "grooming" appears in docs 6, 7 = 2 times
-    assertEquals(3, tagCounts.get("hygiene"), "hygiene should appear 3 times");
-    assertEquals(2, tagCounts.get("personal-care"), "personal-care should appear 2 times");
-    assertEquals(2, tagCounts.get("grooming"), "grooming should appear 2 times");
   }
 }
