@@ -13,6 +13,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
@@ -27,6 +28,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.builder.Postgr
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.builder.PostgresSelectExpressionParserBuilderImpl;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParser.PostgresRelationalFilterContext;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParserFactoryImpl;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
   protected PostgresQueryParser postgresQueryParser;
@@ -162,23 +164,35 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   }
 
   private String getFilterStringForAnyOperator(final ArrayRelationalFilterExpression expression) {
-    // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
-    // level array filter
-    // For the first time (if 'elements' was not under any nested array, say a top-level field),
-    // use the field identifier visitor to make it document->'elements'
-    final PostgresIdentifierExpressionVisitor identifierVisitor =
-        new PostgresIdentifierExpressionVisitor(postgresQueryParser);
-    final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
-        wrappingVisitorProvider == null
-            ? new PostgresFieldIdentifierExpressionVisitor(identifierVisitor)
-            : wrappingVisitorProvider.getForNonRelational(identifierVisitor);
-    final String parsedLhs = expression.getArraySource().accept(arrayPathVisitor);
+    // Check if this is a flat collection (native PostgreSQL columns) or nested (JSONB)
+    boolean isFlatCollection =
+        postgresQueryParser.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
 
     // Extract the field name
     final String identifierName =
         expression
             .getArraySource()
             .accept(new PostgresIdentifierExpressionVisitor(postgresQueryParser));
+
+    final String parsedLhs;
+    if (isFlatCollection) {
+      // For flat collections, assume all arrays are native PostgreSQL arrays
+      // Use direct column reference with double quotes
+      parsedLhs = PostgresUtils.wrapFieldNamesWithDoubleQuotes(identifierName);
+    } else {
+      // For nested collections, use JSONB path accessor
+      // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
+      // level array filter
+      // For the first time (if 'elements' was not under any nested array, say a top-level field),
+      // use the field identifier visitor to make it document->'elements'
+      final PostgresIdentifierExpressionVisitor identifierVisitor =
+          new PostgresIdentifierExpressionVisitor(postgresQueryParser);
+      final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
+          wrappingVisitorProvider == null
+              ? new PostgresFieldIdentifierExpressionVisitor(identifierVisitor)
+              : wrappingVisitorProvider.getForNonRelational(identifierVisitor);
+      parsedLhs = expression.getArraySource().accept(arrayPathVisitor);
+    }
 
     // If the field name is 'elements.inner', alias becomes 'elements_dot_inner'
     final String alias = encodeAliasForNestedField(identifierName);
@@ -192,29 +206,49 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .getFilter()
             .accept(new PostgresFilterTypeExpressionVisitor(postgresQueryParser, visitorProvider));
 
-    return String.format(
-        "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
-        parsedLhs, alias, parsedFilter);
+    if (isFlatCollection) {
+      // For flat collections, assume all arrays are native and use unnest()
+      return String.format(
+          "EXISTS (SELECT 1 FROM unnest(COALESCE(%s, ARRAY[])) AS \"%s\" WHERE %s)",
+          parsedLhs, alias, parsedFilter);
+    } else {
+      // For nested collections with JSONB arrays, use jsonb_array_elements()
+      return String.format(
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
+          parsedLhs, alias, parsedFilter);
+    }
   }
 
   private String getFilterStringForAnyOperator(final DocumentArrayFilterExpression expression) {
-    // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
-    // level array filter
-    // For the first time (if 'elements' was not under any nested array, say a top-level field),
-    // use the field identifier visitor to make it document->'elements'
-    final PostgresIdentifierExpressionVisitor identifierVisitor =
-        new PostgresIdentifierExpressionVisitor(postgresQueryParser);
-    final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
-        wrappingVisitorProvider == null
-            ? new PostgresFieldIdentifierExpressionVisitor(identifierVisitor)
-            : wrappingVisitorProvider.getForNonRelational(identifierVisitor);
-    final String parsedLhs = expression.getArraySource().accept(arrayPathVisitor);
+    // Check if this is a flat collection (native PostgreSQL columns) or nested (JSONB)
+    boolean isFlatCollection =
+        postgresQueryParser.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
 
     // Extract the field name
     final String identifierName =
         expression
             .getArraySource()
             .accept(new PostgresIdentifierExpressionVisitor(postgresQueryParser));
+
+    final String parsedLhs;
+    if (isFlatCollection) {
+      // For flat collections, assume all arrays are native PostgreSQL arrays
+      // Use direct column reference with double quotes
+      parsedLhs = PostgresUtils.wrapFieldNamesWithDoubleQuotes(identifierName);
+    } else {
+      // For nested collections, use JSONB path accessor
+      // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
+      // level array filter
+      // For the first time (if 'elements' was not under any nested array, say a top-level field),
+      // use the field identifier visitor to make it document->'elements'
+      final PostgresIdentifierExpressionVisitor identifierVisitor =
+          new PostgresIdentifierExpressionVisitor(postgresQueryParser);
+      final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
+          wrappingVisitorProvider == null
+              ? new PostgresFieldIdentifierExpressionVisitor(identifierVisitor)
+              : wrappingVisitorProvider.getForNonRelational(identifierVisitor);
+      parsedLhs = expression.getArraySource().accept(arrayPathVisitor);
+    }
 
     // If the field name is 'elements.inner', alias becomes 'elements_dot_inner'
     final String alias = encodeAliasForNestedField(identifierName);
@@ -227,8 +261,19 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .getFilter()
             .accept(new PostgresFilterTypeExpressionVisitor(postgresQueryParser, wrapper));
 
-    return String.format(
-        "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
-        parsedLhs, alias, parsedFilter);
+    if (isFlatCollection) {
+      // For flat collections, assume all arrays are native and use unnest()
+      // Note: DocumentArrayFilterExpression is for arrays of documents (objects)
+      // For flat collections, this would be unusual - typically you'd have JSONB column
+      // But we handle it for completeness
+      return String.format(
+          "EXISTS (SELECT 1 FROM unnest(COALESCE(%s, ARRAY[])) AS \"%s\" WHERE %s)",
+          parsedLhs, alias, parsedFilter);
+    } else {
+      // For nested collections with JSONB arrays, use jsonb_array_elements()
+      return String.format(
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
+          parsedLhs, alias, parsedFilter);
+    }
   }
 }
