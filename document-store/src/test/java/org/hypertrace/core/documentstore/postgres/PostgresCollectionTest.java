@@ -25,6 +25,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.internal.verification.VerificationModeFactory.times;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.sql.Array;
 import java.sql.Connection;
@@ -62,6 +64,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class PostgresCollectionTest {
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String COLLECTION_NAME = "test_collection";
   private static final long currentTime = 1658956123L;
 
@@ -80,7 +83,7 @@ class PostgresCollectionTest {
   void setUp() {
     try (final MockedStatic<Clock> clockMock = Mockito.mockStatic(Clock.class)) {
       clockMock.when(Clock::systemUTC).thenReturn(mockClock);
-      postgresCollection = new PostgresCollection(mockClient, COLLECTION_NAME);
+      postgresCollection = new NestedPostgresCollection(mockClient, COLLECTION_NAME);
     }
   }
 
@@ -1060,6 +1063,157 @@ class PostgresCollectionTest {
     assertTrue(json.contains("\"array_field\":[\"item1\",\"item2\",\"item3\"]"));
 
     iterator.close();
+  }
+
+  @Test
+  void testPostgresResultIteratorWithBasicTypesHandleNestedField()
+      throws SQLException, IOException {
+    // Test nested field handling with properly encoded field names
+    when(mockResultSet.next()).thenReturn(true, false);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    when(mockResultSetMetaData.getColumnCount()).thenReturn(4);
+
+    // Use _dot_ encoding to trigger isEncodedNestedField detection
+    when(mockResultSetMetaData.getColumnName(1)).thenReturn("user_dot_profile_dot_name");
+    when(mockResultSetMetaData.getColumnTypeName(1)).thenReturn("jsonb");
+    when(mockResultSet.getString(1)).thenReturn("\"John Doe\"");
+
+    when(mockResultSetMetaData.getColumnName(2)).thenReturn("user_dot_profile_dot_age");
+    when(mockResultSetMetaData.getColumnTypeName(2)).thenReturn("jsonb");
+    when(mockResultSet.getString(2)).thenReturn("30");
+
+    when(mockResultSetMetaData.getColumnName(3)).thenReturn("user_dot_settings_dot_theme");
+    when(mockResultSetMetaData.getColumnTypeName(3)).thenReturn("jsonb");
+    when(mockResultSet.getString(3)).thenReturn("\"dark\"");
+
+    // Also test with regular dot notation
+    when(mockResultSetMetaData.getColumnName(4)).thenReturn("app.version");
+    when(mockResultSetMetaData.getColumnTypeName(4)).thenReturn("jsonb");
+    when(mockResultSet.getString(4)).thenReturn("\"1.0.0\"");
+
+    PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
+        new PostgresCollection.PostgresResultIteratorWithBasicTypes(mockResultSet);
+
+    assertTrue(iterator.hasNext());
+    Document result = iterator.next();
+
+    assertNotNull(result);
+    String json = result.toJson();
+
+    // Convert to JsonNode for precise assertions
+    JsonNode jsonNode = OBJECT_MAPPER.readTree(json);
+
+    // Verify the nested structure is created by handleNestedField method
+    assertTrue(jsonNode.has("user"));
+    assertTrue(jsonNode.get("user").has("profile"));
+    assertTrue(jsonNode.get("user").get("profile").has("name"));
+    assertTrue(jsonNode.get("user").get("profile").has("age"));
+    assertTrue(jsonNode.get("user").has("settings"));
+    assertTrue(jsonNode.get("user").get("settings").has("theme"));
+
+    // Also verify the regular dot notation field
+    assertTrue(jsonNode.has("app"));
+    assertTrue(jsonNode.get("app").has("version"));
+
+    // Verify the values
+    assertEquals("John Doe", jsonNode.get("user").get("profile").get("name").asText());
+    assertEquals(30, jsonNode.get("user").get("profile").get("age").asInt());
+    assertEquals("dark", jsonNode.get("user").get("settings").get("theme").asText());
+    assertEquals("1.0.0", jsonNode.get("app").get("version").asText());
+
+    iterator.close();
+  }
+
+  @Test
+  void testPostgresResultIteratorWithBasicTypesHandleNestedFieldEdgeCases()
+      throws SQLException, IOException {
+    // Test edge cases in handleNestedField: existing objects, non-object nodes, deep nesting
+    when(mockResultSet.next()).thenReturn(true, false);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    when(mockResultSetMetaData.getColumnCount()).thenReturn(5);
+
+    // Test case where same parent path is used multiple times
+    when(mockResultSetMetaData.getColumnName(1)).thenReturn("config_dot_database_dot_host");
+    when(mockResultSetMetaData.getColumnTypeName(1)).thenReturn("jsonb");
+    when(mockResultSet.getString(1)).thenReturn("\"localhost\"");
+
+    when(mockResultSetMetaData.getColumnName(2)).thenReturn("config_dot_database_dot_port");
+    when(mockResultSetMetaData.getColumnTypeName(2)).thenReturn("jsonb");
+    when(mockResultSet.getString(2)).thenReturn("5432");
+
+    // Test deeply nested path
+    when(mockResultSetMetaData.getColumnName(3))
+        .thenReturn("config_dot_cache_dot_redis_dot_settings_dot_timeout");
+    when(mockResultSetMetaData.getColumnTypeName(3)).thenReturn("jsonb");
+    when(mockResultSet.getString(3)).thenReturn("30000");
+
+    // Test single level nested field
+    when(mockResultSetMetaData.getColumnName(4)).thenReturn("app_dot_name");
+    when(mockResultSetMetaData.getColumnTypeName(4)).thenReturn("jsonb");
+    when(mockResultSet.getString(4)).thenReturn("\"MyApp\"");
+
+    // Test invalid JSON that should fallback to string
+    when(mockResultSetMetaData.getColumnName(5)).thenReturn("debug_dot_info");
+    when(mockResultSetMetaData.getColumnTypeName(5)).thenReturn("jsonb");
+    when(mockResultSet.getString(5)).thenReturn("invalid json {");
+
+    PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
+        new PostgresCollection.PostgresResultIteratorWithBasicTypes(mockResultSet);
+
+    assertTrue(iterator.hasNext());
+    Document result = iterator.next();
+
+    assertNotNull(result);
+    String json = result.toJson();
+
+    JsonNode jsonNode = OBJECT_MAPPER.readTree(json);
+
+    // Verify config.database object with multiple fields
+    assertTrue(jsonNode.has("config"));
+    assertTrue(jsonNode.get("config").has("database"));
+    assertEquals("localhost", jsonNode.get("config").get("database").get("host").asText());
+    assertEquals(5432, jsonNode.get("config").get("database").get("port").asInt());
+
+    // Verify deep nesting
+    assertTrue(jsonNode.get("config").has("cache"));
+    assertTrue(jsonNode.get("config").get("cache").has("redis"));
+    assertTrue(jsonNode.get("config").get("cache").get("redis").has("settings"));
+    assertEquals(
+        30000,
+        jsonNode.get("config").get("cache").get("redis").get("settings").get("timeout").asInt());
+
+    // Verify single level nesting
+    assertTrue(jsonNode.has("app"));
+    assertEquals("MyApp", jsonNode.get("app").get("name").asText());
+
+    // Verify invalid JSON fallback - should be stored as flat key since JSON parsing failed
+    assertTrue(jsonNode.has("debug_dot_info"));
+    assertEquals("invalid json {", jsonNode.get("debug_dot_info").asText());
+
+    iterator.close();
+  }
+
+  @Test
+  void testUpsertSQLException() throws SQLException, IOException {
+    final Key key = Key.from("test_key");
+    final Document document = new JSONDocument("{\"field\": \"value\"}");
+    final PreparedStatement mockUpsertPreparedStatement = mock(PreparedStatement.class);
+    final PreparedStatement mockSearchPreparedStatement = mock(PreparedStatement.class);
+
+    when(mockClient.getConnection()).thenReturn(mockConnection);
+    when(mockConnection.prepareStatement(any(String.class), eq(1)))
+        .thenReturn(mockUpsertPreparedStatement);
+    when(mockConnection.prepareStatement(any(String.class)))
+        .thenReturn(mockSearchPreparedStatement);
+    when(mockSearchPreparedStatement.executeQuery()).thenReturn(mockResultSet);
+    when(mockResultSet.next()).thenReturn(false);
+    when(mockUpsertPreparedStatement.executeUpdate()).thenThrow(new SQLException("Database error"));
+
+    assertThrows(IOException.class, () -> postgresCollection.upsert(key, document));
+
+    verify(mockUpsertPreparedStatement).setString(1, key.toString());
+    verify(mockUpsertPreparedStatement, times(1)).setString(eq(2), any());
+    verify(mockUpsertPreparedStatement, times(1)).setString(eq(3), any());
   }
 
   private void mockResultSetMetadata() throws SQLException {

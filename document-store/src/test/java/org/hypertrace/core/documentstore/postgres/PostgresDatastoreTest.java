@@ -18,17 +18,26 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Map;
 import java.util.Properties;
+import java.util.stream.Stream;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.ArgumentsProvider;
+import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.postgresql.PGProperty;
 
 @ExtendWith(MockitoExtension.class)
@@ -69,8 +78,10 @@ class PostgresDatastoreTest {
     }
   }
 
-  @Test
-  void testCreateExplicitSchemaTable() throws SQLException {
+  @ParameterizedTest
+  @ArgumentsSource(DocumentTypeProvider.class)
+  @MockitoSettings(strictness = Strictness.LENIENT)
+  void testGetCollectionForDocTypes(DocumentType documentType) throws SQLException {
     try (final MockedStatic<DriverManager> driverManager =
         Mockito.mockStatic(DriverManager.class)) {
       driverManager
@@ -91,10 +102,12 @@ class PostgresDatastoreTest {
       when(mockMetadata.getTables(any(), any(), any(), any())).thenReturn(mock(ResultSet.class));
       when(mockConnection.getMetaData()).thenReturn(mockMetadata);
       when(mockConnection.prepareStatement(any())).thenReturn(mockPreparedStatement);
-      datastore.getCollection("testSchema.testTable");
+      datastore.getCollectionForType("testSchema.testTable", documentType);
 
-      verify(mockConnection, times(1)).prepareStatement("CREATE SCHEMA IF NOT EXISTS testSchema;");
-      verify(mockConnection, times(1))
+      // For FLAT types, we don't create schema and collection
+      verify(mockConnection, times(documentType == DocumentType.NESTED ? 1 : 0))
+          .prepareStatement("CREATE SCHEMA IF NOT EXISTS testSchema;");
+      verify(mockConnection, times(documentType == DocumentType.NESTED ? 1 : 0))
           .prepareStatement(
               "CREATE TABLE testSchema.\"testTable\" (id TEXT PRIMARY KEY,document jsonb NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());");
     }
@@ -123,6 +136,14 @@ class PostgresDatastoreTest {
 
       verify(mockConnection, times(1))
           .prepareStatement("DROP TABLE IF EXISTS testSchema.\"testTable\"");
+    }
+  }
+
+  private static class DocumentTypeProvider implements ArgumentsProvider {
+
+    @Override
+    public Stream<Arguments> provideArguments(final ExtensionContext context) {
+      return Stream.of(Arguments.of(DocumentType.FLAT), Arguments.of(DocumentType.NESTED));
     }
   }
 }
