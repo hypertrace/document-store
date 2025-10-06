@@ -4107,11 +4107,10 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @ArgumentsSource(PostgresProvider.class)
-  @Disabled
-  void testNestedPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
+  void testFlatPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection nestedCollection =
-        datastore.getCollection(COLLECTION_NAME); // Default nested collection
+    Collection flatCollection =
+        datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT); // Default nested collection
 
     // Query to unnest tags and group by them to get counts
     Query unnestQuery =
@@ -4122,7 +4121,7 @@ public class DocStoreQueryV1Test {
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
             .build();
 
-    CloseableIterator<Document> iterator = nestedCollection.aggregate(unnestQuery);
+    CloseableIterator<Document> iterator = flatCollection.aggregate(unnestQuery);
 
     // Collect results
     Map<String, Integer> tagCounts = new HashMap<>();
