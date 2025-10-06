@@ -178,7 +178,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     if (isFlatCollection) {
       // For flat collections, assume all arrays are native PostgreSQL arrays
       // Use direct column reference with double quotes
-      parsedLhs = PostgresUtils.wrapFieldNamesWithDoubleQuotes(identifierName);
+      parsedLhs = postgresQueryParser.transformField(identifierName).getPgColumn();
     } else {
       // For nested collections, use JSONB path accessor
       // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
