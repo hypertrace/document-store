@@ -3,7 +3,6 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.Getter;
-import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
@@ -95,6 +94,16 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
 
   public static Optional<String> getFromClause(PostgresQueryParser postgresQueryParser) {
 
+    // Check if there are any unnest operations
+    if (postgresQueryParser.getQuery().getFromTypeExpressions().isEmpty()) {
+      return Optional.empty();
+    }
+
+    // IMPORTANT: Build table0 query BEFORE processing unnest expressions
+    // This ensures filters use original field names, not unnested aliases
+    String table0Query = prepareTable0Query(postgresQueryParser);
+
+    // Now process unnest expressions, which will populate pgColumnNames map
     PostgresFromTypeExpressionVisitor postgresFromTypeExpressionVisitor =
         new PostgresFromTypeExpressionVisitor(postgresQueryParser);
     String childList =
@@ -103,23 +112,30 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
             .map(Object::toString)
             .collect(Collectors.joining(",\n"));
 
-    if (StringUtils.isEmpty(childList)) {
-      return Optional.empty();
-    }
-
-    String table0Query = prepareTable0Query(postgresQueryParser);
-
     postgresQueryParser.setFinalTableName("table" + postgresQueryParser.getPgColumnNames().size());
     return Optional.of(String.format(QUERY_FMT, table0Query, childList));
   }
 
   private static String prepareTable0Query(PostgresQueryParser postgresQueryParser) {
-    Optional<String> whereFilter =
-        PostgresFilterTypeExpressionVisitor.getFilterClause(postgresQueryParser);
+    // For flat collections with unnest operations, we cannot apply filters in table0 because:
+    // 1. Filters on unnested fields reference scalar values that don't exist yet in table0
+    // 2. Filters on array fields might use operators that don't work on arrays (like LIKE)
+    // For nested collections, filters work fine because they reference JSONB paths in 'document'
+    boolean isFlatCollection =
+        postgresQueryParser.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
 
-    return whereFilter.isPresent()
-        ? String.format(
-            TABLE0_QUERY_FMT_WHERE, postgresQueryParser.getTableIdentifier(), whereFilter.get())
-        : String.format(TABLE0_QUERY_FMT, postgresQueryParser.getTableIdentifier());
+    if (isFlatCollection) {
+      // For flat collections with unnest, skip filters in table0
+      return String.format(TABLE0_QUERY_FMT, postgresQueryParser.getTableIdentifier());
+    } else {
+      // For nested collections, apply filters in table0 as usual (preserves existing behavior)
+      Optional<String> whereFilter =
+          PostgresFilterTypeExpressionVisitor.getFilterClause(postgresQueryParser);
+
+      return whereFilter.isPresent()
+          ? String.format(
+              TABLE0_QUERY_FMT_WHERE, postgresQueryParser.getTableIdentifier(), whereFilter.get())
+          : String.format(TABLE0_QUERY_FMT, postgresQueryParser.getTableIdentifier());
+    }
   }
 }

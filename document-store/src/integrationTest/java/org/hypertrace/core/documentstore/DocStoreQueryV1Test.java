@@ -21,6 +21,7 @@ import static org.hypertrace.core.documentstore.expression.operators.FunctionOpe
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.SUBTRACT;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.NOT;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
@@ -28,6 +29,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LIKE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
@@ -65,8 +67,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -3416,6 +3420,109 @@ public class DocStoreQueryV1Test {
       assertEquals(3, tagCounts.get("hygiene"));
       assertEquals(2, tagCounts.get("personal-care"));
       assertEquals(2, tagCounts.get("grooming"));
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestWithComplexQuery(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Complex query: Unnest tags, filter by tag prefix, filter by price, group by tag,
+      // aggregate count, filter aggregated count > 1, sort by count DESC
+      Query complexQuery =
+          Query.builder()
+              // Selections
+              .addSelection(IdentifierExpression.of("tags"))
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "tag_count")
+              .addSelection(
+                  AggregateExpression.of(AVG, IdentifierExpression.of("price")), "avg_price")
+              // WHERE filter - only items with price >= 5 and tags that don't start with "home-"
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("price"), GTE, ConstantExpression.of(5)))
+                      .operand(
+                          LogicalExpression.builder()
+                              .operator(NOT)
+                              .operand(
+                                  RelationalExpression.of(
+                                      IdentifierExpression.of("tags"),
+                                      LIKE,
+                                      ConstantExpression.of("home-%")))
+                              .build())
+                      .build())
+              // Unnest tags
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
+              // GROUP BY
+              .addAggregation(IdentifierExpression.of("tags"))
+              // HAVING filter - only show tags that appear more than once
+              .setAggregationFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("tag_count"), GT, ConstantExpression.of(1)))
+              // ORDER BY count DESC
+              .addSort(SortingSpec.of(IdentifierExpression.of("tag_count"), DESC))
+              .build();
+
+      CloseableIterator<Document> iterator = flatCollection.aggregate(complexQuery);
+
+      // Collect results - use LinkedHashMap to preserve insertion order from DB
+      Map<String, Integer> tagCounts = new LinkedHashMap<>();
+      Map<String, Double> avgPrices = new LinkedHashMap<>();
+      List<Integer> countsInOrder = new ArrayList<>();
+      while (iterator.hasNext()) {
+        Document doc = iterator.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        String tag =
+            json.has("tags_unnested")
+                ? json.get("tags_unnested").asText()
+                : json.get("tags").asText();
+        int count = json.get("tag_count").asInt();
+        double avgPrice = json.get("avg_price").asDouble();
+
+        tagCounts.put(tag, count);
+        avgPrices.put(tag, avgPrice);
+        countsInOrder.add(count);
+
+        System.out.println(
+            String.format("Tag: %s, Count: %d, Avg Price: %.2f", tag, count, avgPrice));
+      }
+      iterator.close();
+
+      // Verify results
+      assertFalse(tagCounts.isEmpty(), "Should have results");
+
+      // All counts should be > 1 (due to HAVING clause)
+      tagCounts.values().forEach(count -> assertTrue(count > 1, "All counts should be > 1"));
+
+      // Verify expected tags that appear more than once and exclude "home-*" tags
+      // From the data: hygiene(3), personal-care(2), grooming(2), bulk(2), budget(2),
+      // premium(2), hair-care(2)
+      // But "home-decor" should be excluded (starts with "home-")
+      assertTrue(tagCounts.containsKey("hygiene"), "Should contain 'hygiene'");
+      assertEquals(3, tagCounts.get("hygiene"), "'hygiene' should appear 3 times");
+
+      assertTrue(tagCounts.containsKey("personal-care"), "Should contain 'personal-care'");
+      assertEquals(2, tagCounts.get("personal-care"), "'personal-care' should appear 2 times");
+
+      assertTrue(tagCounts.containsKey("grooming"), "Should contain 'grooming'");
+      assertEquals(2, tagCounts.get("grooming"), "'grooming' should appear 2 times");
+
+      // "home-decor" should NOT be present (filtered by LIKE condition)
+      assertFalse(tagCounts.containsKey("home-decor"), "Should NOT contain 'home-decor'");
+
+      // Verify avg prices make sense (all prices >= 5)
+      avgPrices.values().forEach(avg -> assertTrue(avg >= 5, "Average price should be >= 5"));
+
+      // Verify sorting (should be sorted by count DESC, so first should have highest count)
+      for (int i = 0; i < countsInOrder.size() - 1; i++) {
+        assertTrue(
+            countsInOrder.get(i) >= countsInOrder.get(i + 1),
+            "Results should be sorted by count DESC");
+      }
     }
   }
 
