@@ -3365,8 +3365,7 @@ public class DocStoreQueryV1Test {
     void testFlatPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
-          datastore.getCollectionForType(
-              FLAT_COLLECTION_NAME, DocumentType.FLAT);
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
       // Query to unnest tags and group by them to get counts
       Query unnestQuery =

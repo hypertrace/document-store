@@ -53,8 +53,8 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
 
     if (isFlatCollection) {
       // For flat collections, assume all unnested fields are native PostgreSQL arrays
-      // Use direct column reference with double quotes
-      transformedFieldName = PostgresUtils.wrapFieldNamesWithDoubleQuotes(orgFieldName);
+      // Use the transformer to get the proper column name (handles quotes and naming)
+      transformedFieldName = postgresQueryParser.transformField(orgFieldName).getPgColumn();
       // Use native unnest() for PostgreSQL array columns
       unnestFunction = NATIVE_UNWIND_EXP_FMT;
       // Append "_unnested" suffix to avoid column name conflicts with the original array column
