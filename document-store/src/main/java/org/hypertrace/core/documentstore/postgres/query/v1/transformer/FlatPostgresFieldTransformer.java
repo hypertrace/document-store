@@ -13,8 +13,10 @@ public class FlatPostgresFieldTransformer implements PostgresColTransformer {
 
   @Override
   public FieldToPgColumn transform(String orgFieldName, Map<String, String> pgColMapping) {
-    // In flat structure mode, all fields are direct PostgreSQL columns as-is
-    return new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(orgFieldName));
+    // Check if this field has been unnested (e.g., "tags" -> "tags_unnested")
+    String pgColumnName = pgColMapping.getOrDefault(orgFieldName, orgFieldName);
+    // In flat structure mode, all fields are direct PostgreSQL columns
+    return new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(pgColumnName));
   }
 
   @Override
