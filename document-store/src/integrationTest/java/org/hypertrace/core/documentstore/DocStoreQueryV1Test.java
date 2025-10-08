@@ -4351,24 +4351,25 @@ public class DocStoreQueryV1Test {
       assertDocsAndSizeEqual(
           dataStoreName, iterator, "query/sub_query_join_response_with_nested_fields.json", 3);
     }
+  }
 
-    private static Collection getCollection(final String dataStoreName) {
-      return getCollection(dataStoreName, COLLECTION_NAME);
-    }
+  // Helper methods for all tests
+  private static Collection getCollection(final String dataStoreName) {
+    return getCollection(dataStoreName, COLLECTION_NAME);
+  }
 
-    private static Collection getCollection(
-        final String dataStoreName, final String collectionName) {
-      final Datastore datastore = datastoreMap.get(dataStoreName);
-      return datastore.getCollection(collectionName);
-    }
+  private static Collection getCollection(
+      final String dataStoreName, final String collectionName) {
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    return datastore.getCollection(collectionName);
+  }
 
-    private static void testCountApi(
-        final String dataStoreName, final Query query, final String filePath) throws IOException {
-      Collection collection = getCollection(dataStoreName);
-      final long actualSize = collection.count(query);
-      final String fileContent = readFileFromResource(filePath).orElseThrow();
-      final long expectedSize = convertJsonToMap(fileContent).size();
-      assertEquals(expectedSize, actualSize);
-    }
+  private static void testCountApi(
+      final String dataStoreName, final Query query, final String filePath) throws IOException {
+    Collection collection = getCollection(dataStoreName);
+    final long actualSize = collection.count(query);
+    final String fileContent = readFileFromResource(filePath).orElseThrow();
+    final long expectedSize = convertJsonToMap(fileContent).size();
+    assertEquals(expectedSize, actualSize);
   }
 }

@@ -58,7 +58,7 @@ public class PostgresUnnestFilterTypeExpressionVisitor implements FromTypeExpres
               postgresQueryParser.getQuery().getFilter(), postgresQueryParser);
 
       if (StringUtils.isNotEmpty(unnestFilters) && mainFilter.isPresent()) {
-        return Optional.of(unnestFilters + " AND " + mainFilter.get());
+        return Optional.of(String.format("%s AND %s", unnestFilters, mainFilter.get()));
       } else if (StringUtils.isNotEmpty(unnestFilters)) {
         return Optional.of(unnestFilters);
       } else {
