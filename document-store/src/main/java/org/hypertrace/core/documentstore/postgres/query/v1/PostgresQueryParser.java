@@ -15,14 +15,12 @@ import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPg
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.NestedPostgresColTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresColTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresAggregationFilterTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitorBase;
-import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFlatFromTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFlatUnnestFilterTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFilterTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresFromTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresGroupTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresNestedFromTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresNestedUnnestFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresSortTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresUnnestFilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
 
@@ -141,26 +139,15 @@ public class PostgresQueryParser {
   }
 
   private Optional<String> parseFilter() {
-    return PostgresFilterTypeExpressionVisitorBase.prepareFilterClause(
-        this.query.getFilter(), this);
+    return PostgresFilterTypeExpressionVisitor.getFilterClause(this);
   }
 
   private Optional<String> parseUnnestFilter() {
-    // Use collection-specific unnest filter visitor
-    if (pgColTransformer.getDocumentType() == org.hypertrace.core.documentstore.DocumentType.FLAT) {
-      return PostgresFlatUnnestFilterTypeExpressionVisitor.getFilterClause(this);
-    } else {
-      return PostgresNestedUnnestFilterTypeExpressionVisitor.getFilterClause(this);
-    }
+    return PostgresUnnestFilterTypeExpressionVisitor.getFilterClause(this);
   }
 
   private Optional<String> parseFromClause() {
-    // Use collection-specific FROM visitor
-    if (pgColTransformer.getDocumentType() == org.hypertrace.core.documentstore.DocumentType.FLAT) {
-      return PostgresFlatFromTypeExpressionVisitor.getFromClause(this);
-    } else {
-      return PostgresNestedFromTypeExpressionVisitor.getFromClause(this);
-    }
+    return PostgresFromTypeExpressionVisitor.getFromClause(this);
   }
 
   private Optional<String> parseGroupBy() {
