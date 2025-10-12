@@ -3693,682 +3693,679 @@ public class DocStoreQueryV1Test {
             "Results should be sorted by count DESC");
       }
     }
+  }
 
-    @Nested
-    class BulkUpdateTest {
+  @Nested
+  class BulkUpdateTest {
 
-      @ParameterizedTest
-      @ArgumentsSource(AllProvider.class)
-      void testBulkUpdateWithFilterAndGetNoDocuments(final String datastoreName)
-          throws IOException {
-        final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-        createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithFilterAndGetNoDocuments(final String datastoreName) throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-        final Query query =
-            Query.builder()
-                .setFilter(
-                    LogicalExpression.builder()
-                        .operator(AND)
-                        .operand(
-                            RelationalExpression.of(
-                                IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-                        .operand(
-                            RelationalExpression.of(
-                                IdentifierExpression.of("date"),
-                                LT,
-                                ConstantExpression.of("2022-08-09T18:53:17Z")))
-                        .build())
-                .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-                .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
-                .addSelection(IdentifierExpression.of("quantity"))
-                .addSelection(IdentifierExpression.of("price"))
-                .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props"))
-                .build();
-        final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-        final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-        final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
-        final SubDocumentUpdate priceUpdate =
-            SubDocumentUpdate.builder()
-                .subDocument("price")
-                .operator(ADD)
-                .subDocumentValue(SubDocumentValue.of(1))
-                .build();
-        final SubDocumentUpdate addProperty =
-            SubDocumentUpdate.of(
-                "props.new_property.deep.nested.value",
-                SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              LT,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
 
-        final CloseableIterator<Document> docIterator =
-            collection.bulkUpdate(
-                query,
-                List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-                UpdateOptions.builder().returnDocumentType(NONE).build());
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
+              UpdateOptions.builder().returnDocumentType(NONE).build());
 
-        assertFalse(docIterator.hasNext());
-        assertDocsAndSizeEqual(
-            datastoreName,
-            collection.find(
-                Query.builder()
-                    .addSelection(IdentifierExpression.of("item"))
-                    .addSelection(IdentifierExpression.of("price"))
-                    .addSelection(IdentifierExpression.of("quantity"))
-                    .addSelection(IdentifierExpression.of("date"))
-                    .addSelection(IdentifierExpression.of("props"))
-                    .addSort(IdentifierExpression.of("_id"), ASC)
-                    .build()),
-            "query/bulk_update/updated_collection_data.json",
-            9);
-      }
+      assertFalse(docIterator.hasNext());
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props"))
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/bulk_update/updated_collection_data.json",
+          9);
+    }
 
-      @ParameterizedTest
-      @ArgumentsSource(AllProvider.class)
-      void testBulkUpdateWithFilterAndGetAfterDocumentsEmpty(final String datastoreName)
-          throws IOException {
-        final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-        createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithFilterAndGetAfterDocumentsEmpty(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-        final Query query =
-            Query.builder()
-                .setFilter(
-                    LogicalExpression.builder()
-                        .operator(AND)
-                        .operand(
-                            RelationalExpression.of(
-                                IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-                        .operand(
-                            RelationalExpression.of(
-                                IdentifierExpression.of("date"),
-                                LT,
-                                ConstantExpression.of("2022-08-09T18:53:17Z")))
-                        .build())
-                .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-                .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
-                .addSelection(IdentifierExpression.of("quantity"))
-                .addSelection(IdentifierExpression.of("price"))
-                .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props"))
-                .build();
-        final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-        final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-        final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
-        final SubDocumentUpdate priceUpdate =
-            SubDocumentUpdate.builder()
-                .subDocument("price")
-                .operator(ADD)
-                .subDocumentValue(SubDocumentValue.of(1))
-                .build();
-        final SubDocumentUpdate addProperty =
-            SubDocumentUpdate.of(
-                "props.new_property.deep.nested.value",
-                SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              LT,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
 
-        final CloseableIterator<Document> docIterator =
-            collection.bulkUpdate(
-                query,
-                List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-                UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
+              UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
-        // Since the date is updated to conflict with the filter, there will not be any documents
-        assertFalse(docIterator.hasNext());
-        assertDocsAndSizeEqual(
-            datastoreName,
-            collection.find(
-                Query.builder()
-                    .addSelection(IdentifierExpression.of("item"))
-                    .addSelection(IdentifierExpression.of("price"))
-                    .addSelection(IdentifierExpression.of("quantity"))
-                    .addSelection(IdentifierExpression.of("date"))
-                    .addSelection(IdentifierExpression.of("props"))
-                    .addSort(IdentifierExpression.of("_id"), ASC)
-                    .build()),
-            "query/bulk_update/updated_collection_data.json",
-            9);
-      }
+      // Since the date is updated to conflict with the filter, there will not be any documents
+      assertFalse(docIterator.hasNext());
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props"))
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/bulk_update/updated_collection_data.json",
+          9);
+    }
 
-      @ParameterizedTest
-      @ArgumentsSource(AllProvider.class)
-      void testBulkUpdateWithFilterAndGetAfterDocumentsNonEmpty(final String datastoreName)
-          throws IOException {
-        final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-        createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithFilterAndGetAfterDocumentsNonEmpty(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-        final Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-                .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-                .addSort(SortingSpec.of(IdentifierExpression.of("props.size"), DESC))
-                .addSelection(IdentifierExpression.of("quantity"))
-                .addSelection(IdentifierExpression.of("price"))
-                .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props"))
-                .build();
-        final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-        final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-        final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
-        final SubDocumentUpdate priceUpdate =
-            SubDocumentUpdate.builder()
-                .subDocument("price")
-                .operator(ADD)
-                .subDocumentValue(SubDocumentValue.of(1))
-                .build();
-        final SubDocumentUpdate addProperty =
-            SubDocumentUpdate.of(
-                "props.new_property.deep.nested.value",
-                SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("props.size"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
 
-        final CloseableIterator<Document> docIterator =
-            collection.bulkUpdate(
-                query,
-                List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-                UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
+              UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
 
-        assertDocsAndSizeEqual(
-            datastoreName,
-            docIterator,
-            "query/bulk_update/updated_collection_response_after_update.json",
-            4);
-        assertDocsAndSizeEqual(
-            datastoreName,
-            collection.find(
-                Query.builder()
-                    .addSelection(IdentifierExpression.of("item"))
-                    .addSelection(IdentifierExpression.of("price"))
-                    .addSelection(IdentifierExpression.of("quantity"))
-                    .addSelection(IdentifierExpression.of("date"))
-                    .addSelection(IdentifierExpression.of("props"))
-                    .addSort(IdentifierExpression.of("_id"), ASC)
-                    .build()),
-            "query/bulk_update/updated_collection_data_relaxed_filter.json",
-            9);
-      }
+      assertDocsAndSizeEqual(
+          datastoreName,
+          docIterator,
+          "query/bulk_update/updated_collection_response_after_update.json",
+          4);
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props"))
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/bulk_update/updated_collection_data_relaxed_filter.json",
+          9);
+    }
 
-      @ParameterizedTest
-      @ArgumentsSource(AllProvider.class)
-      void testBulkUpdateWithFilterAndGetBeforeDocuments(final String datastoreName)
-          throws IOException {
-        final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-        createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithFilterAndGetBeforeDocuments(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-        final Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-                .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-                .addSort(SortingSpec.of(IdentifierExpression.of("props.size"), DESC))
-                .addSelection(IdentifierExpression.of("quantity"))
-                .addSelection(IdentifierExpression.of("price"))
-                .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props"))
-                .build();
-        final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-        final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-        final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
-        final SubDocumentUpdate addProperty =
-            SubDocumentUpdate.of(
-                "props.new_property.deep.nested.value",
-                SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
-        final SubDocumentUpdate priceUpdate =
-            SubDocumentUpdate.builder()
-                .subDocument("price")
-                .operator(ADD)
-                .subDocumentValue(SubDocumentValue.of(1))
-                .build();
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("props.size"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
 
-        final CloseableIterator<Document> docIterator =
-            collection.bulkUpdate(
-                query,
-                List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
+              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
 
-        assertDocsAndSizeEqual(
-            datastoreName,
-            docIterator,
-            "query/bulk_update/updated_collection_response_before_update.json",
-            4);
-        assertDocsAndSizeEqual(
-            datastoreName,
-            collection.find(
-                Query.builder()
-                    .addSelection(IdentifierExpression.of("item"))
-                    .addSelection(IdentifierExpression.of("price"))
-                    .addSelection(IdentifierExpression.of("quantity"))
-                    .addSelection(IdentifierExpression.of("date"))
-                    .addSelection(IdentifierExpression.of("props"))
-                    .addSort(IdentifierExpression.of("_id"), ASC)
-                    .build()),
-            "query/bulk_update/updated_collection_data_relaxed_filter.json",
-            9);
-      }
+      assertDocsAndSizeEqual(
+          datastoreName,
+          docIterator,
+          "query/bulk_update/updated_collection_response_before_update.json",
+          4);
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(IdentifierExpression.of("price"))
+                  .addSelection(IdentifierExpression.of("quantity"))
+                  .addSelection(IdentifierExpression.of("date"))
+                  .addSelection(IdentifierExpression.of("props"))
+                  .addSort(IdentifierExpression.of("_id"), ASC)
+                  .build()),
+          "query/bulk_update/updated_collection_data_relaxed_filter.json",
+          9);
+    }
 
-      @ParameterizedTest
-      @ArgumentsSource(AllProvider.class)
-      void testBulkUpdateWithNonMatchingFilterAndGetBeforeDocuments(final String datastoreName)
-          throws IOException {
-        final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
-        createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testBulkUpdateWithNonMatchingFilterAndGetBeforeDocuments(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
 
-        final Query query =
-            Query.builder()
-                .setFilter(
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      EQ,
+                      ConstantExpression.of("Non-existing-item")))
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("props.size"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
+      final SubDocumentUpdate addProperty =
+          SubDocumentUpdate.of(
+              "props.new_property.deep.nested.value",
+              SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
+      final SubDocumentUpdate priceUpdate =
+          SubDocumentUpdate.builder()
+              .subDocument("price")
+              .operator(ADD)
+              .subDocumentValue(SubDocumentValue.of(1))
+              .build();
+
+      final CloseableIterator<Document> docIterator =
+          collection.bulkUpdate(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
+              UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+
+      assertFalse(docIterator.hasNext());
+      assertDocsAndSizeEqual(
+          datastoreName,
+          collection.find(Query.builder().addSort(IdentifierExpression.of("_id"), ASC).build()),
+          "query/bulk_update/updatable_collection_data_no_update.json",
+          9);
+    }
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testExistsOperatorWithFindUsingStringRhs(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props"), EXISTS, ConstantExpression.of("true")))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/exists_filter_response.json", 4);
+
+    testCountApi(dataStoreName, query, "query/exists_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testExistsOperatorWithFindUsingBooleanRhs(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props"), EXISTS, ConstantExpression.of(true)))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/exists_filter_response.json", 4);
+
+    testCountApi(dataStoreName, query, "query/exists_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testNotExistsOperatorWithFindUsingStringRhs(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props"), NOT_EXISTS, ConstantExpression.of("true")))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/not_exists_filter_response.json", 4);
+
+    testCountApi(dataStoreName, query, "query/not_exists_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  public void testNotExistsOperatorWithFindUsingBooleanRhs(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    IdentifierExpression.of("props"), NOT_EXISTS, ConstantExpression.of(true)))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/not_exists_filter_response.json", 4);
+
+    testCountApi(dataStoreName, query, "query/not_exists_filter_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  public void testMongoFunctionExpressionGroupBy(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    FunctionExpression functionExpression =
+        FunctionExpression.builder()
+            .operator(FLOOR)
+            .operand(
+                FunctionExpression.builder()
+                    .operator(DIVIDE)
+                    .operand(
+                        FunctionExpression.builder()
+                            .operator(SUBTRACT)
+                            .operand(IdentifierExpression.of("price"))
+                            .operand(ConstantExpression.of(5))
+                            .build())
+                    .operand(ConstantExpression.of(5))
+                    .build())
+            .build();
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(functionExpression, "function"),
+            SelectionSpec.of(
+                AggregateExpression.of(COUNT, IdentifierExpression.of("function")),
+                "functionCount"));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+
+    Query query =
+        Query.builder()
+            .setSelection(selection)
+            .setAggregation(
+                Aggregation.builder().expression(IdentifierExpression.of("function")).build())
+            .setSort(
+                Sort.builder()
+                    .sortingSpec(SortingSpec.of(IdentifierExpression.of("function"), ASC))
+                    .build())
+            .build();
+
+    Iterator<Document> resultDocs = collection.aggregate(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/function_expression_group_by_response.json", 3);
+
+    testCountApi(dataStoreName, query, "query/function_expression_group_by_response.json");
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  public void testToLowerCaseMongoFunctionOperator(String dataStoreName) throws Exception {
+    Collection collection = getCollection(dataStoreName);
+
+    List<SelectionSpec> selectionSpecs =
+        List.of(
+            SelectionSpec.of(IdentifierExpression.of("item")),
+            SelectionSpec.of(IdentifierExpression.of("price")),
+            SelectionSpec.of(IdentifierExpression.of("quantity")),
+            SelectionSpec.of(IdentifierExpression.of("date")));
+    Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
+    Filter filter =
+        Filter.builder()
+            .expression(
+                RelationalExpression.of(
+                    FunctionExpression.builder()
+                        .operator(FunctionOperator.TO_LOWER_CASE)
+                        .operand(IdentifierExpression.of("item"))
+                        .build(),
+                    RelationalOperator.EQ,
+                    ConstantExpression.of("shampoo")))
+            .build();
+
+    Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+
+    Iterator<Document> resultDocs = collection.find(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, resultDocs, "query/case_insensitive_exact_match_response.json", 2);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  void testSelfJoinWithSubQuery(String dataStoreName) throws IOException {
+    Collection collection = getCollection(dataStoreName);
+
+    /*
+    This is the query we want to execute:
+    SELECT item, quantity, date
+    FROM <implicit_collection>
+    JOIN (
+        SELECT item, MAX(date) AS latest_date
+        FROM <implicit_collection>
+        GROUP BY item
+    ) latest
+    ON item = latest.item
+    AND date = latest.latest_date
+    ORDER BY `item` ASC;
+    */
+
+    /*
+    The right subquery:
+    SELECT item, MAX(date) AS latest_date
+    FROM <implicit_collection>
+    GROUP BY item
+    */
+    Query subQuery =
+        Query.builder()
+            .addSelection(SelectionSpec.of(IdentifierExpression.of("item")))
+            .addSelection(
+                SelectionSpec.of(
+                    AggregateExpression.of(
+                        AggregationOperator.MAX, IdentifierExpression.of("date")),
+                    "latest_date"))
+            .addAggregation(IdentifierExpression.of("item"))
+            .build();
+
+    /*
+    The FROM expression representing a join with the right subquery:
+    FROM <implicit_collection>
+    JOIN (
+       SELECT item, MAX(date) AS latest_date
+       FROM <implicit_collection>
+       GROUP BY item
+    ) latest
+    ON item = latest.item
+    AND date = latest.latest_date;
+    */
+    SubQueryJoinExpression subQueryJoinExpression =
+        SubQueryJoinExpression.builder()
+            .subQuery(subQuery)
+            .subQueryAlias("latest")
+            .joinCondition(
+                LogicalExpression.and(
                     RelationalExpression.of(
                         IdentifierExpression.of("item"),
-                        EQ,
-                        ConstantExpression.of("Non-existing-item")))
-                .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
-                .addSort(SortingSpec.of(IdentifierExpression.of("props.size"), DESC))
-                .addSelection(IdentifierExpression.of("quantity"))
-                .addSelection(IdentifierExpression.of("price"))
-                .addSelection(IdentifierExpression.of("date"))
-                .addSelection(IdentifierExpression.of("props"))
-                .build();
-        final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
-        final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
-        final SubDocumentUpdate propsUpdate = SubDocumentUpdate.of("props.brand", "Dettol");
-        final SubDocumentUpdate addProperty =
-            SubDocumentUpdate.of(
-                "props.new_property.deep.nested.value",
-                SubDocumentValue.of(new JSONDocument("{\"json\": \"new_value\"}")));
-        final SubDocumentUpdate priceUpdate =
-            SubDocumentUpdate.builder()
-                .subDocument("price")
-                .operator(ADD)
-                .subDocumentValue(SubDocumentValue.of(1))
-                .build();
+                        RelationalOperator.EQ,
+                        AliasedIdentifierExpression.builder()
+                            .name("item")
+                            .contextAlias("latest")
+                            .build()),
+                    RelationalExpression.of(
+                        IdentifierExpression.of("date"),
+                        RelationalOperator.EQ,
+                        AliasedIdentifierExpression.builder()
+                            .name("latest_date")
+                            .contextAlias("latest")
+                            .build())))
+            .build();
 
-        final CloseableIterator<Document> docIterator =
-            collection.bulkUpdate(
-                query,
-                List.of(dateUpdate, quantityUpdate, propsUpdate, addProperty, priceUpdate),
-                UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build());
+    /*
+    Now build the top-level Query:
+    SELECT item, quantity, date FROM <subQueryJoinExpression> ORDER BY `item` ASC;
+    */
+    Query mainQuery =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSelection(IdentifierExpression.of("date"))
+            .addFromClause(subQueryJoinExpression)
+            .addSort(IdentifierExpression.of("item"), ASC)
+            .build();
 
-        assertFalse(docIterator.hasNext());
-        assertDocsAndSizeEqual(
-            datastoreName,
-            collection.find(Query.builder().addSort(IdentifierExpression.of("_id"), ASC).build()),
-            "query/bulk_update/updatable_collection_data_no_update.json",
-            9);
-      }
-    }
+    Iterator<Document> iterator = collection.aggregate(mainQuery);
+    assertDocsAndSizeEqual(
+        dataStoreName, iterator, "query/self_join_with_sub_query_response.json", 4);
+  }
 
-    @ParameterizedTest
-    @ArgumentsSource(AllProvider.class)
-    public void testExistsOperatorWithFindUsingStringRhs(String dataStoreName) throws Exception {
-      Collection collection = getCollection(dataStoreName);
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  void testSelfJoinWithSubQueryWithNestedFields(String dataStoreName) throws IOException {
+    createCollectionData(
+        "query/items_data_with_nested_fields.json", "items_data_with_nested_fields");
+    Collection collection = getCollection(dataStoreName, "items_data_with_nested_fields");
 
-      List<SelectionSpec> selectionSpecs =
-          List.of(
-              SelectionSpec.of(IdentifierExpression.of("item")),
-              SelectionSpec.of(IdentifierExpression.of("date")));
-      Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
-      Filter filter =
-          Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("props"), EXISTS, ConstantExpression.of("true")))
-              .build();
+    /*
+    This is the query we want to execute:
+    SELECT itemDetails.item, itemDetails.quantity, itemDetails.date
+    FROM <implicit_collection>
+    JOIN (
+        SELECT itemDetails.item, MAX(itemDetails.date) AS latest_date
+        FROM <implicit_collection>
+        GROUP BY itemDetails.item
+    ) latest
+    ON itemDetails.item = latest.itemDetails.item
+    AND itemDetails.date = latest.latest_date
+    ORDER BY `itemDetails.item` ASC;
+    */
 
-      Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+    /*
+    The right subquery:
+    SELECT itemDetails.item, MAX(itemDetails.date) AS latest_date
+    FROM <implicit_collection>
+    GROUP BY itemDetails.item
+    */
+    Query subQuery =
+        Query.builder()
+            .addSelection(SelectionSpec.of(IdentifierExpression.of("itemDetails.item")))
+            .addSelection(
+                SelectionSpec.of(
+                    AggregateExpression.of(
+                        AggregationOperator.MAX, IdentifierExpression.of("itemDetails.date")),
+                    "latest_date"))
+            .addAggregation(IdentifierExpression.of("itemDetails.item"))
+            .build();
 
-      Iterator<Document> resultDocs = collection.find(query);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, "query/exists_filter_response.json", 4);
+    /*
+    The FROM expression representing a join with the right subquery:
+    FROM <implicit_collection>
+    JOIN (
+       SELECT itemDetails.item, MAX(itemDetails.date) AS latest_date
+       FROM <implicit_collection>
+       GROUP BY itemDetails.item
+    ) latest
+    ON itemDetails.item = latest.itemDetails.item
+    AND itemDetails.date = latest.latest_date;
+    */
+    SubQueryJoinExpression subQueryJoinExpression =
+        SubQueryJoinExpression.builder()
+            .subQuery(subQuery)
+            .subQueryAlias("latest")
+            .joinCondition(
+                LogicalExpression.and(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("itemDetails.item"),
+                        RelationalOperator.EQ,
+                        AliasedIdentifierExpression.builder()
+                            .name("itemDetails.item")
+                            .contextAlias("latest")
+                            .build()),
+                    RelationalExpression.of(
+                        IdentifierExpression.of("itemDetails.date"),
+                        RelationalOperator.EQ,
+                        AliasedIdentifierExpression.builder()
+                            .name("latest_date")
+                            .contextAlias("latest")
+                            .build())))
+            .build();
 
-      testCountApi(dataStoreName, query, "query/exists_filter_response.json");
-    }
+    /*
+    Now build the top-level Query:
+    SELECT itemDetails.item, itemDetails.quantity, itemDetails.date FROM <subQueryJoinExpression> ORDER BY `itemDetails.item` ASC;
+    */
+    Query mainQuery =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("itemDetails.item"))
+            .addSelection(IdentifierExpression.of("itemDetails.quantity"))
+            .addSelection(IdentifierExpression.of("itemDetails.date"))
+            .addFromClause(subQueryJoinExpression)
+            .addSort(IdentifierExpression.of("itemDetails.item"), ASC)
+            .build();
 
-    @ParameterizedTest
-    @ArgumentsSource(AllProvider.class)
-    public void testExistsOperatorWithFindUsingBooleanRhs(String dataStoreName) throws Exception {
-      Collection collection = getCollection(dataStoreName);
+    Iterator<Document> iterator = collection.aggregate(mainQuery);
+    assertDocsAndSizeEqual(
+        dataStoreName, iterator, "query/sub_query_join_response_with_nested_fields.json", 3);
+  }
 
-      List<SelectionSpec> selectionSpecs =
-          List.of(
-              SelectionSpec.of(IdentifierExpression.of("item")),
-              SelectionSpec.of(IdentifierExpression.of("date")));
-      Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
-      Filter filter =
-          Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("props"), EXISTS, ConstantExpression.of(true)))
-              .build();
+  private static Collection getCollection(final String dataStoreName) {
+    return getCollection(dataStoreName, COLLECTION_NAME);
+  }
 
-      Query query = Query.builder().setSelection(selection).setFilter(filter).build();
+  private static Collection getCollection(final String dataStoreName, final String collectionName) {
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    return datastore.getCollection(collectionName);
+  }
 
-      Iterator<Document> resultDocs = collection.find(query);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, "query/exists_filter_response.json", 4);
-
-      testCountApi(dataStoreName, query, "query/exists_filter_response.json");
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(AllProvider.class)
-    public void testNotExistsOperatorWithFindUsingStringRhs(String dataStoreName) throws Exception {
-      Collection collection = getCollection(dataStoreName);
-
-      List<SelectionSpec> selectionSpecs =
-          List.of(
-              SelectionSpec.of(IdentifierExpression.of("item")),
-              SelectionSpec.of(IdentifierExpression.of("date")));
-      Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
-      Filter filter =
-          Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("props"), NOT_EXISTS, ConstantExpression.of("true")))
-              .build();
-
-      Query query = Query.builder().setSelection(selection).setFilter(filter).build();
-
-      Iterator<Document> resultDocs = collection.find(query);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, "query/not_exists_filter_response.json", 4);
-
-      testCountApi(dataStoreName, query, "query/not_exists_filter_response.json");
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(AllProvider.class)
-    public void testNotExistsOperatorWithFindUsingBooleanRhs(String dataStoreName)
-        throws Exception {
-      Collection collection = getCollection(dataStoreName);
-
-      List<SelectionSpec> selectionSpecs =
-          List.of(
-              SelectionSpec.of(IdentifierExpression.of("item")),
-              SelectionSpec.of(IdentifierExpression.of("date")));
-      Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
-      Filter filter =
-          Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("props"), NOT_EXISTS, ConstantExpression.of(true)))
-              .build();
-
-      Query query = Query.builder().setSelection(selection).setFilter(filter).build();
-
-      Iterator<Document> resultDocs = collection.find(query);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, "query/not_exists_filter_response.json", 4);
-
-      testCountApi(dataStoreName, query, "query/not_exists_filter_response.json");
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(MongoProvider.class)
-    public void testMongoFunctionExpressionGroupBy(String dataStoreName) throws Exception {
-      Collection collection = getCollection(dataStoreName);
-
-      FunctionExpression functionExpression =
-          FunctionExpression.builder()
-              .operator(FLOOR)
-              .operand(
-                  FunctionExpression.builder()
-                      .operator(DIVIDE)
-                      .operand(
-                          FunctionExpression.builder()
-                              .operator(SUBTRACT)
-                              .operand(IdentifierExpression.of("price"))
-                              .operand(ConstantExpression.of(5))
-                              .build())
-                      .operand(ConstantExpression.of(5))
-                      .build())
-              .build();
-      List<SelectionSpec> selectionSpecs =
-          List.of(
-              SelectionSpec.of(functionExpression, "function"),
-              SelectionSpec.of(
-                  AggregateExpression.of(COUNT, IdentifierExpression.of("function")),
-                  "functionCount"));
-      Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
-
-      Query query =
-          Query.builder()
-              .setSelection(selection)
-              .setAggregation(
-                  Aggregation.builder().expression(IdentifierExpression.of("function")).build())
-              .setSort(
-                  Sort.builder()
-                      .sortingSpec(SortingSpec.of(IdentifierExpression.of("function"), ASC))
-                      .build())
-              .build();
-
-      Iterator<Document> resultDocs = collection.aggregate(query);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, "query/function_expression_group_by_response.json", 3);
-
-      testCountApi(dataStoreName, query, "query/function_expression_group_by_response.json");
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(MongoProvider.class)
-    public void testToLowerCaseMongoFunctionOperator(String dataStoreName) throws Exception {
-      Collection collection = getCollection(dataStoreName);
-
-      List<SelectionSpec> selectionSpecs =
-          List.of(
-              SelectionSpec.of(IdentifierExpression.of("item")),
-              SelectionSpec.of(IdentifierExpression.of("price")),
-              SelectionSpec.of(IdentifierExpression.of("quantity")),
-              SelectionSpec.of(IdentifierExpression.of("date")));
-      Selection selection = Selection.builder().selectionSpecs(selectionSpecs).build();
-      Filter filter =
-          Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      FunctionExpression.builder()
-                          .operator(FunctionOperator.TO_LOWER_CASE)
-                          .operand(IdentifierExpression.of("item"))
-                          .build(),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("shampoo")))
-              .build();
-
-      Query query = Query.builder().setSelection(selection).setFilter(filter).build();
-
-      Iterator<Document> resultDocs = collection.find(query);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultDocs, "query/case_insensitive_exact_match_response.json", 2);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(MongoProvider.class)
-    void testSelfJoinWithSubQuery(String dataStoreName) throws IOException {
-      Collection collection = getCollection(dataStoreName);
-
-      /*
-      This is the query we want to execute:
-      SELECT item, quantity, date
-      FROM <implicit_collection>
-      JOIN (
-          SELECT item, MAX(date) AS latest_date
-          FROM <implicit_collection>
-          GROUP BY item
-      ) latest
-      ON item = latest.item
-      AND date = latest.latest_date
-      ORDER BY `item` ASC;
-      */
-
-      /*
-      The right subquery:
-      SELECT item, MAX(date) AS latest_date
-      FROM <implicit_collection>
-      GROUP BY item
-      */
-      Query subQuery =
-          Query.builder()
-              .addSelection(SelectionSpec.of(IdentifierExpression.of("item")))
-              .addSelection(
-                  SelectionSpec.of(
-                      AggregateExpression.of(
-                          AggregationOperator.MAX, IdentifierExpression.of("date")),
-                      "latest_date"))
-              .addAggregation(IdentifierExpression.of("item"))
-              .build();
-
-      /*
-      The FROM expression representing a join with the right subquery:
-      FROM <implicit_collection>
-      JOIN (
-         SELECT item, MAX(date) AS latest_date
-         FROM <implicit_collection>
-         GROUP BY item
-      ) latest
-      ON item = latest.item
-      AND date = latest.latest_date;
-      */
-      SubQueryJoinExpression subQueryJoinExpression =
-          SubQueryJoinExpression.builder()
-              .subQuery(subQuery)
-              .subQueryAlias("latest")
-              .joinCondition(
-                  LogicalExpression.and(
-                      RelationalExpression.of(
-                          IdentifierExpression.of("item"),
-                          RelationalOperator.EQ,
-                          AliasedIdentifierExpression.builder()
-                              .name("item")
-                              .contextAlias("latest")
-                              .build()),
-                      RelationalExpression.of(
-                          IdentifierExpression.of("date"),
-                          RelationalOperator.EQ,
-                          AliasedIdentifierExpression.builder()
-                              .name("latest_date")
-                              .contextAlias("latest")
-                              .build())))
-              .build();
-
-      /*
-      Now build the top-level Query:
-      SELECT item, quantity, date FROM <subQueryJoinExpression> ORDER BY `item` ASC;
-      */
-      Query mainQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("quantity"))
-              .addSelection(IdentifierExpression.of("date"))
-              .addFromClause(subQueryJoinExpression)
-              .addSort(IdentifierExpression.of("item"), ASC)
-              .build();
-
-      Iterator<Document> iterator = collection.aggregate(mainQuery);
-      assertDocsAndSizeEqual(
-          dataStoreName, iterator, "query/self_join_with_sub_query_response.json", 4);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(MongoProvider.class)
-    void testSelfJoinWithSubQueryWithNestedFields(String dataStoreName) throws IOException {
-      createCollectionData(
-          "query/items_data_with_nested_fields.json", "items_data_with_nested_fields");
-      Collection collection = getCollection(dataStoreName, "items_data_with_nested_fields");
-
-      /*
-      This is the query we want to execute:
-      SELECT itemDetails.item, itemDetails.quantity, itemDetails.date
-      FROM <implicit_collection>
-      JOIN (
-          SELECT itemDetails.item, MAX(itemDetails.date) AS latest_date
-          FROM <implicit_collection>
-          GROUP BY itemDetails.item
-      ) latest
-      ON itemDetails.item = latest.itemDetails.item
-      AND itemDetails.date = latest.latest_date
-      ORDER BY `itemDetails.item` ASC;
-      */
-
-      /*
-      The right subquery:
-      SELECT itemDetails.item, MAX(itemDetails.date) AS latest_date
-      FROM <implicit_collection>
-      GROUP BY itemDetails.item
-      */
-      Query subQuery =
-          Query.builder()
-              .addSelection(SelectionSpec.of(IdentifierExpression.of("itemDetails.item")))
-              .addSelection(
-                  SelectionSpec.of(
-                      AggregateExpression.of(
-                          AggregationOperator.MAX, IdentifierExpression.of("itemDetails.date")),
-                      "latest_date"))
-              .addAggregation(IdentifierExpression.of("itemDetails.item"))
-              .build();
-
-      /*
-      The FROM expression representing a join with the right subquery:
-      FROM <implicit_collection>
-      JOIN (
-         SELECT itemDetails.item, MAX(itemDetails.date) AS latest_date
-         FROM <implicit_collection>
-         GROUP BY itemDetails.item
-      ) latest
-      ON itemDetails.item = latest.itemDetails.item
-      AND itemDetails.date = latest.latest_date;
-      */
-      SubQueryJoinExpression subQueryJoinExpression =
-          SubQueryJoinExpression.builder()
-              .subQuery(subQuery)
-              .subQueryAlias("latest")
-              .joinCondition(
-                  LogicalExpression.and(
-                      RelationalExpression.of(
-                          IdentifierExpression.of("itemDetails.item"),
-                          RelationalOperator.EQ,
-                          AliasedIdentifierExpression.builder()
-                              .name("itemDetails.item")
-                              .contextAlias("latest")
-                              .build()),
-                      RelationalExpression.of(
-                          IdentifierExpression.of("itemDetails.date"),
-                          RelationalOperator.EQ,
-                          AliasedIdentifierExpression.builder()
-                              .name("latest_date")
-                              .contextAlias("latest")
-                              .build())))
-              .build();
-
-      /*
-      Now build the top-level Query:
-      SELECT itemDetails.item, itemDetails.quantity, itemDetails.date FROM <subQueryJoinExpression> ORDER BY `itemDetails.item` ASC;
-      */
-      Query mainQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("itemDetails.item"))
-              .addSelection(IdentifierExpression.of("itemDetails.quantity"))
-              .addSelection(IdentifierExpression.of("itemDetails.date"))
-              .addFromClause(subQueryJoinExpression)
-              .addSort(IdentifierExpression.of("itemDetails.item"), ASC)
-              .build();
-
-      Iterator<Document> iterator = collection.aggregate(mainQuery);
-      assertDocsAndSizeEqual(
-          dataStoreName, iterator, "query/sub_query_join_response_with_nested_fields.json", 3);
-    }
-
-    private static Collection getCollection(final String dataStoreName) {
-      return getCollection(dataStoreName, COLLECTION_NAME);
-    }
-
-    private static Collection getCollection(
-        final String dataStoreName, final String collectionName) {
-      final Datastore datastore = datastoreMap.get(dataStoreName);
-      return datastore.getCollection(collectionName);
-    }
-
-    private static void testCountApi(
-        final String dataStoreName, final Query query, final String filePath) throws IOException {
-      Collection collection = getCollection(dataStoreName);
-      final long actualSize = collection.count(query);
-      final String fileContent = readFileFromResource(filePath).orElseThrow();
-      final long expectedSize = convertJsonToMap(fileContent).size();
-      assertEquals(expectedSize, actualSize);
-    }
+  private static void testCountApi(
+      final String dataStoreName, final Query query, final String filePath) throws IOException {
+    Collection collection = getCollection(dataStoreName);
+    final long actualSize = collection.count(query);
+    final String fileContent = readFileFromResource(filePath).orElseThrow();
+    final long expectedSize = convertJsonToMap(fileContent).size();
+    assertEquals(expectedSize, actualSize);
   }
 }
