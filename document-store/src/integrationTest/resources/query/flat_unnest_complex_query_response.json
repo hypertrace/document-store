@@ -1,37 +1,37 @@
 [
   {
-    "tags": "hygiene",
+    "avg_price": "13.3333333333333333",
     "tag_count": 3,
-    "avg_price": 13.333333333333334
+    "tags": "hygiene"
   },
   {
-    "tags": "premium",
+    "avg_price": "7.5000000000000000",
     "tag_count": 2,
-    "avg_price": 7.5
+    "tags": "premium"
   },
   {
-    "tags": "personal-care",
+    "avg_price": "7.5000000000000000",
     "tag_count": 2,
-    "avg_price": 7.5
+    "tags": "personal-care"
   },
   {
-    "tags": "grooming",
+    "avg_price": "8.0000000000000000",
     "tag_count": 2,
-    "avg_price": 8.0
+    "tags": "grooming"
   },
   {
-    "tags": "budget",
+    "avg_price": "7.5000000000000000",
     "tag_count": 2,
-    "avg_price": 7.5
+    "tags": "budget"
   },
   {
-    "tags": "bulk",
+    "avg_price": "6.5000000000000000",
     "tag_count": 2,
-    "avg_price": 6.5
+    "tags": "bulk"
   },
   {
-    "tags": "hair-care",
+    "avg_price": "5.0000000000000000",
     "tag_count": 2,
-    "avg_price": 5.0
+    "tags": "hair-care"
   }
 ]
