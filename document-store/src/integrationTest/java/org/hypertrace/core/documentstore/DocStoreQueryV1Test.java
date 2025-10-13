@@ -3531,6 +3531,68 @@ public class DocStoreQueryV1Test {
           "query/flat_unnest_not_preserving_empty_array_response.json",
           1);
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestWithOnlyUnnestFilter(String dataStoreName)
+        throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Query with unnest filter but NO main WHERE filter
+      Query unnestFilterOnlyQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("tags"))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .identifierExpression(IdentifierExpression.of("tags"))
+                      .preserveNullAndEmptyArrays(false)
+                      .filterTypeExpression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              EQ,
+                              ConstantExpression.of("premium")))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestFilterOnlyQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_unnest_only_unnest_filter_response.json", 2);
+    }
+
+    /**
+     * Tests UNNEST with ONLY main filter (no unnest filter). Covers line 65 in
+     * PostgresUnnestFilterTypeExpressionVisitor: only main filter exists.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestWithOnlyMainFilter(String dataStoreName)
+        throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Query with main WHERE filter but NO unnest filter
+      Query mainFilterOnlyQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"), GT, ConstantExpression.of(10)))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .identifierExpression(IdentifierExpression.of("tags"))
+                      .preserveNullAndEmptyArrays(false)
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(mainFilterOnlyQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_unnest_only_main_filter_response.json", 6);
+    }
   }
 
   @Nested
