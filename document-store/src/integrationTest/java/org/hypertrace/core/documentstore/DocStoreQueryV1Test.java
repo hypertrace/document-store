@@ -3457,6 +3457,68 @@ public class DocStoreQueryV1Test {
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, colorsIterator, "query/flat_jsonb_colors_selection_response.json", 8);
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatVsNestedCollectionNestedFieldSelections(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+
+      Collection nestedCollection = datastore.getCollection(COLLECTION_NAME);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test 1: Select nested field - props.brand
+      // Nested collection uses dot notation
+      Query nestedBrandQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("props.brand"), "brand")
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      // Flat collection uses JsonIdentifierExpression
+      Query flatBrandQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(
+                  JsonIdentifierExpression.of("props", List.of("brand"), "STRING"), "brand")
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      // Assert both match the expected response
+      Iterator<Document> nestedBrandIterator = nestedCollection.find(nestedBrandQuery);
+      assertDocsAndSizeEqual(
+          dataStoreName, nestedBrandIterator, "query/nested_vs_flat_brand_response.json", 8);
+
+      Iterator<Document> flatBrandIterator = flatCollection.find(flatBrandQuery);
+      assertDocsAndSizeEqual(
+          dataStoreName, flatBrandIterator, "query/nested_vs_flat_brand_response.json", 8);
+
+      // Test 2: Select nested JSON array - props.colors
+      Query nestedColorsQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("props.colors"), "colors")
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      Query flatColorsQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(
+                  JsonIdentifierExpression.of("props", List.of("colors"), "STRING_ARRAY"), "colors")
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      // Assert both match the expected response
+      Iterator<Document> nestedColorsIterator = nestedCollection.find(nestedColorsQuery);
+      assertDocsAndSizeEqual(
+          dataStoreName, nestedColorsIterator, "query/nested_vs_flat_colors_response.json", 8);
+
+      Iterator<Document> flatColorsIterator = flatCollection.find(flatColorsQuery);
+      assertDocsAndSizeEqual(
+          dataStoreName, flatColorsIterator, "query/nested_vs_flat_colors_response.json", 8);
+    }
   }
 
   @Nested
