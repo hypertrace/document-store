@@ -3518,6 +3518,37 @@ public class DocStoreQueryV1Test {
       Iterator<Document> flatColorsIterator = flatCollection.find(flatColorsQuery);
       assertDocsAndSizeEqual(
           dataStoreName, flatColorsIterator, "query/nested_vs_flat_colors_response.json", 8);
+
+      // Test 3: Select nested field WITHOUT alias - should preserve full nested structure
+      Query nestedBrandNoAliasQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("props.brand"))
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      Query flatBrandNoAliasQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(JsonIdentifierExpression.of("props", List.of("brand"), "STRING"))
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      // Assert both match the expected response with nested structure
+      Iterator<Document> nestedBrandNoAliasIterator =
+          nestedCollection.find(nestedBrandNoAliasQuery);
+      assertDocsAndSizeEqual(
+          dataStoreName,
+          nestedBrandNoAliasIterator,
+          "query/nested_vs_flat_brand_no_alias_response.json",
+          8);
+
+      Iterator<Document> flatBrandNoAliasIterator = flatCollection.find(flatBrandNoAliasQuery);
+      assertDocsAndSizeEqual(
+          dataStoreName,
+          flatBrandNoAliasIterator,
+          "query/nested_vs_flat_brand_no_alias_response.json",
+          8);
     }
   }
 
