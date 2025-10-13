@@ -322,7 +322,7 @@ public class MongoCollectionTest {
 
       assertFalse(result.isPresent());
 
-      assertEquals(selections, options.getValue().getProjection());
+      assertEquals(new BasicDBObject("_id", 1), options.getValue().getProjection());
       assertEquals(sort, options.getValue().getSort());
       assertEquals(AFTER, options.getValue().getReturnDocument());
 
