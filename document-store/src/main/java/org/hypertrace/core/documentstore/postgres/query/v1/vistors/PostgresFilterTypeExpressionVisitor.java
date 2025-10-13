@@ -207,6 +207,9 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .accept(new PostgresFilterTypeExpressionVisitor(postgresQueryParser, visitorProvider));
 
     if (isFlatCollection) {
+      // todo: For array filters, UNNEST is not the most optimal way as it won't use the index.
+      // Perhaps, we should use ANY or @> ARRAY operator
+
       // For flat collections, assume all arrays are native and use unnest()
       // Infer array type from filter to properly cast empty array
       String arrayTypeCast = inferArrayTypeCastFromFilter(expression.getFilter());
