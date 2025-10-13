@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo.update;
 
 import static org.hypertrace.core.documentstore.model.options.DataFreshness.REALTIME_FRESHNESS;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.NONE;
+import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getReturnDocument;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoFilterTypeExpressionParser.getFilter;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTypeExpressionParser.getSelections;
@@ -54,7 +55,6 @@ public class MongoUpdateExecutor {
     updateValidator.validate(updates);
 
     try {
-      final BasicDBObject selections = getSelections(query);
       final BasicDBObject sorts = getOrders(query);
       final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
       options.upsert(
@@ -65,8 +65,14 @@ public class MongoUpdateExecutor {
 
       options.returnDocument(getReturnDocument(returnDocumentType));
 
-      if (!selections.isEmpty()) {
-        options.projection(selections);
+      if (returnDocumentType == NONE) {
+        // Optimize by projecting only the _id field when we don't need to return the document
+        options.projection(new BasicDBObject(ID_KEY, 1));
+      } else {
+        final BasicDBObject selections = getSelections(query);
+        if (!selections.isEmpty()) {
+          options.projection(selections);
+        }
       }
 
       if (!sorts.isEmpty()) {
