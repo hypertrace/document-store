@@ -23,7 +23,7 @@ public class PostgresFieldIdentifierExpressionVisitor extends PostgresSelectType
 
   @Override
   public String visit(final IdentifierExpression expression) {
-    FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression.getName());
+    FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression);
     return getPostgresQueryParser()
         .getPgColTransformer()
         .buildFieldAccessorWithoutCast(fieldToPgColumn);

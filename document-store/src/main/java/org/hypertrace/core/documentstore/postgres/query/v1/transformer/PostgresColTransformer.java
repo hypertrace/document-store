@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
 import java.util.Map;
 import org.hypertrace.core.documentstore.DocumentType;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
 /**
@@ -11,13 +12,13 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 public interface PostgresColTransformer {
 
   /**
-   * Transforms a logical field name to PostgreSQL column information.
+   * Transforms an identifier expression to PostgreSQL column information.
    *
-   * @param orgFieldName The original logical field name (e.g., "API.serviceName")
-   * @param pgColMapping
+   * @param expression The identifier expression (may be JsonIdentifierExpression with metadata)
+   * @param pgColMapping Mapping of field names to PostgreSQL columns
    * @return FieldToPgColumn containing the PostgreSQL column name and optional nested path
    */
-  FieldToPgColumn transform(String orgFieldName, Map<String, String> pgColMapping);
+  FieldToPgColumn transform(IdentifierExpression expression, Map<String, String> pgColMapping);
 
   /**
    * Builds a complete field reference expression for use in SQL queries.

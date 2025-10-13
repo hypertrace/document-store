@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import lombok.Getter;
 import lombok.Setter;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
 import org.hypertrace.core.documentstore.postgres.PostgresTableIdentifier;
@@ -122,8 +123,8 @@ public class PostgresQueryParser {
     return parseFilter().map(filter -> "WHERE " + filter).orElse("");
   }
 
-  public FieldToPgColumn transformField(String name) {
-    return pgColTransformer.transform(name, this.pgColumnNames);
+  public FieldToPgColumn transformField(IdentifierExpression expression) {
+    return pgColTransformer.transform(expression, this.pgColumnNames);
   }
 
   private String getSelections() {

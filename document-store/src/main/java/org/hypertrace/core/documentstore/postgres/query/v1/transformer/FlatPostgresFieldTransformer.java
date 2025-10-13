@@ -2,6 +2,8 @@ package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
 import java.util.Map;
 import org.hypertrace.core.documentstore.DocumentType;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
@@ -12,22 +14,50 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 public class FlatPostgresFieldTransformer implements PostgresColTransformer {
 
   @Override
-  public FieldToPgColumn transform(String orgFieldName, Map<String, String> pgColMapping) {
-    // In flat structure mode, all fields are direct PostgreSQL columns as-is
-    return new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(orgFieldName));
+  public FieldToPgColumn transform(
+      IdentifierExpression expression, Map<String, String> pgColMapping) {
+    // Check if this is a JsonIdentifierExpression with explicit metadata
+    if (expression instanceof JsonIdentifierExpression) {
+      JsonIdentifierExpression jsonExpr = (JsonIdentifierExpression) expression;
+      // Use the explicit metadata from JsonIdentifierExpression
+      String nestedPath = String.join(".", jsonExpr.getJsonPath());
+      return new FieldToPgColumn(
+          nestedPath, PostgresUtils.wrapFieldNamesWithDoubleQuotes(jsonExpr.getColumnName()));
+    }
+
+    // For plain IdentifierExpression, treat the entire name as a direct column
+    // This avoids ambiguity with column names that contain dots
+    return new FieldToPgColumn(
+        null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(expression.getName()));
   }
 
   @Override
   public String buildFieldAccessorWithCast(FieldToPgColumn fieldToPgColumn, Type type) {
-    // Todo: If type is JSONB, we need to prepare the field data accessor again as pgcol ->
-    // transformed field (example: attributes -> triePatterns)
-    return fieldToPgColumn.getPgColumn();
+    if (fieldToPgColumn.getTransformedField() == null) {
+      // Direct column access, no casting needed
+      return fieldToPgColumn.getPgColumn();
+    }
+
+    // JSONB field access with casting
+    // For STRING: use ->> (text accessor) with cast
+    // For STRING_ARRAY: use -> (jsonb accessor) to keep as jsonb
+    String dataAccessor =
+        PostgresUtils.prepareFieldDataAccessorExpr(
+            fieldToPgColumn.getTransformedField(), fieldToPgColumn.getPgColumn());
+    return PostgresUtils.prepareCast(dataAccessor, type);
   }
 
   @Override
   public String buildFieldAccessorWithoutCast(FieldToPgColumn fieldToPgColumn) {
-    // Flat structure fields are direct columns
-    return fieldToPgColumn.getPgColumn();
+    if (fieldToPgColumn.getTransformedField() == null) {
+      // Direct column access
+      return fieldToPgColumn.getPgColumn();
+    }
+
+    // JSON field accessor (without casting)
+    return PostgresUtils.prepareFieldAccessorExpr(
+            fieldToPgColumn.getTransformedField(), fieldToPgColumn.getPgColumn())
+        .toString();
   }
 
   @Override

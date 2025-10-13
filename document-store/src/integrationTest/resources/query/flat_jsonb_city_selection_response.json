@@ -1,0 +1,46 @@
+[
+  {
+    "props": {
+      "seller": {
+        "address": {
+          "city": "Mumbai"
+        }
+      }
+    }
+  },
+  {
+  },
+  {
+    "props": {
+      "seller": {
+        "address": {
+          "city": "Mumbai"
+        }
+      }
+    }
+  },
+  {
+  },
+  {
+    "props": {
+      "seller": {
+        "address": {
+          "city": "Kolkata"
+        }
+      }
+    }
+  },
+  {
+  },
+  {
+    "props": {
+      "seller": {
+        "address": {
+          "city": "Kolkata"
+        }
+      }
+    }
+  },
+  {
+  }
+]

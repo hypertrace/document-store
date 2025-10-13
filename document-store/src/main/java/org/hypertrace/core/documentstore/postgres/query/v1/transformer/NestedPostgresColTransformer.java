@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.DocumentType;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
@@ -17,7 +18,11 @@ public class NestedPostgresColTransformer implements PostgresColTransformer {
   private static final String DOT = ".";
 
   @Override
-  public FieldToPgColumn transform(String orgFieldName, Map<String, String> pgColMapping) {
+  public FieldToPgColumn transform(
+      IdentifierExpression expression, Map<String, String> pgColMapping) {
+    // For nested collections, use the expression name for field mapping
+    String orgFieldName = expression.getName();
+
     // Preserve existing logic for JSONB document mode
     Optional<String> parentField =
         pgColMapping.keySet().stream()
