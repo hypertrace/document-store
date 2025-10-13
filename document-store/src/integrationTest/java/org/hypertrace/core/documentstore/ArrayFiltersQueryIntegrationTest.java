@@ -301,14 +301,11 @@ class ArrayFiltersQueryIntegrationTest {
    * environment IDs.
    */
   @ParameterizedTest
-  @ArgumentsSource(MongoProvider.class)
+  @ArgumentsSource(AllProvider.class)
   void getDocumentsWithEnvironmentIdsSubsetOfGivenList(final String dataStoreName)
       throws JSONException, IOException {
-    // Create a temporary collection for this test
     final String testCollectionName = "environment_scope_test";
     final Datastore datastore = datastoreMap.get(dataStoreName);
-
-    // Setup test data
     final Map<Key, Document> testDocuments =
         Utils.buildDocumentsFromResource("query/array_operators/environment_scope_test.json");
     datastore.deleteCollection(testCollectionName);
@@ -342,7 +339,6 @@ class ArrayFiltersQueryIntegrationTest {
     final String expected = readResource("environment_ids_subset.json");
     final String actual = iteratorToJson(documents);
 
-    // Cleanup
     datastore.deleteCollection(testCollectionName);
 
     JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
