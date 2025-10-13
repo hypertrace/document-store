@@ -560,7 +560,7 @@ public class MongoCollection implements Collection {
       throws IOException {
     try {
       return updateExecutor.update(query, updates, updateOptions);
-    } catch (final MongoWriteException e) {
+    } catch (final MongoCommandException | MongoWriteException e) {
       if (e.getCode() == MONGODB_DUPLICATE_KEY_ERROR_CODE) {
         throw new DuplicateDocumentException();
       }

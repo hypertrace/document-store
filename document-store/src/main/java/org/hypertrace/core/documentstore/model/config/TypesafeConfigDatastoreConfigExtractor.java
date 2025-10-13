@@ -33,6 +33,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
   private static final String DEFAULT_AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
   private static final String DEFAULT_DATA_FRESHNESS_KEY = "dataFreshness";
   private static final String DEFAULT_QUERY_TIMEOUT_KEY = "queryTimeout";
+  private static final String DEFAULT_CONNECTION_TIMEOUT_KEY = "connectionTimeout";
   private static final String DEFAULT_CUSTOM_PARAMETERS_PREFIX = "customParams";
 
   @NonNull Config config;
@@ -80,6 +81,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
         .aggregationPipelineMode(DEFAULT_AGGREGATION_PIPELINE_MODE_KEY)
         .dataFreshnessKey(DEFAULT_DATA_FRESHNESS_KEY)
         .queryTimeoutKey(DEFAULT_QUERY_TIMEOUT_KEY)
+        .connectionTimeoutKey(DEFAULT_CONNECTION_TIMEOUT_KEY)
         .customParametersKey(DEFAULT_CUSTOM_PARAMETERS_PREFIX);
   }
 
@@ -241,6 +243,13 @@ public class TypesafeConfigDatastoreConfigExtractor {
       connectionConfigBuilder.queryTimeout(config.getDuration(key));
     }
 
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor connectionTimeoutKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionConfigBuilder.connectionTimeout(config.getDuration(key));
+    }
     return this;
   }
 

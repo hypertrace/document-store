@@ -31,12 +31,16 @@ import org.hypertrace.core.documentstore.model.options.DataFreshness;
 public class ConnectionConfig {
   private static final String DEFAULT_APP_NAME = "document-store";
 
+  public static final Duration DEFAULT_CONNECTION_TIMEOUT = Duration.ofSeconds(10);
+  public static final Duration DEFAULT_QUERY_TIMEOUT = Duration.ofMinutes(20);
+
   @Singular @NonNull List<@NonNull Endpoint> endpoints;
   @NonNull String database;
   @Nullable ConnectionCredentials credentials;
   @NonNull AggregatePipelineMode aggregationPipelineMode;
   @NonNull DataFreshness dataFreshness;
   @NonNull Duration queryTimeout;
+  @NonNull Duration connectionTimeout;
   @NonNull Map<String, String> customParameters;
 
   public ConnectionConfig(
@@ -50,7 +54,8 @@ public class ConnectionConfig {
         credentials,
         AggregatePipelineMode.DEFAULT_ALWAYS,
         DataFreshness.SYSTEM_DEFAULT,
-        Duration.ofMinutes(20),
+        DEFAULT_QUERY_TIMEOUT,
+        DEFAULT_CONNECTION_TIMEOUT,
         customParameters != null ? customParameters : Collections.emptyMap());
   }
 
@@ -79,7 +84,8 @@ public class ConnectionConfig {
     ConnectionPoolConfig connectionPoolConfig;
     AggregatePipelineMode aggregationPipelineMode = AggregatePipelineMode.DEFAULT_ALWAYS;
     DataFreshness dataFreshness = DataFreshness.SYSTEM_DEFAULT;
-    Duration queryTimeout = Duration.ofMinutes(20);
+    Duration queryTimeout = DEFAULT_QUERY_TIMEOUT;
+    Duration connectionTimeout = DEFAULT_CONNECTION_TIMEOUT;
 
     public ConnectionConfigBuilder type(final DatabaseType type) {
       this.type = type;
@@ -110,6 +116,7 @@ public class ConnectionConfig {
               aggregationPipelineMode,
               dataFreshness,
               queryTimeout,
+              connectionTimeout,
               customParameters);
 
         case POSTGRES:
