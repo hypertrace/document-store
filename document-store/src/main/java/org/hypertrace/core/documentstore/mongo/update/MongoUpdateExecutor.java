@@ -54,27 +54,15 @@ public class MongoUpdateExecutor {
     updateValidator.validate(updates);
 
     try {
-      final BasicDBObject filter = getFilter(query, Query::getFilter);
-      final BasicDBObject updateObject = updateParser.buildUpdateClause(updates);
-      final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
-      final boolean shouldUpsert =
-          updateOptions
-              .getMissingDocumentStrategy()
-              .equals(MissingDocumentStrategy.CREATE_USING_UPDATES);
-
-      if (returnDocumentType == NONE) {
-        // Use updateOne for better performance when we don't need to return the document
-        final com.mongodb.client.model.UpdateOptions mongoUpdateOptions =
-            new com.mongodb.client.model.UpdateOptions().upsert(shouldUpsert);
-        collection.updateOne(filter, updateObject, mongoUpdateOptions);
-        return Optional.empty();
-      }
-
-      // Use findOneAndUpdate when we need to return the document
       final BasicDBObject selections = getSelections(query);
       final BasicDBObject sorts = getOrders(query);
       final FindOneAndUpdateOptions options = new FindOneAndUpdateOptions();
-      options.upsert(shouldUpsert);
+      options.upsert(
+          updateOptions
+              .getMissingDocumentStrategy()
+              .equals(MissingDocumentStrategy.CREATE_USING_UPDATES));
+      final ReturnDocumentType returnDocumentType = updateOptions.getReturnDocumentType();
+
       options.returnDocument(getReturnDocument(returnDocumentType));
 
       if (!selections.isEmpty()) {
@@ -83,6 +71,14 @@ public class MongoUpdateExecutor {
 
       if (!sorts.isEmpty()) {
         options.sort(sorts);
+      }
+
+      final BasicDBObject filter = getFilter(query, Query::getFilter);
+      final BasicDBObject updateObject = updateParser.buildUpdateClause(updates);
+
+      if (returnDocumentType == NONE) {
+        collection.findOneAndUpdate(filter, updateObject, options);
+        return Optional.empty();
       }
 
       return Optional.ofNullable(collection.findOneAndUpdate(filter, updateObject, options))
