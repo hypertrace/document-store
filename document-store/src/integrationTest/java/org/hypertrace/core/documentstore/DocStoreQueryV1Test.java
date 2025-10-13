@@ -85,6 +85,7 @@ import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -94,7 +95,9 @@ import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
+import org.hypertrace.core.documentstore.expression.operators.ArrayOperator;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
+import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
@@ -3592,6 +3595,42 @@ public class DocStoreQueryV1Test {
       Iterator<Document> resultIterator = flatCollection.aggregate(mainFilterOnlyQuery);
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, resultIterator, "query/flat_unnest_only_main_filter_response.json", 6);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionArrayRelationalFilter(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Filter: ANY tag in tags equals "hygiene" AND _id <= 8
+      // Exclude docs 9-10 (NULL/empty arrays) to avoid ARRAY[] type error
+      Query arrayRelationalQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(LogicalOperator.AND)
+                      .operand(
+                          ArrayRelationalFilterExpression.builder()
+                              .operator(ArrayOperator.ANY)
+                              .filter(
+                                  RelationalExpression.of(
+                                      IdentifierExpression.of("tags"),
+                                      EQ,
+                                      ConstantExpression.of("hygiene")))
+                              .build())
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(arrayRelationalQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_array_relational_filter_response.json", 3);
     }
   }
 
