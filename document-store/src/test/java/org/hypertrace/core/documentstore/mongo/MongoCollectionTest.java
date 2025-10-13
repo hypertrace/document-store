@@ -304,12 +304,12 @@ public class MongoCollectionTest {
 
     @Test
     void testUpdateAtomicWithFilter_getNone() throws IOException {
-      final ArgumentCaptor<com.mongodb.client.model.UpdateOptions> options =
-          ArgumentCaptor.forClass(com.mongodb.client.model.UpdateOptions.class);
+      final ArgumentCaptor<FindOneAndUpdateOptions> options =
+          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
 
       when(mockClock.millis()).thenReturn(1660721309000L);
-      when(collection.updateOne(eq(filter), eq(setObject), options.capture()))
-          .thenReturn(UpdateResult.acknowledged(1, 1L, null));
+      when(collection.findOneAndUpdate(eq(filter), eq(setObject), options.capture()))
+          .thenReturn(response);
 
       final Optional<Document> result =
           mongoCollection.update(
@@ -321,16 +321,13 @@ public class MongoCollectionTest {
                   .build());
 
       assertFalse(result.isPresent());
-      assertFalse(options.getValue().isUpsert());
+
+      assertEquals(selections, options.getValue().getProjection());
+      assertEquals(sort, options.getValue().getSort());
+      assertEquals(AFTER, options.getValue().getReturnDocument());
 
       verify(collection, times(1))
-          .updateOne(eq(filter), eq(setObject), any(com.mongodb.client.model.UpdateOptions.class));
-      // Verify that findOneAndUpdate is NOT called
-      verify(collection, times(0))
-          .findOneAndUpdate(
-              any(BasicDBObject.class),
-              any(BasicDBObject.class),
-              any(FindOneAndUpdateOptions.class));
+          .findOneAndUpdate(eq(filter), eq(setObject), any(FindOneAndUpdateOptions.class));
     }
 
     @Test
