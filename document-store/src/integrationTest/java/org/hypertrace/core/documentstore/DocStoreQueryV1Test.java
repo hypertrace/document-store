@@ -2518,6 +2518,107 @@ public class DocStoreQueryV1Test {
           "query/updatable_collection_data_without_selection.json",
           9);
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    public void testAtomicUpdateWithReturnDocumentTypeNone(final String datastoreName)
+        throws IOException {
+      final Collection collection = getCollection(datastoreName, UPDATABLE_COLLECTION_NAME);
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final Query query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              LT,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .addSort(SortingSpec.of(IdentifierExpression.of("price"), ASC))
+              .addSort(SortingSpec.of(IdentifierExpression.of("date"), DESC))
+              .addSelection(IdentifierExpression.of("quantity"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSelection(IdentifierExpression.of("date"))
+              .addSelection(IdentifierExpression.of("props"))
+              .build();
+
+      final SubDocumentUpdate dateUpdate = SubDocumentUpdate.of("date", "2022-08-09T18:53:17Z");
+      final SubDocumentUpdate quantityUpdate = SubDocumentUpdate.of("quantity", 1000);
+      final SubDocumentUpdate propsUpdate =
+          SubDocumentUpdate.of(
+              "props", SubDocumentValue.of(new JSONDocument("{\"brand\": \"Dettol\"}")));
+
+      // Perform update with ReturnDocumentType.NONE
+      final Optional<Document> updateResult =
+          collection.update(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate),
+              UpdateOptions.builder().returnDocumentType(NONE).build());
+
+      // Verify that no document is returned (as expected with NONE)
+      assertFalse(
+          updateResult.isPresent(), "Should return empty Optional when ReturnDocumentType.NONE");
+
+      // Verify that the document was actually updated in the database by querying it
+      final Query verificationQuery =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("date"),
+                              EQ,
+                              ConstantExpression.of("2022-08-09T18:53:17Z")))
+                      .build())
+              .build();
+
+      final CloseableIterator<Document> verificationResults = collection.find(verificationQuery);
+      assertTrue(verificationResults.hasNext(), "Updated document should exist in database");
+
+      final Document updatedDocument = verificationResults.next();
+      final JsonNode json = new ObjectMapper().readTree(updatedDocument.toJson());
+      // Verify that the right document was updated in the database
+      assertEquals(null, json.get("sales"), "'sales' field should not be present");
+
+      // Verify the fields were updated
+      assertEquals(1000, json.get("quantity").asInt(), "Quantity should be updated to 1000");
+      assertEquals("2022-08-09T18:53:17Z", json.get("date").asText(), "Date should be updated");
+      final JsonNode props = json.get("props");
+      assertEquals(
+          "Dettol", props.get("brand").asText(), "Props brand should be updated to Dettol");
+
+      verificationResults.close();
+
+      // Additional test: Verify that the same update with AFTER_UPDATE returns the document
+      // Reset the data first
+      createCollectionData("query/updatable_collection_data.json", UPDATABLE_COLLECTION_NAME);
+
+      final Optional<Document> afterUpdateResult =
+          collection.update(
+              query,
+              List.of(dateUpdate, quantityUpdate, propsUpdate),
+              UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build());
+
+      // This should return the updated document
+      assertTrue(
+          afterUpdateResult.isPresent(),
+          "Should return document when ReturnDocumentType.AFTER_UPDATE");
+
+      final Document returnedDocument = afterUpdateResult.get();
+      final JsonNode returnedJson = new ObjectMapper().readTree(returnedDocument.toJson());
+      assertEquals(1000, returnedJson.get("quantity").asInt());
+      assertEquals("2022-08-09T18:53:17Z", returnedJson.get("date").asText());
+    }
   }
 
   @Nested
