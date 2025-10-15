@@ -195,7 +195,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     }
 
     // If the field name is 'elements.inner', alias becomes 'elements_dot_inner'
-    final String alias = encodeAliasForNestedField(identifierName);
+    final String alias = encodeAliasForNestedField(identifierName).toLowerCase();
 
     // Any LHS field name (elements) is to be prefixed with current alias (elements_dot_inner)
     final PostgresWrappingFilterVisitorProvider visitorProvider =
