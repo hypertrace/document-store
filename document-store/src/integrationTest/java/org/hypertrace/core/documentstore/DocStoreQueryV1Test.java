@@ -201,6 +201,7 @@ public class DocStoreQueryV1Test {
                 + "\"quantity\" INTEGER,"
                 + "\"date\" TIMESTAMPTZ,"
                 + "\"tags\" TEXT[],"
+                + "\"categoryTags\" TEXT[],"
                 + "\"props\" JSONB,"
                 + "\"sales\" JSONB,"
                 + "\"numbers\" INTEGER[],"
@@ -3735,6 +3736,36 @@ public class DocStoreQueryV1Test {
       Iterator<Document> resultIterator = flatCollection.find(arrayRelationalQuery);
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, resultIterator, "query/flat_array_relational_filter_response.json", 3);
+    }
+
+    /**
+     * Tests UNNEST operation on flat PostgreSQL collection with mixed-case column name. This test
+     * reproduces the case sensitivity bug where unquoted alias gets lowercased by PostgreSQL but
+     * quoted references preserve case, causing a column mismatch error. Field "categoryTags" →
+     * alias "categoryTags_unnested" → PostgreSQL lowercases to "categorytags_unnested" (if
+     * unquoted) but references use "categoryTags_unnested".
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestMixedCaseField(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test UNNEST on field with mixed case: categoryTags
+      // This will create alias "categoryTags_unnested" which must be quoted to preserve case
+      Query unnestQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("categoryTags"))
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count")
+              .addAggregation(IdentifierExpression.of("categoryTags"))
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("categoryTags"), false))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestQuery);
+      // Expected categories: Hygiene(3), PersonalCare(2), HairCare(2), HomeDecor(1), Grooming(2)
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_unnest_mixed_case_response.json", 5);
     }
 
     @ParameterizedTest
