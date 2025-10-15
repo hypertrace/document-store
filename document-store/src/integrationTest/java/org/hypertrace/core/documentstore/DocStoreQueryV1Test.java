@@ -21,6 +21,7 @@ import static org.hypertrace.core.documentstore.expression.operators.FunctionOpe
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.SUBTRACT;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
+import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.NOT;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
@@ -28,6 +29,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LIKE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
@@ -83,6 +85,7 @@ import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -92,7 +95,9 @@ import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
+import org.hypertrace.core.documentstore.expression.operators.ArrayOperator;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
+import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
@@ -197,7 +202,10 @@ public class DocStoreQueryV1Test {
                 + "\"date\" TIMESTAMPTZ,"
                 + "\"tags\" TEXT[],"
                 + "\"props\" JSONB,"
-                + "\"sales\" JSONB"
+                + "\"sales\" JSONB,"
+                + "\"numbers\" INTEGER[],"
+                + "\"scores\" DOUBLE PRECISION[],"
+                + "\"flags\" BOOLEAN[]"
                 + ");",
             collectionName);
 
@@ -3178,6 +3186,7 @@ public class DocStoreQueryV1Test {
 
   @Nested
   class FlatPostgresCollectionTest {
+
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionFindAll(String dataStoreName) throws IOException {
@@ -3203,7 +3212,7 @@ public class DocStoreQueryV1Test {
       iterator.close();
 
       // Should have 8 documents from the INSERT statements
-      assertEquals(8, count);
+      assertEquals(10, count);
     }
 
     @ParameterizedTest
@@ -3237,14 +3246,14 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionCount(String dataStoreName) throws IOException {
+    void testFlatPostgresCollectionCount(String dataStoreName) {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
       // Test count method - all documents
       long totalCount = flatCollection.count(Query.builder().build());
-      assertEquals(8, totalCount);
+      assertEquals(10, totalCount);
 
       // Test count with filter - soap documents only
       Query soapQuery =
@@ -3335,12 +3344,14 @@ public class DocStoreQueryV1Test {
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Test 1: Count all documents - should be equal
+      // Test 1: Count all documents
+      // Flat collection has 10 docs (8 matching nested + 2 for NULL/empty array testing)
+      // Nested collection has 8 docs
       Query countAllQuery = Query.builder().build();
       long nestedCount = nestedCollection.count(countAllQuery);
       long flatCount = flatCollection.count(countAllQuery);
-      assertEquals(
-          nestedCount, flatCount, "Total document count should be equal in both collections");
+      assertEquals(8, nestedCount, "Nested collection should have 8 documents");
+      assertEquals(10, flatCount, "Flat collection should have 10 documents");
 
       // Test 2: Filter by top-level field - item
       Query itemFilterQuery =
@@ -3356,6 +3367,8 @@ public class DocStoreQueryV1Test {
           nestedSoapCount, flatSoapCount, "Soap count should be equal in both collections");
 
       // Test 3: Filter by numeric field - price
+      // Nested has 2 docs with price > 10 (Mirror=20, Soap=20)
+      // Flat has 3 docs with price > 10 (Mirror=20, Soap=20, Bottle=15)
       Query priceFilterQuery =
           Query.builder()
               .setFilter(
@@ -3365,8 +3378,8 @@ public class DocStoreQueryV1Test {
 
       long nestedPriceCount = nestedCollection.count(priceFilterQuery);
       long flatPriceCount = flatCollection.count(priceFilterQuery);
-      assertEquals(
-          nestedPriceCount, flatPriceCount, "Price > 10 count should be equal in both collections");
+      assertEquals(2, nestedPriceCount, "Nested should have 2 docs with price > 10");
+      assertEquals(3, flatPriceCount, "Flat should have 3 docs with price > 10");
 
       // Test 4: Compare actual document content for same filter
       CloseableIterator<Document> nestedIterator = nestedCollection.find(itemFilterQuery);
@@ -3461,16 +3474,18 @@ public class DocStoreQueryV1Test {
       flatDocIterator.close();
     }
 
-    // Disabling this test as unnest of top-level json fields is not supported right now
+    /**
+     * Tests basic UNNEST operation on flat PostgreSQL collection with native TEXT[] arrays.
+     * Validates that PostgresFromTypeExpressionVisitor correctly uses unnest() instead of
+     * jsonb_array_elements() for native PostgreSQL arrays. Groups by tags and counts occurrences.
+     */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    @Disabled
     void testFlatPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Query to unnest tags and group by them to get counts
       Query unnestQuery =
           Query.builder()
               .addSelection(IdentifierExpression.of("tags"))
@@ -3479,37 +3494,328 @@ public class DocStoreQueryV1Test {
               .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
               .build();
 
-      CloseableIterator<Document> iterator = flatCollection.aggregate(unnestQuery);
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_unnest_tags_response.json", 17);
+    }
 
-      // Collect results
-      Map<String, Integer> tagCounts = new HashMap<>();
-      while (iterator.hasNext()) {
-        Document doc = iterator.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        String tag = json.get("tags").asText();
-        int count = json.get("count").asInt();
-        tagCounts.put(tag, count);
-      }
-      iterator.close();
+    /**
+     * Tests complex UNNEST operation on flat PostgreSQL collection with native TEXT[] arrays.
+     * Combines multiple filters (WHERE, unnest filter), aggregations (COUNT, AVG), HAVING clause,
+     * and ORDER BY sorting. Validates integration of PostgresFromTypeExpressionVisitor,
+     * PostgresUnnestFilterTypeExpressionVisitor, and PostgresFilterTypeExpressionVisitor.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestWithComplexQuery(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Verify we have results
-      assertFalse(tagCounts.isEmpty(), "Should have tag counts");
+      // Tests UNNEST with WHERE filter (price >= 5), unnest filter (NOT LIKE 'home-%'),
+      // GROUP BY tags, HAVING (count > 1), ORDER BY count DESC
+      Query complexQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("tags"))
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "tag_count")
+              .addSelection(
+                  AggregateExpression.of(AVG, IdentifierExpression.of("price")), "avg_price")
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"), GTE, ConstantExpression.of(5)))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .identifierExpression(IdentifierExpression.of("tags"))
+                      .preserveNullAndEmptyArrays(false)
+                      .filterTypeExpression(
+                          LogicalExpression.builder()
+                              .operator(NOT)
+                              .operand(
+                                  RelationalExpression.of(
+                                      IdentifierExpression.of("tags"),
+                                      LIKE,
+                                      ConstantExpression.of("home-%")))
+                              .build())
+                      .build())
+              .addAggregation(IdentifierExpression.of("tags"))
+              .setAggregationFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("tag_count"), GT, ConstantExpression.of(1)))
+              .addSort(SortingSpec.of(IdentifierExpression.of("tag_count"), DESC))
+              .build();
 
-      // Verify some expected tag counts based on our test data
-      // From collection_data.json, we can verify specific tags appear expected number of times
-      assertTrue(tagCounts.containsKey("hygiene"), "Should contain 'hygiene' tag");
-      assertTrue(tagCounts.containsKey("personal-care"), "Should contain 'personal-care' tag");
-      assertTrue(tagCounts.containsKey("grooming"), "Should contain 'grooming' tag");
+      Iterator<Document> resultIterator = flatCollection.aggregate(complexQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_unnest_complex_query_response.json", 7);
+    }
 
-      // Verify total count matches expected (each document contributes its tag count)
-      int totalTags = tagCounts.values().stream().mapToInt(Integer::intValue).sum();
-      assertTrue(totalTags > 0, "Total tag count should be greater than 0");
+    /**
+     * Tests UNNEST with preserveNullAndEmptyArrays=true on flat collection. Counts rows after
+     * unnesting. Returns 27 rows: 25 from docs with tags (one per tag) + 2 from docs with
+     * NULL/empty tags. This demonstrates LEFT JOIN behavior.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestWithPreserveEmptyTrue(String dataStoreName)
+        throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Print results for debugging
-      System.out.println("Tag counts from unnest operation:");
-      tagCounts.entrySet().stream()
-          .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-          .forEach(entry -> System.out.println(entry.getKey() + ": " + entry.getValue()));
+      // Include all documents in result irrespective of tags field (LEFT JOIN)
+      // Counts rows after unnest: 25 (from 8 docs with tags) + 2 (from docs with NULL/empty)
+      Query unnestPreserveTrueQuery =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), true))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestPreserveTrueQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName,
+          resultIterator,
+          "query/flat_unnest_preserving_empty_array_response.json",
+          1);
+    }
+
+    /**
+     * Tests UNNEST with filters on flat collection. Combines main WHERE filter on quantity field
+     * with unnest filter on tags, and preserveEmpty=false to exclude documents without tags.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestWithFilters(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query unnestWithFiltersQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("quantity"), GT, ConstantExpression.of(2)))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .identifierExpression(IdentifierExpression.of("tags"))
+                      .preserveNullAndEmptyArrays(false)
+                      .filterTypeExpression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              EQ,
+                              ConstantExpression.of("grooming")))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestWithFiltersQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_unnest_with_filters_response.json", 2);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestWithPreserveEmptyFalse(String dataStoreName)
+        throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test UNNEST on native TEXT[] array with preserveEmptyArrays = false (INNER JOIN)
+      // This counts all individual tag values after unnesting
+      // Expected: 25 total tags (3+3+4+3+3+3+3+3 from 8 documents with non-empty tags)
+      // Excludes 2 documents with NULL/empty tags
+      Query unnestPreserveFalseQuery =
+          Query.builder()
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "count")
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestPreserveFalseQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName,
+          resultIterator,
+          "query/flat_unnest_not_preserving_empty_array_response.json",
+          1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestWithOnlyUnnestFilter(String dataStoreName)
+        throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Query with unnest filter but NO main WHERE filter
+      Query unnestFilterOnlyQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("tags"))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .identifierExpression(IdentifierExpression.of("tags"))
+                      .preserveNullAndEmptyArrays(false)
+                      .filterTypeExpression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              EQ,
+                              ConstantExpression.of("premium")))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestFilterOnlyQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_unnest_only_unnest_filter_response.json", 2);
+    }
+
+    /**
+     * Tests UNNEST with ONLY main filter (no unnest filter). Covers line 65 in
+     * PostgresUnnestFilterTypeExpressionVisitor: only main filter exists.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionUnnestWithOnlyMainFilter(String dataStoreName)
+        throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Query with main WHERE filter but NO unnest filter
+      Query mainFilterOnlyQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"), GT, ConstantExpression.of(10)))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .identifierExpression(IdentifierExpression.of("tags"))
+                      .preserveNullAndEmptyArrays(false)
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(mainFilterOnlyQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_unnest_only_main_filter_response.json", 6);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionArrayRelationalFilter(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Filter: ANY tag in tags equals "hygiene" AND _id <= 8
+      // Exclude docs 9-10 (NULL/empty arrays) to avoid ARRAY[] type error
+      Query arrayRelationalQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(LogicalOperator.AND)
+                      .operand(
+                          ArrayRelationalFilterExpression.builder()
+                              .operator(ArrayOperator.ANY)
+                              .filter(
+                                  RelationalExpression.of(
+                                      IdentifierExpression.of("tags"),
+                                      EQ,
+                                      ConstantExpression.of("hygiene")))
+                              .build())
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(arrayRelationalQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_array_relational_filter_response.json", 3);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionIntegerArrayFilter(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Filter: ANY number in numbers equals 10 (Integer constant)
+      // This tests L265-266: Integer/Long → ::bigint[]
+      Query integerArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("numbers"), EQ, ConstantExpression.of(10)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(integerArrayQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_integer_array_filter_response.json", 1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionDoubleArrayFilter(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Filter: ANY score in scores equals 3.14 (Double constant)
+      // This tests L267-268: Double/Float → ::double precision[]
+      Query doubleArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("scores"), EQ, ConstantExpression.of(3.14)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(doubleArrayQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_double_array_filter_response.json", 1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionBooleanArrayFilter(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Filter: ANY flag in flags equals true (Boolean constant)
+      // This tests L269-270: Boolean → ::boolean[]
+      Query booleanArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("flags"), EQ, ConstantExpression.of(true)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(booleanArrayQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_boolean_array_filter_response.json", 2);
     }
   }
 
@@ -4185,64 +4491,5 @@ public class DocStoreQueryV1Test {
     final String fileContent = readFileFromResource(filePath).orElseThrow();
     final long expectedSize = convertJsonToMap(fileContent).size();
     assertEquals(expectedSize, actualSize);
-  }
-
-  @ParameterizedTest
-  @ArgumentsSource(PostgresProvider.class)
-  @Disabled
-  void testNestedPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
-    Datastore datastore = datastoreMap.get(dataStoreName);
-    Collection nestedCollection =
-        datastore.getCollection(COLLECTION_NAME); // Default nested collection
-
-    // Query to unnest tags and group by them to get counts
-    Query unnestQuery =
-        Query.builder()
-            .addSelection(IdentifierExpression.of("tags"))
-            .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count")
-            .addAggregation(IdentifierExpression.of("tags"))
-            .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
-            .build();
-
-    CloseableIterator<Document> iterator = nestedCollection.aggregate(unnestQuery);
-
-    // Collect results
-    Map<String, Integer> tagCounts = new HashMap<>();
-    while (iterator.hasNext()) {
-      Document doc = iterator.next();
-      JsonNode json = new ObjectMapper().readTree(doc.toJson());
-      String tag = json.get("tags").asText();
-      int count = json.get("count").asInt();
-      tagCounts.put(tag, count);
-    }
-    iterator.close();
-
-    // Verify we have results
-    assertFalse(tagCounts.isEmpty(), "Should have tag counts from nested collection");
-
-    // Verify some expected tag counts based on our test data
-    // From collection_data.json, we can verify specific tags appear expected number of times
-    assertTrue(tagCounts.containsKey("hygiene"), "Should contain 'hygiene' tag");
-    assertTrue(tagCounts.containsKey("personal-care"), "Should contain 'personal-care' tag");
-    assertTrue(tagCounts.containsKey("grooming"), "Should contain 'grooming' tag");
-
-    // Verify total count matches expected (each document contributes its tag count)
-    int totalTags = tagCounts.values().stream().mapToInt(Integer::intValue).sum();
-    assertTrue(totalTags > 0, "Total tag count should be greater than 0");
-
-    // Print results for debugging
-    System.out.println("Nested collection tag counts from unnest operation:");
-    tagCounts.entrySet().stream()
-        .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-        .forEach(entry -> System.out.println(entry.getKey() + ": " + entry.getValue()));
-
-    // Verify some specific expected counts based on collection_data.json
-    // From looking at the data:
-    // - "hygiene" appears in docs 1, 5, 8 = 3 times
-    // - "personal-care" appears in docs 1, 3 = 2 times
-    // - "grooming" appears in docs 6, 7 = 2 times
-    assertEquals(3, tagCounts.get("hygiene"), "hygiene should appear 3 times");
-    assertEquals(2, tagCounts.get("personal-care"), "personal-care should appear 2 times");
-    assertEquals(2, tagCounts.get("grooming"), "grooming should appear 2 times");
   }
 }
