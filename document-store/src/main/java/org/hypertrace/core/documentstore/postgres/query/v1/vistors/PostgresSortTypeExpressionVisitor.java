@@ -9,6 +9,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
@@ -43,6 +44,18 @@ public class PostgresSortTypeExpressionVisitor implements SortTypeExpressionVisi
 
   @Override
   public String visit(IdentifierExpression expression) {
+    // NOTE: SQL supports alias as part of ORDER BY clause.
+    // So, if we have already found any user-defined alias, we will use it.
+    // Otherwise, we are using a field accessor pattern.
+    String fieldName = identifierExpressionVisitor.visit(expression);
+
+    return postgresQueryParser.getPgSelections().containsKey(fieldName)
+        ? PostgresUtils.wrapAliasWithDoubleQuotes(fieldName)
+        : fieldIdentifierExpressionVisitor.visit(expression);
+  }
+
+  @Override
+  public String visit(JsonIdentifierExpression expression) {
     // NOTE: SQL supports alias as part of ORDER BY clause.
     // So, if we have already found any user-defined alias, we will use it.
     // Otherwise, we are using a field accessor pattern.

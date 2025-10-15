@@ -20,6 +20,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
@@ -33,58 +34,27 @@ import org.hypertrace.core.documentstore.query.SelectionSpec;
  * supported aggregation operations.
  *
  * <p>For example, this transformation converts the aggregate pipeline <code>
- *   [
- *      {
- *        "$group": {
- *          "_id": {
- *            "item": "$item",
- *            "price": "$props.price"
- *          },
- *          "num_brands": {
- *            "$distinctCount": "$brand"
- *          }
- *        }
- *      },
- *      {
- *        "$project": {
- *          "item": 1
- *        }
- *      }
- *   ]
+ * [ { "$group": { "_id": { "item": "$item", "price": "$props.price" }, "num_brands": {
+ * "$distinctCount": "$brand" } } }, { "$project": { "item": 1 } } ]
  * </code> into <code>
- *   [
- *      {
- *        "$group": {
- *          "_id": {
- *            "item": "$item",
- *            "price": "$props.price"
- *          },
- *          "num_brands": {
- *            "$distinct": "$brand"
- *          }
- *        }
- *      },
- *      {
- *        "$project": {
- *          "item": "$_id.item"
- *        }
- *      }
- *   ]
+ * [ { "$group": { "_id": { "item": "$item", "price": "$props.price" }, "num_brands": { "$distinct":
+ * "$brand" } } }, { "$project": { "item": "$_id.item" } } ]
  * </code> since "item" appears in projection as well as grouping and "$distinctCount" is not
  * supported
  */
 final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressionVisitor {
+
   private static final Function<AggregateExpression, AggregateExpression> DISTINCT_COUNT_HANDLER =
       expression -> AggregateExpression.of(DISTINCT_ARRAY, expression.getExpression());
 
   private static final Map<AggregationOperator, Function<AggregateExpression, AggregateExpression>>
       AGGREGATION_SUBSTITUTE_MAP =
-          unmodifiableMap(
-              new EnumMap<>(AggregationOperator.class) {
-                {
-                  put(DISTINCT_COUNT, DISTINCT_COUNT_HANDLER);
-                }
-              });
+      unmodifiableMap(
+          new EnumMap<>(AggregationOperator.class) {
+            {
+              put(DISTINCT_COUNT, DISTINCT_COUNT_HANDLER);
+            }
+          });
 
   private final Set<GroupTypeExpression> groupTypeExpressions;
   private final SelectionSpec source;
@@ -143,5 +113,11 @@ final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressio
     return Optional.ofNullable(AGGREGATION_SUBSTITUTE_MAP.get(expression.getAggregator()))
         .map(converter -> SelectionSpec.of(converter.apply(expression), source.getAlias()))
         .orElse(source);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public SelectionSpec visit(JsonIdentifierExpression expression) {
+    return visit((IdentifierExpression) expression);
   }
 }

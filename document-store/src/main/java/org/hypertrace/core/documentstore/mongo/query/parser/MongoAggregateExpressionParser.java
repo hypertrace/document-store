@@ -15,6 +15,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 

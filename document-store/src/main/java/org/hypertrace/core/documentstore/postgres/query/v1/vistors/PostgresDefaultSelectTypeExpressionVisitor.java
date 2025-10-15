@@ -7,6 +7,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
@@ -37,6 +38,11 @@ public class PostgresDefaultSelectTypeExpressionVisitor
 
   @Override
   public <T> T visit(final IdentifierExpression expression) {
+    throw new UnsupportedOperationException(String.valueOf(expression));
+  }
+
+  @Override
+  public <T> T visit(final JsonIdentifierExpression expression) {
     throw new UnsupportedOperationException(String.valueOf(expression));
   }
 

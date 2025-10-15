@@ -16,19 +16,18 @@ public class FlatPostgresFieldTransformer implements PostgresColTransformer {
   @Override
   public FieldToPgColumn transform(
       IdentifierExpression expression, Map<String, String> pgColMapping) {
-    // Check if this is a JsonIdentifierExpression with explicit metadata
-    if (expression instanceof JsonIdentifierExpression) {
-      JsonIdentifierExpression jsonExpr = (JsonIdentifierExpression) expression;
-      // Use the explicit metadata from JsonIdentifierExpression
-      String nestedPath = String.join(".", jsonExpr.getJsonPath());
-      return new FieldToPgColumn(
-          nestedPath, PostgresUtils.wrapFieldNamesWithDoubleQuotes(jsonExpr.getColumnName()));
-    }
-
     // For plain IdentifierExpression, treat the entire name as a direct column
     // This avoids ambiguity with column names that contain dots
     return new FieldToPgColumn(
         null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(expression.getName()));
+  }
+
+  public FieldToPgColumn transform(
+      JsonIdentifierExpression expression, Map<String, String> pgColMapping) {
+    // Use the explicit metadata from JsonIdentifierExpression
+    String nestedPath = String.join(".", expression.getJsonPath());
+    return new FieldToPgColumn(
+        nestedPath, PostgresUtils.wrapFieldNamesWithDoubleQuotes(expression.getColumnName()));
   }
 
   @Override

@@ -1,37 +1,57 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
 import java.util.List;
+import lombok.Builder;
 import lombok.EqualsAndHashCode;
-import lombok.Value;
+import lombok.Getter;
+import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
+import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 
 /**
  * Expression representing a nested field within a JSONB column in flat Postgres collections.
  *
- * <p>Example: JsonIdentifierExpression.of("customAttr", List.of("myAttribute"), "STRING");
+ * <p>Example:
  *
- * <p>This generates SQL like: customAttr -> 'myAttribute' ->> (cast as text)
+ * <pre>{@code
+ * JsonIdentifierExpression expr = JsonIdentifierExpression.builder()
+ *     .columnName("customAttr")
+ *     .jsonPath(List.of("myAttribute"))
+ *     .jsonType("STRING")
+ *     .build();
+ * }</pre>
+ *
+ * <p>This generates SQL like: {@code customAttr -> 'myAttribute' ->> (cast as text)}
  */
-@Value
+@Getter
 @EqualsAndHashCode(callSuper = true)
 public class JsonIdentifierExpression extends IdentifierExpression {
 
-  String columnName; // e.g., "customAttr" (the actual JSONB column)
-  List<String> jsonPath; // e.g., ["myAttribute"] (path within the JSONB)
-  String jsonType; // "STRING" or "STRING_ARRAY"
+  private final String columnName; // e.g., "customAttr" (the actual JSONB column)
+  private final List<String> jsonPath; // e.g., ["myAttribute"] (path within the JSONB)
+  private final String jsonType; // "STRING" or "STRING_ARRAY"
 
-  public static JsonIdentifierExpression of(
-      final String columnName, final List<String> jsonPath, final String jsonType) {
-    // Construct full name for compatibility: "customAttr.myAttribute"
-    String fullName = columnName + "." + String.join(".", jsonPath);
-    return new JsonIdentifierExpression(fullName, columnName, jsonPath, jsonType);
-  }
-
-  private JsonIdentifierExpression(
-      String name, String columnName, List<String> jsonPath, String jsonType) {
-    super(name);
+  @Builder
+  private JsonIdentifierExpression(String columnName, List<String> jsonPath, String jsonType) {
+    super(columnName + "." + String.join(".", jsonPath));
     this.columnName = columnName;
     this.jsonPath = jsonPath;
     this.jsonType = jsonType;
+  }
+
+  @Override
+  public <T> T accept(GroupTypeExpressionVisitor visitor) {
+    return visitor.visit(this);
+  }
+
+  @Override
+  public <T> T accept(SelectTypeExpressionVisitor visitor) {
+    return visitor.visit(this);
+  }
+
+  @Override
+  public <T> T accept(SortTypeExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 
   @Override

@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 
 import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 
 final class MongoIdentifierSubstitutingParser extends MongoSelectTypeExpressionParser {
   private final String sourceToMatch;
@@ -27,5 +28,11 @@ final class MongoIdentifierSubstitutingParser extends MongoSelectTypeExpressionP
 
   private String substituteIfApplicable(final String identifier) {
     return sourceToMatch.equals(identifier) ? targetToSubstitute : identifier;
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public String visit(JsonIdentifierExpression expression) {
+    return visit((IdentifierExpression) expression);
   }
 }

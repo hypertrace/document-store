@@ -6,6 +6,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 
 @SuppressWarnings("unchecked")
 public class FunctionExpressionChecker
@@ -33,6 +34,11 @@ public class FunctionExpressionChecker
 
   @Override
   public Boolean visit(IdentifierExpression expression) {
+    return false;
+  }
+
+  @Override
+  public Boolean visit(JsonIdentifierExpression expression) {
     return false;
   }
 

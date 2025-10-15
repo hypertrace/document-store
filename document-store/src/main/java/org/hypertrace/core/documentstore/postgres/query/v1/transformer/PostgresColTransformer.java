@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 import java.util.Map;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
 /**
@@ -14,11 +15,25 @@ public interface PostgresColTransformer {
   /**
    * Transforms an identifier expression to PostgreSQL column information.
    *
-   * @param expression The identifier expression (may be JsonIdentifierExpression with metadata)
+   * @param expression The identifier expression
    * @param pgColMapping Mapping of field names to PostgreSQL columns
    * @return FieldToPgColumn containing the PostgreSQL column name and optional nested path
    */
   FieldToPgColumn transform(IdentifierExpression expression, Map<String, String> pgColMapping);
+
+  /**
+   * Transforms a JSON identifier expression to PostgreSQL column information. This method handles
+   * JSONB fields with explicit column and path metadata.
+   *
+   * @param expression The JSON identifier expression with JSONB column metadata
+   * @param pgColMapping Mapping of field names to PostgreSQL columns
+   * @return FieldToPgColumn containing the PostgreSQL column name and optional nested path
+   */
+  default FieldToPgColumn transform(
+      JsonIdentifierExpression expression, Map<String, String> pgColMapping) {
+    // Default implementation delegates to base method for backward compatibility
+    return transform((IdentifierExpression) expression, pgColMapping);
+  }
 
   /**
    * Builds a complete field reference expression for use in SQL queries.

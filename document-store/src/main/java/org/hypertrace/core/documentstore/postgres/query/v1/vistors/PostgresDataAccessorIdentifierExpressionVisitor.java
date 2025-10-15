@@ -42,14 +42,16 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
   @Override
   public String visit(final IdentifierExpression expression) {
     FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression);
+    return getPostgresQueryParser()
+        .getPgColTransformer()
+        .buildFieldAccessorWithCast(fieldToPgColumn, this.type);
+  }
 
-    // If this is a JsonIdentifierExpression, use its type instead of the visitor's type
-    Type typeToUse = this.type;
-    if (expression instanceof JsonIdentifierExpression) {
-      JsonIdentifierExpression jsonExpr = (JsonIdentifierExpression) expression;
-      typeToUse = convertJsonTypeToPostgresType(jsonExpr.getJsonType());
-    }
-
+  @Override
+  public String visit(final JsonIdentifierExpression expression) {
+    FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression);
+    // Use the type information from JsonIdentifierExpression
+    Type typeToUse = convertJsonTypeToPostgresType(expression.getJsonType());
     return getPostgresQueryParser()
         .getPgColTransformer()
         .buildFieldAccessorWithCast(fieldToPgColumn, typeToUse);
