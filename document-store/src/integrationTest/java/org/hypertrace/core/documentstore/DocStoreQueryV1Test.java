@@ -3529,12 +3529,7 @@ public class DocStoreQueryV1Test {
       // Test 1: Select nested STRING field from JSONB column (props.brand)
       Query brandSelectionQuery =
           Query.builder()
-              .addSelection(
-                  JsonIdentifierExpression.builder()
-                      .columnName("props")
-                      .jsonPath(List.of("brand"))
-                      .jsonType("STRING")
-                      .build())
+              .addSelection(JsonIdentifierExpression.of("props", List.of("brand"), "STRING"))
               .build();
 
       Iterator<Document> brandIterator = flatCollection.find(brandSelectionQuery);
@@ -3545,11 +3540,8 @@ public class DocStoreQueryV1Test {
       Query citySelectionQuery =
           Query.builder()
               .addSelection(
-                  JsonIdentifierExpression.builder()
-                      .columnName("props")
-                      .jsonPath(List.of("seller", "address", "city"))
-                      .jsonType("STRING")
-                      .build())
+                  JsonIdentifierExpression.of(
+                      "props", List.of("seller", "address", "city"), "STRING"))
               .build();
 
       Iterator<Document> cityIterator = flatCollection.find(citySelectionQuery);
@@ -3559,12 +3551,7 @@ public class DocStoreQueryV1Test {
       // Test 3: Select STRING_ARRAY field from JSONB column (props.colors)
       Query colorsSelectionQuery =
           Query.builder()
-              .addSelection(
-                  JsonIdentifierExpression.builder()
-                      .columnName("props")
-                      .jsonPath(List.of("colors"))
-                      .jsonType("STRING_ARRAY")
-                      .build())
+              .addSelection(JsonIdentifierExpression.of("props", List.of("colors"), "STRING_ARRAY"))
               .build();
 
       Iterator<Document> colorsIterator = flatCollection.find(colorsSelectionQuery);
@@ -3595,12 +3582,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
               .addSelection(
-                  JsonIdentifierExpression.builder()
-                      .columnName("props")
-                      .jsonPath(List.of("brand"))
-                      .jsonType("STRING")
-                      .build(),
-                  "brand")
+                  JsonIdentifierExpression.of("props", List.of("brand"), "STRING"), "brand")
               .addSort(IdentifierExpression.of("item"), ASC)
               .build();
 
@@ -3625,12 +3607,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
               .addSelection(
-                  JsonIdentifierExpression.builder()
-                      .columnName("props")
-                      .jsonPath(List.of("colors"))
-                      .jsonType("STRING_ARRAY")
-                      .build(),
-                  "colors")
+                  JsonIdentifierExpression.of("props", List.of("colors"), "STRING_ARRAY"), "colors")
               .addSort(IdentifierExpression.of("item"), ASC)
               .build();
 
@@ -3654,12 +3631,7 @@ public class DocStoreQueryV1Test {
       Query flatBrandNoAliasQuery =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(
-                  JsonIdentifierExpression.builder()
-                      .columnName("props")
-                      .jsonPath(List.of("brand"))
-                      .jsonType("STRING")
-                      .build())
+              .addSelection(JsonIdentifierExpression.of("props", List.of("brand"), "STRING"))
               .addSort(IdentifierExpression.of("item"), ASC)
               .build();
 

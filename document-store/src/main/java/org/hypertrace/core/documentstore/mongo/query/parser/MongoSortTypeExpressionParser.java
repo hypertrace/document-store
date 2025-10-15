@@ -14,14 +14,12 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 
 public final class MongoSortTypeExpressionParser implements SortTypeExpressionVisitor {
-
   static final String SORT_CLAUSE = "$sort";
   static final Map<SortOrder, Integer> ORDER_MAP =
       unmodifiableMap(
@@ -99,11 +97,5 @@ public final class MongoSortTypeExpressionParser implements SortTypeExpressionVi
   private static Map<String, Object> parse(final SortingSpec definition) {
     MongoSortTypeExpressionParser parser = new MongoSortTypeExpressionParser(definition.getOrder());
     return definition.getExpression().accept(parser);
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public Map<String, Object> visit(JsonIdentifierExpression expression) {
-    return visit((IdentifierExpression) expression);
   }
 }

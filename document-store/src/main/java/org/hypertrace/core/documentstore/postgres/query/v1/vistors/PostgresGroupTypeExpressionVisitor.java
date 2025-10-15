@@ -6,7 +6,6 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
@@ -28,11 +27,6 @@ public class PostgresGroupTypeExpressionVisitor implements GroupTypeExpressionVi
 
   @Override
   public String visit(final IdentifierExpression expression) {
-    return selectTypeExpressionVisitor.visit(expression);
-  }
-
-  @Override
-  public String visit(final JsonIdentifierExpression expression) {
     return selectTypeExpressionVisitor.visit(expression);
   }
 

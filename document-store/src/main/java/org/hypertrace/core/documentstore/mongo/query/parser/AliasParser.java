@@ -7,7 +7,6 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
@@ -48,11 +47,5 @@ public class AliasParser implements SelectTypeExpressionVisitor, SortTypeExpress
   @Override
   public Optional<SelectionSpec> visit(final AliasedIdentifierExpression expression) {
     throw new UnsupportedOperationException("This operation is not supported");
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public Optional<String> visit(JsonIdentifierExpression expression) {
-    return Optional.of(expression.getName());
   }
 }

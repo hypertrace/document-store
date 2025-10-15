@@ -16,7 +16,6 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.collections4.MapUtils;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.parser.FunctionExpressionChecker;
 import org.hypertrace.core.documentstore.parser.GroupByAliasGetter;
@@ -159,11 +158,5 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
         .filter(Optional::isPresent)
         .map(Optional::get)
         .collect(Collectors.toUnmodifiableList());
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public Map<String, Object> visit(JsonIdentifierExpression expression) {
-    return visit((IdentifierExpression) expression);
   }
 }

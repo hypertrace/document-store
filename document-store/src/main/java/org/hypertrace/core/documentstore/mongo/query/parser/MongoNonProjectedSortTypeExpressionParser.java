@@ -18,7 +18,6 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
@@ -160,11 +159,5 @@ public class MongoNonProjectedSortTypeExpressionParser
     }
 
     return selectionSpec.getExpression().accept(new AliasParser());
-  }
-
-  @SuppressWarnings("unchecked")
-  @Override
-  public Map<String, Object> visit(JsonIdentifierExpression expression) {
-    return visit((IdentifierExpression) expression);
   }
 }
