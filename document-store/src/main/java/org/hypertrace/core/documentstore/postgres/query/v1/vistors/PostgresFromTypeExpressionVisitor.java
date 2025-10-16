@@ -77,7 +77,9 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
     String newTable = "table" + nextIndex;
     String tableAlias = "t" + preIndex;
     String unwindExpr = String.format(unnestFunction, transformedFieldName);
-    String unwindExprAlias = String.format(UNWIND_EXP_ALIAS_FMT, nextIndex, pgColumnName);
+
+    String unwindExprAlias =
+        String.format(UNWIND_EXP_ALIAS_FMT, nextIndex, getColName(isFlatCollection, pgColumnName));
 
     String fmt =
         unnestExpression.isPreserveNullAndEmptyArrays()
@@ -137,5 +139,14 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
               TABLE0_QUERY_FMT_WHERE, postgresQueryParser.getTableIdentifier(), whereFilter.get())
           : String.format(TABLE0_QUERY_FMT, postgresQueryParser.getTableIdentifier());
     }
+  }
+
+  /*
+  Returns the column name with double quotes if the collection is flat to prevent folding to lower-case by PG
+   */
+  private String getColName(boolean isFlatCollection, String pgColumnName) {
+    return isFlatCollection
+        ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(pgColumnName)
+        : pgColumnName;
   }
 }
