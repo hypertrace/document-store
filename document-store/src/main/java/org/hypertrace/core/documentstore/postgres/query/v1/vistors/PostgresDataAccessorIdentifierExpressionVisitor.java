@@ -2,7 +2,6 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumn;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
@@ -15,6 +14,8 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
 
   public PostgresDataAccessorIdentifierExpressionVisitor(Type type) {
     this.type = type;
+    //SELECT items.brand from collection where items.size=..
+    //SELECT item -> brand from collection where cast(items ->> size)
   }
 
   public PostgresDataAccessorIdentifierExpressionVisitor(
@@ -43,26 +44,10 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
   public String visit(final IdentifierExpression expression) {
     FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression);
 
-    // If this is a JsonIdentifierExpression, use its type instead of the visitor's type
-    Type typeToUse = this.type;
-    if (expression instanceof JsonIdentifierExpression) {
-      JsonIdentifierExpression jsonExpr = (JsonIdentifierExpression) expression;
-      typeToUse = convertJsonTypeToPostgresType(jsonExpr.getJsonType());
-    }
-
+    // Type parameter is ignored for JSON fields - always returns JSONB
+    // buildFieldAccessorWithCast will use -> for all accessors without casting
     return getPostgresQueryParser()
         .getPgColTransformer()
-        .buildFieldAccessorWithCast(fieldToPgColumn, typeToUse);
-  }
-
-  private Type convertJsonTypeToPostgresType(String jsonType) {
-    switch (jsonType) {
-      case "STRING":
-        return Type.STRING;
-      case "STRING_ARRAY":
-        return Type.STRING_ARRAY;
-      default:
-        throw new IllegalArgumentException("Unsupported JSON type: " + jsonType);
-    }
+        .buildFieldAccessorWithCast(fieldToPgColumn, this.type);
   }
 }

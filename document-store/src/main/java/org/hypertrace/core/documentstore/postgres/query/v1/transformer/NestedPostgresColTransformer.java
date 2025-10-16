@@ -48,11 +48,12 @@ public class NestedPostgresColTransformer implements PostgresColTransformer {
   @Override
   public String buildFieldAccessorWithCast(FieldToPgColumn fieldToPgColumn, Type type) {
     if (fieldToPgColumn.getTransformedField() == null) {
-      // Direct column access, no casting needed
+      // Direct column access
       return fieldToPgColumn.getPgColumn();
     }
 
-    // JSONB field access with casting
+    // JSONB field access with casting - used for filters/aggregations
+    // Uses ->> for final field to extract as TEXT, then casts for numeric/boolean comparisons
     String dataAccessor =
         PostgresUtils.prepareFieldDataAccessorExpr(
             fieldToPgColumn.getTransformedField(), fieldToPgColumn.getPgColumn());
@@ -66,7 +67,7 @@ public class NestedPostgresColTransformer implements PostgresColTransformer {
       return fieldToPgColumn.getPgColumn();
     }
 
-    // JSON field accessor (without casting)
+    // JSON field accessor for SELECT clauses - returns JSONB using -> for all fields
     return PostgresUtils.prepareFieldAccessorExpr(
             fieldToPgColumn.getTransformedField(), fieldToPgColumn.getPgColumn())
         .toString();
