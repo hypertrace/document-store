@@ -8,18 +8,15 @@ import lombok.experimental.NonFinal;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
+import org.hypertrace.core.documentstore.parser.FieldTransformationVisitor;
 import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
-import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 /**
  * Expression representing either an identifier/column name
  *
  * <p>Example: IdentifierExpression.of("col1");
- *
- * <p><strong>Security Note:</strong> Field names are validated to prevent SQL injection attacks, as
- * they are not parameterized in PreparedStatements.
  */
 @Value
 @NonFinal
@@ -31,10 +28,6 @@ public class IdentifierExpression
 
   public static IdentifierExpression of(final String name) {
     Preconditions.checkArgument(name != null && !name.isBlank(), "name is null or blank");
-    
-    // Validate to prevent SQL injection - field names can contain dots for nested paths
-    PostgresUtils.validateIdentifier(name, "Identifier name");
-    
     return new IdentifierExpression(name);
   }
 
@@ -50,6 +43,17 @@ public class IdentifierExpression
 
   @Override
   public <T> T accept(final SortTypeExpressionVisitor visitor) {
+    return visitor.visit(this);
+  }
+
+  /**
+   * Accepts a field transformation visitor for database-specific field transformations.
+   *
+   * @param visitor The field transformation visitor
+   * @param <T> The return type of the transformation
+   * @return The transformed field representation
+   */
+  public <T> T accept(final FieldTransformationVisitor<T> visitor) {
     return visitor.visit(this);
   }
 

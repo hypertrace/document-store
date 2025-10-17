@@ -14,8 +14,6 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
 
   public PostgresDataAccessorIdentifierExpressionVisitor(Type type) {
     this.type = type;
-    //SELECT items.brand from collection where items.size=..
-    //SELECT item -> brand from collection where cast(items ->> size)
   }
 
   public PostgresDataAccessorIdentifierExpressionVisitor(

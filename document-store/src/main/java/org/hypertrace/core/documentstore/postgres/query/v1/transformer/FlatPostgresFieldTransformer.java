@@ -4,31 +4,48 @@ import java.util.Map;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
+import org.hypertrace.core.documentstore.parser.FieldTransformationVisitor;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
 /**
  * Transformer for flat structure collections where all fields map directly to PostgreSQL columns.
  * Used when flatStructureCollectionName is configured.
+ *
+ * <p>Implements the visitor pattern to avoid instanceof checks and improve code cohesion.
  */
-public class FlatPostgresFieldTransformer implements PostgresColTransformer {
+public class FlatPostgresFieldTransformer
+    implements PostgresColTransformer, FieldTransformationVisitor<FieldToPgColumn> {
+
+  private Map<String, String> pgColMapping;
 
   @Override
   public FieldToPgColumn transform(
       IdentifierExpression expression, Map<String, String> pgColMapping) {
-    // Check if this is a JsonIdentifierExpression with explicit metadata
-    if (expression instanceof JsonIdentifierExpression) {
-      JsonIdentifierExpression jsonExpr = (JsonIdentifierExpression) expression;
-      // Use the explicit metadata from JsonIdentifierExpression
-      String nestedPath = String.join(".", jsonExpr.getJsonPath());
-      return new FieldToPgColumn(
-          nestedPath, PostgresUtils.wrapFieldNamesWithDoubleQuotes(jsonExpr.getColumnName()));
-    }
+    // Use visitor pattern instead of instanceof check
+    this.pgColMapping = pgColMapping;
+    return expression.accept(this);
+  }
 
-    // For plain IdentifierExpression, treat the entire name as a direct column
-    // This avoids ambiguity with column names that contain dots
+  /**
+   * Visits a regular IdentifierExpression. For flat collections, treat the entire name as a direct
+   * column (avoids ambiguity with column names that contain dots).
+   */
+  @Override
+  public FieldToPgColumn visit(IdentifierExpression expression) {
     return new FieldToPgColumn(
         null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(expression.getName()));
+  }
+
+  /**
+   * Visits a JsonIdentifierExpression. For flat collections, use the explicit JSONB column and path
+   * metadata.
+   */
+  @Override
+  public FieldToPgColumn visit(JsonIdentifierExpression expression) {
+    String nestedPath = String.join(".", expression.getJsonPath());
+    return new FieldToPgColumn(
+        nestedPath, PostgresUtils.wrapFieldNamesWithDoubleQuotes(expression.getColumnName()));
   }
 
   @Override

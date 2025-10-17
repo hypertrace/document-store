@@ -54,56 +54,12 @@ public class PostgresUtils {
     STRING_ARRAY,
   }
 
-  /**
-   * Validates that an identifier (column name, field name, or JSON path element) is safe to use in
-   * SQL queries. Only allows alphanumeric characters, underscores, dots, and hyphens.
-   *
-   * @param identifier The identifier to validate
-   * @param identifierType Description of what this identifier represents (for error messages)
-   * @throws IllegalArgumentException if the identifier contains unsafe characters
-   */
-  public static void validateIdentifier(String identifier, String identifierType) {
-    if (identifier == null || identifier.isEmpty()) {
-      throw new IllegalArgumentException(
-          identifierType + " cannot be null or empty");
-    }
-
-    // Allow alphanumeric, underscore, dot, and hyphen
-    // Reject SQL special characters: quotes, semicolons, comments, etc.
-    if (!identifier.matches("^[a-zA-Z0-9_.-]+$")) {
-      throw new IllegalArgumentException(
-          String.format(
-              "%s '%s' contains invalid characters. Only alphanumeric, underscore, dot, and hyphen are allowed.",
-              identifierType, identifier));
-    }
-
-    // Additional checks for SQL injection patterns
-    String lowerIdentifier = identifier.toLowerCase();
-    if (lowerIdentifier.contains("--")
-        || lowerIdentifier.contains("/*")
-        || lowerIdentifier.contains("*/")
-        || lowerIdentifier.contains(";")
-        || lowerIdentifier.contains("'")
-        || lowerIdentifier.contains("\"")) {
-      throw new IllegalArgumentException(
-          String.format(
-              "%s '%s' contains SQL injection patterns and is not allowed.",
-              identifierType, identifier));
-    }
-  }
-
   public static StringBuilder prepareFieldAccessorExpr(String fieldName, String columnName) {
-    // Validate inputs to prevent SQL injection
-    validateIdentifier(columnName, "Column name");
-    validateIdentifier(fieldName, "Field name");
-
     // Generate json field accessor statement
     if (!OUTER_COLUMNS.contains(fieldName)) {
       StringBuilder filterString = new StringBuilder(columnName);
       String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
       for (String nestedField : nestedFields) {
-        // Additional validation for each path component
-        validateIdentifier(nestedField, "Nested field");
         filterString.append(JSON_FIELD_ACCESSOR).append("'").append(nestedField).append("'");
       }
       return filterString;
@@ -114,29 +70,21 @@ public class PostgresUtils {
 
   /**
    * Add field prefix for searching into json document based on postgres syntax, handles nested
-   * keys. Uses ->> for final field to extract as TEXT (for WHERE clauses). Note: It doesn't handle
-   * array elements in json document. e.g WHERE document -> 'address' ->> 'pin' = '12345'
+   * keys. Note: It doesn't handle array elements in json document. e.g SELECT * FROM TABLE where
+   * document ->> 'first' = 'name' and document -> 'address' ->> 'pin' = "00000"
    */
   public static String prepareFieldDataAccessorExpr(String fieldName, String columnName) {
-    // Validate inputs to prevent SQL injection
-    validateIdentifier(columnName, "Column name");
-    validateIdentifier(fieldName, "Field name");
-
     StringBuilder fieldPrefix = new StringBuilder(fieldName);
     if (!OUTER_COLUMNS.contains(fieldName)) {
       fieldPrefix = new StringBuilder(columnName);
       String[] nestedFields = fieldName.split(DOC_PATH_SEPARATOR);
       for (int i = 0; i < nestedFields.length - 1; i++) {
-        validateIdentifier(nestedFields[i], "Nested field");
         fieldPrefix.append(JSON_FIELD_ACCESSOR).append("'").append(nestedFields[i]).append("'");
       }
-      // Validate final field
-      String finalField = nestedFields[nestedFields.length - 1];
-      validateIdentifier(finalField, "Final field");
       fieldPrefix
           .append(JSON_DATA_ACCESSOR)
           .append("'")
-          .append(finalField)
+          .append(nestedFields[nestedFields.length - 1])
           .append("'");
     }
     return fieldPrefix.toString();
