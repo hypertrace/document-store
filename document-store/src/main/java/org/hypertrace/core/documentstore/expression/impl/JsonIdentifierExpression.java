@@ -4,6 +4,7 @@ import java.util.List;
 import lombok.EqualsAndHashCode;
 import lombok.Value;
 import org.hypertrace.core.documentstore.parser.FieldTransformationVisitor;
+import org.hypertrace.core.documentstore.postgres.utils.BasicPostgresSecurityValidator;
 
 /**
  * Expression representing a nested field within a JSONB column in flat Postgres collections.
@@ -28,10 +29,17 @@ public class JsonIdentifierExpression extends IdentifierExpression {
   }
 
   public static JsonIdentifierExpression of(final String columnName, final List<String> jsonPath) {
+    // Validate column name to prevent SQL injection
+    BasicPostgresSecurityValidator.getDefault().validateIdentifier(columnName);
+
     // Validate each element in the JSON path
     if (jsonPath == null || jsonPath.isEmpty()) {
       throw new IllegalArgumentException("JSON path cannot be null or empty");
     }
+
+    // Validate JSON path to prevent SQL injection
+    BasicPostgresSecurityValidator.getDefault().validateJsonPath(jsonPath);
+
     // Create unmodifiable defensive copy using List.copyOf (Java 10+)
     // If already unmodifiable, returns the same instance
     List<String> unmodifiablePath = List.copyOf(jsonPath);

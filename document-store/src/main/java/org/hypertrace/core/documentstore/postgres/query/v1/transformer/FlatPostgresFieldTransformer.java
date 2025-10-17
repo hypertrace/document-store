@@ -5,6 +5,7 @@ import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.parser.FieldTransformationVisitor;
+import org.hypertrace.core.documentstore.postgres.utils.BasicPostgresSecurityValidator;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
@@ -30,8 +31,16 @@ public class FlatPostgresFieldTransformer
   @Override
   public FieldToPgColumn visit(IdentifierExpression expression) {
     String fieldName = expression.getName();
+
+    // Validate identifier to prevent SQL injection (defense in depth)
+    BasicPostgresSecurityValidator.getDefault().validateIdentifier(fieldName);
+
     // Check if this field has been unnested (e.g., "tags" -> "tags_unnested")
     String pgColumnName = pgColMapping.getOrDefault(fieldName, fieldName);
+
+    // Validate the mapped column name as well
+    BasicPostgresSecurityValidator.getDefault().validateIdentifier(pgColumnName);
+
     return new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(pgColumnName));
   }
 
@@ -41,6 +50,12 @@ public class FlatPostgresFieldTransformer
    */
   @Override
   public FieldToPgColumn visit(JsonIdentifierExpression expression) {
+    // Validate column name and JSON path to prevent SQL injection (defense in depth)
+    // This is redundant with validation in JsonIdentifierExpression.of(), but provides
+    // an additional security layer in case the expression is constructed through other means
+    BasicPostgresSecurityValidator.getDefault().validateIdentifier(expression.getColumnName());
+    BasicPostgresSecurityValidator.getDefault().validateJsonPath(expression.getJsonPath());
+
     String nestedPath = String.join(".", expression.getJsonPath());
     return new FieldToPgColumn(
         nestedPath, PostgresUtils.wrapFieldNamesWithDoubleQuotes(expression.getColumnName()));
