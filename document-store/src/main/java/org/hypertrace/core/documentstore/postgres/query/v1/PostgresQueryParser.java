@@ -127,6 +127,10 @@ public class PostgresQueryParser {
     return pgColTransformer.transform(expression, this.pgColumnNames);
   }
 
+  public FieldToPgColumn transformField(String orgFieldName) {
+    return pgColTransformer.transform(IdentifierExpression.of(orgFieldName), this.pgColumnNames);
+  }
+
   private String getSelections() {
     return parseSelection().orElse(ALL_SELECTIONS);
   }
