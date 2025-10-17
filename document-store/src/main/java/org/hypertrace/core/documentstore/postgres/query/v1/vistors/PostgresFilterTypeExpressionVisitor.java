@@ -18,6 +18,7 @@ import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -178,7 +179,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     final String parsedLhs;
     if (isFlatCollection) {
       // For flat collections, assume all arrays are native PostgreSQL arrays
-      parsedLhs = postgresQueryParser.transformField(identifierName).getPgColumn();
+      parsedLhs =
+          postgresQueryParser.transformField(IdentifierExpression.of(identifierName)).getPgColumn();
     } else {
       // For nested collections, use JSONB path accessor
       // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
@@ -294,7 +296,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     if (isFlatCollection) {
       // For flat collections, assume all arrays are native PostgreSQL arrays
       // Use direct column reference with double quotes
-      parsedLhs = postgresQueryParser.transformField(identifierName).getPgColumn();
+      parsedLhs =
+          postgresQueryParser.transformField(IdentifierExpression.of(identifierName)).getPgColumn();
     } else {
       final PostgresIdentifierExpressionVisitor identifierVisitor =
           new PostgresIdentifierExpressionVisitor(postgresQueryParser);
