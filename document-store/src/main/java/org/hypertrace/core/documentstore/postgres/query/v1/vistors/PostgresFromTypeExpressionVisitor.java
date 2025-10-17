@@ -4,7 +4,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import org.hypertrace.core.documentstore.DocumentType;
-import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.parser.FromTypeExpressionVisitor;
@@ -54,8 +53,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
     if (isFlatCollection) {
       // For flat collections, assume all unnested fields are native PostgreSQL arrays
       // Use the transformer to get the proper column name (handles quotes and naming)
-      transformedFieldName =
-          postgresQueryParser.transformField(IdentifierExpression.of(orgFieldName)).getPgColumn();
+      transformedFieldName = postgresQueryParser.transformField(orgFieldName).getPgColumn();
       // Use native unnest() for PostgreSQL array columns
       unnestFunction = NATIVE_UNWIND_EXP_FMT;
       // Append "_unnested" suffix to avoid column name conflicts with the original array column
