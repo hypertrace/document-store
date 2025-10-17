@@ -1,0 +1,35 @@
+[
+  {
+    "item": "Bottle"
+  },
+  {
+    "item": "Comb"
+  },
+  {
+    "item": "Comb"
+  },
+  {
+    "item": "Cup"
+  },
+  {
+    "item": "Mirror"
+  },
+  {
+    "item": "Shampoo"
+  },
+  {
+    "item": "Shampoo",
+    "brand": "Sunsilk"
+  },
+  {
+    "item": "Soap",
+    "brand": "Lifebuoy"
+  },
+  {
+    "item": "Soap"
+  },
+  {
+    "item": "Soap",
+    "brand": "Dettol"
+  }
+]

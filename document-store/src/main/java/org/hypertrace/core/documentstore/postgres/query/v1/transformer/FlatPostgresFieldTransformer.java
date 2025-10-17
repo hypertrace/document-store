@@ -27,14 +27,12 @@ public class FlatPostgresFieldTransformer
     return expression.accept(this);
   }
 
-  /**
-   * Visits a regular IdentifierExpression. For flat collections, treat the entire name as a direct
-   * column (avoids ambiguity with column names that contain dots).
-   */
   @Override
   public FieldToPgColumn visit(IdentifierExpression expression) {
-    return new FieldToPgColumn(
-        null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(expression.getName()));
+    String fieldName = expression.getName();
+    // Check if this field has been unnested (e.g., "tags" -> "tags_unnested")
+    String pgColumnName = pgColMapping.getOrDefault(fieldName, fieldName);
+    return new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(pgColumnName));
   }
 
   /**
