@@ -5,8 +5,7 @@ import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpressio
 
 /**
  * Visitor interface for transforming identifier expressions into database-specific field
- * representations. This allows each expression type to define its own transformation logic without
- * requiring instanceof checks.
+ * representations.
  *
  * <p>Implementations should be database-specific (e.g., PostgresFieldTransformationVisitor,
  * MongoFieldTransformationVisitor).

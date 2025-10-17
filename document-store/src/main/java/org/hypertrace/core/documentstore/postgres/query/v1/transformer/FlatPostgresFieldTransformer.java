@@ -11,8 +11,6 @@ import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 /**
  * Transformer for flat structure collections where all fields map directly to PostgreSQL columns.
  * Used when flatStructureCollectionName is configured.
- *
- * <p>Implements the visitor pattern to avoid instanceof checks and improve code cohesion.
  */
 public class FlatPostgresFieldTransformer
     implements PostgresColTransformer, FieldTransformationVisitor<FieldToPgColumn> {
