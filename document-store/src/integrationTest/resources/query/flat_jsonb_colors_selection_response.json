@@ -1,0 +1,36 @@
+[
+  {
+    "props": {
+      "colors": [
+        "Blue",
+        "Green"
+      ]
+    }
+  },
+  {
+    "props": {
+      "colors": [
+        "Black"
+      ]
+    }
+  },
+  {
+    "props": {
+      "colors": [
+        "Orange",
+        "Blue"
+      ]
+    }
+  },
+  {
+    "props": {
+      "colors": []
+    }
+  },
+  {},
+  {},
+  {},
+  {},
+  {},
+  {}
+]

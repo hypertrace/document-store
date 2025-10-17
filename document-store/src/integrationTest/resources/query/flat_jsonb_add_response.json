@@ -1,0 +1,10 @@
+[
+  {"item": "Soap", "rating_plus_discount": 14.75},
+  {"item": "Mirror"},
+  {"item": "Shampoo", "rating_plus_discount": 9.3},
+  {"item": "Shampoo"},
+  {"item": "Soap", "rating_plus_discount": -4.55},
+  {"item": "Comb"},
+  {"item": "Comb", "rating_plus_discount": 3.5},
+  {"item": "Soap"}
+]

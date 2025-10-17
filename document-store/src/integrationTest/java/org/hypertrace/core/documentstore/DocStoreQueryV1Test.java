@@ -89,6 +89,7 @@ import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterEx
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -3847,6 +3848,138 @@ public class DocStoreQueryV1Test {
       Iterator<Document> resultIterator = flatCollection.find(booleanArrayQuery);
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, resultIterator, "query/flat_boolean_array_filter_response.json", 2);
+    }
+
+    /**
+     * Tests selection of JSONB nested fields using JsonIdentifierExpression on flat collection.
+     * Validates selecting simple nested fields, deeply nested fields, and JSONB arrays without any
+     * filters.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatCollectionNestedJsonSelections(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test 1: Select nested STRING field from JSONB column (props.brand)
+      Query brandSelectionQuery =
+          Query.builder().addSelection(JsonIdentifierExpression.of("props", "brand")).build();
+
+      Iterator<Document> brandIterator = flatCollection.find(brandSelectionQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, brandIterator, "query/flat_jsonb_brand_selection_response.json", 10);
+
+      // Test 2: Select deeply nested STRING field from JSONB column (props.seller.address.city)
+      Query citySelectionQuery =
+          Query.builder()
+              .addSelection(JsonIdentifierExpression.of("props", "seller", "address", "city"))
+              .build();
+
+      Iterator<Document> cityIterator = flatCollection.find(citySelectionQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, cityIterator, "query/flat_jsonb_city_selection_response.json", 10);
+
+      // Test 3: Select STRING_ARRAY field from JSONB column (props.colors)
+      Query colorsSelectionQuery =
+          Query.builder().addSelection(JsonIdentifierExpression.of("props", "colors")).build();
+
+      Iterator<Document> colorsIterator = flatCollection.find(colorsSelectionQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, colorsIterator, "query/flat_jsonb_colors_selection_response.json", 10);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatVsNestedCollectionNestedFieldSelections(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+
+      Collection nestedCollection = datastore.getCollection(COLLECTION_NAME);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test 1: Select nested field - props.brand
+      // Nested collection uses dot notation
+      Query nestedBrandQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("props.brand"), "brand")
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      // Flat collection uses JsonIdentifierExpression
+      // Filter to exclude docs 9-10 to match nested collection dataset
+      Query flatBrandQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(JsonIdentifierExpression.of("props", "brand"), "brand")
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+              .build();
+
+      // Assert both match the expected response
+      Iterator<Document> nestedBrandIterator = nestedCollection.find(nestedBrandQuery);
+      assertDocsAndSizeEqual(dataStoreName, nestedBrandIterator, "query/brand_response.json", 8);
+
+      Iterator<Document> flatBrandIterator = flatCollection.find(flatBrandQuery);
+      assertDocsAndSizeEqual(dataStoreName, flatBrandIterator, "query/brand_response.json", 8);
+
+      // Test 2: Select nested JSON array - props.colors
+      Query nestedColorsQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("props.colors"), "colors")
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      // Filter to exclude docs 9-10 to match nested collection dataset
+      Query flatColorsQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(JsonIdentifierExpression.of("props", "colors"), "colors")
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+              .build();
+
+      // Assert both match the expected response
+      Iterator<Document> nestedColorsIterator = nestedCollection.find(nestedColorsQuery);
+      assertDocsAndSizeEqual(dataStoreName, nestedColorsIterator, "query/colors_response.json", 8);
+
+      Iterator<Document> flatColorsIterator = flatCollection.find(flatColorsQuery);
+      assertDocsAndSizeEqual(dataStoreName, flatColorsIterator, "query/colors_response.json", 8);
+
+      // Test 3: Select nested field WITHOUT alias - should preserve full nested structure
+      Query nestedBrandNoAliasQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("props.brand"))
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      // Filter to exclude docs 9-10 to match nested collection dataset
+      Query flatBrandNoAliasQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(JsonIdentifierExpression.of("props", "brand"))
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+              .build();
+
+      // Assert both match the expected response with nested structure
+      Iterator<Document> nestedBrandNoAliasIterator =
+          nestedCollection.find(nestedBrandNoAliasQuery);
+      assertDocsAndSizeEqual(
+          dataStoreName, nestedBrandNoAliasIterator, "query/no_alias_response.json", 8);
+
+      Iterator<Document> flatBrandNoAliasIterator = flatCollection.find(flatBrandNoAliasQuery);
+      assertDocsAndSizeEqual(
+          dataStoreName, flatBrandNoAliasIterator, "query/no_alias_response.json", 8);
     }
   }
 

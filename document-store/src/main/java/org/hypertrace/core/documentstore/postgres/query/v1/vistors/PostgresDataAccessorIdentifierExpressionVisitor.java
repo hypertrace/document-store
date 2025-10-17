@@ -40,9 +40,12 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
 
   @Override
   public String visit(final IdentifierExpression expression) {
-    FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression.getName());
+    FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression);
+
+    // Type parameter is ignored for JSON fields - always returns JSONB
+    // buildFieldAccessorWithCast will use -> for all accessors without casting
     return getPostgresQueryParser()
         .getPgColTransformer()
-        .buildFieldAccessorWithCast(fieldToPgColumn, type);
+        .buildFieldAccessorWithCast(fieldToPgColumn, this.type);
   }
 }

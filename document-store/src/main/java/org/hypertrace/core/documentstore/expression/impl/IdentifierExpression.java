@@ -8,6 +8,7 @@ import lombok.experimental.NonFinal;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SortTypeExpression;
+import org.hypertrace.core.documentstore.parser.FieldTransformationVisitor;
 import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.parser.SortTypeExpressionVisitor;
@@ -42,6 +43,17 @@ public class IdentifierExpression
 
   @Override
   public <T> T accept(final SortTypeExpressionVisitor visitor) {
+    return visitor.visit(this);
+  }
+
+  /**
+   * Accepts a field transformation visitor for database-specific field transformations.
+   *
+   * @param visitor The field transformation visitor
+   * @param <T> The return type of the transformation
+   * @return The transformed field representation
+   */
+  public <T> T accept(final FieldTransformationVisitor<T> visitor) {
     return visitor.visit(this);
   }
 

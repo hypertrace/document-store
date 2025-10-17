@@ -1,0 +1,44 @@
+[
+  {
+    "item": "Bottle"
+  },
+  {
+    "item": "Comb"
+  },
+  {
+    "colors": [],
+    "item": "Comb"
+  },
+  {
+    "item": "Cup"
+  },
+  {
+    "item": "Mirror"
+  },
+  {
+    "item": "Shampoo"
+  },
+  {
+    "colors": [
+      "Black"
+    ],
+    "item": "Shampoo"
+  },
+  {
+    "colors": [
+      "Orange",
+      "Blue"
+    ],
+    "item": "Soap"
+  },
+  {
+    "item": "Soap"
+  },
+  {
+    "colors": [
+      "Blue",
+      "Green"
+    ],
+    "item": "Soap"
+  }
+]
