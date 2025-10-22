@@ -12,12 +12,13 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 
 import com.google.common.collect.Maps;
 import java.util.Map;
+import org.hypertrace.core.documentstore.DocumentType;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresContainsRelationalFilterParserNonJsonField;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserNonJsonField;
-import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 
 public class PostgresRelationalFilterParserFactoryImpl
     implements PostgresRelationalFilterParserFactory {
@@ -52,13 +53,19 @@ public class PostgresRelationalFilterParserFactoryImpl
   public PostgresRelationalFilterParser parser(
       final RelationalExpression expression, final PostgresQueryParser postgresQueryParser) {
 
-    boolean isFirstClassField =
-        postgresQueryParser.getPgColTransformer() instanceof FlatPostgresFieldTransformer;
+    // Check if LHS is a JSON field (JSONB column access)
+    boolean isJsonField = expression.getLhs() instanceof JsonIdentifierExpression;
+
+    // Check if the collection type is flat or nested
+    boolean isFlatCollection =
+        postgresQueryParser.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
+
+    boolean useJsonParser = !isFlatCollection || isJsonField;
 
     if (expression.getOperator() == CONTAINS) {
-      return isFirstClassField ? nonJsonFieldContainsParser : jsonFieldContainsParser;
+      return useJsonParser ? jsonFieldContainsParser : nonJsonFieldContainsParser;
     } else if (expression.getOperator() == IN) {
-      return isFirstClassField ? nonJsonFieldInFilterParser : jsonFieldInFilterParser;
+      return useJsonParser ? jsonFieldInFilterParser : nonJsonFieldInFilterParser;
     }
 
     return parserMap.getOrDefault(expression.getOperator(), postgresStandardRelationalFilterParser);

@@ -3981,6 +3981,220 @@ public class DocStoreQueryV1Test {
       assertDocsAndSizeEqual(
           dataStoreName, flatBrandNoAliasIterator, "query/no_alias_response.json", 8);
     }
+
+    /**
+     * Tests for relational operators on JSONB nested fields in flat collections.
+     * Tests: CONTAINS, NOT_CONTAINS, IN, NOT_IN, EQ, NEQ, LT, GT on JSONB columns.
+     */
+    @Nested
+    class FlatCollectionJsonbRelationalOperatorTest {
+
+      /**
+       * Tests CONTAINS and NOT_CONTAINS operators on JSONB array fields. - CONTAINS: finds
+       * documents where array contains the value - NOT_CONTAINS: finds documents where array
+       * doesn't contain the value (including NULL)
+       */
+      @ParameterizedTest
+      @ArgumentsSource(PostgresProvider.class)
+      void testJsonbArrayContainsOperators(String dataStoreName) {
+        Datastore datastore = datastoreMap.get(dataStoreName);
+        Collection flatCollection =
+            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+        // Test 1: CONTAINS - props.colors CONTAINS "Green"
+        // Expected: 1 document (id=1, Dettol Soap has ["Green", "White"])
+        Query containsQuery =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of("props", "colors"),
+                        CONTAINS,
+                        ConstantExpression.of("Green")))
+                .build();
+
+        long containsCount = flatCollection.count(containsQuery);
+        assertEquals(1, containsCount, "CONTAINS: Should find 1 document with Green color");
+
+        // Test 2: NOT_CONTAINS - props.colors NOT_CONTAINS "Green" AND _id <= 8
+        // Expected: 7 documents (all except id=1 which has Green, limited to first 8)
+        Query notContainsQuery =
+            Query.builder()
+                .setFilter(
+                    LogicalExpression.builder()
+                        .operator(LogicalOperator.AND)
+                        .operand(
+                            RelationalExpression.of(
+                                JsonIdentifierExpression.of("props", "colors"),
+                                NOT_CONTAINS,
+                                ConstantExpression.of("Green")))
+                        .operand(
+                            RelationalExpression.of(
+                                IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                        .build())
+                .build();
+
+        long notContainsCount = flatCollection.count(notContainsQuery);
+        assertEquals(
+            7, notContainsCount, "NOT_CONTAINS: Should find 7 documents without Green color");
+      }
+
+      /**
+       * Tests IN and NOT_IN operators on JSONB scalar fields. - IN: finds documents where field
+       * value is in the provided list - NOT_IN: finds documents where field value is not in the
+       * list (including NULL)
+       */
+      @ParameterizedTest
+      @ArgumentsSource(PostgresProvider.class)
+      void testJsonbScalarInOperators(String dataStoreName) {
+        Datastore datastore = datastoreMap.get(dataStoreName);
+        Collection flatCollection =
+            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+        // Test 1: IN - props.brand IN ["Dettol", "Lifebuoy"]
+        // Expected: 2 documents (id=1 Dettol, id=5 Lifebuoy)
+        Query inQuery =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of("props", "brand"),
+                        IN,
+                        ConstantExpression.ofStrings(List.of("Dettol", "Lifebuoy"))))
+                .build();
+
+        long inCount = flatCollection.count(inQuery);
+        assertEquals(2, inCount, "IN: Should find 2 documents with Dettol or Lifebuoy brand");
+
+        // Test 2: NOT_IN - props.brand NOT_IN ["Dettol"] AND _id <= 8
+        // Expected: 7 documents (all except id=1 which is Dettol, limited to first 8)
+        Query notInQuery =
+            Query.builder()
+                .setFilter(
+                    LogicalExpression.builder()
+                        .operator(LogicalOperator.AND)
+                        .operand(
+                            RelationalExpression.of(
+                                JsonIdentifierExpression.of("props", "brand"),
+                                NOT_IN,
+                                ConstantExpression.ofStrings(List.of("Dettol"))))
+                        .operand(
+                            RelationalExpression.of(
+                                IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                        .build())
+                .build();
+
+        long notInCount = flatCollection.count(notInQuery);
+        assertEquals(7, notInCount, "NOT_IN: Should find 7 documents without Dettol brand");
+      }
+
+      /**
+       * Tests EQ and NEQ operators on JSONB scalar fields. - EQ: finds documents where field equals
+       * the value - NEQ: finds documents where field doesn't equal the value (excluding NULL)
+       */
+      @ParameterizedTest
+      @ArgumentsSource(PostgresProvider.class)
+      void testJsonbScalarEqualityOperators(String dataStoreName) {
+        Datastore datastore = datastoreMap.get(dataStoreName);
+        Collection flatCollection =
+            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+        // Test 1: EQ - props.brand EQ "Dettol"
+        // Expected: 1 document (id=1, Dettol Soap)
+        Query eqQuery =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of("props", "brand"),
+                        EQ,
+                        ConstantExpression.of("Dettol")))
+                .build();
+
+        long eqCount = flatCollection.count(eqQuery);
+        assertEquals(1, eqCount, "EQ: Should find 1 document with Dettol brand");
+
+        // Test 2: NEQ - props.brand NEQ "Dettol" (no _id filter needed)
+        // Expected: 2 documents (id=3 Sunsilk, id=5 Lifebuoy, excluding NULL props)
+        Query neqQuery =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of("props", "brand"),
+                        NEQ,
+                        ConstantExpression.of("Dettol")))
+                .build();
+
+        long neqCount = flatCollection.count(neqQuery);
+        assertEquals(2, neqCount, "NEQ: Should find 2 documents without Dettol brand");
+      }
+
+      /**
+       * Tests LT, GT, LTE, GTE comparison operators on JSONB numeric fields. Tests deeply nested
+       * numeric fields like props.seller.address.pincode. Data: ids 1,3 have pincode 400004; ids
+       * 5,7 have pincode 700007; rest are NULL
+       */
+      @ParameterizedTest
+      @ArgumentsSource(PostgresProvider.class)
+      void testJsonbNumericComparisonOperators(String dataStoreName) {
+        Datastore datastore = datastoreMap.get(dataStoreName);
+        Collection flatCollection =
+            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+        // Test 1: GT - props.seller.address.pincode > 500000
+        // Expected: 2 documents (ids 5,7 with pincode 700007 in Kolkata)
+        Query gtQuery =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        GT,
+                        ConstantExpression.of(500000)))
+                .build();
+
+        long gtCount = flatCollection.count(gtQuery);
+        assertEquals(2, gtCount, "GT: Should find 2 documents with pincode > 500000");
+
+        // Test 2: LT - props.seller.address.pincode < 500000
+        // Expected: 2 documents (ids 1,3 with pincode 400004 in Mumbai)
+        Query ltQuery =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        LT,
+                        ConstantExpression.of(500000)))
+                .build();
+
+        long ltCount = flatCollection.count(ltQuery);
+        assertEquals(2, ltCount, "LT: Should find 2 documents with pincode < 500000");
+
+        // Test 3: GTE - props.seller.address.pincode >= 700000
+        // Expected: 2 documents (ids 5,7 with pincode 700007)
+        Query gteQuery =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        GTE,
+                        ConstantExpression.of(700000)))
+                .build();
+
+        long gteCount = flatCollection.count(gteQuery);
+        assertEquals(2, gteCount, "GTE: Should find 2 documents with pincode >= 700000");
+
+        // Test 4: LTE - props.seller.address.pincode <= 400004
+        // Expected: 2 documents (ids 1,3 with pincode 400004)
+        Query lteQuery =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        LTE,
+                        ConstantExpression.of(400004)))
+                .build();
+
+        long lteCount = flatCollection.count(lteQuery);
+        assertEquals(2, lteCount, "LTE: Should find 2 documents with pincode <= 400004");
+      }
+    }
   }
 
   @Nested
