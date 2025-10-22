@@ -3983,8 +3983,8 @@ public class DocStoreQueryV1Test {
     }
 
     /**
-     * Tests for relational operators on JSONB nested fields in flat collections.
-     * Tests: CONTAINS, NOT_CONTAINS, IN, NOT_IN, EQ, NEQ, LT, GT on JSONB columns.
+     * Tests for relational operators on JSONB nested fields in flat collections. Tests: CONTAINS,
+     * NOT_CONTAINS, IN, NOT_IN, EQ, NEQ, LT, GT on JSONB columns.
      */
     @Nested
     class FlatCollectionJsonbRelationalOperatorTest {
