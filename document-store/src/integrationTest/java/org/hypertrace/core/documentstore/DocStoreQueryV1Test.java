@@ -4018,6 +4018,34 @@ public class DocStoreQueryV1Test {
       // 2 from Lifebuoy (Orange, Blue)
       assertEquals(5, count, "Should find 5 color entries after unnesting JSONB arrays");
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatCollectionArrayAnyOnJsonbArray(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test ArrayRelationalFilterExpression.ANY on JSONB array (props.colors)
+      // This uses jsonb_array_elements() internally
+      Query jsonbArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", "colors"),
+                              EQ,
+                              ConstantExpression.of("Blue")))
+                      .build())
+              .build();
+
+      long count = flatCollection.count(jsonbArrayQuery);
+      // ids 1 and 5 have "Blue" in their colors array
+      assertEquals(2, count, "Should find 2 items with 'Blue' color (ids 1, 5)");
+    }
   }
 
   @Nested
