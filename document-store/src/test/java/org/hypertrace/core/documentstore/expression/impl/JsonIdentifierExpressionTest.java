@@ -1,7 +1,6 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -125,39 +124,5 @@ class JsonIdentifierExpressionTest {
             () -> JsonIdentifierExpression.of("props", (String[]) null));
 
     assertEquals("JSON path cannot be null or empty", exception.getMessage());
-  }
-
-  /**
-   * Tests instanceof check - JsonIdentifierExpression should be identifiable.
-   */
-  @Test
-  void testInstanceOfJsonIdentifierExpression() {
-    JsonIdentifierExpression jsonExpr = JsonIdentifierExpression.of("props", "brand");
-
-    // Should be identifiable as JsonIdentifierExpression
-    assertTrue(jsonExpr instanceof JsonIdentifierExpression, "Should be instanceof JsonIdentifierExpression");
-  }
-
-  /**
-   * Tests instanceof check through base class reference.
-   */
-  @Test
-  void testInstanceOfThroughBaseReference() {
-    // Create JsonIdentifierExpression but hold as IdentifierExpression reference
-    IdentifierExpression expr = JsonIdentifierExpression.of("props", "brand");
-
-    // Should still work with instanceof check
-    assertTrue(expr instanceof JsonIdentifierExpression, "instanceof should work through base class reference");
-  }
-
-  /**
-   * Tests that regular IdentifierExpression is not JsonIdentifierExpression.
-   */
-  @Test
-  void testRegularIdentifierIsNotJsonIdentifier() {
-    IdentifierExpression expr = IdentifierExpression.of("regularColumn");
-
-    // Regular IdentifierExpression should not be JsonIdentifierExpression
-    assertFalse(expr instanceof JsonIdentifierExpression, "Regular identifier should not be instanceof JsonIdentifierExpression");
   }
 }

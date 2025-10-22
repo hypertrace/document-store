@@ -68,19 +68,6 @@ public class JsonIdentifierExpression extends IdentifierExpression {
     return visitor.visit(this);
   }
 
-  /**
-   * Accepts a select type expression visitor. Overrides the parent to dispatch to the
-   * JsonIdentifierExpression-specific visit method.
-   *
-   * @param visitor The select type expression visitor
-   * @param <T> The return type
-   * @return The result of visiting this expression
-   */
-  @Override
-  public <T> T accept(final org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor visitor) {
-    return visitor.visit(this);
-  }
-
   @Override
   public String toString() {
     return String.format(

@@ -2,7 +2,6 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumn;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
@@ -41,17 +40,6 @@ public class PostgresDataAccessorIdentifierExpressionVisitor
 
   @Override
   public String visit(final IdentifierExpression expression) {
-    FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression);
-
-    // Type parameter is ignored for JSON fields - always returns JSONB
-    // buildFieldAccessorWithCast will use -> for all accessors without casting
-    return getPostgresQueryParser()
-        .getPgColTransformer()
-        .buildFieldAccessorWithCast(fieldToPgColumn, this.type);
-  }
-
-  @Override
-  public String visit(final JsonIdentifierExpression expression) {
     FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression);
 
     // Type parameter is ignored for JSON fields - always returns JSONB

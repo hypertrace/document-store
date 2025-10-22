@@ -2,7 +2,6 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumn;
 
@@ -24,14 +23,6 @@ public class PostgresFieldIdentifierExpressionVisitor extends PostgresSelectType
 
   @Override
   public String visit(final IdentifierExpression expression) {
-    FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression);
-    return getPostgresQueryParser()
-        .getPgColTransformer()
-        .buildFieldAccessorWithoutCast(fieldToPgColumn);
-  }
-
-  @Override
-  public String visit(final JsonIdentifierExpression expression) {
     FieldToPgColumn fieldToPgColumn = getPostgresQueryParser().transformField(expression);
     return getPostgresQueryParser()
         .getPgColTransformer()
