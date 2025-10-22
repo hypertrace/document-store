@@ -18,6 +18,7 @@ import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -169,6 +170,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     boolean isFlatCollection =
         postgresQueryParser.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
 
+    boolean isJsonbArray = expression.getArraySource() instanceof JsonIdentifierExpression;
+
     // Extract the field name
     final String identifierName =
         expression
@@ -176,15 +179,15 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .accept(new PostgresIdentifierExpressionVisitor(postgresQueryParser));
 
     final String parsedLhs;
-    if (isFlatCollection) {
-      // For flat collections, assume all arrays are native PostgreSQL arrays
+    if (isFlatCollection && !isJsonbArray) {
+      // For flat collections with native arrays, use direct column reference
       parsedLhs = postgresQueryParser.transformField(identifierName).getPgColumn();
     } else {
-      // For nested collections, use JSONB path accessor
+      // For nested collections OR JSONB arrays in flat collections, use JSONB path accessor
       // Convert 'elements' to planets->'elements' where planets could be an alias for an upper
       // level array filter
       // For the first time (if 'elements' was not under any nested array, say a top-level field),
-      // use the field identifier visitor to make it document->'elements'
+      // use the field identifier visitor to make it document->'elements' or props->'colors'
       final PostgresIdentifierExpressionVisitor identifierVisitor =
           new PostgresIdentifierExpressionVisitor(postgresQueryParser);
       final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
@@ -206,18 +209,18 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .getFilter()
             .accept(new PostgresFilterTypeExpressionVisitor(postgresQueryParser, visitorProvider));
 
-    if (isFlatCollection) {
+    if (isFlatCollection && !isJsonbArray) {
       // todo: For array filters, UNNEST is not the most optimal way as it won't use the index.
       // Perhaps, we should use ANY or @> ARRAY operator
 
-      // For flat collections, assume all arrays are native and use unnest()
+      // For flat collections with native arrays (e.g., tags), use unnest()
       // Infer array type from filter to properly cast empty array
       String arrayTypeCast = inferArrayTypeCastFromFilter(expression.getFilter());
       return String.format(
           "EXISTS (SELECT 1 FROM unnest(COALESCE(%s, ARRAY[]%s)) AS \"%s\" WHERE %s)",
           parsedLhs, arrayTypeCast, alias, parsedFilter);
     } else {
-      // For nested collections with JSONB arrays, use jsonb_array_elements()
+      // For nested collections OR JSONB arrays in flat collections, use jsonb_array_elements()
       return String.format(
           "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
           parsedLhs, alias, parsedFilter);
@@ -284,6 +287,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     boolean isFlatCollection =
         postgresQueryParser.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
 
+    boolean isJsonbArray = expression.getArraySource() instanceof JsonIdentifierExpression;
+
     // Extract the field name
     final String identifierName =
         expression
@@ -291,11 +296,11 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .accept(new PostgresIdentifierExpressionVisitor(postgresQueryParser));
 
     final String parsedLhs;
-    if (isFlatCollection) {
-      // For flat collections, assume all arrays are native PostgreSQL arrays
-      // Use direct column reference with double quotes
+    if (isFlatCollection && !isJsonbArray) {
+      // For flat collections with native arrays, use direct column reference with double quotes
       parsedLhs = postgresQueryParser.transformField(identifierName).getPgColumn();
     } else {
+      // For nested collections OR JSONB arrays in flat collections, use JSONB path accessor
       final PostgresIdentifierExpressionVisitor identifierVisitor =
           new PostgresIdentifierExpressionVisitor(postgresQueryParser);
       final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
@@ -316,8 +321,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             .getFilter()
             .accept(new PostgresFilterTypeExpressionVisitor(postgresQueryParser, wrapper));
 
-    if (isFlatCollection) {
-      // For flat collections, assume all arrays are native and use unnest()
+    if (isFlatCollection && !isJsonbArray) {
+      // For flat collections with native arrays, use unnest()
       // Note: DocumentArrayFilterExpression typically works with JSONB arrays containing objects
       // For simplicity, we default to text[] type cast, though this may need refinement
       String arrayTypeCast = "::text[]";
@@ -325,7 +330,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
           "EXISTS (SELECT 1 FROM unnest(COALESCE(%s, ARRAY[]%s)) AS \"%s\" WHERE %s)",
           parsedLhs, arrayTypeCast, alias, parsedFilter);
     } else {
-      // For nested collections with JSONB arrays, use jsonb_array_elements()
+      // For nested collections OR JSONB arrays in flat collections, use jsonb_array_elements()
       return String.format(
           "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
           parsedLhs, alias, parsedFilter);
