@@ -4,6 +4,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import lombok.Getter;
 import org.hypertrace.core.documentstore.DocumentType;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.SubQueryJoinExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
 import org.hypertrace.core.documentstore.parser.FromTypeExpressionVisitor;
@@ -47,11 +48,14 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
     boolean isFlatCollection =
         postgresQueryParser.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
 
+    boolean isJsonbArray =
+        unnestExpression.getIdentifierExpression() instanceof JsonIdentifierExpression;
+
     String transformedFieldName;
     String unnestFunction;
 
-    if (isFlatCollection) {
-      // For flat collections, assume all unnested fields are native PostgreSQL arrays
+    if (isFlatCollection && !isJsonbArray) {
+      // For flat collections with native arrays (e.g., tags), use unnest()
       // Use the transformer to get the proper column name (handles quotes and naming)
       transformedFieldName = postgresQueryParser.transformField(orgFieldName).getPgColumn();
       // Use native unnest() for PostgreSQL array columns
@@ -60,7 +64,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
       // e.g., unnest("tags") p1(tags_unnested) instead of p1(tags)
       pgColumnName = pgColumnName + "_unnested";
     } else {
-      // For nested collections, use JSONB path accessor
+      // For nested collections OR JSONB arrays in flat collections, use jsonb_array_elements()
       transformedFieldName =
           unnestExpression
               .getIdentifierExpression()
@@ -78,8 +82,12 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
     String tableAlias = "t" + preIndex;
     String unwindExpr = String.format(unnestFunction, transformedFieldName);
 
+    // we'll quote the col name to prevent folding to lower case for top-level array fields
     String unwindExprAlias =
-        String.format(UNWIND_EXP_ALIAS_FMT, nextIndex, getColName(isFlatCollection, pgColumnName));
+        String.format(
+            UNWIND_EXP_ALIAS_FMT,
+            nextIndex,
+            shouldQuoteColName(isFlatCollection && !isJsonbArray, pgColumnName));
 
     String fmt =
         unnestExpression.isPreserveNullAndEmptyArrays()
@@ -144,7 +152,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
   /*
   Returns the column name with double quotes if the collection is flat to prevent folding to lower-case by PG
    */
-  private String getColName(boolean isFlatCollection, String pgColumnName) {
+  private String shouldQuoteColName(boolean isFlatCollection, String pgColumnName) {
     return isFlatCollection
         ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(pgColumnName)
         : pgColumnName;

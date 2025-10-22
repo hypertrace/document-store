@@ -3981,6 +3981,43 @@ public class DocStoreQueryV1Test {
       assertDocsAndSizeEqual(
           dataStoreName, flatBrandNoAliasIterator, "query/no_alias_response.json", 8);
     }
+
+    /**
+     * Tests UNNEST operation on JSONB array fields in flat collections. This validates that
+     * jsonb_array_elements() is used for JSONB arrays (props.colors) instead of unnest() which is
+     * only for native arrays (tags).
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatCollectionUnnestJsonbArray(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test UNNEST on JSONB array field: props.colors
+      // Expected: Should unnest colors and count distinct items with colors
+      // Data: id=1 has ["Blue", "Green"], id=3 has ["Black"], id=5 has ["Orange", "Blue"]
+      // Total: 5 color entries from 3 items
+      Query unnestJsonbQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(JsonIdentifierExpression.of("props", "colors"))
+              .addFromClause(
+                  UnnestExpression.of(JsonIdentifierExpression.of("props", "colors"), false))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestJsonbQuery);
+
+      long count = 0;
+      while (resultIterator.hasNext()) {
+        resultIterator.next();
+        count++;
+      }
+
+      // Expecting 5 results: 2 from Soap (Blue, Green), 1 from Shampoo (Black),
+      // 2 from Lifebuoy (Orange, Blue)
+      assertEquals(5, count, "Should find 5 color entries after unnesting JSONB arrays");
+    }
   }
 
   @Nested
