@@ -16,6 +16,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.Docu
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -216,6 +217,11 @@ public class PostgresUnnestQueryTransformer implements QueryTransformer {
 
     @Override
     public List<String> visit(IdentifierExpression expression) {
+      return List.of(expression.getName());
+    }
+
+    @Override
+    public List<String> visit(JsonIdentifierExpression expression) {
       return List.of(expression.getName());
     }
 

@@ -10,6 +10,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.GroupTypeExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.GroupTypeExpressionVisitor;
@@ -112,6 +113,11 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
     }
 
     @Override
+    public Boolean visit(JsonIdentifierExpression expression) {
+      return false;
+    }
+
+    @Override
     public Boolean visit(AliasedIdentifierExpression expression) {
       throw new UnsupportedOperationException("This operation is not supported");
     }
@@ -141,6 +147,11 @@ public class PostgresSelectionQueryTransformer implements QueryTransformer {
 
     @Override
     public Boolean visit(IdentifierExpression expression) {
+      return true;
+    }
+
+    @Override
+    public Boolean visit(JsonIdentifierExpression expression) {
       return true;
     }
 

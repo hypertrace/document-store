@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.vistors;
 
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 
 @NoArgsConstructor
@@ -22,6 +23,11 @@ public class PostgresIdentifierExpressionVisitor extends PostgresSelectTypeExpre
 
   @Override
   public String visit(final IdentifierExpression expression) {
+    return expression.getName();
+  }
+
+  @Override
+  public String visit(final JsonIdentifierExpression expression) {
     return expression.getName();
   }
 }

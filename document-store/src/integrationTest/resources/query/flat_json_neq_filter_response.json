@@ -1,0 +1,14 @@
+[
+  {
+    "item": "Shampoo",
+    "props": {
+      "brand": "Sunsilk"
+    }
+  },
+  {
+    "item": "Soap",
+    "props": {
+      "brand": "Lifebuoy"
+    }
+  }
+]

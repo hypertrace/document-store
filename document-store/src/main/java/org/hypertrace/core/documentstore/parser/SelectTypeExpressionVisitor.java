@@ -6,6 +6,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 
 public interface SelectTypeExpressionVisitor {
   <T> T visit(final AggregateExpression expression);
@@ -19,4 +20,8 @@ public interface SelectTypeExpressionVisitor {
   <T> T visit(final IdentifierExpression expression);
 
   <T> T visit(final AliasedIdentifierExpression expression);
+
+  default <T> T visit(final JsonIdentifierExpression expression) {
+    return visit((IdentifierExpression) expression);
+  }
 }

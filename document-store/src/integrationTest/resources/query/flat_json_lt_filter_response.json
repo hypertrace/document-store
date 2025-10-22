@@ -1,0 +1,22 @@
+[
+  {
+    "item": "Soap",
+    "props": {
+      "seller": {
+        "address": {
+          "pincode": 400004
+        }
+      }
+    }
+  },
+  {
+    "item": "Shampoo",
+    "props": {
+      "seller": {
+        "address": {
+          "pincode": 400004
+        }
+      }
+    }
+  }
+]

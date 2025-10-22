@@ -1,0 +1,22 @@
+[
+  {
+    "item": "Soap",
+    "props": {
+      "seller": {
+        "address": {
+          "pincode": 700007
+        }
+      }
+    }
+  },
+  {
+    "item": "Comb",
+    "props": {
+      "seller": {
+        "address": {
+          "pincode": 700007
+        }
+      }
+    }
+  }
+]
