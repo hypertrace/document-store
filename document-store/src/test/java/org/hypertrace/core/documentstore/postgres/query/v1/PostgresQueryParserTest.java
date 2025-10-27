@@ -21,6 +21,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_CONTAINS;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -1426,5 +1427,128 @@ public class PostgresQueryParserTest {
 
     assertEquals(
         "SELECT * FROM test_schema.\"test_table.with_a_dot\"", postgresQueryParser.parse());
+  }
+
+  @Test
+  void testNotContainsWithFlatCollectionNonJsonField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("tags"),
+                    NOT_CONTAINS,
+                    ConstantExpression.of("premium")))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" WHERE \"tags\" IS NULL OR NOT (\"tags\" @> ARRAY[?]::text[])",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals(List.of("premium"), params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testNotContainsWithNestedCollectionJsonField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("attributes"),
+                    NOT_CONTAINS,
+                    ConstantExpression.of("value1")))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" WHERE document->'attributes' IS NULL OR NOT document->'attributes' @> ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals("[\"value1\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testNotInWithFlatCollectionNonJsonField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("category"),
+                    NOT_IN,
+                    ConstantExpression.ofStrings(List.of("electronics", "clothing"))))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" WHERE \"category\" IS NULL OR NOT (ARRAY[\"category\"]::text[] && ARRAY[?, ?]::text[])",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(2, params.getObjectParams().size());
+  }
+
+  @Test
+  void testNotInWithNestedCollectionJsonField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("status"),
+                    NOT_IN,
+                    ConstantExpression.ofStrings(List.of("active", "pending"))))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" WHERE document->'status' IS NULL OR NOT ((((jsonb_typeof(to_jsonb(document->'status')) = 'array' AND to_jsonb(document->'status') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'status') @> jsonb_build_array(?))) OR ((jsonb_typeof(to_jsonb(document->'status')) = 'array' AND to_jsonb(document->'status') @> jsonb_build_array(?)) OR (jsonb_build_array(document->'status') @> jsonb_build_array(?)))))",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(4, params.getObjectParams().size());
+  }
+
+  @Test
+  void testContainsWithFlatCollectionNonJsonField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("keywords"), CONTAINS, ConstantExpression.of("java")))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"keywords\" @> ARRAY[?]::text[]", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals(List.of("java"), params.getObjectParams().get(1));
   }
 }
