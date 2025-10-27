@@ -14,21 +14,25 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
   /**
    * Default pattern for PostgreSQL column/table identifiers.
    *
-   * <p>Pattern: {@code ^[a-zA-Z_][a-zA-Z0-9_]*$}
+   * <p>Pattern: {@code ^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$}
    *
    * <p><b>Allowed:</b>
    *
    * <ul>
    *   <li>Must start with: letter (a-z, A-Z) or underscore (_)
-   *   <li>Can contain: letters (a-z, A-Z), digits (0-9), underscores (_)
-   *   <li>Examples: {@code "myColumn"}, {@code "user_id"}, {@code "_internal"}, {@code "TABLE1"}
+   *   <li>Can contain: letters (a-z, A-Z), digits (0-9), underscores (_), dots (.) for nested field
+   *       notation
+   *   <li>Examples: {@code "myColumn"}, {@code "user_id"}, {@code "_internal"}, {@code "TABLE1"},
+   *       {@code "field.name"}, {@code "nested.field.name"}
    * </ul>
    *
    * <p><b>Not allowed:</b>
    *
    * <ul>
    *   <li>Starting with numbers: {@code "123column"}
-   *   <li>Special characters: {@code "col-name"}, {@code "field.name"}
+   *   <li>Starting or ending with dots: {@code ".field"}, {@code "field."}
+   *   <li>Consecutive dots: {@code "field..name"}
+   *   <li>Special characters: {@code "col-name"}
    *   <li>Spaces: {@code "my column"}, {@code "field OR 1=1"}
    *   <li>Quotes: {@code "field\"name"}, {@code "field'name"}
    *   <li>Semicolons: {@code "col;DROP"}
@@ -38,7 +42,8 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
    * href="https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-IDENTIFIERS">PostgreSQL
    * Documentation</a>
    */
-  private static final String DEFAULT_IDENTIFIER_PATTERN = "^[a-zA-Z_][a-zA-Z0-9_]*$";
+  private static final String DEFAULT_IDENTIFIER_PATTERN =
+      "^[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)*$";
 
   /**
    * Default pattern for JSON field names within JSONB columns.
@@ -126,7 +131,7 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
       throw new SecurityException(
           String.format(
               "Identifier '%s' is invalid. Must start with a letter or underscore, "
-                  + "and contain only letters, numbers, and underscores.",
+                  + "and contain only letters, numbers, underscores, and dots (for proper dot notation).",
               identifier));
     }
   }
