@@ -3983,6 +3983,71 @@ public class DocStoreQueryV1Test {
     }
 
     /**
+     * Tests UNNEST operation on JSONB array fields in flat collections. This validates that
+     * jsonb_array_elements() is used for JSONB arrays (props.colors) instead of unnest() which is
+     * only for native arrays (tags).
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatCollectionUnnestJsonbArray(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test UNNEST on JSONB array field: props.colors
+      // Expected: Should unnest colors and count distinct items with colors
+      // Data: id=1 has ["Blue", "Green"], id=3 has ["Black"], id=5 has ["Orange", "Blue"]
+      // Total: 5 color entries from 3 items
+      Query unnestJsonbQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(JsonIdentifierExpression.of("props", "colors"))
+              .addFromClause(
+                  UnnestExpression.of(JsonIdentifierExpression.of("props", "colors"), false))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestJsonbQuery);
+
+      long count = 0;
+      while (resultIterator.hasNext()) {
+        resultIterator.next();
+        count++;
+      }
+
+      // Expecting 5 results: 2 from Soap (Blue, Green), 1 from Shampoo (Black),
+      // 2 from Lifebuoy (Orange, Blue)
+      assertEquals(5, count, "Should find 5 color entries after unnesting JSONB arrays");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatCollectionArrayAnyOnJsonbArray(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test ArrayRelationalFilterExpression.ANY on JSONB array (props.colors)
+      // This uses jsonb_array_elements() internally
+      Query jsonbArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", "colors"),
+                              EQ,
+                              ConstantExpression.of("Blue")))
+                      .build())
+              .build();
+
+      long count = flatCollection.count(jsonbArrayQuery);
+      // ids 1 and 5 have "Blue" in their colors array
+      assertEquals(2, count, "Should find 2 items with 'Blue' color (ids 1, 5)");
+    }
+
+    /**
      * Tests for relational operators on JSONB nested fields in flat collections. Tests: CONTAINS,
      * NOT_CONTAINS, IN, NOT_IN, EQ, NEQ, LT, GT on JSONB columns.
      */
