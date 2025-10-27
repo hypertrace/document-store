@@ -8,55 +8,52 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** Security tests for BasicPostgresSecurityValidator to prevent SQL injection attacks. */
 public class PostgresSecurityValidatorTest {
 
   private final PostgresSecurityValidator validator = BasicPostgresSecurityValidator.getDefault();
 
-  // ===== Column/Identifier Validation Tests =====
-
   @Test
-  void testValidIdentifier_Letters() {
+  void testValidIdentifierLetters() {
     assertDoesNotThrow(() -> validator.validateIdentifier("props"));
     assertDoesNotThrow(() -> validator.validateIdentifier("myColumn"));
     assertDoesNotThrow(() -> validator.validateIdentifier("UPPERCASE"));
   }
 
   @Test
-  void testValidIdentifier_StartsWithUnderscore() {
+  void testValidIdentifierStartsWithUnderscore() {
     assertDoesNotThrow(() -> validator.validateIdentifier("_internal"));
     assertDoesNotThrow(() -> validator.validateIdentifier("_"));
   }
 
   @Test
-  void testValidIdentifier_WithNumbers() {
+  void testValidIdentifierWithNumbers() {
     assertDoesNotThrow(() -> validator.validateIdentifier("field123"));
     assertDoesNotThrow(() -> validator.validateIdentifier("col_1"));
   }
 
   @Test
-  void testInvalidIdentifier_Null() {
+  void testInvalidIdentifierNull() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier(null));
     assertTrue(ex.getMessage().contains("cannot be null or empty"));
   }
 
   @Test
-  void testInvalidIdentifier_Empty() {
+  void testInvalidIdentifierEmpty() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier(""));
     assertTrue(ex.getMessage().contains("cannot be null or empty"));
   }
 
   @Test
-  void testInvalidIdentifier_StartsWithNumber() {
+  void testInvalidIdentifierStartsWithNumber() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier("123column"));
     assertTrue(ex.getMessage().contains("Must start with a letter or underscore"));
   }
 
   @Test
-  void testInvalidIdentifier_SqlInjection_DropTable() {
+  void testInvalidIdentifierSqlInjection_DropTable() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -65,42 +62,61 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidIdentifier_SqlInjection_Quote() {
+  void testInvalidIdentifierSqlInjection_Quote() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier("column\"name"));
     assertTrue(ex.getMessage().contains("invalid"));
   }
 
   @Test
-  void testInvalidIdentifier_SqlInjection_Semicolon() {
+  void testInvalidIdentifierSqlInjection_Semicolon() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier("col;SELECT"));
     assertTrue(ex.getMessage().contains("invalid"));
   }
 
   @Test
-  void testInvalidIdentifier_Hyphen() {
+  void testInvalidIdentifierHyphen() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier("field-name"));
     assertTrue(ex.getMessage().contains("invalid"));
   }
 
   @Test
-  void testInvalidIdentifier_Dot() {
-    SecurityException ex =
-        assertThrows(SecurityException.class, () -> validator.validateIdentifier("field.name"));
-    assertTrue(ex.getMessage().contains("invalid"));
+  void testValidIdentifierWithDotNotation() {
+    assertDoesNotThrow(() -> validator.validateIdentifier("field.name"));
+    assertDoesNotThrow(() -> validator.validateIdentifier("api.dataTypeIds"));
+    assertDoesNotThrow(() -> validator.validateIdentifier("nested.field.name"));
+    assertDoesNotThrow(() -> validator.validateIdentifier("internal.field"));
   }
 
   @Test
-  void testInvalidIdentifier_Space() {
+  void testInvalidDotNotation() {
+    // Can't start with a dot
+    SecurityException ex1 =
+        assertThrows(SecurityException.class, () -> validator.validateIdentifier(".field"));
+    assertTrue(ex1.getMessage().contains("invalid"));
+
+    // Can't end with a dot
+    SecurityException ex2 =
+        assertThrows(SecurityException.class, () -> validator.validateIdentifier("field."));
+    assertTrue(ex2.getMessage().contains("invalid"));
+
+    // Can't have consecutive dots
+    SecurityException ex3 =
+        assertThrows(SecurityException.class, () -> validator.validateIdentifier("field..name"));
+    assertTrue(ex3.getMessage().contains("invalid"));
+  }
+
+  @Test
+  void testInvalidIdentifierSpace() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier("field name"));
     assertTrue(ex.getMessage().contains("invalid"));
   }
 
   @Test
-  void testInvalidIdentifier_TooLong() {
+  void testInvalidIdentifierTooLong() {
     String longIdentifier = "a".repeat(64); // PostgreSQL max is 63
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier(longIdentifier));
@@ -108,52 +124,49 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testValidIdentifier_MaxLength() {
+  void testValidIdentifierMaxLength() {
     String maxLengthIdentifier = "a".repeat(63); // Exactly at limit
     assertDoesNotThrow(() -> validator.validateIdentifier(maxLengthIdentifier));
   }
 
-  // ===== JSON Path Validation Tests =====
-
   @Test
-  void testValidJsonPath_SingleLevel() {
+  void testValidJsonPathSingleLevel() {
     assertDoesNotThrow(() -> validator.validateJsonPath(List.of("brand")));
   }
 
   @Test
-  void testValidJsonPath_MultiLevel() {
+  void testValidJsonPathMultiLevel() {
     assertDoesNotThrow(() -> validator.validateJsonPath(List.of("seller", "address", "city")));
   }
 
   @Test
-  void testValidJsonPath_WithNumbers() {
+  void testValidJsonPathWithNumbers() {
     assertDoesNotThrow(() -> validator.validateJsonPath(List.of("field123")));
     assertDoesNotThrow(() -> validator.validateJsonPath(List.of("1st_choice")));
   }
 
   @Test
-  void testValidJsonPath_StartsWithUnderscore() {
+  void testValidJsonPathStartsWithUnderscore() {
     assertDoesNotThrow(() -> validator.validateJsonPath(List.of("_private")));
   }
 
   @Test
-  void testInvalidJsonPath_Null() {
+  void testInvalidJsonPathNull() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateJsonPath(null));
     assertTrue(ex.getMessage().contains("cannot be null or empty"));
   }
 
   @Test
-  void testInvalidJsonPath_Empty() {
+  void testInvalidJsonPathEmpty() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateJsonPath(List.of()));
     assertTrue(ex.getMessage().contains("cannot be null or empty"));
   }
 
   @Test
-  void testInvalidJsonPath_NullElement() {
-    // Note: List.of() doesn't allow null elements, so we need to create a list differently
-    java.util.List<String> pathWithNull = new java.util.ArrayList<>();
+  void testInvalidJsonPathNullElement() {
+    List<String> pathWithNull = new ArrayList<>();
     pathWithNull.add("field");
     pathWithNull.add(null);
     pathWithNull.add("name");
@@ -164,7 +177,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPath_EmptyElement() {
+  void testInvalidJsonPathEmptyElement() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -173,7 +186,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPath_SqlInjection_Quote() {
+  void testInvalidJsonPathSqlInjectionQuote() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> validator.validateJsonPath(List.of("brand' OR '1'='1")));
@@ -181,7 +194,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPath_SqlInjection_DoubleQuote() {
+  void testInvalidJsonPathSqlInjectionDoubleQuote() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> validator.validateJsonPath(List.of("name\"--")));
@@ -189,7 +202,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPath_SqlInjection_Semicolon() {
+  void testInvalidJsonPathSqlInjectionSemicolon() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -198,7 +211,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPath_Hyphen() {
+  void testInvalidJsonPathHyphen() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> validator.validateJsonPath(List.of("field-name")));
@@ -206,7 +219,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPath_Dot() {
+  void testInvalidJsonPathDot() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> validator.validateJsonPath(List.of("field.name")));
@@ -214,7 +227,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPath_Space() {
+  void testInvalidJsonPathSpace() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> validator.validateJsonPath(List.of("field name")));
@@ -222,7 +235,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPath_TooDeep() {
+  void testInvalidJsonPathTooDeep() {
     List<String> deepPath = new ArrayList<>();
     for (int i = 0; i < 11; i++) { // Max is 10
       deepPath.add("level" + i);
@@ -233,7 +246,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testValidJsonPath_MaxDepth() {
+  void testValidJsonPathMaxDepth() {
     List<String> deepPath = new ArrayList<>();
     for (int i = 0; i < 10; i++) { // Exactly at limit
       deepPath.add("level" + i);
@@ -242,7 +255,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPath_FieldTooLong() {
+  void testInvalidJsonPathFieldTooLong() {
     String longField = "a".repeat(101); // Max is 100
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateJsonPath(List.of(longField)));
@@ -250,22 +263,20 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testValidJsonPath_MaxFieldLength() {
+  void testValidJsonPathMaxFieldLength() {
     String maxLengthField = "a".repeat(100); // Exactly at limit
     assertDoesNotThrow(() -> validator.validateJsonPath(List.of(maxLengthField)));
   }
 
-  // ===== Real-world Attack Scenarios =====
-
   @Test
-  void testAttackScenario_CommentInjection() {
+  void testAttackScenarioCommentInjection() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier("field\"--"));
     assertTrue(ex.getMessage().contains("invalid"));
   }
 
   @Test
-  void testAttackScenario_UnionInjection() {
+  void testAttackScenarioUnionInjection() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> validator.validateIdentifier("col\" UNION SELECT"));
@@ -273,7 +284,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testAttackScenario_OrInjection() {
+  void testAttackScenarioOrInjection() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -282,7 +293,7 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testAttackScenario_NestedQuotes() {
+  void testAttackScenarioNestedQuotes() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> validator.validateJsonPath(List.of("field'\"'; DROP")));
