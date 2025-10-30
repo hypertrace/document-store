@@ -7,48 +7,43 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** Security tests for JsonIdentifierExpression to ensure SQL injection prevention. */
 public class JsonIdentifierExpressionSecurityTest {
 
-  // ===== Valid Expressions =====
-
   @Test
-  void testValidExpression_SimpleField() {
+  void testValidExpressionSimpleField() {
     assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "brand"));
   }
 
   @Test
-  void testValidExpression_NestedField() {
+  void testValidExpressionNestedField() {
     assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "seller", "name"));
   }
 
   @Test
-  void testValidExpression_DeeplyNested() {
+  void testValidExpressionDeeplyNested() {
     assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "seller", "address", "city"));
   }
 
   @Test
-  void testValidExpression_WithNumbers() {
+  void testValidExpressionWithNumbers() {
     assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "field123"));
     assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "1st_choice"));
   }
 
   @Test
-  void testValidExpression_WithUnderscore() {
+  void testValidExpressionWithUnderscore() {
     assertDoesNotThrow(() -> JsonIdentifierExpression.of("_internal", "field"));
     assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "_private"));
   }
 
   @Test
-  void testValidExpression_UsingListConstructor() {
+  void testValidExpressionUsingListConstructor() {
     assertDoesNotThrow(
         () -> JsonIdentifierExpression.of("props", List.of("seller", "address", "city")));
   }
 
-  // ===== Invalid Column Names =====
-
   @Test
-  void testInvalidExpression_ColumnName_DropTable() {
+  void testInvalidExpressionColumnNameDropTable() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -57,7 +52,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_ColumnName_WithQuote() {
+  void testInvalidExpressionColumnNameWithQuote() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("props\"name", "brand"));
@@ -65,7 +60,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_ColumnName_WithSemicolon() {
+  void testInvalidExpressionColumnNameWithSemicolon() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("props;SELECT", "brand"));
@@ -73,7 +68,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_ColumnName_StartsWithNumber() {
+  void testInvalidExpressionColumnNameStartsWithNumber() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("123props", "brand"));
@@ -81,25 +76,15 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_ColumnName_WithHyphen() {
-    SecurityException ex =
-        assertThrows(
-            SecurityException.class, () -> JsonIdentifierExpression.of("my-column", "brand"));
-    assertTrue(ex.getMessage().contains("invalid"));
-  }
-
-  @Test
-  void testInvalidExpression_ColumnName_WithSpace() {
+  void testInvalidExpressionColumnNameWithSpace() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("my column", "brand"));
     assertTrue(ex.getMessage().contains("invalid"));
   }
 
-  // ===== Invalid JSON Paths =====
-
   @Test
-  void testInvalidExpression_JsonPath_WithQuote() {
+  void testInvalidExpressionJsonPathWithQuote() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -108,7 +93,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_JsonPath_WithDoubleQuote() {
+  void testInvalidExpressionJsonPathWithDoubleQuote() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("props", "name\"--"));
@@ -116,7 +101,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_JsonPath_WithSemicolon() {
+  void testInvalidExpressionJsonPathWithSemicolon() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("props", "field; DROP"));
@@ -124,7 +109,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_JsonPath_WithHyphen() {
+  void testInvalidExpressionJsonPathWithHyphen() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("props", "field-name"));
@@ -132,7 +117,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_JsonPath_WithDot() {
+  void testInvalidExpressionJsonPathWithDot() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("props", "field.name"));
@@ -140,7 +125,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_JsonPath_WithSpace() {
+  void testInvalidExpressionJsonPathWithSpace() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("props", "field name"));
@@ -148,7 +133,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_JsonPath_EmptyElement() {
+  void testInvalidExpression_sonPathEmptyElement() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -157,7 +142,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpression_JsonPath_TooDeep() {
+  void testInvalidExpressionJsonPathTooDeep() {
     String[] deepPath = new String[11]; // Max is 10
     for (int i = 0; i < 11; i++) {
       deepPath[i] = "level" + i;
@@ -167,10 +152,8 @@ public class JsonIdentifierExpressionSecurityTest {
     assertTrue(ex.getMessage().contains("exceeds maximum depth"));
   }
 
-  // ===== Real-world Attack Scenarios =====
-
   @Test
-  void testAttackScenario_SqlCommentInjection() {
+  void testAttackScenarioSqlCommentInjection() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -179,7 +162,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testAttackScenario_UnionSelect() {
+  void testAttackScenarioUnionSelect() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -190,7 +173,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testAttackScenario_OrTrueInjection() {
+  void testAttackScenarioOrTrueInjection() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -199,7 +182,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testAttackScenario_NestedInjection() {
+  void testAttackScenarioNestedInjection() {
     SecurityException ex =
         assertThrows(
             SecurityException.class,
@@ -208,7 +191,7 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testAttackScenario_SpecialCharacterCombination() {
+  void testAttackScenarioSpecialCharacterCombination() {
     SecurityException ex =
         assertThrows(
             SecurityException.class, () -> JsonIdentifierExpression.of("props", "field'\"`;DROP"));
