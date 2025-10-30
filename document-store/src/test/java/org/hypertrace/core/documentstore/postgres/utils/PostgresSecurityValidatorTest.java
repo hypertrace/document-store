@@ -32,6 +32,11 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
+  void testValidIdentifierWithHyphens() {
+    assertDoesNotThrow(() -> validator.validateIdentifier("API.repo-url"));
+  }
+
+  @Test
   void testInvalidIdentifierNull() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier(null));

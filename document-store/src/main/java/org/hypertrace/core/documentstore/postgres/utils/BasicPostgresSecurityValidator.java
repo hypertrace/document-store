@@ -43,7 +43,7 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
    * Documentation</a>
    */
   private static final String DEFAULT_IDENTIFIER_PATTERN =
-      "^[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)*$";
+      "^[a-zA-Z_][a-zA-Z0-9_-]*(\\.[a-zA-Z_][a-zA-Z0-9_-]*)*$";
 
   /**
    * Default pattern for JSON field names within JSONB columns.
