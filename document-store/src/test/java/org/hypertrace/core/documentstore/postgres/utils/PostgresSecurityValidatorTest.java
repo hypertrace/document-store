@@ -32,6 +32,11 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
+  void testValidIdentifierWithHyphens() {
+    assertDoesNotThrow(() -> validator.validateIdentifier("repo-url"));
+  }
+
+  @Test
   void testInvalidIdentifierNull() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier(null));
@@ -72,13 +77,6 @@ public class PostgresSecurityValidatorTest {
   void testInvalidIdentifierSqlInjection_Semicolon() {
     SecurityException ex =
         assertThrows(SecurityException.class, () -> validator.validateIdentifier("col;SELECT"));
-    assertTrue(ex.getMessage().contains("invalid"));
-  }
-
-  @Test
-  void testInvalidIdentifierHyphen() {
-    SecurityException ex =
-        assertThrows(SecurityException.class, () -> validator.validateIdentifier("field-name"));
     assertTrue(ex.getMessage().contains("invalid"));
   }
 
@@ -142,7 +140,15 @@ public class PostgresSecurityValidatorTest {
   @Test
   void testValidJsonPathWithNumbers() {
     assertDoesNotThrow(() -> validator.validateJsonPath(List.of("field123")));
-    assertDoesNotThrow(() -> validator.validateJsonPath(List.of("1st_choice")));
+    assertDoesNotThrow(() -> validator.validateJsonPath(List.of("field_1")));
+  }
+
+  @Test
+  void testInvalidJsonPathStartsWithNumber() {
+    SecurityException ex =
+        assertThrows(
+            SecurityException.class, () -> validator.validateJsonPath(List.of("1st_choice")));
+    assertTrue(ex.getMessage().contains("invalid characters"));
   }
 
   @Test
@@ -211,19 +217,15 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidJsonPathHyphen() {
-    SecurityException ex =
-        assertThrows(
-            SecurityException.class, () -> validator.validateJsonPath(List.of("field-name")));
-    assertTrue(ex.getMessage().contains("invalid characters"));
+  void testValidJsonPathWithHyphen() {
+    assertDoesNotThrow(() -> validator.validateJsonPath(List.of("field-name")));
+    assertDoesNotThrow(() -> validator.validateJsonPath(List.of("user-id")));
   }
 
   @Test
-  void testInvalidJsonPathDot() {
-    SecurityException ex =
-        assertThrows(
-            SecurityException.class, () -> validator.validateJsonPath(List.of("field.name")));
-    assertTrue(ex.getMessage().contains("invalid characters"));
+  void testValidJsonPathWithDotNotation() {
+    assertDoesNotThrow(() -> validator.validateJsonPath(List.of("field.name")));
+    assertDoesNotThrow(() -> validator.validateJsonPath(List.of("user.address.city")));
   }
 
   @Test
