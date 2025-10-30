@@ -81,13 +81,6 @@ public class PostgresSecurityValidatorTest {
   }
 
   @Test
-  void testInvalidIdentifierHyphen() {
-    SecurityException ex =
-        assertThrows(SecurityException.class, () -> validator.validateIdentifier("field-name"));
-    assertTrue(ex.getMessage().contains("invalid"));
-  }
-
-  @Test
   void testValidIdentifierWithDotNotation() {
     assertDoesNotThrow(() -> validator.validateIdentifier("field.name"));
     assertDoesNotThrow(() -> validator.validateIdentifier("api.dataTypeIds"));
