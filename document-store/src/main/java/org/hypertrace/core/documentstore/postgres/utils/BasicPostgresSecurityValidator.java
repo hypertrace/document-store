@@ -45,48 +45,16 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
   private static final String DEFAULT_IDENTIFIER_PATTERN =
       "^[a-zA-Z_][a-zA-Z0-9_-]*(\\.[a-zA-Z_][a-zA-Z0-9_-]*)*$";
 
-  /**
-   * Default pattern for JSON field names within JSONB columns.
-   *
-   * <p>Pattern: {@code ^[a-zA-Z0-9_]+$}
-   *
-   * <p><b>Allowed:</b>
-   *
-   * <ul>
-   *   <li>Can start with: letter (a-z, A-Z), digit (0-9), or underscore (_)
-   *   <li>Can contain: letters (a-z, A-Z), digits (0-9), underscores (_)
-   *   <li>Examples: {@code "brand"}, {@code "1st_choice"}, {@code "field123"}, {@code "_private"}
-   * </ul>
-   *
-   * <p><b>Not allowed:</b>
-   *
-   * <ul>
-   *   <li>Hyphens: {@code "field-name"}
-   *   <li>Dots: {@code "field.name"} (use path segments instead: ["field", "name"])
-   *   <li>Spaces: {@code "my field"}
-   *   <li>Special characters: {@code "field@name"}, {@code "field#name"}
-   *   <li>Quotes: {@code "field\"name"}, {@code "field'name"}
-   *   <li>Semicolons: {@code "field; DROP TABLE"}
-   *   <li>SQL operators: {@code "field\" OR \"1\"=\"1"}
-   * </ul>
-   *
-   * <p><b>Note:</b> More permissive than identifier pattern to support flexible JSON schemas where
-   * field names may start with numbers.
-   */
-  private static final String DEFAULT_JSON_FIELD_PATTERN = "^[a-zA-Z0-9_]+$";
-
   /** Default instance with hardcoded values for convenient static access. */
   private static final BasicPostgresSecurityValidator DEFAULT =
       new BasicPostgresSecurityValidator(
           DEFAULT_MAX_IDENTIFIER_LENGTH,
           DEFAULT_MAX_JSON_FIELD_LENGTH,
           DEFAULT_MAX_JSON_PATH_DEPTH,
-          DEFAULT_IDENTIFIER_PATTERN,
-          DEFAULT_JSON_FIELD_PATTERN);
+          DEFAULT_IDENTIFIER_PATTERN);
 
   // Instance variables for configured limits
   private final Pattern validIdentifier;
-  private final Pattern validJsonField;
   private final int maxIdentifierLength;
   private final int maxJsonFieldLength;
   private final int maxJsonPathDepth;
@@ -105,13 +73,11 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
       int maxIdentifierLength,
       int maxJsonFieldLength,
       int maxJsonPathDepth,
-      String identifierPattern,
-      String jsonFieldPattern) {
+      String identifierPattern) {
     this.maxIdentifierLength = maxIdentifierLength;
     this.maxJsonFieldLength = maxJsonFieldLength;
     this.maxJsonPathDepth = maxJsonPathDepth;
     this.validIdentifier = Pattern.compile(identifierPattern);
-    this.validJsonField = Pattern.compile(jsonFieldPattern);
   }
 
   @Override
@@ -163,7 +129,7 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
                 field, i, maxJsonFieldLength));
       }
 
-      if (!validJsonField.matcher(field).matches()) {
+      if (!validIdentifier.matcher(field).matches()) {
         throw new SecurityException(
             String.format(
                 "JSON field '%s' at index %d contains invalid characters. "

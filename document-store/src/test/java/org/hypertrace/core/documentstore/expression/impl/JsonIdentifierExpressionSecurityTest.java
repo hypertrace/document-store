@@ -27,7 +27,15 @@ public class JsonIdentifierExpressionSecurityTest {
   @Test
   void testValidExpressionWithNumbers() {
     assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "field123"));
-    assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "1st_choice"));
+    assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "field_1"));
+  }
+
+  @Test
+  void testInvalidExpressionJsonPathStartsWithNumber() {
+    SecurityException ex =
+        assertThrows(
+            SecurityException.class, () -> JsonIdentifierExpression.of("props", "1st_choice"));
+    assertTrue(ex.getMessage().contains("invalid characters"));
   }
 
   @Test
@@ -109,19 +117,15 @@ public class JsonIdentifierExpressionSecurityTest {
   }
 
   @Test
-  void testInvalidExpressionJsonPathWithHyphen() {
-    SecurityException ex =
-        assertThrows(
-            SecurityException.class, () -> JsonIdentifierExpression.of("props", "field-name"));
-    assertTrue(ex.getMessage().contains("invalid characters"));
+  void testValidExpressionJsonPathWithHyphen() {
+    assertDoesNotThrow(() -> JsonIdentifierExpression.of("customAttribute", "repo-url"));
+    assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "user-id"));
   }
 
   @Test
-  void testInvalidExpressionJsonPathWithDot() {
-    SecurityException ex =
-        assertThrows(
-            SecurityException.class, () -> JsonIdentifierExpression.of("props", "field.name"));
-    assertTrue(ex.getMessage().contains("invalid characters"));
+  void testValidExpressionJsonPathWithDot() {
+    assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "field.name"));
+    assertDoesNotThrow(() -> JsonIdentifierExpression.of("props", "user.address.city"));
   }
 
   @Test
