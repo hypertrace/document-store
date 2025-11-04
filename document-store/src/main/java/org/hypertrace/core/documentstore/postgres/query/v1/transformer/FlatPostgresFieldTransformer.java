@@ -53,9 +53,26 @@ public class FlatPostgresFieldTransformer
     BasicPostgresSecurityValidator.getDefault().validateIdentifier(expression.getColumnName());
     BasicPostgresSecurityValidator.getDefault().validateJsonPath(expression.getJsonPath());
 
-    String nestedPath = String.join(".", expression.getJsonPath());
-    return new FieldToPgColumn(
-        nestedPath, PostgresUtils.wrapFieldNamesWithDoubleQuotes(expression.getColumnName()));
+    String fieldName = expression.getName();
+
+    FieldToPgColumn transformedCol;
+
+    // Check if this JSONB field has been unnested (e.g., "props.colors" -> "props_colors_encoded")
+    // If unnested, return the direct column reference to the unnested alias
+    if (pgColMapping.containsKey(fieldName)) {
+      String unnestColumnName = pgColMapping.get(fieldName);
+      BasicPostgresSecurityValidator.getDefault().validateIdentifier(unnestColumnName);
+      // Return direct column access (no JSONB path) for unnested fields
+      transformedCol =
+          new FieldToPgColumn(null, PostgresUtils.wrapFieldNamesWithDoubleQuotes(unnestColumnName));
+    } else {
+      // Not unnested - use normal JSONB accessor
+      String nestedPath = String.join(".", expression.getJsonPath());
+      transformedCol =
+          new FieldToPgColumn(
+              nestedPath, PostgresUtils.wrapFieldNamesWithDoubleQuotes(expression.getColumnName()));
+    }
+    return transformedCol;
   }
 
   @Override

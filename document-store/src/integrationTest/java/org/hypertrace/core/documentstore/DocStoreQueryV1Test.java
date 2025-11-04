@@ -3983,6 +3983,56 @@ public class DocStoreQueryV1Test {
     }
 
     /**
+     * Tests that GROUP BY with UNNEST on JSONB array fields produces consistent results across
+     * nested and flat collections. This validates that both collection types properly unnest arrays
+     * and group by individual elements (not entire arrays).
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatVsNestedCollectionGroupByArrayField(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+
+      Collection nestedCollection = datastore.getCollection(COLLECTION_NAME);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Nested collection: GROUP BY with UNNEST on props.colors array
+      // Uses dot notation for nested collections
+      Query nestedGroupByQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("props.colors"), "color")
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "count")
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("props.colors"), false))
+              .addAggregation(IdentifierExpression.of("props.colors"))
+              .addSort(IdentifierExpression.of("props.colors"), ASC)
+              .build();
+
+      // Flat collection: GROUP BY with UNNEST on props.colors array
+      // Uses JsonIdentifierExpression for JSONB columns
+      Query flatGroupByQuery =
+          Query.builder()
+              .addSelection(JsonIdentifierExpression.of("props", "colors"), "color")
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "count")
+              .addFromClause(
+                  UnnestExpression.of(JsonIdentifierExpression.of("props", "colors"), false))
+              .addAggregation(JsonIdentifierExpression.of("props", "colors"))
+              .addSort(JsonIdentifierExpression.of("props", "colors"), ASC)
+              .build();
+
+      // Execute queries
+      Iterator<Document> nestedResultIterator = nestedCollection.aggregate(nestedGroupByQuery);
+      Iterator<Document> flatResultIterator = flatCollection.aggregate(flatGroupByQuery);
+
+      // Both should produce the same results: grouping by individual color elements
+      // Expected: Black (1), Blue (2), Green (1), Orange (1)
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, nestedResultIterator, "query/group_by_colors_comparison_response.json", 4);
+
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, flatResultIterator, "query/group_by_colors_comparison_response.json", 4);
+    }
+
+    /**
      * Tests UNNEST operation on JSONB array fields in flat collections. This validates that
      * jsonb_array_elements() is used for JSONB arrays (props.colors) instead of unnest() which is
      * only for native arrays (tags).
@@ -4017,6 +4067,57 @@ public class DocStoreQueryV1Test {
       // Expecting 5 results: 2 from Soap (Blue, Green), 1 from Shampoo (Black),
       // 2 from Lifebuoy (Orange, Blue)
       assertEquals(5, count, "Should find 5 color entries after unnesting JSONB arrays");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatCollectionGroupByJsonbScalarField(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test GROUP BY on JSONB scalar field: props.brand
+      // This tests grouping by a nested string field in a JSONB column
+      // Data: 3 rows have brands (Dettol, Sunsilk, Lifebuoy), 7 rows have NULL/missing brand
+      // GROUP BY on JSONB fields groups NULL values together (standard SQL behavior)
+      Query groupByBrandQuery =
+          Query.builder()
+              .addSelection(JsonIdentifierExpression.of("props", "brand"))
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "count")
+              .addAggregation(JsonIdentifierExpression.of("props", "brand"))
+              .addSort(JsonIdentifierExpression.of("props", "brand"), ASC)
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(groupByBrandQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_jsonb_group_by_brand_test_response.json", 4);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatCollectionGroupByJsonbArrayField(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test GROUP BY on JSONB array field: props.colors with UNNEST
+      // This tests grouping by individual elements (after unnesting) in a JSONB array
+      // Behavior should match nested collections: UNNEST flattens array, GROUP BY groups elements
+      // Data: Row 1 has ["Blue", "Green"], Row 3 has ["Black"], Row 5 has ["Orange", "Blue"]
+      // Expected: Blue (2), Green (1), Black (1), Orange (1) - 4 distinct color groups
+      Query groupByColorsQuery =
+          Query.builder()
+              .addSelection(JsonIdentifierExpression.of("props", "colors"), "color")
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "count")
+              .addFromClause(
+                  UnnestExpression.of(JsonIdentifierExpression.of("props", "colors"), false))
+              .addAggregation(JsonIdentifierExpression.of("props", "colors"))
+              .addSort(JsonIdentifierExpression.of("props", "colors"), ASC)
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.aggregate(groupByColorsQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_jsonb_group_by_colors_test_response.json", 4);
     }
 
     @ParameterizedTest
