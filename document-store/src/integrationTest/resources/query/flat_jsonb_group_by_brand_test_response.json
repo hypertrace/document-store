@@ -1,0 +1,23 @@
+[
+  {
+    "count": 7
+  },
+  {
+    "props": {
+      "brand": "Dettol"
+    },
+    "count": 1
+  },
+  {
+    "props": {
+      "brand": "Lifebuoy"
+    },
+    "count": 1
+  },
+  {
+    "props": {
+      "brand": "Sunsilk"
+    },
+    "count": 1
+  }
+]
