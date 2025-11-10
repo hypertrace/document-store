@@ -162,7 +162,8 @@ public class DocStoreQueryV1Test {
 
     Datastore mongoDatastore = DatastoreProvider.getDatastore("Mongo", config);
     System.out.println(mongoDatastore.listCollections());
-
+    //    psql -U postgres -c "SELECT count(*) as conns, state FROM pg_stat_activity WHERE datname =
+    // '\''myTestFlat'\'' GROUP BY state;"
     postgres =
         new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
             .withEnv("POSTGRES_PASSWORD", "postgres")
