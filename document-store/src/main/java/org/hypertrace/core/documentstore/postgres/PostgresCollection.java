@@ -842,24 +842,43 @@ public abstract class PostgresCollection implements Collection {
     }
   }
 
+  // This overload obtains a pooled connection and passes it to the iterator
+  // The iterator is responsible for returning the connection to the pool when closed
   protected CloseableIterator<Document> queryWithParser(
       org.hypertrace.core.documentstore.query.Query query,
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
+    Connection pooledConnection = null;
     try {
-      ResultSet resultSet = queryExecutor.execute(client.getConnection(), queryParser);
+      pooledConnection = client.getPooledConnection();
+      // Set autocommit for read-only queries to avoid "idle in transaction" state
+      pooledConnection.setAutoCommit(true);
+      LOGGER.info("Executing query on connection: " + pooledConnection.toString());
+      ResultSet resultSet = queryExecutor.execute(pooledConnection, queryParser);
 
       if (queryParser.getPgColTransformer().getDocumentType() == DocumentType.NESTED) {
         return !query.getSelections().isEmpty()
-            ? new PostgresResultIteratorWithMetaData(resultSet)
-            : new PostgresResultIterator(resultSet);
+            ? new PostgresResultIteratorWithMetaData(resultSet, pooledConnection)
+            : new PostgresResultIterator(resultSet, pooledConnection);
       } else {
-        return new PostgresResultIteratorWithBasicTypes(resultSet, DocumentType.FLAT);
+        return new PostgresResultIteratorWithBasicTypes(
+            resultSet, pooledConnection, DocumentType.FLAT);
       }
     } catch (Exception e) {
+      // If exception occurs before iterator is created, clean up connection immediately
+      if (pooledConnection != null) {
+        try {
+          pooledConnection.close();
+          LOGGER.debug("Returned connection to pool after exception: {}", pooledConnection);
+        } catch (SQLException ex) {
+          LOGGER.error("Failed to return connection to pool after exception", ex);
+        }
+      }
       throw new UnsupportedOperationException(e);
     }
   }
 
+  // This overload accepts an externally-managed connection (e.g., for transactions)
+  // The connection is NOT passed to iterators since the caller manages its lifecycle
   protected CloseableIterator<Document> queryWithParser(
       Connection connection,
       org.hypertrace.core.documentstore.query.Query query,
@@ -1292,6 +1311,12 @@ public abstract class PostgresCollection implements Collection {
       super(resultSet, documentType);
     }
 
+    // New constructors that accept connection
+    public PostgresResultIteratorWithBasicTypes(
+        ResultSet resultSet, Connection connection, DocumentType documentType) {
+      super(resultSet, connection, documentType);
+    }
+
     @Override
     public Document next() {
       try {
@@ -1439,6 +1464,7 @@ public abstract class PostgresCollection implements Collection {
 
     protected final ObjectMapper MAPPER = new ObjectMapper();
     protected ResultSet resultSet;
+    protected Connection connection; // Hold reference to connection for cleanup
     protected boolean cursorMovedForward = false;
     protected boolean hasNext = false;
 
@@ -1446,20 +1472,34 @@ public abstract class PostgresCollection implements Collection {
     protected DocumentType documentType;
 
     public PostgresResultIterator(ResultSet resultSet) {
-      this(resultSet, true);
+      this(resultSet, null, true, DocumentType.NESTED);
     }
 
     PostgresResultIterator(ResultSet resultSet, boolean removeDocumentId) {
-      this(resultSet, removeDocumentId, DocumentType.NESTED);
+      this(resultSet, null, removeDocumentId, DocumentType.NESTED);
     }
 
     public PostgresResultIterator(ResultSet resultSet, DocumentType documentType) {
-      this(resultSet, true, documentType);
+      this(resultSet, null, true, documentType);
+    }
+
+    // New constructor that accepts connection
+    public PostgresResultIterator(ResultSet resultSet, Connection connection) {
+      this(resultSet, connection, true, DocumentType.NESTED);
+    }
+
+    public PostgresResultIterator(
+        ResultSet resultSet, Connection connection, DocumentType documentType) {
+      this(resultSet, connection, true, documentType);
     }
 
     PostgresResultIterator(
-        ResultSet resultSet, boolean removeDocumentId, DocumentType documentType) {
+        ResultSet resultSet,
+        Connection connection,
+        boolean removeDocumentId,
+        DocumentType documentType) {
       this.resultSet = resultSet;
+      this.connection = connection;
       this.removeDocumentId = removeDocumentId;
       this.documentType = documentType;
     }
@@ -1521,7 +1561,16 @@ public abstract class PostgresCollection implements Collection {
           resultSet.close();
         }
       } catch (SQLException ex) {
-        LOGGER.error("Unable to close connection", ex);
+        LOGGER.error("Unable to close resultSet", ex);
+      }
+      // Return pooled connection back to pool
+      if (connection != null) {
+        try {
+          connection.close(); // For pooled connections, close() returns them to the pool
+          LOGGER.debug("Returned connection to pool: {}", connection);
+        } catch (SQLException ex) {
+          LOGGER.error("Unable to close/return connection to pool", ex);
+        }
       }
     }
 
@@ -1538,11 +1587,21 @@ public abstract class PostgresCollection implements Collection {
   static class PostgresResultIteratorWithMetaData extends PostgresResultIterator {
 
     public PostgresResultIteratorWithMetaData(ResultSet resultSet) {
-      super(resultSet, true);
+      super(resultSet, null, true, DocumentType.NESTED);
     }
 
     PostgresResultIteratorWithMetaData(ResultSet resultSet, boolean removeDocumentId) {
-      super(resultSet, removeDocumentId);
+      super(resultSet, null, removeDocumentId, DocumentType.NESTED);
+    }
+
+    // New constructor that accepts connection
+    public PostgresResultIteratorWithMetaData(ResultSet resultSet, Connection connection) {
+      super(resultSet, connection, true, DocumentType.NESTED);
+    }
+
+    PostgresResultIteratorWithMetaData(
+        ResultSet resultSet, Connection connection, boolean removeDocumentId) {
+      super(resultSet, connection, removeDocumentId, DocumentType.NESTED);
     }
 
     @Override

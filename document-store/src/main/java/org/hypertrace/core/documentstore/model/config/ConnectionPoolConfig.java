@@ -14,10 +14,10 @@ import lombok.experimental.Accessors;
 @Accessors(fluent = true)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class ConnectionPoolConfig {
-  @NonNull @Nonnegative @Builder.Default Integer maxConnections = 16;
+  @NonNull @Nonnegative @Builder.Default Integer maxConnections = 1600;
 
   // Time duration to wait for obtaining a connection from the pool
-  @NonNull @Builder.Default Duration connectionAccessTimeout = Duration.ofSeconds(10);
+  @NonNull @Builder.Default Duration connectionAccessTimeout = Duration.ofSeconds(100);
 
   // Time duration to wait for surrendering an idle connection back to the pool
   @NonNull @Builder.Default Duration connectionSurrenderTimeout = Duration.ofMinutes(5);

@@ -25,6 +25,11 @@ public class PostgresQueryExecutor {
 
   protected ResultSet execute(final Connection connection, PostgresQueryParser queryParser)
       throws SQLException {
+    // Artificial 10ms delay using pg_sleep
+    try (PreparedStatement sleepStatement = connection.prepareStatement("SELECT pg_sleep(0.05)")) {
+      sleepStatement.execute();
+    }
+
     final String sqlQuery = queryParser.parse();
     final PreparedStatement preparedStatement =
         buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build(), connection);
