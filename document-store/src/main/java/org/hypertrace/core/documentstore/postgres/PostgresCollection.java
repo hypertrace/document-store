@@ -829,9 +829,11 @@ public abstract class PostgresCollection implements Collection {
     String subQuery = queryParser.parse();
     String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(countWithParser)", subQuery);
     try {
+      Connection connection = client.getPooledConnection();
+      connection.setAutoCommit(true);
       PreparedStatement preparedStatement =
           queryExecutor.buildPreparedStatement(
-              sqlQuery, queryParser.getParamsBuilder().build(), client.getConnection());
+              sqlQuery, queryParser.getParamsBuilder().build(), connection);
       ResultSet resultSet = preparedStatement.executeQuery();
       resultSet.next();
       return resultSet.getLong(1);
@@ -862,9 +864,10 @@ public abstract class PostgresCollection implements Collection {
         return new PostgresResultIteratorWithBasicTypes(resultSet, connection, DocumentType.FLAT);
       }
     } catch (Exception e) {
-      // If exception occurs before iterator is created, clean up connection immediately
       if (connection != null) {
         try {
+          // Reset autoCommit to pool default (false) before returning connection
+          connection.setAutoCommit(false);
           connection.close();
           LOGGER.debug("Returned connection to pool after exception: {}", connection);
         } catch (SQLException ex) {
@@ -1564,6 +1567,8 @@ public abstract class PostgresCollection implements Collection {
       // Return pooled connection back to pool
       if (connection != null) {
         try {
+          // Reset autoCommit to pool default (false) before returning connection
+          connection.setAutoCommit(false);
           connection.close(); // For pooled connections, close() returns them to the pool
           LOGGER.debug("Returned connection to pool: {}", connection);
         } catch (SQLException ex) {

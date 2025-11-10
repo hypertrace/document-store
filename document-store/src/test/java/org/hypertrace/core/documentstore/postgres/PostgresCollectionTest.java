@@ -70,6 +70,7 @@ class PostgresCollectionTest {
 
   @Mock private PostgresClient mockClient;
   @Mock private Connection mockConnection;
+  @Mock private Connection mockPooledConnection;
   @Mock private PreparedStatement mockSelectPreparedStatement;
   @Mock private PreparedStatement mockUpdatePreparedStatement;
   @Mock private ResultSet mockResultSet;
@@ -496,7 +497,9 @@ class PostgresCollectionTest {
             COLLECTION_NAME);
 
     when(mockClient.getConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockClient.getPooledConnection()).thenReturn(mockPooledConnection);
+    when(mockPooledConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(true).thenReturn(false);
     when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
@@ -551,8 +554,9 @@ class PostgresCollectionTest {
     assertFalse(oldDocument.hasNext());
 
     // Obtain 2 connections: One for update and one for selecting
-    verify(mockClient, times(2)).getConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockClient, times(1)).getPooledConnection();
+    verify(mockClient, times(1)).getConnection();
+    verify(mockPooledConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
@@ -666,7 +670,9 @@ class PostgresCollectionTest {
             COLLECTION_NAME);
 
     when(mockClient.getConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockClient.getPooledConnection()).thenReturn(mockPooledConnection);
+    when(mockPooledConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(false);
     when(mockResultSet.isClosed()).thenReturn(false, true);
@@ -713,9 +719,11 @@ class PostgresCollectionTest {
 
     assertFalse(oldDocument.hasNext());
 
-    // Obtain 2 connections: One for update and one for selecting
-    verify(mockClient, times(2)).getConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    // Obtain 2 connections: One for update and one for selecting. SELECT obtains a pooled
+    // connection
+    verify(mockClient, times(1)).getPooledConnection();
+    verify(mockClient, times(1)).getConnection();
+    verify(mockPooledConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
@@ -759,7 +767,7 @@ class PostgresCollectionTest {
                 + "document->'date' DESC NULLS LAST",
             COLLECTION_NAME);
 
-    when(mockClient.getConnection()).thenReturn(mockConnection);
+    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenThrow(SQLException.class);
 
@@ -769,7 +777,7 @@ class PostgresCollectionTest {
             postgresCollection.bulkUpdate(
                 query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
 
-    verify(mockClient, times(1)).getConnection();
+    verify(mockClient, times(1)).getPooledConnection();
     verify(mockConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
@@ -799,7 +807,9 @@ class PostgresCollectionTest {
             COLLECTION_NAME);
 
     when(mockClient.getConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockClient.getPooledConnection()).thenReturn(mockPooledConnection);
+    when(mockPooledConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenThrow(SQLException.class);
 
     final String updateQuery =
@@ -845,8 +855,9 @@ class PostgresCollectionTest {
                 query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build()));
 
     // Obtain 2 connections: One for update and one for selecting
-    verify(mockClient, times(2)).getConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockClient, times(1)).getPooledConnection();
+    verify(mockClient, times(1)).getConnection();
+    verify(mockPooledConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
