@@ -847,28 +847,26 @@ public abstract class PostgresCollection implements Collection {
   protected CloseableIterator<Document> queryWithParser(
       org.hypertrace.core.documentstore.query.Query query,
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
-    Connection pooledConnection = null;
+    Connection connection = null;
     try {
-      pooledConnection = client.getPooledConnection();
-      // Set autocommit for read-only queries to avoid "idle in transaction" state
-      pooledConnection.setAutoCommit(true);
-      LOGGER.info("Executing query on connection: " + pooledConnection.toString());
-      ResultSet resultSet = queryExecutor.execute(pooledConnection, queryParser);
+      connection = client.getPooledConnection();
+      connection.setAutoCommit(true);
+
+      ResultSet resultSet = queryExecutor.execute(connection, queryParser);
 
       if (queryParser.getPgColTransformer().getDocumentType() == DocumentType.NESTED) {
         return !query.getSelections().isEmpty()
-            ? new PostgresResultIteratorWithMetaData(resultSet, pooledConnection)
-            : new PostgresResultIterator(resultSet, pooledConnection);
+            ? new PostgresResultIteratorWithMetaData(resultSet, connection)
+            : new PostgresResultIterator(resultSet, connection);
       } else {
-        return new PostgresResultIteratorWithBasicTypes(
-            resultSet, pooledConnection, DocumentType.FLAT);
+        return new PostgresResultIteratorWithBasicTypes(resultSet, connection, DocumentType.FLAT);
       }
     } catch (Exception e) {
       // If exception occurs before iterator is created, clean up connection immediately
-      if (pooledConnection != null) {
+      if (connection != null) {
         try {
-          pooledConnection.close();
-          LOGGER.debug("Returned connection to pool after exception: {}", pooledConnection);
+          connection.close();
+          LOGGER.debug("Returned connection to pool after exception: {}", connection);
         } catch (SQLException ex) {
           LOGGER.error("Failed to return connection to pool after exception", ex);
         }
@@ -1594,14 +1592,8 @@ public abstract class PostgresCollection implements Collection {
       super(resultSet, null, removeDocumentId, DocumentType.NESTED);
     }
 
-    // New constructor that accepts connection
     public PostgresResultIteratorWithMetaData(ResultSet resultSet, Connection connection) {
       super(resultSet, connection, true, DocumentType.NESTED);
-    }
-
-    PostgresResultIteratorWithMetaData(
-        ResultSet resultSet, Connection connection, boolean removeDocumentId) {
-      super(resultSet, connection, removeDocumentId, DocumentType.NESTED);
     }
 
     @Override
