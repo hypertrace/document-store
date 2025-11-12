@@ -33,6 +33,7 @@ class PostgresClient {
     this.connectionPool = new PostgresConnectionPool(connectionConfig);
   }
 
+  // todo: Deprecate this method. All connections should be obtained from the connection pool.
   public synchronized Connection getConnection() {
     try {
       if (connection == null) {
@@ -48,8 +49,20 @@ class PostgresClient {
     return connection;
   }
 
+  /**
+   * Get a pooled connection with autoCommit=true. Use for read queries that don't need manual
+   * transaction management.
+   */
   public Connection getPooledConnection() throws SQLException {
     return connectionPool.getConnection();
+  }
+
+  /**
+   * Get a pooled connection with autoCommit=false. Use for operations that require manual
+   * transaction management (commit/rollback).
+   */
+  public Connection getTransactionalConnection() throws SQLException {
+    return connectionPool.getTransactionalConnection();
   }
 
   public Map<String, String> getCustomParameters() {

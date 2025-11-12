@@ -18,29 +18,52 @@ import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectio
 
 @Slf4j
 class PostgresConnectionPool {
+
   private static final String VALIDATION_QUERY = "SELECT 1";
   private static final Duration VALIDATION_QUERY_TIMEOUT = Duration.ofSeconds(5);
 
-  private final PoolingDataSource<PoolableConnection> dataSource;
+  // data source for pools with auto-commits enabled
+  private final PoolingDataSource<PoolableConnection> regularDataSource;
+  // data source for pools with auto-commits disabled. This is used for transactional operations
+  // that manage their own commit logic
+  private final PoolingDataSource<PoolableConnection> transactionalDataSource;
 
   PostgresConnectionPool(final PostgresConnectionConfig config) {
-    this.dataSource = createPooledDataSource(config);
+    this.regularDataSource = createPooledDataSource(config, true);
+    this.transactionalDataSource = createPooledDataSource(config, false);
   }
 
+  /**
+   * Get a connection from the regular pool with autoCommit=true. Use for read-only queries that
+   * don't need manual transaction management.
+   */
   public Connection getConnection() throws SQLException {
-    return dataSource.getConnection();
+    return regularDataSource.getConnection();
+  }
+
+  /**
+   * Get a connection from the transactional pool with autoCommit=false. Use for operations that
+   * require manual transaction management (commit/rollback).
+   */
+  public Connection getTransactionalConnection() throws SQLException {
+    return transactionalDataSource.getConnection();
   }
 
   public void close() {
     try {
-      dataSource.close();
+      regularDataSource.close();
     } catch (final SQLException e) {
-      log.warn("Unable to close Postgres connection pool", e);
+      log.warn("Unable to close regular Postgres connection pool", e);
+    }
+    try {
+      transactionalDataSource.close();
+    } catch (final SQLException e) {
+      log.warn("Unable to close transactional Postgres connection pool", e);
     }
   }
 
   private PoolingDataSource<PoolableConnection> createPooledDataSource(
-      final PostgresConnectionConfig config) {
+      final PostgresConnectionConfig config, final boolean autoCommit) {
     final ConnectionFactory connectionFactory =
         new DriverManagerConnectionFactory(config.toConnectionString(), config.buildProperties());
     final PoolableConnectionFactory poolableConnectionFactory =
@@ -50,7 +73,7 @@ class PostgresConnectionPool {
 
     final ConnectionPoolConfig poolConfig = config.connectionPoolConfig();
     setPoolProperties(connectionPool, poolConfig);
-    setFactoryProperties(poolableConnectionFactory, connectionPool);
+    setFactoryProperties(poolableConnectionFactory, connectionPool, autoCommit);
 
     return new PoolingDataSource<>(connectionPool);
   }
@@ -72,12 +95,13 @@ class PostgresConnectionPool {
 
   private void setFactoryProperties(
       PoolableConnectionFactory poolableConnectionFactory,
-      GenericObjectPool<PoolableConnection> connectionPool) {
+      GenericObjectPool<PoolableConnection> connectionPool,
+      boolean autoCommit) {
     poolableConnectionFactory.setPool(connectionPool);
     poolableConnectionFactory.setValidationQuery(VALIDATION_QUERY);
     poolableConnectionFactory.setValidationQueryTimeout((int) VALIDATION_QUERY_TIMEOUT.toSeconds());
     poolableConnectionFactory.setDefaultReadOnly(false);
-    poolableConnectionFactory.setDefaultAutoCommit(false);
+    poolableConnectionFactory.setDefaultAutoCommit(autoCommit);
     poolableConnectionFactory.setDefaultTransactionIsolation(TRANSACTION_READ_COMMITTED);
     poolableConnectionFactory.setPoolStatements(false);
   }

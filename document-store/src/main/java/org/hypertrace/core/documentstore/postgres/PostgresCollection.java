@@ -492,7 +492,7 @@ public abstract class PostgresCollection implements Collection {
       throws IOException {
     updateValidator.validate(updates);
 
-    try (final Connection connection = client.getPooledConnection()) {
+    try (final Connection connection = client.getTransactionalConnection()) {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser parser =
           new org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser(
               tableIdentifier, query);
@@ -828,18 +828,13 @@ public abstract class PostgresCollection implements Collection {
       org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser queryParser) {
     String subQuery = queryParser.parse();
     String sqlQuery = String.format("SELECT COUNT(*) FROM (%s) p(countWithParser)", subQuery);
-    try (Connection connection = client.getPooledConnection()) {
-      connection.setAutoCommit(true);
-      try (PreparedStatement preparedStatement =
-              queryExecutor.buildPreparedStatement(
-                  sqlQuery, queryParser.getParamsBuilder().build(), connection);
-          ResultSet resultSet = preparedStatement.executeQuery()) {
-        resultSet.next();
-        long count = resultSet.getLong(1);
-        // Reset autoCommit before returning connection to pool
-        connection.setAutoCommit(false);
-        return count;
-      }
+    try (Connection connection = client.getPooledConnection();
+        PreparedStatement preparedStatement =
+            queryExecutor.buildPreparedStatement(
+                sqlQuery, queryParser.getParamsBuilder().build(), connection);
+        ResultSet resultSet = preparedStatement.executeQuery()) {
+      resultSet.next();
+      return resultSet.getLong(1);
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException querying documents. Original query: {}, sql query: {}", query, sqlQuery, e);
@@ -855,8 +850,6 @@ public abstract class PostgresCollection implements Collection {
     Connection connection = null;
     try {
       connection = client.getPooledConnection();
-      connection.setAutoCommit(true);
-
       ResultSet resultSet = queryExecutor.execute(connection, queryParser);
 
       if (queryParser.getPgColTransformer().getDocumentType() == DocumentType.NESTED) {
@@ -869,8 +862,6 @@ public abstract class PostgresCollection implements Collection {
     } catch (Exception e) {
       if (connection != null) {
         try {
-          // Reset autoCommit to pool default (false) before returning connection
-          connection.setAutoCommit(false);
           connection.close();
           LOGGER.debug("Returned connection to pool after exception: {}", connection);
         } catch (SQLException ex) {
@@ -1570,9 +1561,7 @@ public abstract class PostgresCollection implements Collection {
       // Return pooled connection back to pool
       if (connection != null) {
         try {
-          // Reset autoCommit to pool default (false) before returning connection
-          connection.setAutoCommit(false);
-          connection.close(); // For pooled connections, close() returns them to the pool
+          connection.close();
           LOGGER.debug("Returned connection to pool: {}", connection);
         } catch (SQLException ex) {
           LOGGER.error("Unable to close/return connection to pool", ex);
