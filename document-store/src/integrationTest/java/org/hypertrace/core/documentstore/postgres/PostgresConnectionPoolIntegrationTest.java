@@ -11,8 +11,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
@@ -123,7 +121,7 @@ public class PostgresConnectionPoolIntegrationTest {
       }
 
       try (final PreparedStatement stmt2 =
-          transactionalConn.prepareStatement("SELECT 'transactional'");
+              transactionalConn.prepareStatement("SELECT 'transactional'");
           final ResultSet rs2 = stmt2.executeQuery()) {
         assertTrue(rs2.next());
         assertEquals("transactional", rs2.getString(1));
@@ -186,7 +184,7 @@ public class PostgresConnectionPoolIntegrationTest {
 
       // Verify data was committed
       try (final PreparedStatement stmt =
-          conn.prepareStatement("SELECT value FROM test_table WHERE id = 1");
+              conn.prepareStatement("SELECT value FROM test_table WHERE id = 1");
           final ResultSet rs = stmt.executeQuery()) {
         assertTrue(rs.next());
         assertEquals("test", rs.getString(1));
@@ -203,7 +201,7 @@ public class PostgresConnectionPoolIntegrationTest {
 
       // Verify data was not committed
       try (final PreparedStatement stmt =
-          conn.prepareStatement("SELECT value FROM test_table WHERE id = 2");
+              conn.prepareStatement("SELECT value FROM test_table WHERE id = 2");
           final ResultSet rs = stmt.executeQuery()) {
         assertFalse(rs.next(), "Data should have been rolled back");
       }
