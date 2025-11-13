@@ -162,7 +162,6 @@ public class DocStoreQueryV1Test {
 
     Datastore mongoDatastore = DatastoreProvider.getDatastore("Mongo", config);
     System.out.println(mongoDatastore.listCollections());
-
     postgres =
         new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
             .withEnv("POSTGRES_PASSWORD", "postgres")

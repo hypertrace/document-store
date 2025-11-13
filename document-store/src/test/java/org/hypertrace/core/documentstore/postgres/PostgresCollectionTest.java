@@ -64,12 +64,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 class PostgresCollectionTest {
+
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String COLLECTION_NAME = "test_collection";
   private static final long currentTime = 1658956123L;
 
   @Mock private PostgresClient mockClient;
   @Mock private Connection mockConnection;
+  @Mock private Connection mockPooledConnection;
+  @Mock private Connection mockTransactionalConnection;
   @Mock private PreparedStatement mockSelectPreparedStatement;
   @Mock private PreparedStatement mockUpdatePreparedStatement;
   @Mock private ResultSet mockResultSet;
@@ -144,8 +147,9 @@ class PostgresCollectionTest {
                 + "LIMIT 1 "
                 + "FOR UPDATE",
             COLLECTION_NAME);
-    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockClient.getTransactionalConnection()).thenReturn(mockTransactionalConnection);
+    when(mockTransactionalConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(true);
     when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
@@ -182,7 +186,8 @@ class PostgresCollectionTest {
                 + "FROM concatenated "
                 + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
-    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
+    when(mockTransactionalConnection.prepareStatement(updateQuery))
+        .thenReturn(mockUpdatePreparedStatement);
 
     when(mockClock.millis()).thenReturn(currentTime);
 
@@ -194,13 +199,13 @@ class PostgresCollectionTest {
     assertEquals(document, oldDocument.get());
     assertEquals(DocumentType.NESTED, document.getDocumentType());
 
-    verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockClient, times(1)).getTransactionalConnection();
+    verify(mockTransactionalConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
 
-    verify(mockConnection, times(1)).prepareStatement(updateQuery);
+    verify(mockTransactionalConnection, times(1)).prepareStatement(updateQuery);
 
     verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
     verify(mockUpdatePreparedStatement).setObject(2, currentTime);
@@ -212,13 +217,13 @@ class PostgresCollectionTest {
     verify(mockUpdatePreparedStatement).setObject(8, "2022-08-09T18:53:17Z");
     verify(mockUpdatePreparedStatement).setObject(9, id);
     // Ensure the transaction is committed
-    verify(mockConnection, times(1)).commit();
+    verify(mockTransactionalConnection, times(1)).commit();
 
     // Ensure the resources are closed
     verify(mockResultSet, times(1)).close();
     verify(mockSelectPreparedStatement, times(1)).close();
     verify(mockUpdatePreparedStatement, times(1)).close();
-    verify(mockConnection, times(1)).close();
+    verify(mockTransactionalConnection, times(1)).close();
   }
 
   @Test
@@ -246,8 +251,9 @@ class PostgresCollectionTest {
                 + "FOR UPDATE",
             COLLECTION_NAME);
 
-    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockClient.getTransactionalConnection()).thenReturn(mockTransactionalConnection);
+    when(mockTransactionalConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(true);
     when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
@@ -282,7 +288,8 @@ class PostgresCollectionTest {
                 + "FROM concatenated "
                 + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
-    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
+    when(mockTransactionalConnection.prepareStatement(updateQuery))
+        .thenReturn(mockUpdatePreparedStatement);
 
     when(mockClock.millis()).thenReturn(currentTime);
 
@@ -292,13 +299,13 @@ class PostgresCollectionTest {
 
     assertFalse(oldDocument.isPresent());
 
-    verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockClient, times(1)).getTransactionalConnection();
+    verify(mockTransactionalConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
 
-    verify(mockConnection, times(1)).prepareStatement(updateQuery);
+    verify(mockTransactionalConnection, times(1)).prepareStatement(updateQuery);
 
     verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
     verify(mockUpdatePreparedStatement).setObject(2, currentTime);
@@ -310,13 +317,13 @@ class PostgresCollectionTest {
     verify(mockUpdatePreparedStatement).setObject(8, "2022-08-09T18:53:17Z");
     verify(mockUpdatePreparedStatement).setObject(9, id);
     // Ensure the transaction is committed
-    verify(mockConnection, times(1)).commit();
+    verify(mockTransactionalConnection, times(1)).commit();
 
     // Ensure the resources are closed
     verify(mockResultSet, times(1)).close();
     verify(mockSelectPreparedStatement, times(1)).close();
     verify(mockUpdatePreparedStatement, times(1)).close();
-    verify(mockConnection, times(1)).close();
+    verify(mockTransactionalConnection, times(1)).close();
   }
 
   @Test
@@ -341,8 +348,9 @@ class PostgresCollectionTest {
                 + "LIMIT 1 "
                 + "FOR UPDATE",
             COLLECTION_NAME);
-    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockClient.getTransactionalConnection()).thenReturn(mockTransactionalConnection);
+    when(mockTransactionalConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(false);
     when(mockResultSet.isClosed()).thenReturn(false, true);
@@ -353,19 +361,19 @@ class PostgresCollectionTest {
 
     assertTrue(oldDocument.isEmpty());
 
-    verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockClient, times(1)).getTransactionalConnection();
+    verify(mockTransactionalConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
 
     // Ensure the transaction is committed
-    verify(mockConnection, times(1)).commit();
+    verify(mockTransactionalConnection, times(1)).commit();
 
     // Ensure the resources are closed
     verify(mockResultSet, times(1)).close();
     verify(mockSelectPreparedStatement, times(1)).close();
-    verify(mockConnection, times(1)).close();
+    verify(mockTransactionalConnection, times(1)).close();
   }
 
   @Test
@@ -392,13 +400,6 @@ class PostgresCollectionTest {
                 + "LIMIT 1 "
                 + "FOR UPDATE",
             COLLECTION_NAME);
-    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
-    when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
-    when(mockResultSet.next()).thenReturn(true);
-    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
-    mockResultSetMetadata(id);
-
     final String updateQuery =
         String.format(
             "WITH concatenated AS "
@@ -424,7 +425,17 @@ class PostgresCollectionTest {
                 + "FROM concatenated "
                 + "WHERE \"%s\".id=concatenated.id",
             COLLECTION_NAME, COLLECTION_NAME, COLLECTION_NAME);
-    when(mockConnection.prepareStatement(updateQuery)).thenReturn(mockUpdatePreparedStatement);
+
+    when(mockClient.getTransactionalConnection()).thenReturn(mockTransactionalConnection);
+    when(mockTransactionalConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
+    when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
+    when(mockResultSet.next()).thenReturn(true);
+    when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
+    mockResultSetMetadata(id);
+
+    when(mockTransactionalConnection.prepareStatement(updateQuery))
+        .thenReturn(mockUpdatePreparedStatement);
 
     when(mockClock.millis()).thenReturn(currentTime);
 
@@ -436,13 +447,13 @@ class PostgresCollectionTest {
             postgresCollection.update(
                 query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
 
-    verify(mockClient, times(1)).getPooledConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockClient, times(1)).getTransactionalConnection();
+    verify(mockTransactionalConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
 
-    verify(mockConnection, times(1)).prepareStatement(updateQuery);
+    verify(mockTransactionalConnection, times(1)).prepareStatement(updateQuery);
 
     verify(mockUpdatePreparedStatement).setObject(1, "{lastUpdatedTime}");
     verify(mockUpdatePreparedStatement).setObject(2, currentTime);
@@ -455,13 +466,13 @@ class PostgresCollectionTest {
     verify(mockUpdatePreparedStatement).setObject(9, id);
 
     // Ensure the transaction is rolled back
-    verify(mockConnection, times(1)).rollback();
+    verify(mockTransactionalConnection, times(1)).rollback();
 
     // Ensure the resources are closed
     verify(mockResultSet, times(1)).close();
     verify(mockSelectPreparedStatement, times(1)).close();
     verify(mockUpdatePreparedStatement, times(1)).close();
-    verify(mockConnection, times(1)).close();
+    verify(mockTransactionalConnection, times(1)).close();
   }
 
   @Test
@@ -496,7 +507,9 @@ class PostgresCollectionTest {
             COLLECTION_NAME);
 
     when(mockClient.getConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockClient.getPooledConnection()).thenReturn(mockPooledConnection);
+    when(mockPooledConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(true).thenReturn(false);
     when(mockResultSet.getMetaData()).thenReturn(mockResultSetMetaData);
@@ -551,8 +564,9 @@ class PostgresCollectionTest {
     assertFalse(oldDocument.hasNext());
 
     // Obtain 2 connections: One for update and one for selecting
-    verify(mockClient, times(2)).getConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockClient, times(1)).getPooledConnection();
+    verify(mockClient, times(1)).getConnection();
+    verify(mockPooledConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
@@ -666,7 +680,9 @@ class PostgresCollectionTest {
             COLLECTION_NAME);
 
     when(mockClient.getConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockClient.getPooledConnection()).thenReturn(mockPooledConnection);
+    when(mockPooledConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenReturn(mockResultSet);
     when(mockResultSet.next()).thenReturn(false);
     when(mockResultSet.isClosed()).thenReturn(false, true);
@@ -713,9 +729,11 @@ class PostgresCollectionTest {
 
     assertFalse(oldDocument.hasNext());
 
-    // Obtain 2 connections: One for update and one for selecting
-    verify(mockClient, times(2)).getConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    // Obtain 2 connections: One for update and one for selecting. SELECT obtains a pooled
+    // connection
+    verify(mockClient, times(1)).getPooledConnection();
+    verify(mockClient, times(1)).getConnection();
+    verify(mockPooledConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
@@ -759,7 +777,7 @@ class PostgresCollectionTest {
                 + "document->'date' DESC NULLS LAST",
             COLLECTION_NAME);
 
-    when(mockClient.getConnection()).thenReturn(mockConnection);
+    when(mockClient.getPooledConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenThrow(SQLException.class);
 
@@ -769,7 +787,7 @@ class PostgresCollectionTest {
             postgresCollection.bulkUpdate(
                 query, updates, UpdateOptions.builder().returnDocumentType(BEFORE_UPDATE).build()));
 
-    verify(mockClient, times(1)).getConnection();
+    verify(mockClient, times(1)).getPooledConnection();
     verify(mockConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
@@ -799,7 +817,9 @@ class PostgresCollectionTest {
             COLLECTION_NAME);
 
     when(mockClient.getConnection()).thenReturn(mockConnection);
-    when(mockConnection.prepareStatement(selectQuery)).thenReturn(mockSelectPreparedStatement);
+    when(mockClient.getPooledConnection()).thenReturn(mockPooledConnection);
+    when(mockPooledConnection.prepareStatement(selectQuery))
+        .thenReturn(mockSelectPreparedStatement);
     when(mockSelectPreparedStatement.executeQuery()).thenThrow(SQLException.class);
 
     final String updateQuery =
@@ -845,8 +865,9 @@ class PostgresCollectionTest {
                 query, updates, UpdateOptions.builder().returnDocumentType(AFTER_UPDATE).build()));
 
     // Obtain 2 connections: One for update and one for selecting
-    verify(mockClient, times(2)).getConnection();
-    verify(mockConnection, times(1)).prepareStatement(selectQuery);
+    verify(mockClient, times(1)).getPooledConnection();
+    verify(mockClient, times(1)).getConnection();
+    verify(mockPooledConnection, times(1)).prepareStatement(selectQuery);
     verify(mockSelectPreparedStatement, times(1)).setObject(1, "Soap");
     verify(mockSelectPreparedStatement, times(1)).setObject(2, "2022-08-09T18:53:17Z");
     verify(mockSelectPreparedStatement, times(1)).executeQuery();
