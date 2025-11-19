@@ -20,6 +20,11 @@ public class JsonIdentifierExpression extends IdentifierExpression {
   String columnName; // e.g., "customAttr" (the top-level JSONB column)
   List<String> jsonPath; // e.g., ["myAttribute", "nestedField"]
 
+  public static JsonIdentifierExpression of(final String columnName) {
+    throw new IllegalArgumentException(
+        "JSON path cannot be null or empty. Use of(columnName, path...) instead.");
+  }
+
   public static JsonIdentifierExpression of(final String columnName, final String... pathElements) {
     if (pathElements == null || pathElements.length == 0) {
       // In this case, use IdentifierExpression
