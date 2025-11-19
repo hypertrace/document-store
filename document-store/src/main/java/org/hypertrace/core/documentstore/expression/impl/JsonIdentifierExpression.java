@@ -2,7 +2,7 @@ package org.hypertrace.core.documentstore.expression.impl;
 
 import java.util.List;
 import lombok.EqualsAndHashCode;
-import lombok.Value;
+import lombok.Getter;
 import org.hypertrace.core.documentstore.parser.FieldTransformationVisitor;
 import org.hypertrace.core.documentstore.postgres.utils.BasicPostgresSecurityValidator;
 
@@ -13,12 +13,17 @@ import org.hypertrace.core.documentstore.postgres.utils.BasicPostgresSecurityVal
  *
  * <p>This generates SQL like: customAttr -> 'myAttribute' -> 'nestedField' (returns JSON)
  */
-@Value
+@Getter
 @EqualsAndHashCode(callSuper = true)
 public class JsonIdentifierExpression extends IdentifierExpression {
 
   String columnName; // e.g., "customAttr" (the top-level JSONB column)
   List<String> jsonPath; // e.g., ["myAttribute", "nestedField"]
+
+  public static JsonIdentifierExpression of(final String columnName) {
+    throw new IllegalArgumentException(
+        "JSON path cannot be null or empty. Use of(columnName, path...) instead.");
+  }
 
   public static JsonIdentifierExpression of(final String columnName, final String... pathElements) {
     if (pathElements == null || pathElements.length == 0) {
@@ -44,7 +49,7 @@ public class JsonIdentifierExpression extends IdentifierExpression {
     return new JsonIdentifierExpression(fullName, columnName, unmodifiablePath);
   }
 
-  private JsonIdentifierExpression(String name, String columnName, List<String> jsonPath) {
+  protected JsonIdentifierExpression(String name, String columnName, List<String> jsonPath) {
     super(name);
     this.columnName = columnName;
     this.jsonPath = jsonPath;
