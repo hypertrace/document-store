@@ -183,5 +183,47 @@
     "price": 10,
     "quantity": 5,
     "date": "2016-02-06T20:20:13Z"
+  },
+  {
+    "_id": 9,
+    "item": "Bottle",
+    "price": 15,
+    "quantity": 3,
+    "date": "2016-03-01T10:00:00Z"
+  },
+  {
+    "_id": 10,
+    "item": "Cup",
+    "price": 8,
+    "quantity": 2,
+    "date": "2016-04-01T10:00:00Z"
+  },
+  {
+    "_id": 11,
+    "item": "Pencil",
+    "price": 2,
+    "quantity": 50,
+    "date": "2016-05-01T10:00:00Z"
+  },
+  {
+    "_id": 12,
+    "item": "Eraser",
+    "price": 1,
+    "quantity": 100,
+    "date": "2016-06-01T10:00:00Z"
+  },
+  {
+    "_id": 13,
+    "item": "Notebook",
+    "price": 25,
+    "quantity": 10,
+    "date": "2016-07-01T10:00:00Z"
+  },
+  {
+    "_id": 14,
+    "item": "Pen",
+    "price": 5,
+    "quantity": 20,
+    "date": "2016-08-01T10:00:00Z"
   }
 ]
