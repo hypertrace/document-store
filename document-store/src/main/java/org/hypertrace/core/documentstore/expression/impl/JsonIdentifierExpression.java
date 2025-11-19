@@ -2,7 +2,7 @@ package org.hypertrace.core.documentstore.expression.impl;
 
 import java.util.List;
 import lombok.EqualsAndHashCode;
-import lombok.Value;
+import lombok.Getter;
 import org.hypertrace.core.documentstore.parser.FieldTransformationVisitor;
 import org.hypertrace.core.documentstore.postgres.utils.BasicPostgresSecurityValidator;
 
@@ -13,7 +13,7 @@ import org.hypertrace.core.documentstore.postgres.utils.BasicPostgresSecurityVal
  *
  * <p>This generates SQL like: customAttr -> 'myAttribute' -> 'nestedField' (returns JSON)
  */
-@Value
+@Getter
 @EqualsAndHashCode(callSuper = true)
 public class JsonIdentifierExpression extends IdentifierExpression {
 
@@ -44,7 +44,7 @@ public class JsonIdentifierExpression extends IdentifierExpression {
     return new JsonIdentifierExpression(fullName, columnName, unmodifiablePath);
   }
 
-  private JsonIdentifierExpression(String name, String columnName, List<String> jsonPath) {
+  protected JsonIdentifierExpression(String name, String columnName, List<String> jsonPath) {
     super(name);
     this.columnName = columnName;
     this.jsonPath = jsonPath;
