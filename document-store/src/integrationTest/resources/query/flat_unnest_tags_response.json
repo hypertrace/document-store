@@ -1,22 +1,18 @@
 [
   {
-    "tags": "hygiene",
-    "count": 3
-  },
-  {
-    "tags": "personal-care",
-    "count": 2
-  },
-  {
-    "tags": "premium",
-    "count": 2
-  },
-  {
-    "tags": "home-decor",
+    "tags": "wholesale",
     "count": 1
   },
   {
-    "tags": "reflective",
+    "tags": "stationery",
+    "count": 2
+  },
+  {
+    "tags": "grooming",
+    "count": 2
+  },
+  {
+    "tags": "family-pack",
     "count": 1
   },
   {
@@ -24,31 +20,19 @@
     "count": 1
   },
   {
-    "tags": "hair-care",
-    "count": 2
-  },
-  {
-    "tags": "herbal",
+    "tags": "reflective",
     "count": 1
   },
   {
-    "tags": "budget",
-    "count": 2
-  },
-  {
-    "tags": "bulk",
-    "count": 2
-  },
-  {
-    "tags": "antibacterial",
+    "tags": "home-decor",
     "count": 1
   },
   {
-    "tags": "family-pack",
+    "tags": "writing",
     "count": 1
   },
   {
-    "tags": "grooming",
+    "tags": "premium",
     "count": 2
   },
   {
@@ -56,15 +40,39 @@
     "count": 1
   },
   {
+    "tags": "basic",
+    "count": 1
+  },
+  {
+    "tags": "personal-care",
+    "count": 2
+  },
+  {
     "tags": "essential",
     "count": 1
   },
   {
-    "tags": "wholesale",
+    "tags": "hygiene",
+    "count": 3
+  },
+  {
+    "tags": "budget",
+    "count": 2
+  },
+  {
+    "tags": "antibacterial",
     "count": 1
   },
   {
-    "tags": "basic",
+    "tags": "herbal",
     "count": 1
+  },
+  {
+    "tags": "bulk",
+    "count": 2
+  },
+  {
+    "tags": "hair-care",
+    "count": 2
   }
 ]

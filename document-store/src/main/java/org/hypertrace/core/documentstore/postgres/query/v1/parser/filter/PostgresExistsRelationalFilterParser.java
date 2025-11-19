@@ -6,10 +6,19 @@ import org.hypertrace.core.documentstore.expression.impl.JsonArrayIdentifierExpr
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 
 class PostgresExistsRelationalFilterParser implements PostgresRelationalFilterParser {
+
   @Override
   public String parse(
       final RelationalExpression expression, final PostgresRelationalFilterContext context) {
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
+    // If true:
+    // Regular fields -> IS NOT NULL
+    // Arrays -> IS NOT NULL and cardinality(...) > 0,
+    // JSONB arrays: IS NOT NULL and jsonb_array_length(...) > 0
+    // If false:
+    // Regular fields -> IS NULL
+    // Arrays -> IS NULL OR cardinality(...) = 0,
+    // JSONB arrays: IS NULL OR jsonb_array_length(...) > 0
     final boolean parsedRhs = !ConstantExpression.of(false).equals(expression.getRhs());
 
     // For array fields, EXISTS should check both NOT NULL and non-empty
