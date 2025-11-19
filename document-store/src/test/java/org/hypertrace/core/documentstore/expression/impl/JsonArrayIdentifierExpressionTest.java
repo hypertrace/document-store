@@ -55,7 +55,9 @@ class JsonArrayIdentifierExpressionTest {
         assertThrows(
             IllegalArgumentException.class, () -> JsonArrayIdentifierExpression.of("attributes"));
 
-    assertEquals("JSON path cannot be null or empty for array field", exception.getMessage());
+    assertEquals(
+        "JSON path cannot be null or empty. Use of(columnName, path...) instead.",
+        exception.getMessage());
   }
 
   @Test
@@ -65,7 +67,7 @@ class JsonArrayIdentifierExpressionTest {
             IllegalArgumentException.class,
             () -> JsonArrayIdentifierExpression.of("attributes", (List<String>) null));
 
-    assertEquals("JSON path cannot be null or empty", exception.getMessage());
+    assertEquals("JSON path cannot be null or empty for array field", exception.getMessage());
   }
 
   @Test
@@ -75,7 +77,7 @@ class JsonArrayIdentifierExpressionTest {
             IllegalArgumentException.class,
             () -> JsonArrayIdentifierExpression.of("attributes", Collections.emptyList()));
 
-    assertEquals("JSON path cannot be null or empty", exception.getMessage());
+    assertEquals("JSON path cannot be null or empty for array field", exception.getMessage());
   }
 
   @Test
