@@ -85,7 +85,8 @@ class PostgresNotInParserSelectorTest {
   void testVisitDocumentConstantExpression() {
     PostgresNotInParserSelector selector = new PostgresNotInParserSelector(true);
     ConstantExpression.DocumentConstantExpression expr =
-        (ConstantExpression.DocumentConstantExpression) ConstantExpression.of((org.hypertrace.core.documentstore.Document) null);
+        (ConstantExpression.DocumentConstantExpression)
+            ConstantExpression.of((org.hypertrace.core.documentstore.Document) null);
     PostgresInRelationalFilterParserInterface result = selector.visit(expr);
     assertNotNull(result);
   }

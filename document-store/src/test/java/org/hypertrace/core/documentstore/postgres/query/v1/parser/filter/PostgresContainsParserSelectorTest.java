@@ -84,8 +84,8 @@ class PostgresContainsParserSelectorTest {
   void testVisitDocumentConstantExpression() {
     PostgresContainsParserSelector selector = new PostgresContainsParserSelector(true);
     ConstantExpression.DocumentConstantExpression expr =
-        (ConstantExpression.DocumentConstantExpression) ConstantExpression.of(
-            (org.hypertrace.core.documentstore.Document) null);
+        (ConstantExpression.DocumentConstantExpression)
+            ConstantExpression.of((org.hypertrace.core.documentstore.Document) null);
     PostgresRelationalFilterParser result = selector.visit(expr);
     assertNotNull(result);
   }

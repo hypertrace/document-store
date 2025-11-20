@@ -80,8 +80,8 @@ class PostgresArrayTypeExtractorTest {
   @Test
   void testVisitDocumentConstantExpression() {
     ConstantExpression.DocumentConstantExpression expr =
-        (ConstantExpression.DocumentConstantExpression) ConstantExpression.of(
-            (org.hypertrace.core.documentstore.Document) null);
+        (ConstantExpression.DocumentConstantExpression)
+            ConstantExpression.of((org.hypertrace.core.documentstore.Document) null);
     String result = extractor.visit(expr);
     assertNull(result);
   }
