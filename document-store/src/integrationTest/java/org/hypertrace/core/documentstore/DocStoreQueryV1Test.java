@@ -3394,7 +3394,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("tags"),
+                      ArrayIdentifierExpression.of("tags"),
                       IN,
                       ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
               .build();
@@ -3466,6 +3466,106 @@ public class DocStoreQueryV1Test {
                       .operand(
                           RelationalExpression.of(
                               ArrayIdentifierExpression.of("tags"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("premium"))))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("price"), GTE, ConstantExpression.of(5)))
+                      .build())
+              .build();
+
+      long combinedArrayCount = flatCollection.count(combinedArrayQuery);
+      assertEquals(
+          2, combinedArrayCount, "Combined array IN with >= filter should find 2 documents");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testFlatPostgresCollectionInAndNotInOperatorsForArraysBackwardCompat(
+        String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test 1: IN operator on tags array field (string array)
+      // Find documents where tags contains "hygiene" OR "grooming"
+      // Expected: IDs 1, 5, 8 (hygiene) + IDs 6, 7 (grooming) = 5 documents
+      Query tagsInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("tags"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
+              .build();
+
+      long tagsInCount = flatCollection.count(tagsInQuery);
+      assertEquals(
+          5,
+          tagsInCount,
+          "IN operator on tags array should find 5 documents with hygiene or grooming");
+
+      // Test 2: IN operator on numbers array field (numeric array) - WITH type
+      // Using ArrayType.INTEGER for optimized query (no text casting)
+      // Find documents where numbers array contains 1 OR 10
+      // Expected: ID 1 has {1,2,3}, ID 2 has {10,20} = 2 documents
+      Query numbersInQueryTyped =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("numbers"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(1, 10))))
+              .build();
+
+      long numbersInCountTyped = flatCollection.count(numbersInQueryTyped);
+      assertEquals(
+          2, numbersInCountTyped, "IN operator on typed numbers array should find 2 documents");
+
+      // Test 2b: Same query WITHOUT type (fallback to text[] casting)
+      Query numbersInQueryUntyped =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("numbers"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(1, 10))))
+              .build();
+
+      long numbersInCountUntyped = flatCollection.count(numbersInQueryUntyped);
+      assertEquals(
+          2, numbersInCountUntyped, "IN operator on untyped numbers array should find 2 documents");
+
+      // Test 3: NOT_IN operator on tags array field
+      // Find documents where tags does NOT contain "hygiene"
+      // Expected: All documents except IDs 1, 5, 8 = 7 documents
+      // Note: This includes NULL tags (ID 9) and empty array (ID 10)
+      Query tagsNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("tags"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("hygiene"))))
+              .build();
+
+      long tagsNotInCount = flatCollection.count(tagsNotInQuery);
+      assertEquals(
+          7,
+          tagsNotInCount,
+          "NOT_IN operator on tags array should find 7 documents without hygiene");
+
+      // Test 4: Combined array IN with scalar filter
+      // Find documents where tags contains "premium" AND price >= 5
+      // Expected: ID 1 (premium, price=10) + ID 3 (premium, price=5) = 2 documents
+      Query combinedArrayQuery =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(LogicalOperator.AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
                               IN,
                               ConstantExpression.ofStrings(List.of("premium"))))
                       .operand(
