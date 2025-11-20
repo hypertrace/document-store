@@ -3394,7 +3394,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags"),
+                      IdentifierExpression.of("tags"),
                       IN,
                       ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
               .build();

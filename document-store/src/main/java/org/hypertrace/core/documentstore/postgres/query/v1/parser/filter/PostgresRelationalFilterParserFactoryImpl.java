@@ -74,13 +74,15 @@ public class PostgresRelationalFilterParserFactoryImpl
     } else if (expression.getOperator() == IN) {
       // For IN operator, we need to distinguish between:
       // 1. JSON fields (JSONB) -> use JSONB containment logic
-      // 2. Array fields (native arrays) -> use array overlap operator (&&)
-      // 3. Scalar fields -> use simple IN clause
+      // 2. Array fields with explicit ArrayIdentifierExpression -> optimized array parser
+      // 3. Other non-JSON fields -> default parser (backward compatible)
       if (useJsonParser) {
         return jsonFieldInFilterParser;
       } else if (isArrayField) {
+        // Only use optimized array parser when ArrayIdentifierExpression is explicitly used
         return arrayFieldInFilterParser;
       } else {
+        // Default to scalar parser for backward compatibility
         return scalarFieldInFilterParser;
       }
     }
