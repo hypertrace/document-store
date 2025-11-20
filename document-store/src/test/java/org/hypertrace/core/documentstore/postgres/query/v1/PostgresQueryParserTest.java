@@ -677,7 +677,7 @@ public class PostgresQueryParserTest {
             + "\"quantity\" AS \"quantity\", "
             + "\"date\" AS \"date\" "
             + "FROM \"testCollection\" "
-            + "WHERE ARRAY[\"item\"]::text[] && ARRAY[?, ?, ?, ?]::text[] "
+            + "WHERE \"item\" IN (?, ?, ?, ?) "
             + "ORDER BY \"quantity\" DESC NULLS LAST,\"item\" ASC NULLS FIRST "
             + "OFFSET ? LIMIT ?",
         postgresQueryParser.parse());
@@ -1499,7 +1499,7 @@ public class PostgresQueryParserTest {
 
     String sql = postgresQueryParser.parse();
     assertEquals(
-        "SELECT * FROM \"testCollection\" WHERE \"category\" IS NULL OR NOT (ARRAY[\"category\"]::text[] && ARRAY[?, ?]::text[])",
+        "SELECT * FROM \"testCollection\" WHERE \"category\" IS NULL OR NOT (\"category\" IN (?, ?))",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
