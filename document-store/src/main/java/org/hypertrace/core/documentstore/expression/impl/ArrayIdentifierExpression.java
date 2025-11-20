@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.expression.impl;
 
 import java.util.Optional;
 import lombok.EqualsAndHashCode;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
 /**
  * Represents an identifier expression for array-typed fields. This allows parsers to apply
@@ -35,5 +36,14 @@ public class ArrayIdentifierExpression extends IdentifierExpression {
   /** Returns the array type if specified, empty otherwise */
   public Optional<ArrayType> getArrayType() {
     return Optional.ofNullable(arrayType);
+  }
+
+  /**
+   * Accepts a SelectTypeExpressionVisitor and dispatches to the ArrayIdentifierExpression-specific
+   * visit method.
+   */
+  @Override
+  public <T> T accept(final SelectTypeExpressionVisitor visitor) {
+    return visitor.visit(this);
   }
 }

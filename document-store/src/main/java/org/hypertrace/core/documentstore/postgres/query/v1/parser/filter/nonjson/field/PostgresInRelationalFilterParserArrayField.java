@@ -2,8 +2,6 @@ package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjso
 
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
-import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresInRelationalFilterParserInterface;
@@ -29,12 +27,7 @@ public class PostgresInRelationalFilterParserArrayField
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
     final Iterable<Object> parsedRhs = expression.getRhs().accept(context.rhsParser());
 
-    // Extract array type if available
-    String arrayTypeCast = null;
-    if (expression.getLhs() instanceof ArrayIdentifierExpression) {
-      ArrayIdentifierExpression arrayExpr = (ArrayIdentifierExpression) expression.getLhs();
-      arrayTypeCast = arrayExpr.getArrayType().map(ArrayType::getPostgresType).orElse(null);
-    }
+    String arrayTypeCast = expression.getLhs().accept(new PostgresArrayTypeExtractor());
 
     return prepareFilterStringForInOperator(
         parsedLhs, parsedRhs, arrayTypeCast, context.getParamsBuilder());

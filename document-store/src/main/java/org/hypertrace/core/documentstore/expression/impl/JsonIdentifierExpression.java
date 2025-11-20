@@ -4,6 +4,7 @@ import java.util.List;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.hypertrace.core.documentstore.parser.FieldTransformationVisitor;
+import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.utils.BasicPostgresSecurityValidator;
 
 /**
@@ -65,6 +66,15 @@ public class JsonIdentifierExpression extends IdentifierExpression {
    */
   @Override
   public <T> T accept(final FieldTransformationVisitor<T> visitor) {
+    return visitor.visit(this);
+  }
+
+  /**
+   * Accepts a SelectTypeExpressionVisitor and dispatches to the JsonIdentifierExpression-specific
+   * visit method.
+   */
+  @Override
+  public <T> T accept(final SelectTypeExpressionVisitor visitor) {
     return visitor.visit(this);
   }
 
