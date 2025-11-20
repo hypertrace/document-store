@@ -13,11 +13,13 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import com.google.common.collect.Maps;
 import java.util.Map;
 import org.hypertrace.core.documentstore.DocumentType;
+import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresContainsRelationalFilterParserNonJsonField;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserArrayField;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserNonJsonField;
 
 public class PostgresRelationalFilterParserFactoryImpl
@@ -37,8 +39,10 @@ public class PostgresRelationalFilterParserFactoryImpl
   // IN filter parsers
   private static final PostgresInRelationalFilterParserInterface jsonFieldInFilterParser =
       new PostgresInRelationalFilterParser();
-  private static final PostgresInRelationalFilterParserInterface nonJsonFieldInFilterParser =
+  private static final PostgresInRelationalFilterParserInterface scalarFieldInFilterParser =
       new PostgresInRelationalFilterParserNonJsonField();
+  private static final PostgresInRelationalFilterParserInterface arrayFieldInFilterParser =
+      new PostgresInRelationalFilterParserArrayField();
 
   // CONTAINS parser implementations
   private static final PostgresContainsRelationalFilterParserInterface jsonFieldContainsParser =
@@ -56,6 +60,9 @@ public class PostgresRelationalFilterParserFactoryImpl
     // Check if LHS is a JSON field (JSONB column access)
     boolean isJsonField = expression.getLhs() instanceof JsonIdentifierExpression;
 
+    // Check if LHS is an array field (native PostgreSQL array column)
+    boolean isArrayField = expression.getLhs() instanceof ArrayIdentifierExpression;
+
     // Check if the collection type is flat or nested
     boolean isFlatCollection =
         postgresQueryParser.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
@@ -65,7 +72,17 @@ public class PostgresRelationalFilterParserFactoryImpl
     if (expression.getOperator() == CONTAINS) {
       return useJsonParser ? jsonFieldContainsParser : nonJsonFieldContainsParser;
     } else if (expression.getOperator() == IN) {
-      return useJsonParser ? jsonFieldInFilterParser : nonJsonFieldInFilterParser;
+      // For IN operator, we need to distinguish between:
+      // 1. JSON fields (JSONB) -> use JSONB containment logic
+      // 2. Array fields (native arrays) -> use array overlap operator (&&)
+      // 3. Scalar fields -> use simple IN clause
+      if (useJsonParser) {
+        return jsonFieldInFilterParser;
+      } else if (isArrayField) {
+        return arrayFieldInFilterParser;
+      } else {
+        return scalarFieldInFilterParser;
+      }
     }
 
     return parserMap.getOrDefault(expression.getOperator(), postgresStandardRelationalFilterParser);

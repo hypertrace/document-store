@@ -8,10 +8,16 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.Postgre
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParser;
 
 /**
- * Implementation of PostgresInRelationalFilterParserInterface for handling IN operations on
- * first-class fields (non-JSON columns), using the standard IN clause syntax.
+ * Implementation of PostgresInRelationalFilterParserInterface for handling IN operations on array
+ * fields (non-JSON array columns), using the PostgreSQL array overlap operator (&&).
+ *
+ * <p>For array fields like "tags", the IN operator semantics are: "does the array contain ANY of
+ * the provided values?" This is implemented using the PostgreSQL array overlap operator (&&).
+ *
+ * <p>Example: tags IN ('hygiene', 'premium') translates to: tags && ARRAY['hygiene',
+ * 'premium']::text[]
  */
-public class PostgresInRelationalFilterParserNonJsonField
+public class PostgresInRelationalFilterParserArrayField
     implements PostgresInRelationalFilterParserInterface {
 
   @Override
@@ -38,6 +44,9 @@ public class PostgresInRelationalFilterParserNonJsonField
                 })
             .collect(Collectors.joining(", "));
 
-    return String.format("%s IN (%s)", parsedLhs, placeholders);
+    // Use array overlap operator for array fields
+    // Cast both LHS and RHS to text[] to avoid type mismatch issues
+    // (e.g., text[] vs varchar[], integer[] vs text[], etc.)
+    return String.format("%s::text[] && ARRAY[%s]::text[]", parsedLhs, placeholders);
   }
 }
