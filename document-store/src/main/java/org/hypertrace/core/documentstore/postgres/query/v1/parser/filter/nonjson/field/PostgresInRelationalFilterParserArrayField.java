@@ -36,7 +36,7 @@ public class PostgresInRelationalFilterParserArrayField
   private String prepareFilterStringForInOperator(
       final String parsedLhs,
       final Iterable<Object> parsedRhs,
-      final String arrayTypeCast,
+      final String arrayType,
       final Params.Builder paramsBuilder) {
 
     String placeholders =
@@ -49,9 +49,9 @@ public class PostgresInRelationalFilterParserArrayField
             .collect(Collectors.joining(", "));
 
     // Use array overlap operator for array fields
-    if (arrayTypeCast != null) {
+    if (arrayType != null) {
       // Type-aware optimization
-      if (arrayTypeCast.equals("text[]")) {
+      if (arrayType.equals("text[]")) {
         // cast RHS to text[] otherwise JDBC binds it as character varying[].
         return String.format("%s && ARRAY[%s]::text[]", parsedLhs, placeholders);
       } else {
