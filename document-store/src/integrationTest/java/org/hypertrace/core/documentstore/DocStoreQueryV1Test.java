@@ -87,6 +87,7 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -3404,10 +3405,25 @@ public class DocStoreQueryV1Test {
           tagsInCount,
           "IN operator on tags array should find 5 documents with hygiene or grooming");
 
-      // Test 2: IN operator on numbers array field (numeric array)
+      // Test 2: IN operator on numbers array field (numeric array) - WITH type
+      // Using ArrayType.INTEGER for optimized query (no text casting)
       // Find documents where numbers array contains 1 OR 10
       // Expected: ID 1 has {1,2,3}, ID 2 has {10,20} = 2 documents
-      Query numbersInQuery =
+      Query numbersInQueryTyped =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(1, 10))))
+              .build();
+
+      long numbersInCountTyped = flatCollection.count(numbersInQueryTyped);
+      assertEquals(
+          2, numbersInCountTyped, "IN operator on typed numbers array should find 2 documents");
+
+      // Test 2b: Same query WITHOUT type (fallback to text[] casting)
+      Query numbersInQueryUntyped =
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
@@ -3416,8 +3432,9 @@ public class DocStoreQueryV1Test {
                       ConstantExpression.ofNumbers(List.of(1, 10))))
               .build();
 
-      long numbersInCount = flatCollection.count(numbersInQuery);
-      assertEquals(2, numbersInCount, "IN operator on numbers array should find 2 documents");
+      long numbersInCountUntyped = flatCollection.count(numbersInQueryUntyped);
+      assertEquals(
+          2, numbersInCountUntyped, "IN operator on untyped numbers array should find 2 documents");
 
       // Test 3: NOT_IN operator on tags array field
       // Find documents where tags does NOT contain "hygiene"

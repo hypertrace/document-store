@@ -2,6 +2,8 @@ package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjso
 
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresInRelationalFilterParserInterface;
@@ -27,12 +29,21 @@ public class PostgresInRelationalFilterParserArrayField
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
     final Iterable<Object> parsedRhs = expression.getRhs().accept(context.rhsParser());
 
-    return prepareFilterStringForInOperator(parsedLhs, parsedRhs, context.getParamsBuilder());
+    // Extract array type if available
+    String arrayTypeCast = null;
+    if (expression.getLhs() instanceof ArrayIdentifierExpression) {
+      ArrayIdentifierExpression arrayExpr = (ArrayIdentifierExpression) expression.getLhs();
+      arrayTypeCast = arrayExpr.getArrayType().map(ArrayType::getPostgresType).orElse(null);
+    }
+
+    return prepareFilterStringForInOperator(
+        parsedLhs, parsedRhs, arrayTypeCast, context.getParamsBuilder());
   }
 
   private String prepareFilterStringForInOperator(
       final String parsedLhs,
       final Iterable<Object> parsedRhs,
+      final String arrayTypeCast,
       final Params.Builder paramsBuilder) {
 
     String placeholders =
@@ -45,8 +56,21 @@ public class PostgresInRelationalFilterParserArrayField
             .collect(Collectors.joining(", "));
 
     // Use array overlap operator for array fields
-    // Cast both LHS and RHS to text[] to avoid type mismatch issues
-    // (e.g., text[] vs varchar[], integer[] vs text[], etc.)
-    return String.format("%s::text[] && ARRAY[%s]::text[]", parsedLhs, placeholders);
+    if (arrayTypeCast != null) {
+      // Type-aware optimization
+      if (arrayTypeCast.equals("text[]")) {
+        // cast RHS to text[] otherwise JDBC binds it as character varying[].
+        return String.format("%s && ARRAY[%s]::text[]", parsedLhs, placeholders);
+      } else {
+        // INTEGER/BOOLEAN arrays: No casting needed, JDBC binds them correctly
+        // "numbers" && ARRAY[?, ?]  (PostgreSQL infers integer[])
+        // "flags" && ARRAY[?, ?]    (PostgreSQL infers boolean[])
+        return String.format("%s && ARRAY[%s]", parsedLhs, placeholders);
+      }
+    } else {
+      // Fallback: Cast both LHS and RHS to text[] to avoid type mismatch issues. This has the worst
+      // performance because casting LHS doesn't let PG use indexes on this col
+      return String.format("%s::text[] && ARRAY[%s]::text[]", parsedLhs, placeholders);
+    }
   }
 }
