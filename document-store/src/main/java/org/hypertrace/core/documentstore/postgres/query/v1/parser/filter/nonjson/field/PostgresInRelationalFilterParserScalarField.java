@@ -9,10 +9,9 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.Postgre
 
 /**
  * Implementation of PostgresInRelationalFilterParserInterface for handling IN operations on
- * first-class fields (non-JSON columns). Uses array overlap operator with text[] casting for
- * backward compatibility with existing clients.
+ * first-class fields (non-JSON columns), using the standard IN clause syntax.
  */
-public class PostgresInRelationalFilterParserNonJsonField
+public class PostgresInRelationalFilterParserScalarField
     implements PostgresInRelationalFilterParserInterface {
 
   @Override
@@ -39,8 +38,6 @@ public class PostgresInRelationalFilterParserNonJsonField
                 })
             .collect(Collectors.joining(", "));
 
-    // Use array overlap with text[] casting for backward compatibility
-    // This works for both scalar and array fields
-    return String.format("ARRAY[%s]::text[] && ARRAY[%s]::text[]", parsedLhs, placeholders);
+    return String.format("%s IN (%s)", parsedLhs, placeholders);
   }
 }

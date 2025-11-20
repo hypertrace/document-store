@@ -306,8 +306,7 @@ public class DocStoreQueryV1Test {
    * Provides arguments for testing array operations with different expression types. Returns:
    * (datastoreName, expressionType) - "WITH_TYPE": ArrayIdentifierExpression WITH ArrayType
    * (optimized, type-aware casting) - "WITHOUT_TYPE": ArrayIdentifierExpression WITHOUT ArrayType
-   * (fallback, text[] casting) - "IDENTIFIER": IdentifierExpression (backward compatibility, text[]
-   * casting)
+   * (fallback, text[] casting)
    */
   private static class PostgresArrayTypeProvider implements ArgumentsProvider {
 
@@ -316,8 +315,7 @@ public class DocStoreQueryV1Test {
       return Stream.of(
           Arguments.of(POSTGRES_STORE, "WITH_TYPE"), // ArrayIdentifierExpression WITH ArrayType
           Arguments.of(
-              POSTGRES_STORE, "WITHOUT_TYPE"), // ArrayIdentifierExpression WITHOUT ArrayType
-          Arguments.of(POSTGRES_STORE, "IDENTIFIER") // IdentifierExpression (backward compat)
+              POSTGRES_STORE, "WITHOUT_TYPE") // ArrayIdentifierExpression WITHOUT ArrayType
           );
     }
   }
@@ -3416,9 +3414,7 @@ public class DocStoreQueryV1Test {
       String typeDesc =
           expressionType.equals("WITH_TYPE")
               ? "WITH ArrayType (optimized)"
-              : expressionType.equals("WITHOUT_TYPE")
-                  ? "WITHOUT ArrayType (fallback)"
-                  : "IdentifierExpression (backward compat)";
+              : "WITHOUT ArrayType (fallback)";
 
       // Test 1: IN operator on tags array field (string array)
       // Find documents where tags contains "hygiene" OR "grooming"
@@ -3429,9 +3425,7 @@ public class DocStoreQueryV1Test {
                   RelationalExpression.of(
                       expressionType.equals("WITH_TYPE")
                           ? ArrayIdentifierExpression.of("tags", ArrayType.TEXT)
-                          : expressionType.equals("WITHOUT_TYPE")
-                              ? ArrayIdentifierExpression.of("tags")
-                              : IdentifierExpression.of("tags"),
+                          : ArrayIdentifierExpression.of("tags"),
                       IN,
                       ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
               .build();
@@ -3453,9 +3447,7 @@ public class DocStoreQueryV1Test {
                   RelationalExpression.of(
                       expressionType.equals("WITH_TYPE")
                           ? ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER)
-                          : expressionType.equals("WITHOUT_TYPE")
-                              ? ArrayIdentifierExpression.of("numbers")
-                              : IdentifierExpression.of("numbers"),
+                          : ArrayIdentifierExpression.of("numbers"),
                       IN,
                       ConstantExpression.ofNumbers(List.of(1, 10))))
               .build();
@@ -3476,9 +3468,7 @@ public class DocStoreQueryV1Test {
                   RelationalExpression.of(
                       expressionType.equals("WITH_TYPE")
                           ? ArrayIdentifierExpression.of("tags", ArrayType.TEXT)
-                          : expressionType.equals("WITHOUT_TYPE")
-                              ? ArrayIdentifierExpression.of("tags")
-                              : IdentifierExpression.of("tags"),
+                          : ArrayIdentifierExpression.of("tags"),
                       NOT_IN,
                       ConstantExpression.ofStrings(List.of("hygiene"))))
               .build();
@@ -3503,9 +3493,7 @@ public class DocStoreQueryV1Test {
                           RelationalExpression.of(
                               expressionType.equals("WITH_TYPE")
                                   ? ArrayIdentifierExpression.of("tags", ArrayType.TEXT)
-                                  : expressionType.equals("WITHOUT_TYPE")
-                                      ? ArrayIdentifierExpression.of("tags")
-                                      : IdentifierExpression.of("tags"),
+                                  : ArrayIdentifierExpression.of("tags"),
                               IN,
                               ConstantExpression.ofStrings(List.of("premium"))))
                       .operand(

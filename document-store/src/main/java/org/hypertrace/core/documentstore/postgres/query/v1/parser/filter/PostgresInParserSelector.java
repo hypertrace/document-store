@@ -10,14 +10,14 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserArrayField;
-import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserNonJsonField;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserScalarField;
 
 class PostgresInParserSelector implements SelectTypeExpressionVisitor {
 
   private static final PostgresInRelationalFilterParserInterface jsonFieldInFilterParser =
       new PostgresInRelationalFilterParser();
   private static final PostgresInRelationalFilterParserInterface scalarFieldInFilterParser =
-      new PostgresInRelationalFilterParserNonJsonField();
+      new PostgresInRelationalFilterParserScalarField();
   private static final PostgresInRelationalFilterParserInterface arrayFieldInFilterParser =
       new PostgresInRelationalFilterParserArrayField();
 

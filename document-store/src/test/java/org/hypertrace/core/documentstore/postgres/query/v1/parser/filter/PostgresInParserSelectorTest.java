@@ -14,7 +14,7 @@ import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpressio
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserArrayField;
-import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserNonJsonField;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserScalarField;
 import org.junit.jupiter.api.Test;
 
 class PostgresInParserSelectorTest {
@@ -52,7 +52,7 @@ class PostgresInParserSelectorTest {
     IdentifierExpression expr = IdentifierExpression.of("item");
     PostgresInRelationalFilterParserInterface result = selector.visit(expr);
     assertNotNull(result);
-    assertInstanceOf(PostgresInRelationalFilterParserNonJsonField.class, result);
+    assertInstanceOf(PostgresInRelationalFilterParserScalarField.class, result);
   }
 
   @Test
