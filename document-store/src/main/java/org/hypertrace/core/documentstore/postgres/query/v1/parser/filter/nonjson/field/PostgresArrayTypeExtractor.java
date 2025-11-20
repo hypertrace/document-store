@@ -11,7 +11,9 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
-public class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
+class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
+
+  public PostgresArrayTypeExtractor() {}
 
   @Override
   public String visit(ArrayIdentifierExpression expression) {

@@ -11,7 +11,7 @@ import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpressio
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresContainsRelationalFilterParserNonJsonField;
 
-public class PostgresContainsParserSelector implements SelectTypeExpressionVisitor {
+class PostgresContainsParserSelector implements SelectTypeExpressionVisitor {
 
   private static final PostgresContainsRelationalFilterParserInterface jsonFieldContainsParser =
       new PostgresContainsRelationalFilterParser();

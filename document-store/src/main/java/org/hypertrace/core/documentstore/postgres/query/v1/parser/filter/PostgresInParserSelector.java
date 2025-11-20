@@ -12,7 +12,7 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserArrayField;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserNonJsonField;
 
-public class PostgresInParserSelector implements SelectTypeExpressionVisitor {
+class PostgresInParserSelector implements SelectTypeExpressionVisitor {
 
   private static final PostgresInRelationalFilterParserInterface jsonFieldInFilterParser =
       new PostgresInRelationalFilterParser();
