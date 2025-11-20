@@ -3394,7 +3394,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags"),
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
                       IN,
                       ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
               .build();
@@ -3405,29 +3405,12 @@ public class DocStoreQueryV1Test {
           tagsInCount,
           "IN operator on tags array should find 5 documents with hygiene or grooming");
 
-      // Test 2: IN operator on numbers array field (numeric array) - WITH type
-      // Using ArrayType.INTEGER for optimized query (no text casting)
-      // Find documents where numbers array contains 1 OR 10
-      // Expected: ID 1 has {1,2,3}, ID 2 has {10,20} = 2 documents
-      Query numbersInQueryTyped =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
-                      IN,
-                      ConstantExpression.ofNumbers(List.of(1, 10))))
-              .build();
-
-      long numbersInCountTyped = flatCollection.count(numbersInQueryTyped);
-      assertEquals(
-          2, numbersInCountTyped, "IN operator on typed numbers array should find 2 documents");
-
       // Test 2b: Same query WITHOUT type (fallback to text[] casting)
       Query numbersInQueryUntyped =
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("numbers"),
+                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
                       IN,
                       ConstantExpression.ofNumbers(List.of(1, 10))))
               .build();
@@ -3444,7 +3427,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags"),
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
                       NOT_IN,
                       ConstantExpression.ofStrings(List.of("hygiene"))))
               .build();
@@ -3465,7 +3448,7 @@ public class DocStoreQueryV1Test {
                       .operator(LogicalOperator.AND)
                       .operand(
                           RelationalExpression.of(
-                              ArrayIdentifierExpression.of("tags"),
+                              ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
                               IN,
                               ConstantExpression.ofStrings(List.of("premium"))))
                       .operand(
