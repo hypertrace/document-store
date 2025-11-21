@@ -11,6 +11,21 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
+/**
+ * Visitor to extract PostgreSQL array type information from {@link ArrayIdentifierExpression}.
+ *
+ * <p>This visitor is specifically designed to work ONLY with {@link ArrayIdentifierExpression}. Any
+ * other expression type will throw {@link UnsupportedOperationException} to catch programming
+ * errors early.
+ *
+ * <p>Returns:
+ *
+ * <ul>
+ *   <li>The PostgreSQL array type string (e.g., "text[]", "integer[]") if {@link ArrayType} is
+ *       specified
+ *   <li>{@code null} if {@link ArrayIdentifierExpression} is used without an explicit type
+ * </ul>
+ */
 class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
 
   public PostgresArrayTypeExtractor() {}
@@ -22,36 +37,44 @@ class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
 
   @Override
   public String visit(JsonIdentifierExpression expression) {
-    return null; // JSON fields don't have array type
+    throw unsupportedExpression("JsonIdentifierExpression");
   }
 
   @Override
   public String visit(IdentifierExpression expression) {
-    return null; // Regular identifiers don't have array type (backward compat fallback)
+    throw new UnsupportedOperationException(
+        "PostgresArrayTypeExtractor should only be used with ArrayIdentifierExpression. "
+            + "Use IdentifierExpression only for scalar fields, not arrays.");
   }
 
   @Override
   public String visit(AggregateExpression expression) {
-    return null;
+    throw unsupportedExpression("AggregateExpression");
   }
 
   @Override
   public String visit(ConstantExpression expression) {
-    return null;
+    throw unsupportedExpression("ConstantExpression");
   }
 
   @Override
   public String visit(DocumentConstantExpression expression) {
-    return null;
+    throw unsupportedExpression("DocumentConstantExpression");
   }
 
   @Override
   public String visit(FunctionExpression expression) {
-    return null;
+    throw unsupportedExpression("FunctionExpression");
   }
 
   @Override
   public String visit(AliasedIdentifierExpression expression) {
-    return null;
+    throw unsupportedExpression("AliasedIdentifierExpression");
+  }
+
+  private static UnsupportedOperationException unsupportedExpression(String expressionType) {
+    return new UnsupportedOperationException(
+        "PostgresArrayTypeExtractor should only be used with ArrayIdentifierExpression, not "
+            + expressionType);
   }
 }

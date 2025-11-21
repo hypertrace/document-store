@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjso
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
@@ -49,15 +50,13 @@ class PostgresArrayTypeExtractorTest {
   @Test
   void testVisitJsonIdentifierExpression() {
     JsonIdentifierExpression expr = JsonIdentifierExpression.of("customAttr", "field");
-    String result = extractor.visit(expr);
-    assertNull(result);
+    assertThrows(UnsupportedOperationException.class, () -> extractor.visit(expr));
   }
 
   @Test
   void testVisitIdentifierExpression() {
     IdentifierExpression expr = IdentifierExpression.of("item");
-    String result = extractor.visit(expr);
-    assertNull(result);
+    assertThrows(UnsupportedOperationException.class, () -> extractor.visit(expr));
   }
 
   @Test
@@ -66,15 +65,13 @@ class PostgresArrayTypeExtractorTest {
         AggregateExpression.of(
             org.hypertrace.core.documentstore.expression.operators.AggregationOperator.COUNT,
             IdentifierExpression.of("item"));
-    String result = extractor.visit(expr);
-    assertNull(result);
+    assertThrows(UnsupportedOperationException.class, () -> extractor.visit(expr));
   }
 
   @Test
   void testVisitConstantExpression() {
     ConstantExpression expr = ConstantExpression.of("test");
-    String result = extractor.visit(expr);
-    assertNull(result);
+    assertThrows(UnsupportedOperationException.class, () -> extractor.visit(expr));
   }
 
   @Test
@@ -82,8 +79,7 @@ class PostgresArrayTypeExtractorTest {
     ConstantExpression.DocumentConstantExpression expr =
         (ConstantExpression.DocumentConstantExpression)
             ConstantExpression.of((org.hypertrace.core.documentstore.Document) null);
-    String result = extractor.visit(expr);
-    assertNull(result);
+    assertThrows(UnsupportedOperationException.class, () -> extractor.visit(expr));
   }
 
   @Test
@@ -93,15 +89,13 @@ class PostgresArrayTypeExtractorTest {
             .operator(FunctionOperator.LENGTH)
             .operand(IdentifierExpression.of("item"))
             .build();
-    String result = extractor.visit(expr);
-    assertNull(result);
+    assertThrows(UnsupportedOperationException.class, () -> extractor.visit(expr));
   }
 
   @Test
   void testVisitAliasedIdentifierExpression() {
     AliasedIdentifierExpression expr =
         AliasedIdentifierExpression.builder().name("item").contextAlias("i").build();
-    String result = extractor.visit(expr);
-    assertNull(result);
+    assertThrows(UnsupportedOperationException.class, () -> extractor.visit(expr));
   }
 }
