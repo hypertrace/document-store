@@ -833,6 +833,8 @@ public abstract class PostgresCollection implements Collection {
             queryExecutor.buildPreparedStatement(
                 sqlQuery, queryParser.getParamsBuilder().build(), connection);
         ResultSet resultSet = preparedStatement.executeQuery()) {
+      System.out.println("Query: " + queryParser.getQuery().toString() + ", prepStatement: "
+          + preparedStatement.toString());
       resultSet.next();
       return resultSet.getLong(1);
     } catch (SQLException e) {
