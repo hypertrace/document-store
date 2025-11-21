@@ -3345,7 +3345,7 @@ public class DocStoreQueryV1Test {
               .build();
 
       long quantityInCount = collection.count(quantityInQuery);
-      assertEquals(4, quantityInCount); // quantity=5: _id 5,6,8; quantity=10: _id 3,7
+      assertEquals(5, quantityInCount); // quantity=5: _id 5,6,8; quantity=10: _id 3,7
 
       // Test 3: IN operator on top-level NUMBER column (price)
       // Find documents where price is 5 OR 10

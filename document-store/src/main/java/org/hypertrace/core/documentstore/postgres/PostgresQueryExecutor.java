@@ -28,8 +28,11 @@ public class PostgresQueryExecutor {
     final String sqlQuery = queryParser.parse();
     final PreparedStatement preparedStatement =
         buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build(), connection);
-    System.out.println("Query: " + queryParser.getQuery().toString() + ", prepStatement: "
-        + preparedStatement.toString());
+    System.out.println(
+        "Query: "
+            + queryParser.getQuery().toString()
+            + ", prepStatement: "
+            + preparedStatement.toString());
     log.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
     return preparedStatement.executeQuery();
   }
