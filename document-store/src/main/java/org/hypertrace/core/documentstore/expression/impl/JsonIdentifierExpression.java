@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
 import java.util.List;
+import java.util.Optional;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import org.hypertrace.core.documentstore.parser.FieldTransformationVisitor;
@@ -20,6 +21,7 @@ public class JsonIdentifierExpression extends IdentifierExpression {
 
   String columnName; // e.g., "customAttr" (the top-level JSONB column)
   List<String> jsonPath; // e.g., ["myAttribute", "nestedField"]
+  JsonFieldType fieldType; // Optional: PRIMITIVE or ARRAY for optimization
 
   public static JsonIdentifierExpression of(final String columnName) {
     throw new IllegalArgumentException(
@@ -34,7 +36,20 @@ public class JsonIdentifierExpression extends IdentifierExpression {
     return of(columnName, List.of(pathElements));
   }
 
+  public static JsonIdentifierExpression of(
+      final String columnName, final JsonFieldType fieldType, final String... pathElements) {
+    if (pathElements == null || pathElements.length == 0) {
+      throw new IllegalArgumentException("JSON path cannot be null or empty");
+    }
+    return of(columnName, fieldType, List.of(pathElements));
+  }
+
   public static JsonIdentifierExpression of(final String columnName, final List<String> jsonPath) {
+    return of(columnName, null, jsonPath);
+  }
+
+  public static JsonIdentifierExpression of(
+      final String columnName, final JsonFieldType fieldType, final List<String> jsonPath) {
     BasicPostgresSecurityValidator.getDefault().validateIdentifier(columnName);
 
     if (jsonPath == null || jsonPath.isEmpty()) {
@@ -47,13 +62,20 @@ public class JsonIdentifierExpression extends IdentifierExpression {
 
     // Construct full name for compatibility: "customAttr.myAttribute"
     String fullName = columnName + "." + String.join(".", unmodifiablePath);
-    return new JsonIdentifierExpression(fullName, columnName, unmodifiablePath);
+    return new JsonIdentifierExpression(fullName, columnName, unmodifiablePath, fieldType);
   }
 
-  protected JsonIdentifierExpression(String name, String columnName, List<String> jsonPath) {
+  protected JsonIdentifierExpression(
+      String name, String columnName, List<String> jsonPath, JsonFieldType fieldType) {
     super(name);
     this.columnName = columnName;
     this.jsonPath = jsonPath;
+    this.fieldType = fieldType;
+  }
+
+  /** Returns the JSON field type if specified, empty otherwise */
+  public Optional<JsonFieldType> getFieldType() {
+    return Optional.ofNullable(fieldType);
   }
 
   /**

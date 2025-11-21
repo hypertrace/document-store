@@ -10,6 +10,7 @@ import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
@@ -40,10 +41,11 @@ class PostgresNotInParserSelectorTest {
   @Test
   void testVisitJsonIdentifierExpression() {
     PostgresNotInParserSelector selector = new PostgresNotInParserSelector(true);
-    JsonIdentifierExpression expr = JsonIdentifierExpression.of("customAttr", "field");
+    JsonIdentifierExpression expr =
+        JsonIdentifierExpression.of("customAttr", JsonFieldType.STRING, "field");
     PostgresInRelationalFilterParserInterface result = selector.visit(expr);
     assertNotNull(result);
-    assertInstanceOf(PostgresInRelationalFilterParser.class, result);
+    assertInstanceOf(PostgresInRelationalFilterParserJsonPrimitive.class, result);
   }
 
   @Test
