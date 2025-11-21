@@ -7,6 +7,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresInRelationalFilterParserArrayField;
@@ -14,8 +15,13 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson
 
 class PostgresNotInParserSelector implements SelectTypeExpressionVisitor {
 
+  // Parsers for different expression types
   private static final PostgresInRelationalFilterParserInterface jsonFieldInFilterParser =
-      new PostgresInRelationalFilterParser();
+      new PostgresInRelationalFilterParser(); // Fallback for JSON without type info
+  private static final PostgresInRelationalFilterParserInterface jsonPrimitiveInFilterParser =
+      new PostgresInRelationalFilterParserJsonPrimitive(); // Optimized for JSON primitives
+  private static final PostgresInRelationalFilterParserInterface jsonArrayInFilterParser =
+      new PostgresInRelationalFilterParserJsonArray(); // Optimized for JSON arrays
   private static final PostgresInRelationalFilterParserInterface scalarFieldInFilterParser =
       new PostgresInRelationalFilterParserScalarField();
   private static final PostgresInRelationalFilterParserInterface arrayFieldInFilterParser =
@@ -29,7 +35,35 @@ class PostgresNotInParserSelector implements SelectTypeExpressionVisitor {
 
   @Override
   public PostgresInRelationalFilterParserInterface visit(JsonIdentifierExpression expression) {
-    return jsonFieldInFilterParser;
+    // JsonFieldType is required for optimized SQL generation
+    JsonFieldType fieldType =
+        expression
+            .getFieldType()
+            .orElseThrow(
+                () ->
+                    new IllegalArgumentException(
+                        "JsonFieldType must be specified for JsonIdentifierExpression in NOT_IN operations. "
+                            + "Use JsonIdentifierExpression.of(column, JsonFieldType.*, path...)"));
+
+    switch (fieldType) {
+      case STRING:
+      case NUMBER:
+      case BOOLEAN:
+        // Primitives: use ->> (extract as text) with appropriate casting
+        return jsonPrimitiveInFilterParser;
+      case STRING_ARRAY:
+      case NUMBER_ARRAY:
+      case BOOLEAN_ARRAY:
+      case OBJECT_ARRAY:
+        // Typed arrays: use -> with @> and typed jsonb_build_array
+        return jsonArrayInFilterParser;
+      case OBJECT:
+        // Objects: use -> with @> (future: needs separate parser)
+        throw new UnsupportedOperationException(
+            "NOT_IN operator on OBJECT type is not yet supported. Use primitive or array types.");
+      default:
+        throw new IllegalArgumentException("Unsupported JsonFieldType: " + fieldType);
+    }
   }
 
   @Override

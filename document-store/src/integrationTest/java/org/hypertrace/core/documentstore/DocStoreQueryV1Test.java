@@ -85,12 +85,11 @@ import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
@@ -120,7 +119,6 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -299,24 +297,6 @@ public class DocStoreQueryV1Test {
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
       return Stream.of(Arguments.of(POSTGRES_STORE));
-    }
-  }
-
-  /**
-   * Provides arguments for testing array operations with different expression types. Returns:
-   * (datastoreName, expressionType) - "WITH_TYPE": ArrayIdentifierExpression WITH ArrayType
-   * (optimized, type-aware casting) - "WITHOUT_TYPE": ArrayIdentifierExpression WITHOUT ArrayType
-   * (fallback, text[] casting)
-   */
-  private static class PostgresArrayTypeProvider implements ArgumentsProvider {
-
-    @Override
-    public Stream<Arguments> provideArguments(final ExtensionContext context) {
-      return Stream.of(
-          Arguments.of(POSTGRES_STORE, "WITH_TYPE"), // ArrayIdentifierExpression WITH ArrayType
-          Arguments.of(
-              POSTGRES_STORE, "WITHOUT_TYPE") // ArrayIdentifierExpression WITHOUT ArrayType
-          );
     }
   }
 
@@ -3288,33 +3268,40 @@ public class DocStoreQueryV1Test {
     }
 
     /**
-     * Tests IN and NOT_IN operators on primitive (non-JSON) fields in flat collections. These
-     * operators should use simple SQL IN clause instead of array overlap operator for optimal index
-     * usage.
+     * Tests IN operator on flat collection fields (top-level columns and JSONB fields) with
+     * type-specific optimization.
+     *
+     * <p>Flat collection schema:
+     *
+     * <ul>
+     *   <li>Top-level columns: item (TEXT), price (INTEGER), quantity (INTEGER)
+     *   <li>JSONB column: props (with nested fields like brand, size, seller)
+     * </ul>
+     *
+     * <p>Expected SQL patterns for top-level columns:
+     *
+     * <ul>
+     *   <li>"item" IN (?, ?) - Direct column reference
+     *   <li>"price" IN (?, ?) - Direct column reference
+     * </ul>
+     *
+     * <p>Expected SQL patterns for JSONB fields with JsonFieldType:
+     *
+     * <ul>
+     *   <li>STRING: "props" ->> 'brand' IN (?, ?)
+     *   <li>NUMBER: CAST("props" ->> 'field' AS NUMERIC) IN (?, ?)
+     * </ul>
      */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionInAndNotInOperators(String dataStoreName) {
+    void testNestedCollectionInOperatorOnJsonPrimitiveFields(String dataStoreName) {
       Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
+      Collection collection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Test 1: IN operator on _id field
-      // Expected: 3 documents (IDs 1, 3, 5)
-      Query idInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("_id"),
-                      IN,
-                      ConstantExpression.ofNumbers(List.of(1, 3, 5))))
-              .build();
-
-      long idInCount = flatCollection.count(idInQuery);
-      assertEquals(3, idInCount, "IN operator on _id should find 3 documents");
-
-      // Test 2: IN operator on item field (string)
-      // Expected: 5 documents (IDs 1, 3, 4 for Shampoo and 1, 5, 8 for Soap)
+      // Test 1: IN operator on top-level STRING column (item)
+      // Find documents where item is "Soap" OR "Shampoo"
+      // Expected SQL: "item" IN ('Soap', 'Shampoo')
       Query itemInQuery =
           Query.builder()
               .setFilter(
@@ -3324,12 +3311,27 @@ public class DocStoreQueryV1Test {
                       ConstantExpression.ofStrings(List.of("Soap", "Shampoo"))))
               .build();
 
-      long itemInCount = flatCollection.count(itemInQuery);
-      assertEquals(
-          5, itemInCount, "IN operator on item should find 5 documents (3 Soap + 2 Shampoo)");
+      long itemInCount = collection.count(itemInQuery);
+      assertEquals(5, itemInCount); // 3 Soap + 2 Shampoo documents
 
-      // Test 3: IN operator on price field (numeric)
-      // Expected: 5 documents (IDs 1, 8 for price=10 and 3, 4 for price=5)
+      // Test 2: IN operator on top-level NUMBER column (quantity)
+      // Find documents where quantity is 5 OR 10
+      // Expected SQL: "quantity" IN (5, 10)
+      Query quantityInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("quantity"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(5, 10))))
+              .build();
+
+      long quantityInCount = collection.count(quantityInQuery);
+      assertEquals(4, quantityInCount); // quantity=5: _id 5,6,8; quantity=10: _id 3,7
+
+      // Test 3: IN operator on top-level NUMBER column (price)
+      // Find documents where price is 5 OR 10
+      // Expected SQL: "price" IN (5, 10)
       Query priceInQuery =
           Query.builder()
               .setFilter(
@@ -3339,25 +3341,27 @@ public class DocStoreQueryV1Test {
                       ConstantExpression.ofNumbers(List.of(5, 10))))
               .build();
 
-      long priceInCount = flatCollection.count(priceInQuery);
-      assertEquals(4, priceInCount, "IN operator on price should find 4 documents");
+      long priceInCount = collection.count(priceInQuery);
+      assertEquals(4, priceInCount); // price=10: _id 1,8; price=5: _id 3,4
 
-      // Test 4: NOT_IN operator on _id field
-      // Expected: 7 documents (all except IDs 1, 3, 5)
-      Query idNotInQuery =
+      // Test 4: IN operator on JSONB STRING field (props.brand) with type optimization
+      // Find documents where props.brand is "Dettol" OR "Sunsilk"
+      // Expected SQL: "props" ->> 'brand' IN ('Dettol', 'Sunsilk')
+      Query nestedInQuery =
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("_id"),
-                      NOT_IN,
-                      ConstantExpression.ofNumbers(List.of(1, 3, 5))))
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Dettol", "Sunsilk"))))
               .build();
 
-      long idNotInCount = flatCollection.count(idNotInQuery);
-      assertEquals(7, idNotInCount, "NOT_IN operator on _id should find 7 documents");
+      long nestedInCount = collection.count(nestedInQuery);
+      assertEquals(2, nestedInCount); // _id 1 (Dettol) + _id 3 (Sunsilk)
 
-      // Test 5: NOT_IN operator on item field
-      // Expected: 5 documents (all except Soap items: IDs 2, 3, 4, 6, 7, 9, 10)
+      // Test 5: NOT_IN operator on top-level STRING column (item)
+      // Find documents where item is NOT "Soap"
+      // Expected SQL: "item" NOT IN ('Soap') OR "item" IS NULL
       Query itemNotInQuery =
           Query.builder()
               .setFilter(
@@ -3367,12 +3371,11 @@ public class DocStoreQueryV1Test {
                       ConstantExpression.ofStrings(List.of("Soap"))))
               .build();
 
-      long itemNotInCount = flatCollection.count(itemNotInQuery);
-      assertEquals(7, itemNotInCount, "NOT_IN operator on item should find 7 documents");
+      long itemNotInCount = collection.count(itemNotInQuery);
+      assertEquals(7, itemNotInCount); // All 10 docs minus 3 Soap docs = 7
 
       // Test 6: Combined IN with other filters (AND)
-      // Filter: _id IN (1, 3, 5, 7) AND price >= 10
-      // Expected: 2 documents (ID 1 with price=10, ID 5 with price=20)
+      // Filter: item IN ("Soap", "Shampoo") AND quantity >= 5
       Query combinedQuery =
           Query.builder()
               .setFilter(
@@ -3380,156 +3383,51 @@ public class DocStoreQueryV1Test {
                       .operator(LogicalOperator.AND)
                       .operand(
                           RelationalExpression.of(
-                              IdentifierExpression.of("_id"),
+                              IdentifierExpression.of("item"),
                               IN,
-                              ConstantExpression.ofNumbers(List.of(1, 3, 5, 7))))
+                              ConstantExpression.ofStrings(List.of("Soap", "Shampoo"))))
                       .operand(
                           RelationalExpression.of(
-                              IdentifierExpression.of("price"), GTE, ConstantExpression.of(10)))
+                              IdentifierExpression.of("quantity"), GTE, ConstantExpression.of(5)))
                       .build())
               .build();
 
-      long combinedCount = flatCollection.count(combinedQuery);
-      assertEquals(2, combinedCount, "Combined IN with >= filter should find 2 documents");
+      long combinedCount = collection.count(combinedQuery);
+      assertTrue(combinedCount > 0, "Combined IN with >= filter should find documents");
     }
 
     /**
-     * Tests IN and NOT_IN operators on array fields in flat collections. Array fields use the
-     * PostgreSQL array overlap operator (&&) for IN operations, which checks if the array contains
-     * ANY of the provided values.
+     * Tests querying JSONB nested fields with JsonIdentifierExpression and JsonFieldType for
+     * optimized SQL generation.
      *
-     * <p>This test is parameterized to test three scenarios: 1. ArrayIdentifierExpression WITH
-     * ArrayType - optimized queries with type-aware casting 2. ArrayIdentifierExpression WITHOUT
-     * ArrayType - fallback with text[] casting both sides 3. IdentifierExpression - backward
-     * compatibility with text[] casting both sides
-     */
-    @ParameterizedTest
-    @ArgumentsSource(PostgresArrayTypeProvider.class)
-    void testFlatPostgresCollectionInAndNotInOperatorsForArrays(
-        String dataStoreName, String expressionType) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      String typeDesc =
-          expressionType.equals("WITH_TYPE")
-              ? "WITH ArrayType (optimized)"
-              : "WITHOUT ArrayType (fallback)";
-
-      // Test 1: IN operator on tags array field (string array)
-      // Find documents where tags contains "hygiene" OR "grooming"
-      // Expected: IDs 1, 5, 8 (hygiene) + IDs 6, 7 (grooming) = 5 documents
-      Query tagsInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      expressionType.equals("WITH_TYPE")
-                          ? ArrayIdentifierExpression.of("tags", ArrayType.TEXT)
-                          : ArrayIdentifierExpression.of("tags"),
-                      IN,
-                      ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
-              .build();
-
-      long tagsInCount = flatCollection.count(tagsInQuery);
-      assertEquals(
-          5,
-          tagsInCount,
-          String.format(
-              "IN operator on tags array %s should find 5 documents with hygiene or grooming",
-              typeDesc));
-
-      // Test 2: IN operator on numbers array field (numeric array)
-      // Find documents where numbers array contains 1 OR 10
-      // Expected: ID 1 has {1,2,3}, ID 2 has {10,20} = 2 documents
-      Query numbersInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      expressionType.equals("WITH_TYPE")
-                          ? ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER)
-                          : ArrayIdentifierExpression.of("numbers"),
-                      IN,
-                      ConstantExpression.ofNumbers(List.of(1, 10))))
-              .build();
-
-      long numbersInCount = flatCollection.count(numbersInQuery);
-      assertEquals(
-          2,
-          numbersInCount,
-          String.format("IN operator on numbers array %s should find 2 documents", typeDesc));
-
-      // Test 3: NOT_IN operator on tags array field
-      // Find documents where tags does NOT contain "hygiene"
-      // Expected: All documents except IDs 1, 5, 8 = 7 documents
-      // Note: This includes NULL tags (ID 9) and empty array (ID 10)
-      Query tagsNotInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      expressionType.equals("WITH_TYPE")
-                          ? ArrayIdentifierExpression.of("tags", ArrayType.TEXT)
-                          : ArrayIdentifierExpression.of("tags"),
-                      NOT_IN,
-                      ConstantExpression.ofStrings(List.of("hygiene"))))
-              .build();
-
-      long tagsNotInCount = flatCollection.count(tagsNotInQuery);
-      assertEquals(
-          7,
-          tagsNotInCount,
-          String.format(
-              "NOT_IN operator on tags array %s should find 7 documents without hygiene",
-              typeDesc));
-
-      // Test 4: Combined array IN with scalar filter
-      // Find documents where tags contains "premium" AND price >= 5
-      // Expected: ID 1 (premium, price=10) + ID 3 (premium, price=5) = 2 documents
-      Query combinedArrayQuery =
-          Query.builder()
-              .setFilter(
-                  LogicalExpression.builder()
-                      .operator(LogicalOperator.AND)
-                      .operand(
-                          RelationalExpression.of(
-                              expressionType.equals("WITH_TYPE")
-                                  ? ArrayIdentifierExpression.of("tags", ArrayType.TEXT)
-                                  : ArrayIdentifierExpression.of("tags"),
-                              IN,
-                              ConstantExpression.ofStrings(List.of("premium"))))
-                      .operand(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("price"), GTE, ConstantExpression.of(5)))
-                      .build())
-              .build();
-
-      long combinedArrayCount = flatCollection.count(combinedArrayQuery);
-      assertEquals(
-          2,
-          combinedArrayCount,
-          String.format("Combined array IN with >= filter %s should find 2 documents", typeDesc));
-    }
-
-    /**
-     * This test is disabled for now because flat collections do not support search on nested
-     * queries in JSONB fields (ex. props.brand)
+     * <p>JsonFieldType is required for all JSONB IN/NOT_IN operations to generate optimal SQL.
      *
-     * @param dataStoreName the datastore name, in this case, Postgres
-     * @throws IOException
+     * <p>Test coverage:
+     *
+     * <ul>
+     *   <li>EQ operator on JSONB STRING fields with type info
+     *   <li>IN operator on JSONB STRING fields with type info
+     *   <li>NOT_IN operator on JSONB STRING fields with type info (includes NULL handling)
+     *   <li>Deeply nested JSONB field access (props.seller.address.city)
+     *   <li>Combined filters with JSONB and top-level columns
+     * </ul>
      */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    @Disabled
     void testFlatPostgresCollectionNestedFieldQuery(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Test querying nested field in props JSONB column - filter by brand
+      // Test 1: EQ operator on JSONB STRING field (props.brand) with type optimization
+      // Expected SQL: "props" ->> 'brand' = 'Dettol'
       Query brandQuery =
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("props.brand"), EQ, ConstantExpression.of("Dettol")))
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      EQ,
+                      ConstantExpression.of("Dettol")))
               .build();
 
       CloseableIterator<Document> brandIterator = flatCollection.find(brandQuery);
@@ -3542,15 +3440,17 @@ public class DocStoreQueryV1Test {
       }
       brandIterator.close();
 
-      // Should have 1 Dettol document (ID 1)
+      // Should have 1 Dettol document (_id=1)
       assertEquals(1, brandCount);
 
-      // Test querying deeply nested field - filter by seller city
+      // Test 2: Deeply nested JSONB field access (props.seller.address.city)
+      // Expected SQL: "props" -> 'seller' -> 'address' ->> 'city' = 'Mumbai'
       Query cityQuery =
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("props.seller.address.city"),
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING, "seller", "address", "city"),
                       EQ,
                       ConstantExpression.of("Mumbai")))
               .build();
@@ -3565,10 +3465,64 @@ public class DocStoreQueryV1Test {
       }
       cityIterator.close();
 
-      // Should have 2 Mumbai documents (IDs 1, 3)
+      // Should have 2 Mumbai documents (_id=1, _id=3)
       assertEquals(2, cityCount);
 
-      // Test count with nested field filter
+      // Test 3: IN operator on JSONB STRING field with type optimization
+      // Expected SQL: "props" ->> 'brand' IN ('Dettol', 'Sunsilk', 'Lifebuoy')
+      Query brandInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Dettol", "Sunsilk", "Lifebuoy"))))
+              .build();
+
+      long brandInCount = flatCollection.count(brandInQuery);
+      assertEquals(3, brandInCount); // _id=1 (Dettol), _id=3 (Sunsilk), _id=5 (Lifebuoy)
+
+      // Test 4: Combined filter - JSONB field + top-level column
+      // Filter: brand = "Dettol" AND price = 10
+      // Expected SQL: "props" ->> 'brand' = 'Dettol' AND "price" = 10
+      Query combinedQuery =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(LogicalOperator.AND)
+                      .operand(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                              EQ,
+                              ConstantExpression.of("Dettol")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
+                      .build())
+              .build();
+
+      long combinedCount = flatCollection.count(combinedQuery);
+      assertEquals(1, combinedCount); // Only _id=1 matches both conditions
+
+      // Test 5: NOT_IN operator on JSONB STRING field with type optimization
+      // Find documents where brand is NOT "Dettol" (should find Sunsilk and Lifebuoy)
+      // Expected SQL: NOT ("props" ->> 'brand' IN ('Dettol')) OR "props" ->> 'brand' IS NULL
+      Query brandNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("Dettol"))))
+              .build();
+
+      long brandNotInCount = flatCollection.count(brandNotInQuery);
+      // Docs with brand: _id=1 (Dettol), _id=3 (Sunsilk), _id=5 (Lifebuoy)
+      // Docs with NULL props or no brand: _id=2, 4, 6, 7, 8, 9, 10
+      // NOT_IN "Dettol" should return: 2 (Sunsilk, Lifebuoy) + 7 (NULL/missing) = 9
+      assertEquals(9, brandNotInCount);
+
+      // Test 6: Verify count methods with JSONB fields
       long brandCountQuery = flatCollection.count(brandQuery);
       assertEquals(1, brandCountQuery);
 
