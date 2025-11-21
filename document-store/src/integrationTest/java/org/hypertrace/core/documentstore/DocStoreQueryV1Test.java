@@ -300,6 +300,24 @@ public class DocStoreQueryV1Test {
     }
   }
 
+  /**
+   * Provides arguments for testing array operations with different expression types. Returns:
+   * (datastoreName, expressionType) - "WITH_TYPE": ArrayIdentifierExpression WITH ArrayType
+   * (optimized, type-aware casting) - "WITHOUT_TYPE": ArrayIdentifierExpression WITHOUT ArrayType
+   * (fallback, text[] casting)
+   */
+  private static class PostgresArrayTypeProvider implements ArgumentsProvider {
+
+    @Override
+    public Stream<Arguments> provideArguments(final ExtensionContext context) {
+      return Stream.of(
+          Arguments.of(POSTGRES_STORE, "WITH_TYPE"), // ArrayIdentifierExpression WITH ArrayType
+          Arguments.of(
+              POSTGRES_STORE, "WITHOUT_TYPE") // ArrayIdentifierExpression WITHOUT ArrayType
+          );
+    }
+  }
+
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
   public void testFindAll(String dataStoreName) throws IOException {
@@ -4368,7 +4386,7 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "colors"),
+                        JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
                         CONTAINS,
                         ConstantExpression.of("Green")))
                 .build();
@@ -4385,7 +4403,8 @@ public class DocStoreQueryV1Test {
                         .operator(LogicalOperator.AND)
                         .operand(
                             RelationalExpression.of(
-                                JsonIdentifierExpression.of("props", "colors"),
+                                JsonIdentifierExpression.of(
+                                    "props", JsonFieldType.STRING_ARRAY, "colors"),
                                 NOT_CONTAINS,
                                 ConstantExpression.of("Green")))
                         .operand(
@@ -4417,7 +4436,7 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "brand"),
+                        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
                         IN,
                         ConstantExpression.ofStrings(List.of("Dettol", "Lifebuoy"))))
                 .build();
@@ -4434,7 +4453,7 @@ public class DocStoreQueryV1Test {
                         .operator(LogicalOperator.AND)
                         .operand(
                             RelationalExpression.of(
-                                JsonIdentifierExpression.of("props", "brand"),
+                                JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
                                 NOT_IN,
                                 ConstantExpression.ofStrings(List.of("Dettol"))))
                         .operand(
@@ -4464,7 +4483,7 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "brand"),
+                        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
                         EQ,
                         ConstantExpression.of("Dettol")))
                 .build();
@@ -4478,7 +4497,7 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "brand"),
+                        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
                         NEQ,
                         ConstantExpression.of("Dettol")))
                 .build();
@@ -4505,7 +4524,8 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
                         GT,
                         ConstantExpression.of(500000)))
                 .build();
@@ -4519,7 +4539,8 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
                         LT,
                         ConstantExpression.of(500000)))
                 .build();
@@ -4533,7 +4554,8 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
                         GTE,
                         ConstantExpression.of(700000)))
                 .build();
@@ -4547,7 +4569,8 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
                         LTE,
                         ConstantExpression.of(400004)))
                 .build();
