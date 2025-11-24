@@ -84,7 +84,8 @@ class PostgresFieldTypeDetectorTest {
     FieldCategory result = detector.visit(expr);
     assertNotNull(result);
     assertEquals(
-        FieldCategory.SCALAR, result, "JsonIdentifierExpression with STRING should return SCALAR");
+        FieldCategory.JSONB_SCALAR, result,
+        "JsonIdentifierExpression with STRING should return SCALAR");
   }
 
   @Test
@@ -93,7 +94,7 @@ class PostgresFieldTypeDetectorTest {
     FieldCategory result = detector.visit(expr);
     assertNotNull(result);
     assertEquals(
-        FieldCategory.SCALAR,
+        FieldCategory.JSONB_SCALAR,
         result,
         "JsonIdentifierExpression without field type should return SCALAR");
   }
