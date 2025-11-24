@@ -15,12 +15,14 @@ import static org.hypertrace.core.documentstore.expression.operators.LogicalOper
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.OR;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.CONTAINS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_CONTAINS;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_EXISTS;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
@@ -31,9 +33,13 @@ import java.util.List;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
+import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -50,6 +56,7 @@ import org.hypertrace.core.documentstore.query.Selection;
 import org.hypertrace.core.documentstore.query.SelectionSpec;
 import org.hypertrace.core.documentstore.query.Sort;
 import org.hypertrace.core.documentstore.query.SortingSpec;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 public class PostgresQueryParserTest {
@@ -1550,5 +1557,208 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
     assertEquals(List.of("java"), params.getObjectParams().get(1));
+  }
+
+  @Nested
+  class FlatCollectionExistsNotExistsParserTest {
+
+    @Test
+    void testExistsOnTopLevelScalarField() {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("status"), EXISTS, ConstantExpression.of("null")))
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+      assertEquals("SELECT * FROM \"testCollection\" WHERE \"status\" IS NOT NULL", sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      assertEquals(0, params.getObjectParams().size());
+    }
+
+    @Test
+    void testExistsOnTopLevelArrayField() {
+      // Query on IS_NOT_EMPTY, returns arrays with length > 0
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+      assertEquals("SELECT * FROM \"testCollection\" WHERE (cardinality(\"tags\") > 0)", sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      assertEquals(0, params.getObjectParams().size());
+    }
+
+    @Test
+    void testExistsOnJsonbScalarField() {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("customAttribute", JsonFieldType.STRING, "brand"),
+                      EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+      assertEquals("SELECT * FROM \"testCollection\" WHERE \"customAttribute\" ? 'brand'", sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      assertEquals(0, params.getObjectParams().size());
+    }
+
+    @Test
+    void testExistsOnJsonbArrayField() {
+      // Query on IS_NOT_EMPTY, returns arrays with length > 0
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
+                      EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+      assertEquals(
+          "SELECT * FROM \"testCollection\" WHERE (\"props\" @> '{\"colors\": []}' AND jsonb_array_length(\"props\"->'colors') > 0)",
+          sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      assertEquals(0, params.getObjectParams().size());
+    }
+
+    @Test
+    void testNotExistsOnScalarField() {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("status"), NOT_EXISTS, ConstantExpression.of("null")))
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+      assertEquals("SELECT * FROM \"testCollection\" WHERE \"status\" IS NULL", sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      assertEquals(0, params.getObjectParams().size());
+    }
+
+    @Test
+    void testNotExistsOnArrayField() {
+      // Query on IS_NOT_EMPTY, returns arrays with length > 0
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      NOT_EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+      assertEquals(
+          "SELECT * FROM \"testCollection\" WHERE COALESCE(cardinality(\"tags\"), 0) = 0", sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      assertEquals(0, params.getObjectParams().size());
+    }
+
+    @Test
+    void testNotExistsOnJsonbScalarField() {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("customAttribute", JsonFieldType.STRING, "brand"),
+                      NOT_EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+      assertEquals(
+          "SELECT * FROM \"testCollection\" WHERE NOT (\"customAttribute\" ? 'brand')", sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      assertEquals(0, params.getObjectParams().size());
+    }
+
+    @Test
+    void testNotExistsOnJsonbArrayField() {
+      // this is a IS_EMPTY query in a nested jsonb array. Returns arrays that are either NULL or
+      // empty arrays
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
+                      NOT_EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+      assertEquals(
+          "SELECT * FROM \"testCollection\" WHERE COALESCE(jsonb_array_length(\"props\"->'colors'), 0) = 0",
+          sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      assertEquals(0, params.getObjectParams().size());
+    }
   }
 }

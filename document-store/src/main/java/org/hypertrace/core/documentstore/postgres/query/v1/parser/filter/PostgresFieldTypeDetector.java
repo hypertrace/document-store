@@ -14,11 +14,13 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 /**
  * Visitor to detect the category of a field expression for array-aware SQL generation.
  *
- * <p>Categorizes fields into three types:
+ * <p>Categorizes fields into four types:
  *
  * <ul>
- *   <li><b>SCALAR:</b> Regular fields and JSON primitives (strings, numbers, booleans, objects)
- *   <li><b>POSTGRES_ARRAY:</b> Native PostgreSQL arrays (text[], integer[], boolean[], etc.)
+ *   <li><b>SCALAR:</b> Regular non-JSON fields
+ *   <li><b>ARRAY:</b> Native PostgreSQL arrays (text[], integer[], boolean[], etc.)
+ *   <li><b>JSONB_SCALAR:</b> Scalar fields inside JSONB columns (strings, numbers, booleans,
+ *       objects)
  *   <li><b>JSONB_ARRAY:</b> Arrays inside JSONB columns with JsonFieldType annotation
  * </ul>
  *
@@ -26,16 +28,18 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
  *
  * <ul>
  *   <li>SCALAR: {@code IS NOT NULL / IS NULL}
- *   <li>POSTGRES_ARRAY: {@code IS NOT NULL AND cardinality(...) > 0}
- *   <li>JSONB_ARRAY: {@code IS NOT NULL AND jsonb_array_length(...) > 0}
+ *   <li>ARRAY: {@code IS NOT NULL AND cardinality(...) > 0}
+ *   <li>JSONB_SCALAR: {@code "col" ? 'field'} (uses GIN index)
+ *   <li>JSONB_ARRAY: {@code "col" @> '{field:[]}' AND jsonb_array_length(...) > 0} (uses GIN index)
  * </ul>
  */
 class PostgresFieldTypeDetector implements SelectTypeExpressionVisitor {
 
   /** Field category for determining appropriate SQL generation strategy */
   enum FieldCategory {
-    SCALAR, // Regular fields and JSON primitives
+    SCALAR, // Regular non-JSON fields
     ARRAY, // Native PostgreSQL arrays (text[], int[], etc.)
+    JSONB_SCALAR, // Scalar fields inside JSONB columns
     JSONB_ARRAY // Arrays inside JSONB columns
   }
 
@@ -55,7 +59,7 @@ class PostgresFieldTypeDetector implements SelectTypeExpressionVisitor {
                     || type == JsonFieldType.BOOLEAN_ARRAY
                     || type == JsonFieldType.OBJECT_ARRAY)
         .map(type -> FieldCategory.JSONB_ARRAY)
-        .orElse(FieldCategory.SCALAR);
+        .orElse(FieldCategory.JSONB_SCALAR);
   }
 
   @Override

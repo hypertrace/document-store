@@ -44,9 +44,9 @@ class PostgresExistsRelationalFilterParserTest {
     String result = parser.parse(expression, context);
 
     assertEquals(
-        "(\"tags\" IS NOT NULL AND cardinality(\"tags\") > 0)",
+        "(cardinality(\"tags\") > 0)",
         result,
-        "EXISTS with RHS=true on ARRAY should check IS NOT NULL AND cardinality > 0");
+        "EXISTS with RHS=true on ARRAY should check cardinality > 0");
   }
 
   @Test
@@ -61,9 +61,9 @@ class PostgresExistsRelationalFilterParserTest {
     String result = parser.parse(expression, context);
 
     assertEquals(
-        "(\"tags\" IS NULL OR cardinality(\"tags\") = 0)",
+        "COALESCE(cardinality(\"tags\"), 0) = 0",
         result,
-        "EXISTS with RHS=false on ARRAY should check IS NULL OR cardinality = 0");
+        "EXISTS with RHS=false on ARRAY should use COALESCE for NULL or empty check");
   }
 
   @Test
@@ -80,9 +80,9 @@ class PostgresExistsRelationalFilterParserTest {
     String result = parser.parse(expression, context);
 
     assertEquals(
-        "(document->'props'->'colors' IS NOT NULL AND jsonb_typeof(document->'props'->'colors') = 'array' AND jsonb_array_length(document->'props'->'colors') > 0)",
+        "(\"props\" @> '{\"colors\": []}' AND jsonb_array_length(document->'props'->'colors') > 0)",
         result,
-        "EXISTS with RHS=true on JSONB_ARRAY should check IS NOT NULL AND typeof = 'array' AND length > 0");
+        "EXISTS with RHS=true on JSONB_ARRAY should use optimized GIN index containment query");
   }
 
   @Test
@@ -99,9 +99,9 @@ class PostgresExistsRelationalFilterParserTest {
     String result = parser.parse(expression, context);
 
     assertEquals(
-        "(document->'props'->'scores' IS NULL OR (jsonb_typeof(document->'props'->'scores') = 'array' AND jsonb_array_length(document->'props'->'scores') = 0))",
+        "COALESCE(jsonb_array_length(document->'props'->'scores'), 0) = 0",
         result,
-        "EXISTS with RHS=false on JSONB_ARRAY should check IS NULL OR (typeof = 'array' AND length = 0)");
+        "EXISTS with RHS=false on JSONB_ARRAY should use COALESCE for NULL or empty arrays");
   }
 
   @Test
@@ -142,18 +142,37 @@ class PostgresExistsRelationalFilterParserTest {
   void testParse_jsonScalarField_rhsTrue() {
     // Test EXISTS on JSON scalar (non-array) field with RHS = true
     JsonIdentifierExpression lhs =
-        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand");
+        JsonIdentifierExpression.of("customAttribute", JsonFieldType.STRING, "brand");
     ConstantExpression rhs = ConstantExpression.of("null");
     RelationalExpression expression = RelationalExpression.of(lhs, EXISTS, rhs);
 
     when(lhsParser.visit(any(JsonIdentifierExpression.class)))
-        .thenReturn("document->'props'->>'brand'");
+        .thenReturn("\"customAttribute\"->>'brand'");
 
     String result = parser.parse(expression, context);
 
     assertEquals(
-        "document->'props'->>'brand' IS NOT NULL",
+        "\"customAttribute\" ? 'brand'",
         result,
-        "EXISTS with RHS=true on JSON scalar should check IS NOT NULL");
+        "EXISTS with RHS=true on JSON scalar should use ? operator for GIN index");
+  }
+
+  @Test
+  void testParse_jsonScalarField_rhsFalse() {
+    // Test EXISTS on JSON scalar (non-array) field with RHS = false
+    JsonIdentifierExpression lhs =
+        JsonIdentifierExpression.of("customAttribute", JsonFieldType.STRING, "brand");
+    ConstantExpression rhs = ConstantExpression.of(false);
+    RelationalExpression expression = RelationalExpression.of(lhs, EXISTS, rhs);
+
+    when(lhsParser.visit(any(JsonIdentifierExpression.class)))
+        .thenReturn("\"customAttribute\"->>'brand'");
+
+    String result = parser.parse(expression, context);
+
+    assertEquals(
+        "NOT (\"customAttribute\" ? 'brand')",
+        result,
+        "EXISTS with RHS=false on JSON scalar should use negated ? operator");
   }
 }
