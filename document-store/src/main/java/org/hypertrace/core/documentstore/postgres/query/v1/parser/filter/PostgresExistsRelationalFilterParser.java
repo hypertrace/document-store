@@ -1,11 +1,12 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter;
 
-import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresArrayFieldDetector.FieldCategory;
 
 class PostgresExistsRelationalFilterParser implements PostgresRelationalFilterParser {
+
+  private static final PostgresArrayFieldDetector ARRAY_DETECTOR = new PostgresArrayFieldDetector();
 
   @Override
   public String parse(
@@ -21,29 +22,31 @@ class PostgresExistsRelationalFilterParser implements PostgresRelationalFilterPa
     // JSONB arrays: IS NULL OR jsonb_array_length(...) > 0
     final boolean parsedRhs = !ConstantExpression.of(false).equals(expression.getRhs());
 
-    // For array fields, EXISTS should check both NOT NULL and non-empty
-    boolean isArrayField = expression.getLhs() instanceof ArrayIdentifierExpression;
-    boolean isJsonArrayField = expression.getLhs() instanceof JsonArrayIdentifierExpression;
+    FieldCategory category = expression.getLhs().accept(ARRAY_DETECTOR);
 
-    if (isArrayField) {
-      // First-class PostgreSQL array columns (text[], int[], etc.)
-      return parsedRhs
-          ? String.format("(%s IS NOT NULL AND cardinality(%s) > 0)", parsedLhs, parsedLhs)
-          : String.format("(%s IS NULL OR cardinality(%s) = 0)", parsedLhs, parsedLhs);
-    } else if (isJsonArrayField) {
-      // Arrays inside JSONB columns
-      return parsedRhs
-          ? String.format(
-              "(%s IS NOT NULL AND jsonb_typeof(%s) = 'array' AND jsonb_array_length(%s) > 0)",
-              parsedLhs, parsedLhs, parsedLhs)
-          : String.format(
-              "(%s IS NULL OR jsonb_typeof(%s) != 'array' OR jsonb_array_length(%s) = 0)",
-              parsedLhs, parsedLhs, parsedLhs);
-    } else {
-      // Regular scalar fields
-      return parsedRhs
-          ? String.format("%s IS NOT NULL", parsedLhs)
-          : String.format("%s IS NULL", parsedLhs);
+    switch (category) {
+      case ARRAY:
+        // First-class PostgreSQL array columns (text[], int[], etc.)
+        return parsedRhs
+            ? String.format("(%s IS NOT NULL AND cardinality(%s) > 0)", parsedLhs, parsedLhs)
+            : String.format("(%s IS NULL OR cardinality(%s) = 0)", parsedLhs, parsedLhs);
+
+      case JSONB_ARRAY:
+        // Arrays inside JSONB columns
+        return parsedRhs
+            ? String.format(
+                "(%s IS NOT NULL AND jsonb_typeof(%s) = 'array' AND jsonb_array_length(%s) > 0)",
+                parsedLhs, parsedLhs, parsedLhs)
+            : String.format(
+                "(%s IS NULL OR jsonb_typeof(%s) != 'array' OR jsonb_array_length(%s) = 0)",
+                parsedLhs, parsedLhs, parsedLhs);
+
+      case SCALAR:
+      default:
+        // Regular scalar fields
+        return parsedRhs
+            ? String.format("%s IS NOT NULL", parsedLhs)
+            : String.format("%s IS NULL", parsedLhs);
     }
   }
 }

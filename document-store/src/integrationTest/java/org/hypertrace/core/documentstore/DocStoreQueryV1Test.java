@@ -94,7 +94,6 @@ import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterEx
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.JsonArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
@@ -212,8 +211,7 @@ public class DocStoreQueryV1Test {
                 + "\"sales\" JSONB,"
                 + "\"numbers\" INTEGER[],"
                 + "\"scores\" DOUBLE PRECISION[],"
-                + "\"flags\" BOOLEAN[],"
-                + "\"attributes\" JSONB"
+                + "\"flags\" BOOLEAN[]"
                 + ");",
             collectionName);
 
@@ -4690,14 +4688,14 @@ public class DocStoreQueryV1Test {
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
       // Query using EXISTS on JSONB array field
-      // attributes.certifications has: non-empty (row 1), empty (rows 2, 10, 11), NULL (rest)
+      // props.colors has: non-empty (rows 1, 3, 5), empty (row 7), NULL (rest)
       Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(JsonIdentifierExpression.of("attributes", "certifications"))
+              .addSelection(JsonIdentifierExpression.of("props", "colors"))
               .setFilter(
                   RelationalExpression.of(
-                      JsonArrayIdentifierExpression.of("attributes", "certifications"),
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
                       EXISTS,
                       ConstantExpression.of("null")))
               .build();
@@ -4710,18 +4708,18 @@ public class DocStoreQueryV1Test {
         JsonNode json = new ObjectMapper().readTree(doc.toJson());
         count++;
 
-        // Verify that ALL returned documents have non-empty arrays in attributes.certifications
-        JsonNode attributes = json.get("attributes");
-        assertTrue(attributes.isObject(), "attributes should be a JSON object");
+        // Verify that ALL returned documents have non-empty arrays in props.colors
+        JsonNode props = json.get("props");
+        assertTrue(props.isObject(), "props should be a JSON object");
 
-        JsonNode certifications = attributes.get("certifications");
+        JsonNode colors = props.get("colors");
         assertTrue(
-            certifications.isArray() && !certifications.isEmpty(),
-            "certifications should be non-empty array, but was: " + certifications);
+            colors.isArray() && !colors.isEmpty(),
+            "colors should be non-empty array, but was: " + colors);
       }
 
-      // Should return only row 1 which has non-empty certifications array
-      assertEquals(1, count, "Should return exactly 1 document with non-empty certifications");
+      // Should return rows 1, 3, 5 which have non-empty colors arrays
+      assertEquals(3, count, "Should return exactly 3 documents with non-empty colors");
     }
 
     /**
@@ -4737,14 +4735,14 @@ public class DocStoreQueryV1Test {
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
       // Query using NOT_EXISTS on JSONB array field
-      // Test with attributes.colors field
+      // Test with props.colors field
       Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(JsonIdentifierExpression.of("attributes", "colors"))
+              .addSelection(JsonIdentifierExpression.of("props", "colors"))
               .setFilter(
                   RelationalExpression.of(
-                      JsonArrayIdentifierExpression.of("attributes", "colors"),
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
                       NOT_EXISTS,
                       ConstantExpression.of("null")))
               .build();
@@ -4762,22 +4760,21 @@ public class DocStoreQueryV1Test {
         returnedItems.add(item);
 
         // Verify that returned documents have NULL parent, missing field, or empty arrays
-        JsonNode attributes = json.get("attributes");
-        if (attributes != null && attributes.isObject()) {
-          JsonNode colors = attributes.get("colors");
+        JsonNode props = json.get("props");
+        if (props != null && props.isObject()) {
+          JsonNode colors = props.get("colors");
           assertTrue(
               colors == null || !colors.isArray() || colors.isEmpty(),
               "colors should be NULL or empty array for item: " + item + ", but was: " + colors);
         }
-        // NULL attributes is also valid
+        // NULL props is also valid
       }
 
-      // Should include documents where attributes is NULL or attributes.colors is NULL/empty
-      // Row 11 (Pencil) and other rows with empty/NULL colors
+      // Should include documents where props is NULL or props.colors is NULL/empty
+      // Row 7 (Comb) has empty colors array, rows 2,4,6,8,9,10 have NULL props
       assertTrue(count > 0, "Should return at least some documents");
       assertTrue(
-          returnedItems.contains("Pencil"),
-          "Should include Pencil (has empty colors array in attributes)");
+          returnedItems.contains("Comb"), "Should include Comb (has empty colors array in props)");
     }
   }
 
