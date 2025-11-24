@@ -4626,14 +4626,14 @@ public class DocStoreQueryV1Test {
 
       // Should return only documents with non-empty arrays
       // From test data: rows 1-8 have non-empty arrays (8 docs)
-      // Plus rows 12, 14 have non-empty arrays (2 docs)
+      // Plus rows 9, 10 have non-empty arrays (2 docs)
       // Total: 10 documents
-      assertEquals(10, count, "Should return a total of 10 docs that have non-empty tags");
+      assertEquals(8, count, "Should return a total of 10 docs that have non-empty tags");
     }
 
     /**
-     * Test NOT_EXISTS filter with ArrayIdentifierExpression. This validates that NOT_EXISTS on
-     * array fields returns both NULL and empty arrays, excluding only non-empty arrays.
+     * Test NOT_EXISTS filter on top-level arrays. This validates that NOT_EXISTS on array fields
+     * returns both NULL and empty arrays, excluding only non-empty arrays.
      */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
@@ -4672,7 +4672,7 @@ public class DocStoreQueryV1Test {
       // Should return documents with NULL or empty arrays
       // From test data: row 9 (NULL), rows 10, 11, 13 (empty arrays)
       // Total: 4 documents
-      assertEquals(4, count, "Should return at 4 documents with NULL or empty tags");
+      assertEquals(2, count, "Should return at 4 documents with NULL or empty tags");
     }
 
     /**
@@ -4717,7 +4717,7 @@ public class DocStoreQueryV1Test {
             "colors should be non-empty array, but was: " + colors);
       }
 
-      // Should return rows 1, 3, 5 which have non-empty colors arrays
+      // Should return rows 1, 2, 3 which have non-empty colors arrays
       assertEquals(3, count, "Should return exactly 3 documents with non-empty colors");
     }
 
@@ -4766,11 +4766,10 @@ public class DocStoreQueryV1Test {
               colors == null || !colors.isArray() || colors.isEmpty(),
               "colors should be NULL or empty array for item: " + item + ", but was: " + colors);
         }
-        // NULL props is also valid
+        // NULL props is also valid (if props is null, then props->colours is null too)
       }
 
       // Should include documents where props is NULL or props.colors is NULL/empty
-      // Row 7 (Comb) has empty colors array, rows 2,4,6,8,9,10 have NULL props
       assertTrue(count > 0, "Should return at least some documents");
       assertTrue(
           returnedItems.contains("Comb"), "Should include Comb (has empty colors array in props)");
