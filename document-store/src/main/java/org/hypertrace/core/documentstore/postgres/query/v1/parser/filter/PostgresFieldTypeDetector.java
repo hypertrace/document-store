@@ -30,7 +30,7 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
  *   <li>JSONB_ARRAY: {@code IS NOT NULL AND jsonb_array_length(...) > 0}
  * </ul>
  */
-class PostgresArrayFieldDetector implements SelectTypeExpressionVisitor {
+class PostgresFieldTypeDetector implements SelectTypeExpressionVisitor {
 
   /** Field category for determining appropriate SQL generation strategy */
   enum FieldCategory {

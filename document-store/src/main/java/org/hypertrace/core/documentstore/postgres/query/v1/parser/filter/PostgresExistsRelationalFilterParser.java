@@ -2,11 +2,9 @@ package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter;
 
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
-import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresArrayFieldDetector.FieldCategory;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresFieldTypeDetector.FieldCategory;
 
 class PostgresExistsRelationalFilterParser implements PostgresRelationalFilterParser {
-
-  private static final PostgresArrayFieldDetector ARRAY_DETECTOR = new PostgresArrayFieldDetector();
 
   @Override
   public String parse(
@@ -19,10 +17,10 @@ class PostgresExistsRelationalFilterParser implements PostgresRelationalFilterPa
     // If false:
     // Regular fields -> IS NULL
     // Arrays -> IS NULL OR cardinality(...) = 0,
-    // JSONB arrays: IS NULL OR jsonb_array_length(...) > 0
+    // JSONB arrays: IS NULL OR (jsonb_typeof(%s) = 'array' AND jsonb_array_length(...) = 0)
     final boolean parsedRhs = !ConstantExpression.of(false).equals(expression.getRhs());
 
-    FieldCategory category = expression.getLhs().accept(ARRAY_DETECTOR);
+    FieldCategory category = expression.getLhs().accept(new PostgresFieldTypeDetector());
 
     switch (category) {
       case ARRAY:
@@ -38,7 +36,7 @@ class PostgresExistsRelationalFilterParser implements PostgresRelationalFilterPa
                 "(%s IS NOT NULL AND jsonb_typeof(%s) = 'array' AND jsonb_array_length(%s) > 0)",
                 parsedLhs, parsedLhs, parsedLhs)
             : String.format(
-                "(%s IS NULL OR jsonb_typeof(%s) != 'array' OR jsonb_array_length(%s) = 0)",
+                "(%s IS NULL OR (jsonb_typeof(%s) = 'array' AND jsonb_array_length(%s) = 0))",
                 parsedLhs, parsedLhs, parsedLhs);
 
       case SCALAR:
