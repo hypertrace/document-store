@@ -95,6 +95,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonArrayIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
@@ -124,7 +125,6 @@ import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -304,6 +304,24 @@ public class DocStoreQueryV1Test {
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
       return Stream.of(Arguments.of(POSTGRES_STORE));
+    }
+  }
+
+  /**
+   * Provides arguments for testing array operations with different expression types. Returns:
+   * (datastoreName, expressionType) - "WITH_TYPE": ArrayIdentifierExpression WITH ArrayType
+   * (optimized, type-aware casting) - "WITHOUT_TYPE": ArrayIdentifierExpression WITHOUT ArrayType
+   * (fallback, text[] casting)
+   */
+  private static class PostgresArrayTypeProvider implements ArgumentsProvider {
+
+    @Override
+    public Stream<Arguments> provideArguments(final ExtensionContext context) {
+      return Stream.of(
+          Arguments.of(POSTGRES_STORE, "WITH_TYPE"), // ArrayIdentifierExpression WITH ArrayType
+          Arguments.of(
+              POSTGRES_STORE, "WITHOUT_TYPE") // ArrayIdentifierExpression WITHOUT ArrayType
+          );
     }
   }
 
@@ -3220,7 +3238,7 @@ public class DocStoreQueryV1Test {
       iterator.close();
 
       // Should have 8 documents from the INSERT statements
-      assertEquals(14, count);
+      assertEquals(10, count);
     }
 
     @ParameterizedTest
@@ -3275,26 +3293,166 @@ public class DocStoreQueryV1Test {
     }
 
     /**
-     * This test is disabled for now because flat collections do not support search on nested
-     * queries in JSONB fields (ex. props.brand)
+     * Tests IN operator on flat collection fields (top-level columns and JSONB fields) with
+     * type-specific optimization.
      *
-     * @param dataStoreName the datastore name, in this case, Postgres
-     * @throws IOException
+     * <p>Flat collection schema:
+     *
+     * <ul>
+     *   <li>Top-level columns: item (TEXT), price (INTEGER), quantity (INTEGER)
+     *   <li>JSONB column: props (with nested fields like brand, size, seller)
+     * </ul>
+     *
+     * <p>Expected SQL patterns for top-level columns:
+     *
+     * <ul>
+     *   <li>"item" IN (?, ?) - Direct column reference
+     *   <li>"price" IN (?, ?) - Direct column reference
+     * </ul>
+     *
+     * <p>Expected SQL patterns for JSONB fields with JsonFieldType:
+     *
+     * <ul>
+     *   <li>STRING: "props" ->> 'brand' IN (?, ?)
+     *   <li>NUMBER: CAST("props" ->> 'field' AS NUMERIC) IN (?, ?)
+     * </ul>
      */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    @Disabled
+    void testNestedCollectionInOperatorOnJsonPrimitiveFields(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection collection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test 1: IN operator on top-level STRING column (item)
+      // Find documents where item is "Soap" OR "Shampoo"
+      // Expected SQL: "item" IN ('Soap', 'Shampoo')
+      Query itemInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Soap", "Shampoo"))))
+              .build();
+
+      long itemInCount = collection.count(itemInQuery);
+      assertEquals(5, itemInCount); // 3 Soap + 2 Shampoo documents
+
+      // Test 2: IN operator on top-level NUMBER column (quantity)
+      // Find documents where quantity is 5 OR 10
+      // Expected SQL: "quantity" IN (5, 10)
+      Query quantityInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("quantity"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(5, 10))))
+              .build();
+
+      long quantityInCount = collection.count(quantityInQuery);
+      assertEquals(5, quantityInCount); // quantity=5: _id 5,6,8; quantity=10: _id 3,7
+
+      // Test 3: IN operator on top-level NUMBER column (price)
+      // Find documents where price is 5 OR 10
+      // Expected SQL: "price" IN (5, 10)
+      Query priceInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(5, 10))))
+              .build();
+
+      long priceInCount = collection.count(priceInQuery);
+      assertEquals(4, priceInCount); // price=10: _id 1,8; price=5: _id 3,4
+
+      // Test 4: IN operator on JSONB STRING field (props.brand) with type optimization
+      // Find documents where props.brand is "Dettol" OR "Sunsilk"
+      // Expected SQL: "props" ->> 'brand' IN ('Dettol', 'Sunsilk')
+      Query nestedInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Dettol", "Sunsilk"))))
+              .build();
+
+      long nestedInCount = collection.count(nestedInQuery);
+      assertEquals(2, nestedInCount); // _id 1 (Dettol) + _id 3 (Sunsilk)
+
+      // Test 5: NOT_IN operator on top-level STRING column (item)
+      // Find documents where item is NOT "Soap"
+      // Expected SQL: "item" NOT IN ('Soap') OR "item" IS NULL
+      Query itemNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("Soap"))))
+              .build();
+
+      long itemNotInCount = collection.count(itemNotInQuery);
+      assertEquals(7, itemNotInCount); // All 10 docs minus 3 Soap docs = 7
+
+      // Test 6: Combined IN with other filters (AND)
+      // Filter: item IN ("Soap", "Shampoo") AND quantity >= 5
+      Query combinedQuery =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(LogicalOperator.AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Soap", "Shampoo"))))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("quantity"), GTE, ConstantExpression.of(5)))
+                      .build())
+              .build();
+
+      long combinedCount = collection.count(combinedQuery);
+      assertTrue(combinedCount > 0, "Combined IN with >= filter should find documents");
+    }
+
+    /**
+     * Tests querying JSONB nested fields with JsonIdentifierExpression and JsonFieldType for
+     * optimized SQL generation.
+     *
+     * <p>JsonFieldType is required for all JSONB IN/NOT_IN operations to generate optimal SQL.
+     *
+     * <p>Test coverage:
+     *
+     * <ul>
+     *   <li>EQ operator on JSONB STRING fields with type info
+     *   <li>IN operator on JSONB STRING fields with type info
+     *   <li>NOT_IN operator on JSONB STRING fields with type info (includes NULL handling)
+     *   <li>Deeply nested JSONB field access (props.seller.address.city)
+     *   <li>Combined filters with JSONB and top-level columns
+     * </ul>
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionNestedFieldQuery(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Test querying nested field in props JSONB column - filter by brand
+      // Test 1: EQ operator on JSONB STRING field (props.brand) with type optimization
+      // Expected SQL: "props" ->> 'brand' = 'Dettol'
       Query brandQuery =
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("props.brand"), EQ, ConstantExpression.of("Dettol")))
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      EQ,
+                      ConstantExpression.of("Dettol")))
               .build();
 
       CloseableIterator<Document> brandIterator = flatCollection.find(brandQuery);
@@ -3307,15 +3465,17 @@ public class DocStoreQueryV1Test {
       }
       brandIterator.close();
 
-      // Should have 1 Dettol document (ID 1)
+      // Should have 1 Dettol document (_id=1)
       assertEquals(1, brandCount);
 
-      // Test querying deeply nested field - filter by seller city
+      // Test 2: Deeply nested JSONB field access (props.seller.address.city)
+      // Expected SQL: "props" -> 'seller' -> 'address' ->> 'city' = 'Mumbai'
       Query cityQuery =
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("props.seller.address.city"),
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING, "seller", "address", "city"),
                       EQ,
                       ConstantExpression.of("Mumbai")))
               .build();
@@ -3330,10 +3490,64 @@ public class DocStoreQueryV1Test {
       }
       cityIterator.close();
 
-      // Should have 2 Mumbai documents (IDs 1, 3)
+      // Should have 2 Mumbai documents (_id=1, _id=3)
       assertEquals(2, cityCount);
 
-      // Test count with nested field filter
+      // Test 3: IN operator on JSONB STRING field with type optimization
+      // Expected SQL: "props" ->> 'brand' IN ('Dettol', 'Sunsilk', 'Lifebuoy')
+      Query brandInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Dettol", "Sunsilk", "Lifebuoy"))))
+              .build();
+
+      long brandInCount = flatCollection.count(brandInQuery);
+      assertEquals(3, brandInCount); // _id=1 (Dettol), _id=3 (Sunsilk), _id=5 (Lifebuoy)
+
+      // Test 4: Combined filter - JSONB field + top-level column
+      // Filter: brand = "Dettol" AND price = 10
+      // Expected SQL: "props" ->> 'brand' = 'Dettol' AND "price" = 10
+      Query combinedQuery =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(LogicalOperator.AND)
+                      .operand(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                              EQ,
+                              ConstantExpression.of("Dettol")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
+                      .build())
+              .build();
+
+      long combinedCount = flatCollection.count(combinedQuery);
+      assertEquals(1, combinedCount); // Only _id=1 matches both conditions
+
+      // Test 5: NOT_IN operator on JSONB STRING field with type optimization
+      // Find documents where brand is NOT "Dettol" (should find Sunsilk and Lifebuoy)
+      // Expected SQL: NOT ("props" ->> 'brand' IN ('Dettol')) OR "props" ->> 'brand' IS NULL
+      Query brandNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("Dettol"))))
+              .build();
+
+      long brandNotInCount = flatCollection.count(brandNotInQuery);
+      // Docs with brand: _id=1 (Dettol), _id=3 (Sunsilk), _id=5 (Lifebuoy)
+      // Docs with NULL props or no brand: _id=2, 4, 6, 7, 8, 9, 10
+      // NOT_IN "Dettol" should return: 2 (Sunsilk, Lifebuoy) + 7 (NULL/missing) = 9
+      assertEquals(9, brandNotInCount);
+
+      // Test 6: Verify count methods with JSONB fields
       long brandCountQuery = flatCollection.count(brandQuery);
       assertEquals(1, brandCountQuery);
 
@@ -3772,7 +3986,7 @@ public class DocStoreQueryV1Test {
       Iterator<Document> resultIterator = flatCollection.aggregate(unnestQuery);
       // Expected categories: Hygiene(3), PersonalCare(2), HairCare(2), HomeDecor(1), Grooming(2)
       assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_unnest_mixed_case_response.json", 6);
+          dataStoreName, resultIterator, "query/flat_unnest_mixed_case_response.json", 5);
     }
 
     @ParameterizedTest
@@ -3799,7 +4013,7 @@ public class DocStoreQueryV1Test {
 
       Iterator<Document> resultIterator = flatCollection.find(integerArrayQuery);
       assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_integer_array_filter_response.json", 2);
+          dataStoreName, resultIterator, "query/flat_integer_array_filter_response.json", 1);
     }
 
     @ParameterizedTest
@@ -3874,7 +4088,7 @@ public class DocStoreQueryV1Test {
 
       Iterator<Document> brandIterator = flatCollection.find(brandSelectionQuery);
       assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, brandIterator, "query/flat_jsonb_brand_selection_response.json", 14);
+          dataStoreName, brandIterator, "query/flat_jsonb_brand_selection_response.json", 10);
 
       // Test 2: Select deeply nested STRING field from JSONB column (props.seller.address.city)
       Query citySelectionQuery =
@@ -3884,7 +4098,7 @@ public class DocStoreQueryV1Test {
 
       Iterator<Document> cityIterator = flatCollection.find(citySelectionQuery);
       assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, cityIterator, "query/flat_jsonb_city_selection_response.json", 14);
+          dataStoreName, cityIterator, "query/flat_jsonb_city_selection_response.json", 10);
 
       // Test 3: Select STRING_ARRAY field from JSONB column (props.colors)
       Query colorsSelectionQuery =
@@ -3892,7 +4106,7 @@ public class DocStoreQueryV1Test {
 
       Iterator<Document> colorsIterator = flatCollection.find(colorsSelectionQuery);
       assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, colorsIterator, "query/flat_jsonb_colors_selection_response.json", 14);
+          dataStoreName, colorsIterator, "query/flat_jsonb_colors_selection_response.json", 10);
     }
 
     @ParameterizedTest
@@ -4179,7 +4393,7 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "colors"),
+                        JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
                         CONTAINS,
                         ConstantExpression.of("Green")))
                 .build();
@@ -4196,7 +4410,8 @@ public class DocStoreQueryV1Test {
                         .operator(LogicalOperator.AND)
                         .operand(
                             RelationalExpression.of(
-                                JsonIdentifierExpression.of("props", "colors"),
+                                JsonIdentifierExpression.of(
+                                    "props", JsonFieldType.STRING_ARRAY, "colors"),
                                 NOT_CONTAINS,
                                 ConstantExpression.of("Green")))
                         .operand(
@@ -4228,7 +4443,7 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "brand"),
+                        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
                         IN,
                         ConstantExpression.ofStrings(List.of("Dettol", "Lifebuoy"))))
                 .build();
@@ -4245,7 +4460,7 @@ public class DocStoreQueryV1Test {
                         .operator(LogicalOperator.AND)
                         .operand(
                             RelationalExpression.of(
-                                JsonIdentifierExpression.of("props", "brand"),
+                                JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
                                 NOT_IN,
                                 ConstantExpression.ofStrings(List.of("Dettol"))))
                         .operand(
@@ -4275,7 +4490,7 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "brand"),
+                        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
                         EQ,
                         ConstantExpression.of("Dettol")))
                 .build();
@@ -4289,7 +4504,7 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "brand"),
+                        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
                         NEQ,
                         ConstantExpression.of("Dettol")))
                 .build();
@@ -4316,7 +4531,8 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
                         GT,
                         ConstantExpression.of(500000)))
                 .build();
@@ -4330,7 +4546,8 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
                         LT,
                         ConstantExpression.of(500000)))
                 .build();
@@ -4344,7 +4561,8 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
                         GTE,
                         ConstantExpression.of(700000)))
                 .build();
@@ -4358,7 +4576,8 @@ public class DocStoreQueryV1Test {
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", "seller", "address", "pincode"),
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
                         LTE,
                         ConstantExpression.of(400004)))
                 .build();
