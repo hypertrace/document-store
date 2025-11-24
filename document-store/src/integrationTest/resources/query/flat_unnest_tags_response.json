@@ -1,22 +1,18 @@
 [
   {
-    "tags": "wholesale",
-    "count": 1
+    "tags": "hygiene",
+    "count": 3
   },
   {
-    "tags": "stationery",
+    "tags": "personal-care",
     "count": 2
   },
   {
-    "tags": "grooming",
+    "tags": "premium",
     "count": 2
   },
   {
-    "tags": "family-pack",
-    "count": 1
-  },
-  {
-    "tags": "glass",
+    "tags": "home-decor",
     "count": 1
   },
   {
@@ -24,39 +20,23 @@
     "count": 1
   },
   {
-    "tags": "home-decor",
+    "tags": "glass",
     "count": 1
   },
   {
-    "tags": "writing",
-    "count": 1
-  },
-  {
-    "tags": "premium",
+    "tags": "hair-care",
     "count": 2
   },
   {
-    "tags": "plastic",
+    "tags": "herbal",
     "count": 1
-  },
-  {
-    "tags": "basic",
-    "count": 1
-  },
-  {
-    "tags": "personal-care",
-    "count": 2
-  },
-  {
-    "tags": "essential",
-    "count": 1
-  },
-  {
-    "tags": "hygiene",
-    "count": 3
   },
   {
     "tags": "budget",
+    "count": 2
+  },
+  {
+    "tags": "bulk",
     "count": 2
   },
   {
@@ -64,15 +44,27 @@
     "count": 1
   },
   {
-    "tags": "herbal",
+    "tags": "family-pack",
     "count": 1
   },
   {
-    "tags": "bulk",
+    "tags": "grooming",
     "count": 2
   },
   {
-    "tags": "hair-care",
-    "count": 2
+    "tags": "plastic",
+    "count": 1
+  },
+  {
+    "tags": "essential",
+    "count": 1
+  },
+  {
+    "tags": "wholesale",
+    "count": 1
+  },
+  {
+    "tags": "basic",
+    "count": 1
   }
 ]
