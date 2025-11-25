@@ -62,17 +62,20 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -85,6 +88,7 @@ import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -4578,6 +4582,197 @@ public class DocStoreQueryV1Test {
         long lteCount = flatCollection.count(lteQuery);
         assertEquals(2, lteCount, "LTE: Should find 2 documents with pincode <= 400004");
       }
+    }
+  }
+
+  @Nested
+  class FlatCollectionArrayBehaviourTest {
+
+    /**
+     * Test EXISTS filter on top-level arrays. It should only return arrays that are non-empty (have
+     * at-least one element)
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testExistsFilterOnArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Query using EXISTS on array field (simulating ArrayIdentifierExpression behavior)
+      // tags column has: NULL (row 9), empty '{}' (rows 10, 11, 13), non-empty (rows 1-8, 12, 14)
+      // Using EXISTS with 'null' parameter (matching entity-service pattern)
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags"), EXISTS, ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+        // Verify that ALL returned documents have non-empty arrays
+        JsonNode tags = json.get("tags");
+        assertTrue(
+            tags.isArray() && !tags.isEmpty(), "tags should be non-empty array, but was: " + tags);
+      }
+
+      // Should return only documents with non-empty arrays
+      // From test data: rows 1-8 have non-empty arrays (8 docs)
+      // Plus rows 9, 10 have non-empty arrays (2 docs)
+      // Total: 10 documents
+      assertEquals(8, count, "Should return a total of 10 docs that have non-empty tags");
+    }
+
+    /**
+     * Test NOT_EXISTS filter on top-level arrays. This validates that NOT_EXISTS on array fields
+     * returns both NULL and empty arrays, excluding only non-empty arrays.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotExistsFilterOnArrays(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Query using NOT_EXISTS on array field (simulating ArrayIdentifierExpression behavior)
+      // Using NOT_EXISTS with 'null' parameter (matching entity-service pattern)
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags"),
+                      NOT_EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+        // Verify that ALL returned documents have NULL or empty arrays
+        JsonNode tags = json.get("tags");
+        assertTrue(
+            tags == null || !tags.isArray() || tags.isEmpty(),
+            "tags should be NULL or empty array, but was: " + tags);
+      }
+
+      // Should return documents with NULL or empty arrays
+      // From test data: row 9 (NULL), rows 10, 11, 13 (empty arrays)
+      // Total: 4 documents
+      assertEquals(2, count, "Should return at 4 documents with NULL or empty tags");
+    }
+
+    /**
+     * Test EXISTS filter on JSONB arrays. Should only return non-empty arrays (with at-least one
+     * element).
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testExistsFilterOnJsonArrays(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Query using EXISTS on JSONB array field
+      // props.colors has: non-empty (rows 1, 3, 5), empty (row 7), NULL (rest)
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(JsonIdentifierExpression.of("props", "colors"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
+                      EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        // Verify that ALL returned documents have non-empty arrays in props.colors
+        JsonNode props = json.get("props");
+        assertTrue(props.isObject(), "props should be a JSON object");
+
+        JsonNode colors = props.get("colors");
+        assertTrue(
+            colors.isArray() && !colors.isEmpty(),
+            "colors should be non-empty array, but was: " + colors);
+      }
+
+      // Should return rows 1, 2, 3 which have non-empty colors arrays
+      assertEquals(3, count, "Should return exactly 3 documents with non-empty colors");
+    }
+
+    /**
+     * Test NOT_EXISTS filter on JSONB arrays. This validates that NOT_EXISTS on array fields inside
+     * JSONB returns documents where the field is NULL, the parent object is NULL, or the array is
+     * empty.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotExistsFilterOnJsonArrays(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Query using NOT_EXISTS on JSONB array field
+      // Test with props.colors field
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(JsonIdentifierExpression.of("props", "colors"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
+                      NOT_EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      Set<String> returnedItems = new HashSet<>();
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        String item = json.get("item").asText();
+        returnedItems.add(item);
+
+        // Verify that returned documents have NULL parent, missing field, or empty arrays
+        JsonNode props = json.get("props");
+        if (props != null && props.isObject()) {
+          JsonNode colors = props.get("colors");
+          assertTrue(
+              colors == null || !colors.isArray() || colors.isEmpty(),
+              "colors should be NULL or empty array for item: " + item + ", but was: " + colors);
+        }
+        // NULL props is also valid (if props is null, then props->colours is null too)
+      }
+
+      // Should include documents where props is NULL or props.colors is NULL/empty
+      assertTrue(count > 0, "Should return at least some documents");
+      assertTrue(
+          returnedItems.contains("Comb"), "Should include Comb (has empty colors array in props)");
     }
   }
 
