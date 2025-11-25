@@ -1761,4 +1761,52 @@ public class PostgresQueryParserTest {
       assertEquals(0, params.getObjectParams().size());
     }
   }
+
+  @Test
+  void testFlatCollectionWithHyphenatedJsonbArrayFieldInUnnest() {
+    // This test reproduces the syntax error with field names containing hyphens
+    // When a JSONB array field with hyphens (e.g., "dev-ops-owner") is unnested,
+    // the alias becomes "customAttribute_dot_dev-ops-owner" which needs quotes in LATERAL join
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("id"))
+            .addSelection(
+                JsonIdentifierExpression.of(
+                    "customAttribute", JsonFieldType.STRING_ARRAY, "dev-ops-owner"))
+            .addFromClause(
+                UnnestExpression.of(
+                    JsonIdentifierExpression.of(
+                        "customAttribute", JsonFieldType.STRING_ARRAY, "dev-ops-owner"),
+                    true))
+            .setFilter(
+                RelationalExpression.of(
+                    JsonIdentifierExpression.of(
+                        "customAttribute", JsonFieldType.STRING_ARRAY, "dev-ops-owner"),
+                    EQ,
+                    ConstantExpression.of("team-alpha")))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+
+    // The key assertion: the alias in the LATERAL join must be quoted
+    // CORRECT:   p1("customAttribute_dot_dev-ops-owner")
+    // INCORRECT: p1(customAttribute_dot_dev-ops-owner) <- causes PostgreSQL syntax error
+    String expectedSql =
+        "With \n"
+            + "table0 as (SELECT * from \"testCollection\"),\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(\"customAttribute\"->'dev-ops-owner') p1(\"customAttribute_dot_dev-ops-owner\") on TRUE)\n"
+            + "SELECT \"id\" AS \"id\", \"customAttribute_dot_dev-ops-owner\" AS \"customAttribute_dot_dev-ops-owner\" "
+            + "FROM table1 WHERE \"customAttribute_dot_dev-ops-owner\" = ?";
+
+    assertEquals(expectedSql, sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals("team-alpha", params.getObjectParams().get(1));
+  }
 }
