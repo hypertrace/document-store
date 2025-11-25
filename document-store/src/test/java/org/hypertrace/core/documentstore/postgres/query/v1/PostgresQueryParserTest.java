@@ -1728,7 +1728,7 @@ public class PostgresQueryParserTest {
 
       String sql = postgresQueryParser.parse();
       assertEquals(
-          "SELECT * FROM \"testCollection\" WHERE NOT (\"customAttribute\"->'brand' IS NULL)", sql);
+          "SELECT * FROM \"testCollection\" WHERE \"customAttribute\"->'brand' IS NULL", sql);
 
       Params params = postgresQueryParser.getParamsBuilder().build();
       assertEquals(0, params.getObjectParams().size());
