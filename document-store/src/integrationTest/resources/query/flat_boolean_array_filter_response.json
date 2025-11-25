@@ -1,10 +1,17 @@
 [
   {
-    "item": "Soap",
-    "price": 10
+    "item": "Soap"
   },
   {
-    "item": "Shampoo",
-    "price": 5
+    "item": "Shampoo"
+  },
+  {
+    "item": "Shampoo"
+  },
+  {
+    "item": "Comb"
+  },
+  {
+    "item": "Soap"
   }
 ]

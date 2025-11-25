@@ -1,6 +1,14 @@
 [
   {
-    "item": "Mirror",
-    "price": 20
+    "item": "Mirror"
+  },
+  {
+    "item": "Shampoo"
+  },
+  {
+    "item": "Comb"
+  },
+  {
+    "item": "Soap"
   }
 ]

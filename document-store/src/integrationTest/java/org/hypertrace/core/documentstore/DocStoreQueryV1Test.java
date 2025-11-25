@@ -3587,87 +3587,6 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionIntegerArrayFilter(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Filter: ANY number in numbers equals 10 (Integer constant)
-      // This tests L265-266: Integer/Long → ::bigint[]
-      Query integerArrayQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("price"))
-              .setFilter(
-                  ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ANY)
-                      .filter(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("numbers"), EQ, ConstantExpression.of(10)))
-                      .build())
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.find(integerArrayQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_integer_array_filter_response.json", 1);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionDoubleArrayFilter(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Filter: ANY score in scores equals 3.14 (Double constant)
-      // This tests L267-268: Double/Float → ::double precision[]
-      Query doubleArrayQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("price"))
-              .setFilter(
-                  ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ANY)
-                      .filter(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("scores"), EQ, ConstantExpression.of(3.14)))
-                      .build())
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.find(doubleArrayQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_double_array_filter_response.json", 1);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionBooleanArrayFilter(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Filter: ANY flag in flags equals true (Boolean constant)
-      // This tests L269-270: Boolean → ::boolean[]
-      Query booleanArrayQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("price"))
-              .setFilter(
-                  ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ANY)
-                      .filter(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("flags"), EQ, ConstantExpression.of(true)))
-                      .build())
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.find(booleanArrayQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_boolean_array_filter_response.json", 2);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
     void testFlatVsNestedCollectionNestedFieldSelections(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
 
@@ -4769,9 +4688,79 @@ public class DocStoreQueryV1Test {
         }
       }
 
-      // Should return rows where flags array contains true
-      // IDs: 1 {true,false}, 3 {true,false,true}, 4 {true,true}, 6 {true,false}, 8 {true}
       assertTrue(count >= 5, "Should return at least 5 items with 'true' flag");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAnyOnIntegerArray(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query integerArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("numbers"), EQ, ConstantExpression.of(10)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(integerArrayQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_integer_array_filter_response.json", 4);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAnyOnDoubleArray(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query doubleArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("scores"), EQ, ConstantExpression.of(3.14)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(doubleArrayQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_double_array_filter_response.json", 1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAnyOnBooleanArray(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query booleanArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("flags"), EQ, ConstantExpression.of(true)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(booleanArrayQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_boolean_array_filter_response.json", 5);
     }
   }
 
