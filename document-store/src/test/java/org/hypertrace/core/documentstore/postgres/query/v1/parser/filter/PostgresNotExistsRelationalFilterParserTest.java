@@ -68,7 +68,7 @@ class PostgresNotExistsRelationalFilterParserTest {
 
   @Test
   void testParse_jsonbArrayField_rhsFalse() {
-    // Test NOT_EXISTS on JSONB array with RHS = false
+    // Test NOT_EXISTS on JSONB array with RHS = falsei
     JsonIdentifierExpression lhs =
         JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors");
     ConstantExpression rhs = ConstantExpression.of(false);

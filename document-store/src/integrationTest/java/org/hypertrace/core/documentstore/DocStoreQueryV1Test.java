@@ -320,7 +320,7 @@ public class DocStoreQueryV1Test {
           Arguments.of(POSTGRES_STORE, "WITH_TYPE"), // ArrayIdentifierExpression WITH ArrayType
           Arguments.of(
               POSTGRES_STORE, "WITHOUT_TYPE") // ArrayIdentifierExpression WITHOUT ArrayType
-          );
+      );
     }
   }
 
@@ -2025,8 +2025,7 @@ public class DocStoreQueryV1Test {
               .collect(toUnmodifiableList());
 
       assertEquals(1, documents.size());
-      @SuppressWarnings("unchecked")
-      final Map<String, Object> mapping =
+      @SuppressWarnings("unchecked") final Map<String, Object> mapping =
           new ObjectMapper().readValue(documents.get(0).toJson(), Map.class);
       assertTrue(
           (long) mapping.get(DocStoreConstants.LAST_UPDATED_TIME)
@@ -2694,25 +2693,25 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.builder()
               .subDocument("props.added.set")
               .operator(ADD_TO_LIST_IF_ABSENT)
-              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .subDocumentValue(SubDocumentValue.of(new Integer[]{5, 1, 5}))
               .build();
       final SubDocumentUpdate another_add =
           SubDocumentUpdate.builder()
               .subDocument("props.planets")
               .operator(ADD_TO_LIST_IF_ABSENT)
-              .subDocumentValue(SubDocumentValue.of(new String[] {"Neptune", "Pluto"}))
+              .subDocumentValue(SubDocumentValue.of(new String[]{"Neptune", "Pluto"}))
               .build();
       final SubDocumentUpdate append =
           SubDocumentUpdate.builder()
               .subDocument("props.appended.list")
               .operator(APPEND_TO_LIST)
-              .subDocumentValue(SubDocumentValue.of(new Integer[] {1, 2}))
+              .subDocumentValue(SubDocumentValue.of(new Integer[]{1, 2}))
               .build();
       final SubDocumentUpdate remove =
           SubDocumentUpdate.builder()
               .subDocument("props.removed.list")
               .operator(REMOVE_ALL_FROM_LIST)
-              .subDocumentValue(SubDocumentValue.of(new String[] {"Hello"}))
+              .subDocumentValue(SubDocumentValue.of(new String[]{"Hello"}))
               .build();
       final SubDocumentUpdate increment =
           SubDocumentUpdate.builder()
@@ -2746,19 +2745,19 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.builder()
               .subDocument("props.added.set")
               .operator(ADD_TO_LIST_IF_ABSENT)
-              .subDocumentValue(SubDocumentValue.of(new Integer[] {3, 1, 1000}))
+              .subDocumentValue(SubDocumentValue.of(new Integer[]{3, 1, 1000}))
               .build();
       final SubDocumentUpdate append_new =
           SubDocumentUpdate.builder()
               .subDocument("props.appended.list")
               .operator(APPEND_TO_LIST)
-              .subDocumentValue(SubDocumentValue.of(new Integer[] {8, 2}))
+              .subDocumentValue(SubDocumentValue.of(new Integer[]{8, 2}))
               .build();
       final SubDocumentUpdate remove_new =
           SubDocumentUpdate.builder()
               .subDocument("props.planets")
               .operator(REMOVE_ALL_FROM_LIST)
-              .subDocumentValue(SubDocumentValue.of(new String[] {"Pluto", "Mars"}))
+              .subDocumentValue(SubDocumentValue.of(new String[]{"Pluto", "Mars"}))
               .build();
       final SubDocumentUpdate decrement =
           SubDocumentUpdate.builder()
@@ -2905,10 +2904,10 @@ public class DocStoreQueryV1Test {
               .operator(ADD_TO_LIST_IF_ABSENT)
               .subDocumentValue(
                   SubDocumentValue.of(
-                      new Document[] {
-                        new JSONDocument(Map.of("key", 1)),
-                        new JSONDocument(Map.of("key", 2)),
-                        new JSONDocument(Map.of("key", 1))
+                      new Document[]{
+                          new JSONDocument(Map.of("key", 1)),
+                          new JSONDocument(Map.of("key", 2)),
+                          new JSONDocument(Map.of("key", 1))
                       }))
               .build();
       final SubDocumentUpdate another_add =
@@ -2917,9 +2916,9 @@ public class DocStoreQueryV1Test {
               .operator(ADD_TO_LIST_IF_ABSENT)
               .subDocumentValue(
                   SubDocumentValue.of(
-                      new Document[] {
-                        new JSONDocument(Map.of("name", "Neptune")),
-                        new JSONDocument(Map.of("name", "Pluto"))
+                      new Document[]{
+                          new JSONDocument(Map.of("name", "Neptune")),
+                          new JSONDocument(Map.of("name", "Pluto"))
                       }))
               .build();
       final SubDocumentUpdate append =
@@ -2928,8 +2927,8 @@ public class DocStoreQueryV1Test {
               .operator(APPEND_TO_LIST)
               .subDocumentValue(
                   SubDocumentValue.of(
-                      new Document[] {
-                        new JSONDocument(Map.of("key", 1)), new JSONDocument(Map.of("key", 2))
+                      new Document[]{
+                          new JSONDocument(Map.of("key", 1)), new JSONDocument(Map.of("key", 2))
                       }))
               .build();
       final SubDocumentUpdate remove =
@@ -2937,7 +2936,7 @@ public class DocStoreQueryV1Test {
               .subDocument("props.removed.list")
               .operator(REMOVE_ALL_FROM_LIST)
               .subDocumentValue(
-                  SubDocumentValue.of(new Document[] {new JSONDocument(Map.of("Hello", "world!"))}))
+                  SubDocumentValue.of(new Document[]{new JSONDocument(Map.of("Hello", "world!"))}))
               .build();
 
       final Query query = Query.builder().build();
@@ -2954,7 +2953,7 @@ public class DocStoreQueryV1Test {
               .subDocument("props.sales")
               .operator(SET)
               .subDocumentValue(
-                  SubDocumentValue.of(new Document[] {new JSONDocument(Map.of("count", 789))}))
+                  SubDocumentValue.of(new Document[]{new JSONDocument(Map.of("count", 789))}))
               .build();
       final SubDocumentUpdate unset_new =
           SubDocumentUpdate.builder()
@@ -2967,8 +2966,8 @@ public class DocStoreQueryV1Test {
               .operator(ADD_TO_LIST_IF_ABSENT)
               .subDocumentValue(
                   SubDocumentValue.of(
-                      new Document[] {
-                        new JSONDocument(Map.of("key", 3)), new JSONDocument(Map.of("key", 1))
+                      new Document[]{
+                          new JSONDocument(Map.of("key", 3)), new JSONDocument(Map.of("key", 1))
                       }))
               .build();
       final SubDocumentUpdate append_new =
@@ -2977,8 +2976,8 @@ public class DocStoreQueryV1Test {
               .operator(APPEND_TO_LIST)
               .subDocumentValue(
                   SubDocumentValue.of(
-                      new Document[] {
-                        new JSONDocument(Map.of("key", 8)), new JSONDocument(Map.of("key", 2))
+                      new Document[]{
+                          new JSONDocument(Map.of("key", 8)), new JSONDocument(Map.of("key", 2))
                       }))
               .build();
       final SubDocumentUpdate remove_new =
@@ -2987,9 +2986,9 @@ public class DocStoreQueryV1Test {
               .operator(REMOVE_ALL_FROM_LIST)
               .subDocumentValue(
                   SubDocumentValue.of(
-                      new Document[] {
-                        new JSONDocument(Map.of("name", "Pluto")),
-                        new JSONDocument(Map.of("name", "Mars"))
+                      new Document[]{
+                          new JSONDocument(Map.of("name", "Pluto")),
+                          new JSONDocument(Map.of("name", "Mars"))
                       }))
               .build();
 
@@ -3013,7 +3012,7 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.builder()
               .subDocument("props.added.habitable_planets")
               .operator(SET)
-              .subDocumentValue(SubDocumentValue.of(new String[] {"Earth"}))
+              .subDocumentValue(SubDocumentValue.of(new String[]{"Earth"}))
               .build();
 
       final Query query = Query.builder().build();
@@ -3033,7 +3032,7 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.builder()
               .subDocument("props.added.habitable_planets")
               .operator(REMOVE_ALL_FROM_LIST)
-              .subDocumentValue(SubDocumentValue.of(new String[] {"Earth"}))
+              .subDocumentValue(SubDocumentValue.of(new String[]{"Earth"}))
               .build();
 
       final List<SubDocumentUpdate> newUpdates = List.of(remove);
@@ -3061,7 +3060,7 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.builder()
               .subDocument("props.added.list")
               .operator(SET)
-              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .subDocumentValue(SubDocumentValue.of(new Integer[]{5, 1, 5}))
               .build();
 
       final Query query = Query.builder().build();
@@ -3100,7 +3099,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate add =
           SubDocumentUpdate.builder()
               .subDocument("props.added.list")
-              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .subDocumentValue(SubDocumentValue.of(new Integer[]{5, 1, 5}))
               .build();
 
       final Query query = Query.builder().build();
@@ -3114,7 +3113,7 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.builder()
               .subDocument("props.added.list")
               .operator(ADD_TO_LIST_IF_ABSENT)
-              .subDocumentValue(SubDocumentValue.of(new Integer[] {3, 1, 4}))
+              .subDocumentValue(SubDocumentValue.of(new Integer[]{3, 1, 4}))
               .build();
       final List<SubDocumentUpdate> new_updates = List.of(remove);
 
@@ -3139,7 +3138,7 @@ public class DocStoreQueryV1Test {
       final SubDocumentUpdate add =
           SubDocumentUpdate.builder()
               .subDocument("props.added.list")
-              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .subDocumentValue(SubDocumentValue.of(new Integer[]{5, 1, 5}))
               .build();
 
       final Query query = Query.builder().build();
@@ -3176,7 +3175,7 @@ public class DocStoreQueryV1Test {
           SubDocumentUpdate.builder()
               .subDocument("props.added.list")
               .operator(ADD)
-              .subDocumentValue(SubDocumentValue.of(new Integer[] {5, 1, 5}))
+              .subDocumentValue(SubDocumentValue.of(new Integer[]{5, 1, 5}))
               .build();
       final Query query_addList = Query.builder().build();
       final List<SubDocumentUpdate> updates_addList = List.of(addList);
@@ -3189,9 +3188,9 @@ public class DocStoreQueryV1Test {
               .operator(ADD)
               .subDocumentValue(
                   SubDocumentValue.of(
-                      new Document[] {
-                        new JSONDocument(Map.of("name", "Pluto")),
-                        new JSONDocument(Map.of("name", "Mars"))
+                      new Document[]{
+                          new JSONDocument(Map.of("name", "Pluto")),
+                          new JSONDocument(Map.of("name", "Mars"))
                       }))
               .build();
       final Query query_addObject = Query.builder().build();
@@ -5012,6 +5011,167 @@ public class DocStoreQueryV1Test {
         count++;
       }
       assertEquals(7, count);
+    }
+
+    @Nested
+    class FlatCollectionUnnestWithInFilterTests {
+
+      @ParameterizedTest
+      @ArgumentsSource(PostgresProvider.class)
+      void testInFilterWithUnnestOnTopLevelArray(String dataStoreName) {
+        Datastore datastore = datastoreMap.get(dataStoreName);
+        Collection flatCollection =
+            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+        for (boolean preserveNullAndEmptyArrays : List.of(true, false)) {
+          Query unnestQuery =
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(ArrayIdentifierExpression.of("tags"))
+                  .addFromClause(
+                      UnnestExpression.of(ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                          preserveNullAndEmptyArrays))
+                  // Should return unnested tag elements that match 'hygiene' OR 'grooming'
+                  .setFilter(
+                      RelationalExpression.of(
+                          ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                          IN,
+                          ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
+                  .build();
+
+          //this query will first unnest "tags" array and keep rows that have null and empty arrays. It'll then filter those rows for which the
+          // unnested tag is either hygiene or grooming. We have a total of 5 rows that'll match this filter
+          Iterator<Document> results = flatCollection.find(unnestQuery);
+
+          int count = 0;
+          while (results.hasNext()) {
+            Document doc = results.next();
+            Assertions.assertNotNull(doc);
+            count++;
+          }
+          assertEquals(5, count, "Should return at least one unnested tag matching the filter");
+        }
+      }
+
+      @ParameterizedTest
+      @ArgumentsSource(PostgresProvider.class)
+      void testNotInFilterWithUnnestOnTopLevelArray(String dataStoreName) {
+        Datastore datastore = datastoreMap.get(dataStoreName);
+        Collection flatCollection =
+            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+        for (boolean preserveNullAndEmptyArrays : List.of(true, false)) {
+          Query unnestQuery =
+              Query.builder()
+                  .addSelection(IdentifierExpression.of("item"))
+                  .addSelection(ArrayIdentifierExpression.of("tags"))
+                  .addFromClause(
+                      UnnestExpression.of(ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                          preserveNullAndEmptyArrays))
+                  .setFilter(
+                      RelationalExpression.of(
+                          ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                          NOT_IN,
+                          ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
+                  .build();
+          //this query will first unnest "tags" array and keep rows that have null and empty arrays. unnest() on empty and null arrays returns NULL which is then
+          // included in the result set (as the predicate contains tags_unnested == NULL OR ...)
+
+          Iterator<Document> results = flatCollection.find(unnestQuery);
+
+          int count = 0;
+          while (results.hasNext()) {
+            Document doc = results.next();
+            Assertions.assertNotNull(doc);
+            count++;
+          }
+          assertEquals(preserveNullAndEmptyArrays ? 22 : 20, count,
+              "Should return unnested tags not matching the filter");
+        }
+      }
+
+      @ParameterizedTest
+      @ArgumentsSource(PostgresProvider.class)
+      void testInFilterWithUnnestOnJsonbArray(String dataStoreName) throws Exception {
+        Datastore datastore = datastoreMap.get(dataStoreName);
+        Collection flatCollection =
+            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+        Query unnestQuery =
+            Query.builder()
+                .addSelection(IdentifierExpression.of("item"))
+                .addSelection(
+                    JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "source-loc"))
+                .addFromClause(
+                    UnnestExpression.of(
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                        true))
+                // Should return unnested source-loc elements that match 'warehouse-A' OR 'store-1'
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                        IN,
+                        ConstantExpression.ofStrings(List.of("warehouse-A", "store-1"))))
+                .build();
+
+        Iterator<Document> resultIterator = flatCollection.find(unnestQuery);
+
+        int count = 0;
+        while (resultIterator.hasNext()) {
+          Document doc = resultIterator.next();
+          Assertions.assertNotNull(doc);
+          // Parse JSON to extract the unnested value
+          JsonNode json = new ObjectMapper().readTree(doc.toJson());
+          // The unnested value is aliased as "props.source-loc"
+          JsonNode locationNode = json.get("props.source-loc");
+          count++;
+        }
+
+        assertEquals(2, count, "Should return at least 2 unnested locations matching the filter");
+      }
+
+      @ParameterizedTest
+      @ArgumentsSource(PostgresProvider.class)
+      void testNotInFilterOnUnnestedJsonbArray(String dataStoreName) throws Exception {
+        Datastore datastore = datastoreMap.get(dataStoreName);
+        Collection flatCollection =
+            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+        Query unnestQuery =
+            Query.builder()
+                .addSelection(IdentifierExpression.of("item"))
+                .addSelection(
+                    JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "source-loc"))
+                .addFromClause(
+                    UnnestExpression.of(
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                        true))
+                // Should return unnested source-loc elements that DO NOT match 'warehouse-A'
+                .setFilter(
+                    RelationalExpression.of(
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                        NOT_IN,
+                        ConstantExpression.ofStrings(List.of("warehouse-A"))))
+                .build();
+
+        Iterator<Document> resultIterator = flatCollection.find(unnestQuery);
+
+        int count = 0;
+        while (resultIterator.hasNext()) {
+          Document doc = resultIterator.next();
+          Assertions.assertNotNull(doc);
+          // Parse JSON to extract the unnested value
+          JsonNode json = new ObjectMapper().readTree(doc.toJson());
+          JsonNode locationNode = json.get("props.source-loc");
+          count++;
+        }
+        // Should NOT contain 'warehouse-A'
+        assertEquals(12, count, "Should return unnested locations not matching the filter");
+      }
     }
   }
 
