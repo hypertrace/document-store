@@ -1442,7 +1442,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    IdentifierExpression.of("tags"),
+                    ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
                     NOT_CONTAINS,
                     ConstantExpression.of("premium")))
             .build();
@@ -1460,7 +1460,7 @@ public class PostgresQueryParserTest {
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
-    assertEquals(List.of("premium"), params.getObjectParams().get(1));
+    assertEquals("premium", params.getObjectParams().get(1));
   }
 
   @Test
@@ -1542,7 +1542,9 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    IdentifierExpression.of("keywords"), CONTAINS, ConstantExpression.of("java")))
+                    ArrayIdentifierExpression.of("keywords", ArrayType.TEXT),
+                    CONTAINS,
+                    ConstantExpression.of("java")))
             .build();
 
     PostgresQueryParser postgresQueryParser =
