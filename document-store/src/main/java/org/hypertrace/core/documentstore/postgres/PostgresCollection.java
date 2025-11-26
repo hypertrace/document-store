@@ -1395,14 +1395,60 @@ public abstract class PostgresCollection implements Collection {
           break;
 
         case "_text": // text array
-          Array array = resultSet.getArray(columnIndex);
-          if (array != null) {
-            String[] stringArray = (String[]) array.getArray();
+          Array textArray = resultSet.getArray(columnIndex);
+          if (textArray != null) {
+            String[] stringArray = (String[]) textArray.getArray();
             ArrayNode arrayNode = MAPPER.createArrayNode();
             for (String item : stringArray) {
               arrayNode.add(item);
             }
             jsonNode.set(columnName, arrayNode);
+          }
+          break;
+
+        case "_int4": // integer array
+        case "_int8": // bigint array
+          Array intArray = resultSet.getArray(columnIndex);
+          if (intArray != null) {
+            Object[] intObjectArray = (Object[]) intArray.getArray();
+            ArrayNode intArrayNode = MAPPER.createArrayNode();
+            for (Object item : intObjectArray) {
+              if (item instanceof Integer) {
+                intArrayNode.add((Integer) item);
+              } else if (item instanceof Long) {
+                intArrayNode.add((Long) item);
+              }
+            }
+            jsonNode.set(columnName, intArrayNode);
+          }
+          break;
+
+        case "_float8": // double precision array
+        case "_float4": // real/float array
+          Array doubleArray = resultSet.getArray(columnIndex);
+          if (doubleArray != null) {
+            Object[] doubleObjectArray = (Object[]) doubleArray.getArray();
+            ArrayNode doubleArrayNode = MAPPER.createArrayNode();
+            for (Object item : doubleObjectArray) {
+              if (item instanceof Double) {
+                doubleArrayNode.add((Double) item);
+              } else if (item instanceof Float) {
+                doubleArrayNode.add((Float) item);
+              }
+            }
+            jsonNode.set(columnName, doubleArrayNode);
+          }
+          break;
+
+        case "_bool": // boolean array
+          Array boolArray = resultSet.getArray(columnIndex);
+          if (boolArray != null) {
+            Boolean[] boolObjectArray = (Boolean[]) boolArray.getArray();
+            ArrayNode boolArrayNode = MAPPER.createArrayNode();
+            for (Boolean item : boolObjectArray) {
+              boolArrayNode.add(item);
+            }
+            jsonNode.set(columnName, boolArrayNode);
           }
           break;
 

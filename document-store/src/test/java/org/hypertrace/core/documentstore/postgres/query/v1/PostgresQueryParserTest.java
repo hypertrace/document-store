@@ -1556,7 +1556,7 @@ public class PostgresQueryParserTest {
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
-    assertEquals(List.of("java"), params.getObjectParams().get(1));
+    assertEquals("java", params.getObjectParams().get(1));
   }
 
   @Nested
@@ -1795,9 +1795,6 @@ public class PostgresQueryParserTest {
 
     String sql = postgresQueryParser.parse();
 
-    // The key assertion: the alias in the LATERAL join must be quoted
-    // CORRECT:   p1("customAttribute_dot_dev-ops-owner")
-    // INCORRECT: p1(customAttribute_dot_dev-ops-owner) <- causes PostgreSQL syntax error
     String expectedSql =
         "With \n"
             + "table0 as (SELECT * from \"testCollection\"),\n"

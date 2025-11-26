@@ -58,6 +58,7 @@ import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -122,9 +123,7 @@ import org.hypertrace.core.documentstore.query.Sort;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.hypertrace.core.documentstore.utils.Utils;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -3230,8 +3229,8 @@ public class DocStoreQueryV1Test {
         Document doc = iterator.next();
         count++;
         // Verify document has content (basic validation)
-        Assertions.assertNotNull(doc);
-        Assertions.assertNotNull(doc.toJson());
+        assertNotNull(doc);
+        assertNotNull(doc.toJson());
         assertTrue(!doc.toJson().isEmpty());
         assertEquals(DocumentType.FLAT, doc.getDocumentType());
       }
@@ -4025,7 +4024,7 @@ public class DocStoreQueryV1Test {
         groupCount++;
 
         // Validate each group has all expected fields
-        Assertions.assertNotNull(groupJson.get("item"));
+        assertNotNull(groupJson.get("item"));
         assertTrue(groupJson.get("total_qty").asInt() > 0);
         assertTrue(groupJson.get("avg_price").asDouble() > 0);
         assertTrue(groupJson.get("count").asInt() > 0);
@@ -4182,7 +4181,7 @@ public class DocStoreQueryV1Test {
         int count = 0;
         while (resultIterator.hasNext()) {
           Document doc = resultIterator.next();
-          Assertions.assertNotNull(doc);
+          assertNotNull(doc);
           count++;
         }
         // With preserveNullAndEmpty = false, unnest will only unwind arrays with size >= 1. A total
@@ -4426,7 +4425,7 @@ public class DocStoreQueryV1Test {
         int count = 0;
         while (results.hasNext()) {
           Document doc = results.next();
-          Assertions.assertNotNull(doc);
+          assertNotNull(doc);
           count++;
         }
         assertEquals(5, count, "Should return at least one unnested tag matching the filter");
@@ -4464,7 +4463,7 @@ public class DocStoreQueryV1Test {
         int count = 0;
         while (results.hasNext()) {
           Document doc = results.next();
-          Assertions.assertNotNull(doc);
+          assertNotNull(doc);
           count++;
         }
         assertEquals(
@@ -4504,7 +4503,7 @@ public class DocStoreQueryV1Test {
       int count = 0;
       while (results.hasNext()) {
         Document doc = results.next();
-        Assertions.assertNotNull(doc);
+        assertNotNull(doc);
         count++;
       }
 
@@ -4538,7 +4537,7 @@ public class DocStoreQueryV1Test {
       int count = 0;
       while (results.hasNext()) {
         Document doc = results.next();
-        Assertions.assertNotNull(doc);
+        assertNotNull(doc);
         count++;
       }
 
@@ -4547,24 +4546,49 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    @Disabled
-    void testContainsOnNonUnnestedArray(String dataStoreName) throws JsonProcessingException {
+    void testContainsStrArrayWithUnnest(String dataStoreName) {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Test CONTAINS on array WITHOUT unnest
-      // This should use the array overlap operator (&&) or @> containment
-      // tags column: row 1 has ["hygiene", "premium"], rows 5-6 have ["hygiene"]
       Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(ArrayIdentifierExpression.of("tags"))
+              .addFromClause(
+                  UnnestExpression.of(ArrayIdentifierExpression.of("tags", ArrayType.TEXT), true))
               .setFilter(
                   RelationalExpression.of(
                       ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
                       CONTAINS,
-                      ConstantExpression.of("hygiene")))
+                      ConstantExpression.ofStrings(List.of("hygiene", "premium"))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        results.next();
+        count++;
+      }
+      assertEquals(5, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testContainsStrArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags", ArrayType.TEXT))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      CONTAINS,
+                      ConstantExpression.ofStrings(List.of("hygiene", "personal-care"))))
               .build();
 
       Iterator<Document> results = flatCollection.find(query);
@@ -4579,36 +4603,34 @@ public class DocStoreQueryV1Test {
         String item = json.get("item").asText();
         items.add(item);
 
-        // Verify that returned arrays contain "hygiene"
+        // Verify that returned arrays contain both "hygiene" AND "personal-care"
         JsonNode tags = json.get("tags");
         assertTrue(tags.isArray(), "tags should be an array");
         boolean containsHygiene = false;
+        boolean containsPersonalCare = false;
         for (JsonNode tag : tags) {
           if ("hygiene".equals(tag.asText())) {
             containsHygiene = true;
-            break;
+          }
+          if ("personal-care".equals(tag.asText())) {
+            containsPersonalCare = true;
           }
         }
-        assertTrue(containsHygiene, "tags array should contain 'hygiene' for item: " + item);
+        assertTrue(containsHygiene);
+        assertTrue(containsPersonalCare);
       }
 
-      // Should return rows where tags array contains "hygiene"
-      // From test data: rows with Soap, Shampoo (ids 1, 5, 6)
-      assertTrue(count >= 3, "Should return at least 3 items with 'hygiene' tag");
-      assertTrue(items.contains("Soap"), "Should include Soap");
+      assertEquals(1, count);
+      assertTrue(items.contains("Soap"));
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    @Disabled
-    void testNotContainsOnNonUnnestedArray(String dataStoreName) throws JsonProcessingException {
+    void testNotContainsStrArray(String dataStoreName) throws JsonProcessingException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Test NOT_CONTAINS on array WITHOUT unnest
-      // This should use NOT (array overlap operator)
-      // Should return rows where tags array does NOT contain "premium"
       Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
@@ -4617,7 +4639,56 @@ public class DocStoreQueryV1Test {
                   RelationalExpression.of(
                       ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
                       NOT_CONTAINS,
-                      ConstantExpression.of("premium")))
+                      ConstantExpression.ofStrings(List.of("hair-care", "personal-care"))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      Set<String> items = new HashSet<>();
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+        items.add(json.get("item").asText());
+
+        // Verify that returned arrays do NOT contain BOTH "hair-care" AND "personal-care"
+        JsonNode tags = json.get("tags");
+        if (tags != null && tags.isArray() && !tags.isEmpty()) {
+          boolean hasHairCare = false;
+          boolean hasPersonalCare = false;
+          for (JsonNode tag : tags) {
+            if ("hair-care".equals(tag.asText())) {
+              hasHairCare = true;
+            }
+            if ("personal-care".equals(tag.asText())) {
+              hasPersonalCare = true;
+            }
+          }
+          assertFalse(hasHairCare && hasPersonalCare);
+        }
+      }
+
+      assertEquals(9, count);
+      assertNotEquals(2, items.stream().filter("Shampoo"::equals).count());
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testContainsOnIntArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                      CONTAINS,
+                      ConstantExpression.ofNumbers(List.of(1, 2))))
               .build();
 
       Iterator<Document> results = flatCollection.find(query);
@@ -4628,44 +4699,48 @@ public class DocStoreQueryV1Test {
         JsonNode json = new ObjectMapper().readTree(doc.toJson());
         count++;
 
-        // Verify that returned arrays do NOT contain "premium" (or are NULL/empty)
-        JsonNode tags = json.get("tags");
-        if (tags != null && tags.isArray() && !tags.isEmpty()) {
-          for (JsonNode tag : tags) {
-            assertNotEquals(
-                "premium",
-                tag.asText(),
-                "tags array should NOT contain 'premium' for item: " + json.get("item").asText());
+        // Verify numbers field is a proper JSON array, not a PostgreSQL string like "{1,2,3}"
+        JsonNode numbers = json.get("numbers");
+        assertNotNull(numbers);
+        assertTrue(numbers.isArray(), "numbers should be JSON array, got: " + numbers);
+
+        // Verify array contains both 1 and 2
+        boolean contains1 = false;
+        boolean contains2 = false;
+        for (JsonNode num : numbers) {
+          if (num.asInt() == 1) {
+            contains1 = true;
+          }
+          if (num.asInt() == 2) {
+            contains2 = true;
           }
         }
+        assertTrue(contains1);
+        assertTrue(contains2);
       }
 
-      // Should return rows where tags is NULL, empty, or doesn't contain "premium"
-      // Only row 1 (Soap) has "premium", so should return all other rows
-      assertTrue(count >= 9, "Should return at least 9 items without 'premium' tag");
+      assertEquals(2, count);
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    @Disabled
-    void testContainsOnBooleanArray(String dataStoreName) throws JsonProcessingException {
+    void testNotContainsOnIntArray(String dataStoreName) throws JsonProcessingException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Test CONTAINS on boolean array (flags column)
-      Query containsQuery =
+      Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(ArrayIdentifierExpression.of("flags"))
+              .addSelection(ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("flags", ArrayType.BOOLEAN),
-                      CONTAINS,
-                      ConstantExpression.of(true)))
+                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                      NOT_CONTAINS,
+                      ConstantExpression.ofNumbers(List.of(10, 20))))
               .build();
 
-      Iterator<Document> results = flatCollection.find(containsQuery);
+      Iterator<Document> results = flatCollection.find(query);
 
       int count = 0;
       while (results.hasNext()) {
@@ -4673,22 +4748,77 @@ public class DocStoreQueryV1Test {
         JsonNode json = new ObjectMapper().readTree(doc.toJson());
         count++;
 
-        // Verify that returned arrays contain true
-        JsonNode flags = json.get("flags");
-        if (flags != null && flags.isArray()) {
-          boolean containsTrue = false;
-          for (JsonNode flag : flags) {
-            if (flag.asBoolean()) {
-              containsTrue = true;
-              break;
+        // Verify numbers field is a proper JSON array
+        JsonNode numbers = json.get("numbers");
+        if (numbers != null && !numbers.isNull()) {
+          assertTrue(numbers.isArray());
+
+          // Verify array does NOT contain BOTH 10 AND 20
+          boolean has10 = false;
+          boolean has20 = false;
+          for (JsonNode num : numbers) {
+            if (num.asInt() == 10) {
+              has10 = true;
+            }
+            if (num.asInt() == 20) {
+              has20 = true;
             }
           }
-          assertTrue(
-              containsTrue, "Array should contain 'true' for item: " + json.get("item").asText());
+          assertFalse(has10 && has20);
         }
       }
 
-      assertTrue(count >= 5, "Should return at least 5 items with 'true' flag");
+      // 8 rows: excludes rows 2 and 8 (have both 10 & 20)
+      // Includes rows 9, 10 (NULL) because NOT_CONTAINS uses "IS NULL OR NOT (...)" logic
+      assertEquals(8, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testContainsOnDoubleArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("scores", ArrayType.DOUBLE_PRECISION))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("scores", ArrayType.DOUBLE_PRECISION),
+                      CONTAINS,
+                      ConstantExpression.ofNumbers(List.of(3.14, 2.71))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        JsonNode scores = json.get("scores");
+        assertNotNull(scores);
+        assertTrue(scores.isArray(), "scores should be JSON array, got: " + scores);
+
+        boolean contains314 = false;
+        boolean contains271 = false;
+        for (JsonNode score : scores) {
+          double val = score.asDouble();
+          if (val == 3.14) {
+            contains314 = true;
+          }
+          if (val == 2.71) {
+            contains271 = true;
+          }
+        }
+        assertTrue(contains314);
+        assertTrue(contains271);
+      }
+
+      assertEquals(1, count);
     }
 
     @ParameterizedTest
@@ -5149,7 +5279,7 @@ public class DocStoreQueryV1Test {
       int count = 0;
       while (resultIterator.hasNext()) {
         Document doc = resultIterator.next();
-        Assertions.assertNotNull(doc);
+        assertNotNull(doc);
         // Parse JSON to extract the unnested value
         JsonNode json = new ObjectMapper().readTree(doc.toJson());
         // The unnested value is aliased as "props.source-loc"
@@ -5191,7 +5321,7 @@ public class DocStoreQueryV1Test {
       int count = 0;
       while (resultIterator.hasNext()) {
         Document doc = resultIterator.next();
-        Assertions.assertNotNull(doc);
+        assertNotNull(doc);
         // Parse JSON to extract the unnested value
         JsonNode json = new ObjectMapper().readTree(doc.toJson());
         JsonNode locationNode = json.get("props.source-loc");
@@ -5383,7 +5513,7 @@ public class DocStoreQueryV1Test {
       int count = 0;
       while (resultIterator.hasNext()) {
         Document doc = resultIterator.next();
-        Assertions.assertNotNull(doc);
+        assertNotNull(doc);
         count++;
       }
       assertEquals(6, count);
@@ -5418,7 +5548,7 @@ public class DocStoreQueryV1Test {
       int count = 0;
       while (resultIterator.hasNext()) {
         Document doc = resultIterator.next();
-        Assertions.assertNotNull(doc);
+        assertNotNull(doc);
         count++;
       }
       assertEquals(7, count);
