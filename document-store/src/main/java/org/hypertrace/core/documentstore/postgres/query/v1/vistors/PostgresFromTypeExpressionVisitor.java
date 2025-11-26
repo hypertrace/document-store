@@ -84,10 +84,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
 
     // we'll quote the col name to prevent folding to lower case for top-level array fields
     String unwindExprAlias =
-        String.format(
-            UNWIND_EXP_ALIAS_FMT,
-            nextIndex,
-            getColName(isFlatCollection && !isJsonbArray, pgColumnName));
+        String.format(UNWIND_EXP_ALIAS_FMT, nextIndex, getQuotedColName(pgColumnName));
 
     String fmt =
         unnestExpression.isPreserveNullAndEmptyArrays()
@@ -152,7 +149,7 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
   /*
   Returns the column name with double quotes if the collection is flat to prevent folding to lower-case by PG
    */
-  private String getColName(boolean shouldQuote, String pgColumnName) {
-    return shouldQuote ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(pgColumnName) : pgColumnName;
+  private String getQuotedColName(String pgColumnName) {
+    return PostgresUtils.wrapFieldNamesWithDoubleQuotes(pgColumnName);
   }
 }

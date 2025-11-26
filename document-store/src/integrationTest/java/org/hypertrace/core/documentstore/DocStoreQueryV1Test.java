@@ -55,10 +55,10 @@ import static org.hypertrace.core.documentstore.utils.Utils.assertDocsAndSizeEqu
 import static org.hypertrace.core.documentstore.utils.Utils.assertDocsAndSizeEqualWithoutOrder;
 import static org.hypertrace.core.documentstore.utils.Utils.convertJsonToMap;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -90,6 +90,7 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -204,6 +205,7 @@ public class DocStoreQueryV1Test {
                 + "\"price\" INTEGER,"
                 + "\"quantity\" INTEGER,"
                 + "\"date\" TIMESTAMPTZ,"
+                + "\"in_stock\" BOOLEAN,"
                 + "\"tags\" TEXT[],"
                 + "\"categoryTags\" TEXT[],"
                 + "\"props\" JSONB,"
@@ -3208,11 +3210,11 @@ public class DocStoreQueryV1Test {
   }
 
   @Nested
-  class FlatPostgresCollectionTest {
+  class FlatPostgresCollectionGeneralQueries {
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionFindAll(String dataStoreName) throws IOException {
+    void testFindAll(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
@@ -3229,327 +3231,55 @@ public class DocStoreQueryV1Test {
         // Verify document has content (basic validation)
         assertNotNull(doc);
         assertNotNull(doc.toJson());
-        assertTrue(doc.toJson().length() > 0);
+        assertTrue(!doc.toJson().isEmpty());
         assertEquals(DocumentType.FLAT, doc.getDocumentType());
       }
       iterator.close();
-
-      // Should have 8 documents from the INSERT statements
+      // Should have 10 documents from the INSERT statements
       assertEquals(10, count);
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionFilterByItem(String dataStoreName) throws IOException {
+    void testUnnestPreserveEmptyArraysFalse(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Test filtering by item
-      Query itemQuery =
+      Query unnestQuery =
           Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+              .addSelection(IdentifierExpression.of("tags"))
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count")
+              .addAggregation(IdentifierExpression.of("tags"))
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
               .build();
 
-      CloseableIterator<Document> soapIterator = flatCollection.find(itemQuery);
-      long soapCount = 0;
-      while (soapIterator.hasNext()) {
-        Document doc = soapIterator.next();
-        // Verify it's a soap document by checking JSON contains "Soap"
-        assertTrue(doc.toJson().contains("\"Soap\""));
-        soapCount++;
-      }
-      soapIterator.close();
-
-      // Should have 3 soap documents (IDs 1, 5, 8)
-      assertEquals(3, soapCount);
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_unnest_tags_response.json", 17);
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionCount(String dataStoreName) {
+    void testUnnestPreserveEmptyArraysTrue(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Test count method - all documents
-      long totalCount = flatCollection.count(Query.builder().build());
-      assertEquals(10, totalCount);
-
-      // Test count with filter - soap documents only
-      Query soapQuery =
+      // Include all documents in result irrespective of tags field (LEFT JOIN)
+      // Counts rows after unnest: 25 (from 8 docs with tags) + 2 (from docs with NULL/empty)
+      Query unnestPreserveTrueQuery =
           Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
-              .build();
-      long soapCountQuery = flatCollection.count(soapQuery);
-      assertEquals(3, soapCountQuery);
-    }
-
-    /**
-     * Tests IN operator on flat collection fields (top-level columns and JSONB fields) with
-     * type-specific optimization.
-     *
-     * <p>Flat collection schema:
-     *
-     * <ul>
-     *   <li>Top-level columns: item (TEXT), price (INTEGER), quantity (INTEGER)
-     *   <li>JSONB column: props (with nested fields like brand, size, seller)
-     * </ul>
-     *
-     * <p>Expected SQL patterns for top-level columns:
-     *
-     * <ul>
-     *   <li>"item" IN (?, ?) - Direct column reference
-     *   <li>"price" IN (?, ?) - Direct column reference
-     * </ul>
-     *
-     * <p>Expected SQL patterns for JSONB fields with JsonFieldType:
-     *
-     * <ul>
-     *   <li>STRING: "props" ->> 'brand' IN (?, ?)
-     *   <li>NUMBER: CAST("props" ->> 'field' AS NUMERIC) IN (?, ?)
-     * </ul>
-     */
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testNestedCollectionInOperatorOnJsonPrimitiveFields(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection collection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Test 1: IN operator on top-level STRING column (item)
-      // Find documents where item is "Soap" OR "Shampoo"
-      // Expected SQL: "item" IN ('Soap', 'Shampoo')
-      Query itemInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("item"),
-                      IN,
-                      ConstantExpression.ofStrings(List.of("Soap", "Shampoo"))))
+              .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
+              .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), true))
               .build();
 
-      long itemInCount = collection.count(itemInQuery);
-      assertEquals(5, itemInCount); // 3 Soap + 2 Shampoo documents
-
-      // Test 2: IN operator on top-level NUMBER column (quantity)
-      // Find documents where quantity is 5 OR 10
-      // Expected SQL: "quantity" IN (5, 10)
-      Query quantityInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("quantity"),
-                      IN,
-                      ConstantExpression.ofNumbers(List.of(5, 10))))
-              .build();
-
-      long quantityInCount = collection.count(quantityInQuery);
-      assertEquals(5, quantityInCount); // quantity=5: _id 5,6,8; quantity=10: _id 3,7
-
-      // Test 3: IN operator on top-level NUMBER column (price)
-      // Find documents where price is 5 OR 10
-      // Expected SQL: "price" IN (5, 10)
-      Query priceInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("price"),
-                      IN,
-                      ConstantExpression.ofNumbers(List.of(5, 10))))
-              .build();
-
-      long priceInCount = collection.count(priceInQuery);
-      assertEquals(4, priceInCount); // price=10: _id 1,8; price=5: _id 3,4
-
-      // Test 4: IN operator on JSONB STRING field (props.brand) with type optimization
-      // Find documents where props.brand is "Dettol" OR "Sunsilk"
-      // Expected SQL: "props" ->> 'brand' IN ('Dettol', 'Sunsilk')
-      Query nestedInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
-                      IN,
-                      ConstantExpression.ofStrings(List.of("Dettol", "Sunsilk"))))
-              .build();
-
-      long nestedInCount = collection.count(nestedInQuery);
-      assertEquals(2, nestedInCount); // _id 1 (Dettol) + _id 3 (Sunsilk)
-
-      // Test 5: NOT_IN operator on top-level STRING column (item)
-      // Find documents where item is NOT "Soap"
-      // Expected SQL: "item" NOT IN ('Soap') OR "item" IS NULL
-      Query itemNotInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("item"),
-                      NOT_IN,
-                      ConstantExpression.ofStrings(List.of("Soap"))))
-              .build();
-
-      long itemNotInCount = collection.count(itemNotInQuery);
-      assertEquals(7, itemNotInCount); // All 10 docs minus 3 Soap docs = 7
-
-      // Test 6: Combined IN with other filters (AND)
-      // Filter: item IN ("Soap", "Shampoo") AND quantity >= 5
-      Query combinedQuery =
-          Query.builder()
-              .setFilter(
-                  LogicalExpression.builder()
-                      .operator(LogicalOperator.AND)
-                      .operand(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("item"),
-                              IN,
-                              ConstantExpression.ofStrings(List.of("Soap", "Shampoo"))))
-                      .operand(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("quantity"), GTE, ConstantExpression.of(5)))
-                      .build())
-              .build();
-
-      long combinedCount = collection.count(combinedQuery);
-      assertTrue(combinedCount > 0, "Combined IN with >= filter should find documents");
-    }
-
-    /**
-     * Tests querying JSONB nested fields with JsonIdentifierExpression and JsonFieldType for
-     * optimized SQL generation.
-     *
-     * <p>JsonFieldType is required for all JSONB IN/NOT_IN operations to generate optimal SQL.
-     *
-     * <p>Test coverage:
-     *
-     * <ul>
-     *   <li>EQ operator on JSONB STRING fields with type info
-     *   <li>IN operator on JSONB STRING fields with type info
-     *   <li>NOT_IN operator on JSONB STRING fields with type info (includes NULL handling)
-     *   <li>Deeply nested JSONB field access (props.seller.address.city)
-     *   <li>Combined filters with JSONB and top-level columns
-     * </ul>
-     */
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionNestedFieldQuery(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Test 1: EQ operator on JSONB STRING field (props.brand) with type optimization
-      // Expected SQL: "props" ->> 'brand' = 'Dettol'
-      Query brandQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
-                      EQ,
-                      ConstantExpression.of("Dettol")))
-              .build();
-
-      CloseableIterator<Document> brandIterator = flatCollection.find(brandQuery);
-      long brandCount = 0;
-      while (brandIterator.hasNext()) {
-        Document doc = brandIterator.next();
-        // Verify it contains the expected brand
-        assertTrue(doc.toJson().contains("\"Dettol\""));
-        brandCount++;
-      }
-      brandIterator.close();
-
-      // Should have 1 Dettol document (_id=1)
-      assertEquals(1, brandCount);
-
-      // Test 2: Deeply nested JSONB field access (props.seller.address.city)
-      // Expected SQL: "props" -> 'seller' -> 'address' ->> 'city' = 'Mumbai'
-      Query cityQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      JsonIdentifierExpression.of(
-                          "props", JsonFieldType.STRING, "seller", "address", "city"),
-                      EQ,
-                      ConstantExpression.of("Mumbai")))
-              .build();
-
-      CloseableIterator<Document> cityIterator = flatCollection.find(cityQuery);
-      long cityCount = 0;
-      while (cityIterator.hasNext()) {
-        Document doc = cityIterator.next();
-        // Verify it contains Mumbai
-        assertTrue(doc.toJson().contains("\"Mumbai\""));
-        cityCount++;
-      }
-      cityIterator.close();
-
-      // Should have 2 Mumbai documents (_id=1, _id=3)
-      assertEquals(2, cityCount);
-
-      // Test 3: IN operator on JSONB STRING field with type optimization
-      // Expected SQL: "props" ->> 'brand' IN ('Dettol', 'Sunsilk', 'Lifebuoy')
-      Query brandInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
-                      IN,
-                      ConstantExpression.ofStrings(List.of("Dettol", "Sunsilk", "Lifebuoy"))))
-              .build();
-
-      long brandInCount = flatCollection.count(brandInQuery);
-      assertEquals(3, brandInCount); // _id=1 (Dettol), _id=3 (Sunsilk), _id=5 (Lifebuoy)
-
-      // Test 4: Combined filter - JSONB field + top-level column
-      // Filter: brand = "Dettol" AND price = 10
-      // Expected SQL: "props" ->> 'brand' = 'Dettol' AND "price" = 10
-      Query combinedQuery =
-          Query.builder()
-              .setFilter(
-                  LogicalExpression.builder()
-                      .operator(LogicalOperator.AND)
-                      .operand(
-                          RelationalExpression.of(
-                              JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
-                              EQ,
-                              ConstantExpression.of("Dettol")))
-                      .operand(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("price"), EQ, ConstantExpression.of(10)))
-                      .build())
-              .build();
-
-      long combinedCount = flatCollection.count(combinedQuery);
-      assertEquals(1, combinedCount); // Only _id=1 matches both conditions
-
-      // Test 5: NOT_IN operator on JSONB STRING field with type optimization
-      // Find documents where brand is NOT "Dettol" (should find Sunsilk and Lifebuoy)
-      // Expected SQL: NOT ("props" ->> 'brand' IN ('Dettol')) OR "props" ->> 'brand' IS NULL
-      Query brandNotInQuery =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
-                      NOT_IN,
-                      ConstantExpression.ofStrings(List.of("Dettol"))))
-              .build();
-
-      long brandNotInCount = flatCollection.count(brandNotInQuery);
-      // Docs with brand: _id=1 (Dettol), _id=3 (Sunsilk), _id=5 (Lifebuoy)
-      // Docs with NULL props or no brand: _id=2, 4, 6, 7, 8, 9, 10
-      // NOT_IN "Dettol" should return: 2 (Sunsilk, Lifebuoy) + 7 (NULL/missing) = 9
-      assertEquals(9, brandNotInCount);
-
-      // Test 6: Verify count methods with JSONB fields
-      long brandCountQuery = flatCollection.count(brandQuery);
-      assertEquals(1, brandCountQuery);
-
-      long cityCountQuery = flatCollection.count(cityQuery);
-      assertEquals(2, cityCountQuery);
+      Iterator<Document> resultIterator = flatCollection.aggregate(unnestPreserveTrueQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName,
+          resultIterator,
+          "query/flat_unnest_preserving_empty_array_response.json",
+          1);
     }
 
     @ParameterizedTest
@@ -3693,37 +3423,6 @@ public class DocStoreQueryV1Test {
       flatDocIterator.close();
     }
 
-    /**
-     * Tests basic UNNEST operation on flat PostgreSQL collection with native TEXT[] arrays.
-     * Validates that PostgresFromTypeExpressionVisitor correctly uses unnest() instead of
-     * jsonb_array_elements() for native PostgreSQL arrays. Groups by tags and counts occurrences.
-     */
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionUnnestTags(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      Query unnestQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("tags"))
-              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count")
-              .addAggregation(IdentifierExpression.of("tags"))
-              .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.aggregate(unnestQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_unnest_tags_response.json", 17);
-    }
-
-    /**
-     * Tests complex UNNEST operation on flat PostgreSQL collection with native TEXT[] arrays.
-     * Combines multiple filters (WHERE, unnest filter), aggregations (COUNT, AVG), HAVING clause,
-     * and ORDER BY sorting. Validates integration of PostgresFromTypeExpressionVisitor,
-     * PostgresUnnestFilterTypeExpressionVisitor, and PostgresFilterTypeExpressionVisitor.
-     */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionUnnestWithComplexQuery(String dataStoreName) throws IOException {
@@ -3768,96 +3467,6 @@ public class DocStoreQueryV1Test {
           dataStoreName, resultIterator, "query/flat_unnest_complex_query_response.json", 7);
     }
 
-    /**
-     * Tests UNNEST with preserveNullAndEmptyArrays=true on flat collection. Counts rows after
-     * unnesting. Returns 27 rows: 25 from docs with tags (one per tag) + 2 from docs with
-     * NULL/empty tags. This demonstrates LEFT JOIN behavior.
-     */
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionUnnestWithPreserveEmptyTrue(String dataStoreName)
-        throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Include all documents in result irrespective of tags field (LEFT JOIN)
-      // Counts rows after unnest: 25 (from 8 docs with tags) + 2 (from docs with NULL/empty)
-      Query unnestPreserveTrueQuery =
-          Query.builder()
-              .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
-              .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), true))
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.aggregate(unnestPreserveTrueQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName,
-          resultIterator,
-          "query/flat_unnest_preserving_empty_array_response.json",
-          1);
-    }
-
-    /**
-     * Tests UNNEST with filters on flat collection. Combines main WHERE filter on quantity field
-     * with unnest filter on tags, and preserveEmpty=false to exclude documents without tags.
-     */
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionUnnestWithFilters(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      Query unnestWithFiltersQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("tags"))
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("quantity"), GT, ConstantExpression.of(2)))
-              .addFromClause(
-                  UnnestExpression.builder()
-                      .identifierExpression(IdentifierExpression.of("tags"))
-                      .preserveNullAndEmptyArrays(false)
-                      .filterTypeExpression(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("tags"),
-                              EQ,
-                              ConstantExpression.of("grooming")))
-                      .build())
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.aggregate(unnestWithFiltersQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_unnest_with_filters_response.json", 2);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionUnnestWithPreserveEmptyFalse(String dataStoreName)
-        throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Test UNNEST on native TEXT[] array with preserveEmptyArrays = false (INNER JOIN)
-      // This counts all individual tag values after unnesting
-      // Expected: 25 total tags (3+3+4+3+3+3+3+3 from 8 documents with non-empty tags)
-      // Excludes 2 documents with NULL/empty tags
-      Query unnestPreserveFalseQuery =
-          Query.builder()
-              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of(1)), "count")
-              .addFromClause(UnnestExpression.of(IdentifierExpression.of("tags"), false))
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.aggregate(unnestPreserveFalseQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName,
-          resultIterator,
-          "query/flat_unnest_not_preserving_empty_array_response.json",
-          1);
-    }
-
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionUnnestWithOnlyUnnestFilter(String dataStoreName)
@@ -3888,10 +3497,6 @@ public class DocStoreQueryV1Test {
           dataStoreName, resultIterator, "query/flat_unnest_only_unnest_filter_response.json", 2);
     }
 
-    /**
-     * Tests UNNEST with ONLY main filter (no unnest filter). Covers line 65 in
-     * PostgresUnnestFilterTypeExpressionVisitor: only main filter exists.
-     */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionUnnestWithOnlyMainFilter(String dataStoreName)
@@ -3956,13 +3561,6 @@ public class DocStoreQueryV1Test {
           dataStoreName, resultIterator, "query/flat_array_relational_filter_response.json", 3);
     }
 
-    /**
-     * Tests UNNEST operation on flat PostgreSQL collection with mixed-case column name. This test
-     * reproduces the case sensitivity bug where unquoted alias gets lowercased by PostgreSQL but
-     * quoted references preserve case, causing a column mismatch error. Field "categoryTags" →
-     * alias "categoryTags_unnested" → PostgreSQL lowercases to "categorytags_unnested" (if
-     * unquoted) but references use "categoryTags_unnested".
-     */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionUnnestMixedCaseField(String dataStoreName) throws IOException {
@@ -3984,126 +3582,6 @@ public class DocStoreQueryV1Test {
       // Expected categories: Hygiene(3), PersonalCare(2), HairCare(2), HomeDecor(1), Grooming(2)
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, resultIterator, "query/flat_unnest_mixed_case_response.json", 5);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionIntegerArrayFilter(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Filter: ANY number in numbers equals 10 (Integer constant)
-      // This tests L265-266: Integer/Long → ::bigint[]
-      Query integerArrayQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("price"))
-              .setFilter(
-                  ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ANY)
-                      .filter(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("numbers"), EQ, ConstantExpression.of(10)))
-                      .build())
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.find(integerArrayQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_integer_array_filter_response.json", 1);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionDoubleArrayFilter(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Filter: ANY score in scores equals 3.14 (Double constant)
-      // This tests L267-268: Double/Float → ::double precision[]
-      Query doubleArrayQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("price"))
-              .setFilter(
-                  ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ANY)
-                      .filter(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("scores"), EQ, ConstantExpression.of(3.14)))
-                      .build())
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.find(doubleArrayQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_double_array_filter_response.json", 1);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatPostgresCollectionBooleanArrayFilter(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Filter: ANY flag in flags equals true (Boolean constant)
-      // This tests L269-270: Boolean → ::boolean[]
-      Query booleanArrayQuery =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("price"))
-              .setFilter(
-                  ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ANY)
-                      .filter(
-                          RelationalExpression.of(
-                              IdentifierExpression.of("flags"), EQ, ConstantExpression.of(true)))
-                      .build())
-              .build();
-
-      Iterator<Document> resultIterator = flatCollection.find(booleanArrayQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, resultIterator, "query/flat_boolean_array_filter_response.json", 2);
-    }
-
-    /**
-     * Tests selection of JSONB nested fields using JsonIdentifierExpression on flat collection.
-     * Validates selecting simple nested fields, deeply nested fields, and JSONB arrays without any
-     * filters.
-     */
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testFlatCollectionNestedJsonSelections(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-      // Test 1: Select nested STRING field from JSONB column (props.brand)
-      Query brandSelectionQuery =
-          Query.builder().addSelection(JsonIdentifierExpression.of("props", "brand")).build();
-
-      Iterator<Document> brandIterator = flatCollection.find(brandSelectionQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, brandIterator, "query/flat_jsonb_brand_selection_response.json", 10);
-
-      // Test 2: Select deeply nested STRING field from JSONB column (props.seller.address.city)
-      Query citySelectionQuery =
-          Query.builder()
-              .addSelection(JsonIdentifierExpression.of("props", "seller", "address", "city"))
-              .build();
-
-      Iterator<Document> cityIterator = flatCollection.find(citySelectionQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, cityIterator, "query/flat_jsonb_city_selection_response.json", 10);
-
-      // Test 3: Select STRING_ARRAY field from JSONB column (props.colors)
-      Query colorsSelectionQuery =
-          Query.builder().addSelection(JsonIdentifierExpression.of("props", "colors")).build();
-
-      Iterator<Document> colorsIterator = flatCollection.find(colorsSelectionQuery);
-      assertDocsAndSizeEqualWithoutOrder(
-          dataStoreName, colorsIterator, "query/flat_jsonb_colors_selection_response.json", 10);
     }
 
     @ParameterizedTest
@@ -4248,15 +3726,1420 @@ public class DocStoreQueryV1Test {
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, flatResultIterator, "query/group_by_colors_comparison_response.json", 4);
     }
+  }
 
-    /**
-     * Tests UNNEST operation on JSONB array fields in flat collections. This validates that
-     * jsonb_array_elements() is used for JSONB arrays (props.colors) instead of unnest() which is
-     * only for native arrays (tags).
-     */
+  @Nested
+  class FlatCollectionScalarColumns {
+
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatCollectionUnnestJsonbArray(String dataStoreName) throws IOException {
+    void testGroupBy(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test GROUP BY on scalar field (item) with COUNT aggregation
+      Query groupByQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count")
+              .addAggregation(IdentifierExpression.of("item"))
+              .build();
+
+      Iterator<Document> results = flatCollection.aggregate(groupByQuery);
+
+      int groupCount = 0;
+      Map<String, Integer> itemCounts = new HashMap<>();
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        groupCount++;
+
+        String item = json.get("item").asText();
+        int count = json.get("count").asInt();
+        itemCounts.put(item, count);
+      }
+
+      assertTrue(groupCount > 0);
+
+      // Verify Soap appears 3 times (IDs 1, 5, 8)
+      assertEquals(3, itemCounts.getOrDefault("Soap", 0));
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAllRelationalOps(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test NEQ (Not Equal) on string field
+      Query neqQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), NEQ, ConstantExpression.of("Soap")))
+              .build();
+      long neqCount = flatCollection.count(neqQuery);
+      assertEquals(7, neqCount); // 10 total - 3 Soap = 7
+
+      // Test LT (Less Than) on integer field
+      Query ltQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"), LT, ConstantExpression.of(10)))
+              .build();
+      long ltCount = flatCollection.count(ltQuery);
+      assertTrue(ltCount > 0); // Should have prices < 10
+
+      // Test LTE (Less Than or Equal) on integer field
+      Query lteQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"), LTE, ConstantExpression.of(10)))
+              .build();
+      long lteCount = flatCollection.count(lteQuery);
+      assertTrue(lteCount >= ltCount); // LTE should include LT results
+
+      // Test GTE (Greater Than or Equal) on integer field
+      Query gteQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("quantity"), GTE, ConstantExpression.of(5)))
+              .build();
+      long gteCount = flatCollection.count(gteQuery);
+      assertTrue(gteCount > 0);
+
+      // Test IN operator on string field
+      Query inQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Soap", "Mirror", "Comb"))))
+              .build();
+      long inCount = flatCollection.count(inQuery);
+      assertEquals(6, inCount); // 3 Soap + 1 Mirror + 2 Comb = 6
+
+      // Test NOT_IN operator on string field
+      Query notInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("Soap", "Mirror"))))
+              .build();
+      long notInCount = flatCollection.count(notInQuery);
+      assertEquals(6, notInCount); // 10 total - 3 Soap - 1 Mirror = 6
+
+      // Test LIKE operator on string field (pattern matching)
+      Query likeQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), LIKE, ConstantExpression.of(".*amp.*")))
+              .build();
+      long likeCount = flatCollection.count(likeQuery);
+      assertEquals(2, likeCount); // Should match "Shampoo" (IDs 3, 4)
+
+      // Test STARTS_WITH operator on string field
+      Query startsWithQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), STARTS_WITH, ConstantExpression.of("S")))
+              .build();
+      long startsWithCount = flatCollection.count(startsWithQuery);
+      assertEquals(5, startsWithCount); // "Soap" (3) + "Shampoo" (2) = 5
+
+      // Test combined operators with AND logic
+      Query combinedQuery =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(LogicalOperator.AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("price"), GTE, ConstantExpression.of(5)))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("quantity"), LTE, ConstantExpression.of(10)))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("in_stock"), EQ, ConstantExpression.of(true)))
+                      .build())
+              .build();
+      long combinedCount = flatCollection.count(combinedQuery);
+      assertTrue(combinedCount > 0);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSorting(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test 1: Sort by string field ASC
+      Query sortItemAscQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      Iterator<Document> sortItemAscResults = flatCollection.find(sortItemAscQuery);
+      String previousItem = null;
+      int count = 0;
+      while (sortItemAscResults.hasNext()) {
+        Document doc = sortItemAscResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        String currentItem = json.get("item").asText();
+        if (previousItem != null) {
+          assertTrue(
+              currentItem.compareTo(previousItem) >= 0,
+              "Items should be sorted in ascending order");
+        }
+        previousItem = currentItem;
+        count++;
+      }
+      assertEquals(10, count);
+
+      // Test 2: Sort by integer field DESC
+      Query sortPriceDescQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSort(IdentifierExpression.of("price"), DESC)
+              .build();
+
+      Iterator<Document> sortPriceDescResults = flatCollection.find(sortPriceDescQuery);
+      Integer previousPrice = null;
+      count = 0;
+      while (sortPriceDescResults.hasNext()) {
+        Document doc = sortPriceDescResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        int currentPrice = json.get("price").asInt();
+        if (previousPrice != null) {
+          assertTrue(currentPrice <= previousPrice, "Prices should be sorted in descending order");
+        }
+        previousPrice = currentPrice;
+        count++;
+      }
+      assertEquals(10, count);
+
+      // Test 3: Multi-level sort (item ASC, then price DESC)
+      Query multiSortQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .addSort(IdentifierExpression.of("price"), DESC)
+              .build();
+
+      Iterator<Document> multiSortResults = flatCollection.find(multiSortQuery);
+      String prevItem = null;
+      Integer prevPrice = null;
+      while (multiSortResults.hasNext()) {
+        Document doc = multiSortResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        String currentItem = json.get("item").asText();
+        int currentPrice = json.get("price").asInt();
+
+        if (prevItem != null) {
+          if (currentItem.equals(prevItem)) {
+            // Same item, price should be descending
+            assertTrue(currentPrice <= prevPrice, "Within same item, price should descend");
+          } else {
+            // Different item, should be ascending
+            assertTrue(currentItem.compareTo(prevItem) >= 0, "Items should be sorted ascending");
+          }
+        }
+        prevItem = currentItem;
+        prevPrice = currentPrice;
+      }
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNumericAggregations(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test SUM, AVG, MIN, MAX, COUNT on integer fields
+      Query aggQuery =
+          Query.builder()
+              .addSelection(AggregateExpression.of(SUM, IdentifierExpression.of("price")), "sum")
+              .addSelection(AggregateExpression.of(AVG, IdentifierExpression.of("price")), "avg")
+              .addSelection(AggregateExpression.of(MIN, IdentifierExpression.of("price")), "min")
+              .addSelection(AggregateExpression.of(MAX, IdentifierExpression.of("price")), "max")
+              .addSelection(
+                  AggregateExpression.of(COUNT, IdentifierExpression.of("price")), "count")
+              .build();
+
+      Iterator<Document> aggResults = flatCollection.aggregate(aggQuery);
+      assertTrue(aggResults.hasNext());
+
+      Document aggDoc = aggResults.next();
+      JsonNode json = new ObjectMapper().readTree(aggDoc.toJson());
+
+      // Validate aggregation results
+      assertTrue(json.get("sum").asDouble() > 0, "SUM should be positive");
+      assertTrue(json.get("avg").asDouble() > 0, "AVG should be positive");
+      assertTrue(json.get("min").asDouble() > 0, "MIN should be positive");
+      assertTrue(json.get("max").asDouble() > 0, "MAX should be positive");
+      assertEquals(10, json.get("count").asInt(), "COUNT should be 10");
+
+      // Verify MIN <= AVG <= MAX
+      double min = json.get("min").asDouble();
+      double avg = json.get("avg").asDouble();
+      double max = json.get("max").asDouble();
+      assertTrue(min <= avg, "MIN should be <= AVG");
+      assertTrue(avg <= max, "AVG should be <= MAX");
+
+      // Test GROUP BY with aggregations
+      Query groupAggQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(
+                  AggregateExpression.of(SUM, IdentifierExpression.of("quantity")), "total_qty")
+              .addSelection(
+                  AggregateExpression.of(AVG, IdentifierExpression.of("price")), "avg_price")
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count")
+              .addAggregation(IdentifierExpression.of("item"))
+              .addSort(IdentifierExpression.of("item"), ASC)
+              .build();
+
+      Iterator<Document> groupAggResults = flatCollection.aggregate(groupAggQuery);
+      int groupCount = 0;
+      while (groupAggResults.hasNext()) {
+        Document doc = groupAggResults.next();
+        JsonNode groupJson = new ObjectMapper().readTree(doc.toJson());
+        groupCount++;
+
+        // Validate each group has all expected fields
+        assertNotNull(groupJson.get("item"));
+        assertTrue(groupJson.get("total_qty").asInt() > 0);
+        assertTrue(groupJson.get("avg_price").asDouble() > 0);
+        assertTrue(groupJson.get("count").asInt() > 0);
+      }
+      assertTrue(groupCount > 0, "Should have at least one group");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNullHandling(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Note: All scalar fields (item, price, quantity, in_stock) have non-NULL values
+      // in existing data. This test validates correct handling when no NULLs are present.
+
+      // Test 1: Verify all items are non-NULL
+      Query notNullQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), NEQ, ConstantExpression.of("null")))
+              .build();
+
+      long notNullCount = flatCollection.count(notNullQuery);
+      assertEquals(10, notNullCount);
+
+      // Test 2: Verify COUNT(field) equals COUNT(*) when no NULLs present
+      Query aggQuery =
+          Query.builder()
+              .addSelection(
+                  AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count_item")
+              .addSelection(
+                  AggregateExpression.of(COUNT, IdentifierExpression.of("price")), "count_price")
+              .addSelection(AggregateExpression.of(COUNT, ConstantExpression.of("*")), "count_all")
+              .build();
+
+      Iterator<Document> aggResults = flatCollection.aggregate(aggQuery);
+      assertTrue(aggResults.hasNext());
+
+      Document aggDoc = aggResults.next();
+      JsonNode json = new ObjectMapper().readTree(aggDoc.toJson());
+
+      // When no NULLs, COUNT(field) should equal COUNT(*)
+      int countItem = json.get("count_item").asInt();
+      int countPrice = json.get("count_price").asInt();
+      int countAll = json.get("count_all").asInt();
+
+      assertEquals(10, countItem, "COUNT(item) should be 10");
+      assertEquals(10, countPrice, "COUNT(price) should be 10");
+      assertEquals(10, countAll, "COUNT(*) should be 10");
+      assertEquals(countItem, countAll, "COUNT(item) should equal COUNT(*) when no NULLs");
+      assertEquals(countPrice, countAll, "COUNT(price) should equal COUNT(*) when no NULLs");
+
+      // Test 3: Test NULL equality filter returns empty result
+      Query nullEqualQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), EQ, ConstantExpression.of("null")))
+              .build();
+
+      long nullCount = flatCollection.count(nullEqualQuery);
+      assertEquals(0, nullCount);
+    }
+  }
+
+  @Nested
+  class FlatCollectionTopLevelArrayColumns {
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotEmpty(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags"), EXISTS, ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+        JsonNode tags = json.get("tags");
+        assertTrue(tags.isArray() && !tags.isEmpty());
+      }
+      // (Ids 1 to 8 have non-empty tags)
+      assertEquals(8, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testEmpty(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags"),
+                      NOT_EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        count++;
+      }
+
+      // (Ids 9 and 10 have NULL or EMPTY arrays)
+      assertEquals(2, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testUnnest(String dataStoreName) {
+
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      for (boolean preserveNullAndEmpty : List.of(true, false)) {
+        Query unnestQuery =
+            Query.builder()
+                .addSelection(IdentifierExpression.of("item"))
+                .addSelection(
+                    JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "source-loc"))
+                .addFromClause(
+                    UnnestExpression.of(
+                        JsonIdentifierExpression.of(
+                            "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                        preserveNullAndEmpty))
+                .build();
+
+        Iterator<Document> resultIterator = flatCollection.find(unnestQuery);
+        int count = 0;
+        while (resultIterator.hasNext()) {
+          Document doc = resultIterator.next();
+          assertNotNull(doc);
+          count++;
+        }
+        // With preserveNullAndEmpty = false, unnest will only unwind arrays with size >= 1. A total
+        // of 6 such rows would be created from the 3 arrays in the table
+        // With true, it'll include NULL and EMPTY arrays too. This will result in 13 rows
+        assertTrue(preserveNullAndEmpty ? count == 13 : count == 6);
+      }
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testInStringArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query inQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(inQuery);
+
+      int count = 0;
+      Set<String> items = new HashSet<>();
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        String item = json.get("item").asText();
+        items.add(item);
+
+        // Verify that returned arrays contain at least one of the IN values
+        JsonNode tags = json.get("tags");
+        if (tags != null && tags.isArray()) {
+          boolean containsMatch = false;
+          for (JsonNode tag : tags) {
+            String tagValue = tag.asText();
+            if ("hygiene".equals(tagValue) || "grooming".equals(tagValue)) {
+              containsMatch = true;
+              break;
+            }
+          }
+          assertTrue(containsMatch, "Array should contain at least one IN value for item: " + item);
+        }
+      }
+
+      // Should return rows where tags array overlaps with ["hygiene", "grooming"]
+      // hygiene: IDs 1, 5, 8 (Soap), 6, 7 (Comb)
+      assertTrue(count >= 5, "Should return at least 5 items");
+      assertTrue(items.contains("Soap"));
+      assertTrue(items.contains("Comb"));
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotInStringArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test NOT_IN on native array WITHOUT unnest
+      // This should use NOT (array overlap) to check arrays don't contain any of the values
+      Query notInQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("premium", "hygiene"))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(notInQuery);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        // Verify that returned arrays do NOT contain any of the NOT_IN values
+        JsonNode tags = json.get("tags");
+        if (tags != null && tags.isArray() && !tags.isEmpty()) {
+          for (JsonNode tag : tags) {
+            String tagValue = tag.asText();
+            assertNotEquals(
+                "premium",
+                tagValue,
+                "tags array should NOT contain 'premium' for item: " + json.get("item").asText());
+            assertNotEquals(
+                "hygiene",
+                tagValue,
+                "tags array should NOT contain 'hygiene' for item: " + json.get("item").asText());
+          }
+        }
+      }
+
+      // Should return rows where tags array does NOT overlap with ["premium", "hygiene"]
+      // Rows 1, 3, 5, 8 have hygiene or premium, so should be excluded
+      // Should return: Mirror, Shampoo (id 4), Comb
+      assertTrue(count >= 3, "Should return at least 3 items without premium/hygiene tags");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testInIntArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test IN on integer array (numbers column)
+      Query inQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("numbers"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(1, 10, 20))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(inQuery);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        // Verify that returned arrays contain at least one of the IN values
+        JsonNode numbers = json.get("numbers");
+        if (numbers != null && numbers.isArray()) {
+          boolean containsMatch = false;
+          for (JsonNode num : numbers) {
+            int value = num.asInt();
+            if (value == 1 || value == 10 || value == 20) {
+              containsMatch = true;
+              break;
+            }
+          }
+          assertTrue(
+              containsMatch,
+              "Array should contain at least one IN value for item: " + json.get("item").asText());
+        }
+      }
+
+      // Should return rows where numbers array overlaps with [1, 10, 20]
+      // IDs: 1 {1,2,3}, 2 {10,20}, 3 {5,10,15}, 6 {20,30}, 7 {10}, 8 {1,10,20}
+      assertTrue(count >= 6, "Should return at least 6 items");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testInDoubleArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test IN on double precision array (scores column)
+      Query inQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("scores"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("scores", ArrayType.DOUBLE_PRECISION),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(3.14, 5.0))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(inQuery);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        // Verify that returned arrays contain at least one of the IN values
+        JsonNode scores = json.get("scores");
+        if (scores != null && scores.isArray()) {
+          boolean containsMatch = false;
+          for (JsonNode score : scores) {
+            double value = score.asDouble();
+            if (Math.abs(value - 3.14) < 0.01 || Math.abs(value - 5.0) < 0.01) {
+              containsMatch = true;
+              break;
+            }
+          }
+          assertTrue(
+              containsMatch,
+              "Array should contain at least one IN value for item: " + json.get("item").asText());
+        }
+      }
+
+      // Should return rows where scores array overlaps with [3.14, 5.0]
+      // IDs: 3 {3.14,2.71}, 4 {5.0,10.0}, 8 {2.5,5.0}
+      assertTrue(count >= 3, "Should return at least 3 items");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testInWithUnnest(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      for (boolean preserveNullAndEmptyArrays : List.of(true, false)) {
+        Query unnestQuery =
+            Query.builder()
+                .addSelection(IdentifierExpression.of("item"))
+                .addSelection(ArrayIdentifierExpression.of("tags"))
+                .addFromClause(
+                    UnnestExpression.of(
+                        ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                        preserveNullAndEmptyArrays))
+                // Should return unnested tag elements that match 'hygiene' OR 'grooming'
+                .setFilter(
+                    RelationalExpression.of(
+                        ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                        IN,
+                        ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
+                .build();
+
+        // this query will first unnest "tags" array and keep rows that have null and empty
+        // arrays. It'll then filter those rows for which the
+        // unnested tag is either hygiene or grooming. We have a total of 5 rows that'll match
+        // this filter
+        Iterator<Document> results = flatCollection.find(unnestQuery);
+
+        int count = 0;
+        while (results.hasNext()) {
+          Document doc = results.next();
+          assertNotNull(doc);
+          count++;
+        }
+        assertEquals(5, count, "Should return at least one unnested tag matching the filter");
+      }
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotInWithUnnest(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      for (boolean preserveNullAndEmptyArrays : List.of(true, false)) {
+        Query unnestQuery =
+            Query.builder()
+                .addSelection(IdentifierExpression.of("item"))
+                .addSelection(ArrayIdentifierExpression.of("tags"))
+                .addFromClause(
+                    UnnestExpression.of(
+                        ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                        preserveNullAndEmptyArrays))
+                .setFilter(
+                    RelationalExpression.of(
+                        ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                        NOT_IN,
+                        ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
+                .build();
+        // this query will first unnest "tags" array and keep rows that have null and empty
+        // arrays. unnest() on empty and null arrays returns NULL which is then
+        // included in the result set (as the predicate contains tags_unnested == NULL OR ...)
+
+        Iterator<Document> results = flatCollection.find(unnestQuery);
+
+        int count = 0;
+        while (results.hasNext()) {
+          Document doc = results.next();
+          assertNotNull(doc);
+          count++;
+        }
+        assertEquals(
+            preserveNullAndEmptyArrays ? 22 : 20,
+            count,
+            "Should return unnested tags not matching the filter");
+      }
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testEmptyWithUnnest(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query unnestQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags"))
+              .addFromClause(
+                  UnnestExpression.of(ArrayIdentifierExpression.of("tags", ArrayType.TEXT), true))
+              // Only include tags[] that are either NULL or empty (we have one row with NULL tag
+              // and one with empty tag. Unnest will result in two rows with NULL for
+              // "tags_unnested"). Note that this behavior will change with
+              // preserveNulLAndEmptyArrays = false. This is because unnest won't preserve those
+              // rows for which the unnested column is NULL then.
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      NOT_EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(unnestQuery);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        assertNotNull(doc);
+        count++;
+      }
+
+      assertEquals(2, count, "Should return at least 2 rows with NULL unnested tags");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotEmptyWithUnnest(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query unnestQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags"))
+              .addFromClause(
+                  UnnestExpression.of(ArrayIdentifierExpression.of("tags", ArrayType.TEXT), true))
+              // Only include tags[] that have at least 1 element, all rows with NULL or empty tags
+              // should be excluded.
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(unnestQuery);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        assertNotNull(doc);
+        count++;
+      }
+
+      assertEquals(25, count, "Should return unnested tag elements from non-empty arrays");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testContainsStrArrayWithUnnest(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addFromClause(
+                  UnnestExpression.of(ArrayIdentifierExpression.of("tags", ArrayType.TEXT), true))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      CONTAINS,
+                      ConstantExpression.ofStrings(List.of("hygiene", "premium"))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        results.next();
+        count++;
+      }
+      assertEquals(5, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testContainsStrArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags", ArrayType.TEXT))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      CONTAINS,
+                      ConstantExpression.ofStrings(List.of("hygiene", "personal-care"))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      Set<String> items = new HashSet<>();
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        String item = json.get("item").asText();
+        items.add(item);
+
+        // Verify that returned arrays contain both "hygiene" AND "personal-care"
+        JsonNode tags = json.get("tags");
+        assertTrue(tags.isArray(), "tags should be an array");
+        boolean containsHygiene = false;
+        boolean containsPersonalCare = false;
+        for (JsonNode tag : tags) {
+          if ("hygiene".equals(tag.asText())) {
+            containsHygiene = true;
+          }
+          if ("personal-care".equals(tag.asText())) {
+            containsPersonalCare = true;
+          }
+        }
+        assertTrue(containsHygiene);
+        assertTrue(containsPersonalCare);
+      }
+
+      assertEquals(1, count);
+      assertTrue(items.contains("Soap"));
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotContainsStrArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      NOT_CONTAINS,
+                      ConstantExpression.ofStrings(List.of("hair-care", "personal-care"))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      Set<String> items = new HashSet<>();
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+        items.add(json.get("item").asText());
+
+        // Verify that returned arrays do NOT contain BOTH "hair-care" AND "personal-care"
+        JsonNode tags = json.get("tags");
+        if (tags != null && tags.isArray() && !tags.isEmpty()) {
+          boolean hasHairCare = false;
+          boolean hasPersonalCare = false;
+          for (JsonNode tag : tags) {
+            if ("hair-care".equals(tag.asText())) {
+              hasHairCare = true;
+            }
+            if ("personal-care".equals(tag.asText())) {
+              hasPersonalCare = true;
+            }
+          }
+          assertFalse(hasHairCare && hasPersonalCare);
+        }
+      }
+
+      assertEquals(9, count);
+      assertNotEquals(2, items.stream().filter("Shampoo"::equals).count());
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testContainsOnIntArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                      CONTAINS,
+                      ConstantExpression.ofNumbers(List.of(1, 2))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        // Verify numbers field is a proper JSON array, not a PostgreSQL string like "{1,2,3}"
+        JsonNode numbers = json.get("numbers");
+        assertNotNull(numbers);
+        assertTrue(numbers.isArray(), "numbers should be JSON array, got: " + numbers);
+
+        // Verify array contains both 1 and 2
+        boolean contains1 = false;
+        boolean contains2 = false;
+        for (JsonNode num : numbers) {
+          if (num.asInt() == 1) {
+            contains1 = true;
+          }
+          if (num.asInt() == 2) {
+            contains2 = true;
+          }
+        }
+        assertTrue(contains1);
+        assertTrue(contains2);
+      }
+
+      assertEquals(2, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotContainsOnIntArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                      NOT_CONTAINS,
+                      ConstantExpression.ofNumbers(List.of(10, 20))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        // Verify numbers field is a proper JSON array
+        JsonNode numbers = json.get("numbers");
+        if (numbers != null && !numbers.isNull()) {
+          assertTrue(numbers.isArray());
+
+          // Verify array does NOT contain BOTH 10 AND 20
+          boolean has10 = false;
+          boolean has20 = false;
+          for (JsonNode num : numbers) {
+            if (num.asInt() == 10) {
+              has10 = true;
+            }
+            if (num.asInt() == 20) {
+              has20 = true;
+            }
+          }
+          assertFalse(has10 && has20);
+        }
+      }
+
+      // 8 rows: excludes rows 2 and 8 (have both 10 & 20)
+      // Includes rows 9, 10 (NULL) because NOT_CONTAINS uses "IS NULL OR NOT (...)" logic
+      assertEquals(8, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testContainsOnDoubleArray(String dataStoreName) throws JsonProcessingException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("scores", ArrayType.DOUBLE_PRECISION))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("scores", ArrayType.DOUBLE_PRECISION),
+                      CONTAINS,
+                      ConstantExpression.ofNumbers(List.of(3.14, 2.71))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        count++;
+
+        JsonNode scores = json.get("scores");
+        assertNotNull(scores);
+        assertTrue(scores.isArray(), "scores should be JSON array, got: " + scores);
+
+        boolean contains314 = false;
+        boolean contains271 = false;
+        for (JsonNode score : scores) {
+          double val = score.asDouble();
+          if (val == 3.14) {
+            contains314 = true;
+          }
+          if (val == 2.71) {
+            contains271 = true;
+          }
+        }
+        assertTrue(contains314);
+        assertTrue(contains271);
+      }
+
+      assertEquals(1, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAnyOnIntegerArray(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query integerArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("numbers"), EQ, ConstantExpression.of(10)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(integerArrayQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_integer_array_filter_response.json", 4);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAnyOnDoubleArray(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query doubleArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("scores"), EQ, ConstantExpression.of(3.14)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(doubleArrayQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_double_array_filter_response.json", 1);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAnyOnBooleanArray(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query booleanArrayQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("flags"), EQ, ConstantExpression.of(true)))
+                      .build())
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(booleanArrayQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, resultIterator, "query/flat_boolean_array_filter_response.json", 5);
+    }
+  }
+
+  @Nested
+  class FlatCollectionJsonbColumns {
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSelections(String dataStoreName) throws IOException {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query brandSelectionQuery =
+          Query.builder()
+              .addSelection(JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"))
+              .build();
+
+      Iterator<Document> brandIterator = flatCollection.find(brandSelectionQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, brandIterator, "query/flat_jsonb_brand_selection_response.json", 10);
+
+      // Test 2: Select deeply nested STRING field from JSONB column (props.seller.address.city)
+      Query citySelectionQuery =
+          Query.builder()
+              .addSelection(
+                  JsonIdentifierExpression.of(
+                      "props", JsonFieldType.STRING, "seller", "address", "city"))
+              .build();
+
+      Iterator<Document> cityIterator = flatCollection.find(citySelectionQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, cityIterator, "query/flat_jsonb_city_selection_response.json", 10);
+
+      // Test 3: Select STRING_ARRAY field from JSONB column (props.colors)
+      Query colorsSelectionQuery =
+          Query.builder()
+              .addSelection(
+                  JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"))
+              .build();
+
+      Iterator<Document> colorsIterator = flatCollection.find(colorsSelectionQuery);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, colorsIterator, "query/flat_jsonb_colors_selection_response.json", 10);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testRelOpArrayContains(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test 1: CONTAINS - props.colors CONTAINS "Green"
+      // Expected: 1 document (id=1, Dettol Soap has ["Green", "White"])
+      Query containsQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
+                      CONTAINS,
+                      ConstantExpression.of("Green")))
+              .build();
+
+      long containsCount = flatCollection.count(containsQuery);
+      // Generated query: SELECT COUNT(*) FROM (SELECT * FROM "myTestFlat" WHERE "props"->'colors'
+      // @> ('["Green"]')::jsonb) p(countWithParser)
+      assertEquals(1, containsCount);
+
+      // Test 2: NOT_CONTAINS - props.colors NOT_CONTAINS "Green" AND _id <= 8
+      // Expected: 7 documents (all except id=1 which has Green, limited to first 8)
+      Query notContainsQuery =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(LogicalOperator.AND)
+                      .operand(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of(
+                                  "props", JsonFieldType.STRING_ARRAY, "colors"),
+                              NOT_CONTAINS,
+                              ConstantExpression.of("Green")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                      .build())
+              .build();
+
+      long notContainsCount = flatCollection.count(notContainsQuery);
+      // Generated query: SELECT COUNT(*) FROM (SELECT * FROM "myTestFlat" WHERE ("props"->'colors'
+      // IS NULL OR NOT "props"->'colors' @> ('["Green"]')::jsonb) AND ("_id" <= ('8'::int4)))
+      // p(countWithParser)
+      assertEquals(7, notContainsCount);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testRelOpArrayIN(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Test 1: IN - props.brand IN ["Dettol", "Lifebuoy"]
+      // Expected: 2 documents (id=1 Dettol, id=5 Lifebuoy)
+      Query inQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Dettol", "Lifebuoy"))))
+              .build();
+
+      long inCount = flatCollection.count(inQuery);
+      assertEquals(2, inCount);
+
+      // Test 2: NOT_IN - props.brand NOT_IN ["Dettol"] AND _id <= 8
+      // Expected: 7 documents (all except id=1 which is Dettol, limited to first 8)
+      Query notInQuery =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(LogicalOperator.AND)
+                      .operand(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                              NOT_IN,
+                              ConstantExpression.ofStrings(List.of("Dettol"))))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                      .build())
+              .build();
+
+      long notInCount = flatCollection.count(notInQuery);
+      assertEquals(7, notInCount);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testRelOpScalarEq(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query eqQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      EQ,
+                      ConstantExpression.of("Dettol")))
+              .build();
+
+      long eqCount = flatCollection.count(eqQuery);
+      // Generate query: SELECT COUNT(*) FROM (SELECT * FROM "myTestFlat" WHERE "props"->>'brand' =
+      // ('Dettol')) p(countWithParser)
+      assertEquals(1, eqCount);
+
+      Query neqQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      NEQ,
+                      ConstantExpression.of("Dettol")))
+              .build();
+
+      long neqCount = flatCollection.count(neqQuery);
+      // Generate query: SELECT COUNT(*) FROM (SELECT * FROM "myTestFlat" WHERE "props"->>'brand' !=
+      // ('Dettol')) p(countWithParser)
+      assertEquals(2, neqCount);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testRelOpScalarNumericComparison(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query gtQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
+                      GT,
+                      ConstantExpression.of(500000)))
+              .build();
+
+      long gtCount = flatCollection.count(gtQuery);
+      // SELECT COUNT(*) FROM (SELECT * FROM "myTestFlat" WHERE CAST
+      // ("props"->'seller'->'address'->>'pincode' AS NUMERIC) > ('500000'::int4))
+      // p(countWithParser)
+      assertEquals(2, gtCount, "GT: Should find 2 documents with pincode > 500000");
+
+      Query ltQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
+                      LT,
+                      ConstantExpression.of(500000)))
+              .build();
+
+      long ltCount = flatCollection.count(ltQuery);
+      // SELECT COUNT(*) FROM (SELECT * FROM "myTestFlat" WHERE CAST
+      // ("props"->'seller'->'address'->>'pincode' AS NUMERIC) < ('500000'::int4))
+      // p(countWithParser)
+      assertEquals(2, ltCount, "LT: Should find 2 documents with pincode < 500000");
+
+      Query gteQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
+                      GTE,
+                      ConstantExpression.of(700000)))
+              .build();
+
+      long gteCount = flatCollection.count(gteQuery);
+      // SELECT COUNT(*) FROM (SELECT * FROM "myTestFlat" WHERE CAST
+      // ("props"->'seller'->'address'->>'pincode' AS NUMERIC) >= ('700000'::int4))
+      // p(countWithParser)
+      assertEquals(2, gteCount, "GTE: Should find 2 documents with pincode >= 700000");
+
+      Query lteQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
+                      LTE,
+                      ConstantExpression.of(400004)))
+              .build();
+
+      long lteCount = flatCollection.count(lteQuery);
+      // SELECT COUNT(*) FROM (SELECT * FROM "myTestFlat" WHERE CAST
+      // ("props"->'seller'->'address'->>'pincode' AS NUMERIC) <= ('400004'::int4))
+      // p(countWithParser)
+      assertEquals(2, lteCount, "LTE: Should find 2 documents with pincode <= 400004");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testUnnest(String dataStoreName) {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
@@ -4288,7 +5171,7 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatCollectionGroupByJsonbScalarField(String dataStoreName) throws IOException {
+    void testGroupByScalarField(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
@@ -4312,7 +5195,7 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatCollectionGroupByJsonbArrayField(String dataStoreName) throws IOException {
+    void testGroupByArray(String dataStoreName) throws IOException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
@@ -4339,7 +5222,7 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testFlatCollectionArrayAnyOnJsonbArray(String dataStoreName) {
+    void testAnyOnArray(String dataStoreName) {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
@@ -4365,323 +5248,92 @@ public class DocStoreQueryV1Test {
       assertEquals(2, count, "Should find 2 items with 'Blue' color (ids 1, 5)");
     }
 
-    /**
-     * Tests for relational operators on JSONB nested fields in flat collections. Tests: CONTAINS,
-     * NOT_CONTAINS, IN, NOT_IN, EQ, NEQ, LT, GT on JSONB columns.
-     */
-    @Nested
-    class FlatCollectionJsonbRelationalOperatorTest {
-
-      /**
-       * Tests CONTAINS and NOT_CONTAINS operators on JSONB array fields. - CONTAINS: finds
-       * documents where array contains the value - NOT_CONTAINS: finds documents where array
-       * doesn't contain the value (including NULL)
-       */
-      @ParameterizedTest
-      @ArgumentsSource(PostgresProvider.class)
-      void testJsonbArrayContainsOperators(String dataStoreName) {
-        Datastore datastore = datastoreMap.get(dataStoreName);
-        Collection flatCollection =
-            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-        // Test 1: CONTAINS - props.colors CONTAINS "Green"
-        // Expected: 1 document (id=1, Dettol Soap has ["Green", "White"])
-        Query containsQuery =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"),
-                        CONTAINS,
-                        ConstantExpression.of("Green")))
-                .build();
-
-        long containsCount = flatCollection.count(containsQuery);
-        assertEquals(1, containsCount, "CONTAINS: Should find 1 document with Green color");
-
-        // Test 2: NOT_CONTAINS - props.colors NOT_CONTAINS "Green" AND _id <= 8
-        // Expected: 7 documents (all except id=1 which has Green, limited to first 8)
-        Query notContainsQuery =
-            Query.builder()
-                .setFilter(
-                    LogicalExpression.builder()
-                        .operator(LogicalOperator.AND)
-                        .operand(
-                            RelationalExpression.of(
-                                JsonIdentifierExpression.of(
-                                    "props", JsonFieldType.STRING_ARRAY, "colors"),
-                                NOT_CONTAINS,
-                                ConstantExpression.of("Green")))
-                        .operand(
-                            RelationalExpression.of(
-                                IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
-                        .build())
-                .build();
-
-        long notContainsCount = flatCollection.count(notContainsQuery);
-        assertEquals(
-            7, notContainsCount, "NOT_CONTAINS: Should find 7 documents without Green color");
-      }
-
-      /**
-       * Tests IN and NOT_IN operators on JSONB scalar fields. - IN: finds documents where field
-       * value is in the provided list - NOT_IN: finds documents where field value is not in the
-       * list (including NULL)
-       */
-      @ParameterizedTest
-      @ArgumentsSource(PostgresProvider.class)
-      void testJsonbScalarInOperators(String dataStoreName) {
-        Datastore datastore = datastoreMap.get(dataStoreName);
-        Collection flatCollection =
-            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-        // Test 1: IN - props.brand IN ["Dettol", "Lifebuoy"]
-        // Expected: 2 documents (id=1 Dettol, id=5 Lifebuoy)
-        Query inQuery =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
-                        IN,
-                        ConstantExpression.ofStrings(List.of("Dettol", "Lifebuoy"))))
-                .build();
-
-        long inCount = flatCollection.count(inQuery);
-        assertEquals(2, inCount, "IN: Should find 2 documents with Dettol or Lifebuoy brand");
-
-        // Test 2: NOT_IN - props.brand NOT_IN ["Dettol"] AND _id <= 8
-        // Expected: 7 documents (all except id=1 which is Dettol, limited to first 8)
-        Query notInQuery =
-            Query.builder()
-                .setFilter(
-                    LogicalExpression.builder()
-                        .operator(LogicalOperator.AND)
-                        .operand(
-                            RelationalExpression.of(
-                                JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
-                                NOT_IN,
-                                ConstantExpression.ofStrings(List.of("Dettol"))))
-                        .operand(
-                            RelationalExpression.of(
-                                IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
-                        .build())
-                .build();
-
-        long notInCount = flatCollection.count(notInQuery);
-        assertEquals(7, notInCount, "NOT_IN: Should find 7 documents without Dettol brand");
-      }
-
-      /**
-       * Tests EQ and NEQ operators on JSONB scalar fields. - EQ: finds documents where field equals
-       * the value - NEQ: finds documents where field doesn't equal the value (excluding NULL)
-       */
-      @ParameterizedTest
-      @ArgumentsSource(PostgresProvider.class)
-      void testJsonbScalarEqualityOperators(String dataStoreName) {
-        Datastore datastore = datastoreMap.get(dataStoreName);
-        Collection flatCollection =
-            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-        // Test 1: EQ - props.brand EQ "Dettol"
-        // Expected: 1 document (id=1, Dettol Soap)
-        Query eqQuery =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
-                        EQ,
-                        ConstantExpression.of("Dettol")))
-                .build();
-
-        long eqCount = flatCollection.count(eqQuery);
-        assertEquals(1, eqCount, "EQ: Should find 1 document with Dettol brand");
-
-        // Test 2: NEQ - props.brand NEQ "Dettol" (no _id filter needed)
-        // Expected: 2 documents (id=3 Sunsilk, id=5 Lifebuoy, excluding NULL props)
-        Query neqQuery =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
-                        NEQ,
-                        ConstantExpression.of("Dettol")))
-                .build();
-
-        long neqCount = flatCollection.count(neqQuery);
-        assertEquals(2, neqCount, "NEQ: Should find 2 documents without Dettol brand");
-      }
-
-      /**
-       * Tests LT, GT, LTE, GTE comparison operators on JSONB numeric fields. Tests deeply nested
-       * numeric fields like props.seller.address.pincode. Data: ids 1,3 have pincode 400004; ids
-       * 5,7 have pincode 700007; rest are NULL
-       */
-      @ParameterizedTest
-      @ArgumentsSource(PostgresProvider.class)
-      void testJsonbNumericComparisonOperators(String dataStoreName) {
-        Datastore datastore = datastoreMap.get(dataStoreName);
-        Collection flatCollection =
-            datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-
-        // Test 1: GT - props.seller.address.pincode > 500000
-        // Expected: 2 documents (ids 5,7 with pincode 700007 in Kolkata)
-        Query gtQuery =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        JsonIdentifierExpression.of(
-                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
-                        GT,
-                        ConstantExpression.of(500000)))
-                .build();
-
-        long gtCount = flatCollection.count(gtQuery);
-        assertEquals(2, gtCount, "GT: Should find 2 documents with pincode > 500000");
-
-        // Test 2: LT - props.seller.address.pincode < 500000
-        // Expected: 2 documents (ids 1,3 with pincode 400004 in Mumbai)
-        Query ltQuery =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        JsonIdentifierExpression.of(
-                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
-                        LT,
-                        ConstantExpression.of(500000)))
-                .build();
-
-        long ltCount = flatCollection.count(ltQuery);
-        assertEquals(2, ltCount, "LT: Should find 2 documents with pincode < 500000");
-
-        // Test 3: GTE - props.seller.address.pincode >= 700000
-        // Expected: 2 documents (ids 5,7 with pincode 700007)
-        Query gteQuery =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        JsonIdentifierExpression.of(
-                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
-                        GTE,
-                        ConstantExpression.of(700000)))
-                .build();
-
-        long gteCount = flatCollection.count(gteQuery);
-        assertEquals(2, gteCount, "GTE: Should find 2 documents with pincode >= 700000");
-
-        // Test 4: LTE - props.seller.address.pincode <= 400004
-        // Expected: 2 documents (ids 1,3 with pincode 400004)
-        Query lteQuery =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        JsonIdentifierExpression.of(
-                            "props", JsonFieldType.NUMBER, "seller", "address", "pincode"),
-                        LTE,
-                        ConstantExpression.of(400004)))
-                .build();
-
-        long lteCount = flatCollection.count(lteQuery);
-        assertEquals(2, lteCount, "LTE: Should find 2 documents with pincode <= 400004");
-      }
-    }
-  }
-
-  @Nested
-  class FlatCollectionArrayBehaviourTest {
-
-    /**
-     * Test EXISTS filter on top-level arrays. It should only return arrays that are non-empty (have
-     * at-least one element)
-     */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testExistsFilterOnArray(String dataStoreName) throws JsonProcessingException {
+    void testInOnUnnestedArray(String dataStoreName) throws Exception {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Query using EXISTS on array field (simulating ArrayIdentifierExpression behavior)
-      // tags column has: NULL (row 9), empty '{}' (rows 10, 11, 13), non-empty (rows 1-8, 12, 14)
-      // Using EXISTS with 'null' parameter (matching entity-service pattern)
-      Query query =
+      Query unnestQuery =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("tags"))
+              .addSelection(
+                  JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "source-loc"))
+              .addFromClause(
+                  UnnestExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      true))
+              // Should return unnested source-loc elements that match 'warehouse-A' OR 'store-1'
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags"), EXISTS, ConstantExpression.of("null")))
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("warehouse-A", "store-1"))))
               .build();
 
-      Iterator<Document> results = flatCollection.find(query);
+      Iterator<Document> resultIterator = flatCollection.find(unnestQuery);
 
       int count = 0;
-      while (results.hasNext()) {
-        Document doc = results.next();
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        // Parse JSON to extract the unnested value
         JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        // The unnested value is aliased as "props.source-loc"
+        JsonNode locationNode = json.get("props.source-loc");
         count++;
-        // Verify that ALL returned documents have non-empty arrays
-        JsonNode tags = json.get("tags");
-        assertTrue(
-            tags.isArray() && !tags.isEmpty(), "tags should be non-empty array, but was: " + tags);
       }
 
-      // Should return only documents with non-empty arrays
-      // From test data: rows 1-8 have non-empty arrays (8 docs)
-      // Plus rows 9, 10 have non-empty arrays (2 docs)
-      // Total: 10 documents
-      assertEquals(8, count, "Should return a total of 10 docs that have non-empty tags");
+      assertEquals(2, count, "Should return at least 2 unnested locations matching the filter");
     }
 
-    /**
-     * Test NOT_EXISTS filter on top-level arrays. This validates that NOT_EXISTS on array fields
-     * returns both NULL and empty arrays, excluding only non-empty arrays.
-     */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testNotExistsFilterOnArrays(String dataStoreName) throws JsonProcessingException {
+    void testNotInOnUnnestedArray(String dataStoreName) throws Exception {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
 
-      // Query using NOT_EXISTS on array field (simulating ArrayIdentifierExpression behavior)
-      // Using NOT_EXISTS with 'null' parameter (matching entity-service pattern)
-      Query query =
+      Query unnestQuery =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(IdentifierExpression.of("tags"))
+              .addSelection(
+                  JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "source-loc"))
+              .addFromClause(
+                  UnnestExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      true))
+              // Should return unnested source-loc elements that DO NOT match 'warehouse-A'
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags"),
-                      NOT_EXISTS,
-                      ConstantExpression.of("null")))
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("warehouse-A"))))
               .build();
 
-      Iterator<Document> results = flatCollection.find(query);
+      Iterator<Document> resultIterator = flatCollection.find(unnestQuery);
 
       int count = 0;
-      while (results.hasNext()) {
-        Document doc = results.next();
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        // Parse JSON to extract the unnested value
         JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        JsonNode locationNode = json.get("props.source-loc");
         count++;
-        // Verify that ALL returned documents have NULL or empty arrays
-        JsonNode tags = json.get("tags");
-        assertTrue(
-            tags == null || !tags.isArray() || tags.isEmpty(),
-            "tags should be NULL or empty array, but was: " + tags);
       }
-
-      // Should return documents with NULL or empty arrays
-      // From test data: row 9 (NULL), rows 10, 11, 13 (empty arrays)
-      // Total: 4 documents
-      assertEquals(2, count, "Should return at 4 documents with NULL or empty tags");
+      // Should NOT contain 'warehouse-A'
+      assertEquals(12, count, "Should return unnested locations not matching the filter");
     }
 
-    /**
-     * Test EXISTS filter on JSONB arrays. Should only return non-empty arrays (with at-least one
-     * element).
-     */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testExistsFilterOnJsonArrays(String dataStoreName) throws JsonProcessingException {
+    void testExistsOnArrays(String dataStoreName) throws JsonProcessingException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
@@ -4721,14 +5373,9 @@ public class DocStoreQueryV1Test {
       assertEquals(3, count, "Should return exactly 3 documents with non-empty colors");
     }
 
-    /**
-     * Test NOT_EXISTS filter on JSONB arrays. This validates that NOT_EXISTS on array fields inside
-     * JSONB returns documents where the field is NULL, the parent object is NULL, or the array is
-     * empty.
-     */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testNotExistsFilterOnJsonArrays(String dataStoreName) throws JsonProcessingException {
+    void testNotExistsOnArrays(String dataStoreName) throws JsonProcessingException {
       Datastore datastore = datastoreMap.get(dataStoreName);
       Collection flatCollection =
           datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
@@ -4773,6 +5420,138 @@ public class DocStoreQueryV1Test {
       assertTrue(count > 0, "Should return at least some documents");
       assertTrue(
           returnedItems.contains("Comb"), "Should include Comb (has empty colors array in props)");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testExistsOnScalars(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(
+                  JsonIdentifierExpression.of("props", JsonFieldType.STRING, "product-code"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "product-code"),
+                      EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document next = results.next();
+        count++;
+      }
+      // We have 4 rows with "props"->'product-code' field present (regardless of the value)
+      assertEquals(4, count, "Should return exactly 4 documents with non-empty product-code");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotExistsOnScalars(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(
+                  JsonIdentifierExpression.of("props", JsonFieldType.STRING, "product-code"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "product-code"),
+                      NOT_EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document next = results.next();
+        count++;
+      }
+      // We have 6 rows that have "props"->'product-code' field missing
+      assertEquals(6, count, "Should return exactly 6 documents with missing product-code");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testExistsOnUnnestedArray(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query unnestQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addFromClause(
+                  UnnestExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      true))
+              // Should include only those props->source_loc arrays that have at least one element.
+              // So essentially, after unnesting this array, we don't have any rows with NULL for
+              // the unnested col
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(unnestQuery);
+
+      int count = 0;
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        count++;
+      }
+      assertEquals(6, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotExistsOnUnnestedArray(String dataStoreName) {
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Collection flatCollection =
+          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Query unnestQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addFromClause(
+                  UnnestExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      true))
+              // Should include only those props->source_loc arrays that are either NULL or empty.
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      NOT_EXISTS,
+                      ConstantExpression.of("null")))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(unnestQuery);
+
+      int count = 0;
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        count++;
+      }
+      assertEquals(7, count);
     }
   }
 

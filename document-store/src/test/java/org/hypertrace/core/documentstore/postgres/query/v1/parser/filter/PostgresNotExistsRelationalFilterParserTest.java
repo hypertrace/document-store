@@ -68,7 +68,7 @@ class PostgresNotExistsRelationalFilterParserTest {
 
   @Test
   void testParse_jsonbArrayField_rhsFalse() {
-    // Test NOT_EXISTS on JSONB array with RHS = false
+    // Test NOT_EXISTS on JSONB array with RHS = falsei
     JsonIdentifierExpression lhs =
         JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors");
     ConstantExpression rhs = ConstantExpression.of(false);
@@ -151,10 +151,7 @@ class PostgresNotExistsRelationalFilterParserTest {
 
     String result = parser.parse(expression, context);
 
-    assertEquals(
-        "\"customAttribute\" ? 'brand'",
-        result,
-        "NOT_EXISTS with RHS=false on JSON scalar should use ? operator for GIN index");
+    assertEquals("\"customAttribute\"->>'brand' IS NOT NULL", result);
   }
 
   @Test
@@ -170,9 +167,6 @@ class PostgresNotExistsRelationalFilterParserTest {
 
     String result = parser.parse(expression, context);
 
-    assertEquals(
-        "NOT (\"customAttribute\" ? 'brand')",
-        result,
-        "NOT_EXISTS with RHS=true on JSON scalar should use negated ? operator");
+    assertEquals("\"customAttribute\"->>'brand' IS NULL", result);
   }
 }

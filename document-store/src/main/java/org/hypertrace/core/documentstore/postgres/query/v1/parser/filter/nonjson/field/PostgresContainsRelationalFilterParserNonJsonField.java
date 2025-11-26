@@ -1,7 +1,9 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field;
 
-import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
+import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresContainsRelationalFilterParserInterface;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParser;
@@ -22,17 +24,51 @@ public class PostgresContainsRelationalFilterParserNonJsonField
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
     final Object parsedRhs = expression.getRhs().accept(context.rhsParser());
 
-    Object normalizedRhs = normalizeValue(parsedRhs);
-    context.getParamsBuilder().addObjectParam(normalizedRhs);
+    // Normalize to an Iterable (single value becomes a singleton list)
+    Iterable<Object> values = normalizeToIterable(parsedRhs);
 
-    return String.format("%s @> ARRAY[?]::text[]", parsedLhs);
+    // Add each value as an individual parameter (same as IN operator)
+    String placeholders =
+        StreamSupport.stream(values.spliterator(), false)
+            .map(
+                value -> {
+                  context.getParamsBuilder().addObjectParam(value);
+                  return "?";
+                })
+            .collect(Collectors.joining(", "));
+
+    // Check if this field has been unnested - if so, it's now a scalar, not an array
+    // For ArrayIdentifierExpression, get the field name
+    if (expression.getLhs() instanceof ArrayIdentifierExpression) {
+      ArrayIdentifierExpression arrayExpr = (ArrayIdentifierExpression) expression.getLhs();
+      String fieldName = arrayExpr.getName();
+      if (context.getPgColumnNames().containsKey(fieldName)) {
+        // Field is unnested - each element is now a scalar
+        // Use scalar IN operator: the scalar must be IN the set of values we're looking for
+        return String.format("%s IN (%s)", parsedLhs, placeholders);
+      }
+    }
+
+    // Field is NOT unnested - use array containment operator
+    String arrayTypeCast = expression.getLhs().accept(new PostgresArrayTypeExtractor());
+
+    // Use ARRAY[?, ?, ...] syntax with appropriate type cast
+    if (arrayTypeCast != null && arrayTypeCast.equals("text[]")) {
+      return String.format("%s @> ARRAY[%s]::text[]", parsedLhs, placeholders);
+    } else if (arrayTypeCast != null) {
+      // INTEGER/BOOLEAN/DOUBLE arrays: Use the correct type cast
+      return String.format("%s @> ARRAY[%s]::%s", parsedLhs, placeholders, arrayTypeCast);
+    } else {
+      // Fallback: use text[] cast
+      return String.format("%s @> ARRAY[%s]::text[]", parsedLhs, placeholders);
+    }
   }
 
-  private Object normalizeValue(final Object value) {
+  private Iterable<Object> normalizeToIterable(final Object value) {
     if (value == null) {
-      return null;
-    } else if (value instanceof Collection) {
-      return value;
+      return Collections.emptyList();
+    } else if (value instanceof Iterable) {
+      return (Iterable<Object>) value;
     } else {
       return Collections.singletonList(value);
     }

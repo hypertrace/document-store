@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjso
 
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresInRelationalFilterParserInterface;
@@ -16,6 +17,9 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.Postgre
  *
  * <p>Example: tags IN ('hygiene', 'premium') translates to: tags && ARRAY['hygiene',
  * 'premium']::text[]
+ *
+ * <p>Special case: If the array field has been unnested, each row contains a scalar value (not an
+ * array), so we use scalar IN syntax instead of the array overlap operator.
  */
 public class PostgresInRelationalFilterParserArrayField
     implements PostgresInRelationalFilterParserInterface {
@@ -27,13 +31,49 @@ public class PostgresInRelationalFilterParserArrayField
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
     final Iterable<Object> parsedRhs = expression.getRhs().accept(context.rhsParser());
 
-    String arrayTypeCast = expression.getLhs().accept(new PostgresArrayTypeExtractor());
+    // Check if this field has been unnested - if so, treat it as a scalar
+    ArrayIdentifierExpression arrayExpr = (ArrayIdentifierExpression) expression.getLhs();
+    String fieldName = arrayExpr.getName();
+    if (context.getPgColumnNames().containsKey(fieldName)) {
+      // Field is unnested - each element is now a scalar, not an array
+      // Use scalar IN operator instead of array overlap
+      return prepareFilterStringForScalarInOperator(
+          parsedLhs, parsedRhs, context.getParamsBuilder());
+    }
 
-    return prepareFilterStringForInOperator(
+    // Field is NOT unnested - use array overlap logic
+    String arrayTypeCast = expression.getLhs().accept(new PostgresArrayTypeExtractor());
+    return prepareFilterStringForArrayInOperator(
         parsedLhs, parsedRhs, arrayTypeCast, context.getParamsBuilder());
   }
 
-  private String prepareFilterStringForInOperator(
+  /**
+   * Generates SQL for scalar IN operator (used when array field has been unnested). Example:
+   * "tags_unnested" IN (?, ?, ?)
+   */
+  private String prepareFilterStringForScalarInOperator(
+      final String parsedLhs,
+      final Iterable<Object> parsedRhs,
+      final Params.Builder paramsBuilder) {
+
+    String placeholders =
+        StreamSupport.stream(parsedRhs.spliterator(), false)
+            .map(
+                value -> {
+                  paramsBuilder.addObjectParam(value);
+                  return "?";
+                })
+            .collect(Collectors.joining(", "));
+
+    // Scalar IN operator for unnested array elements
+    return String.format("%s IN (%s)", parsedLhs, placeholders);
+  }
+
+  /**
+   * Generates SQL for array overlap operator (used for non-unnested array fields). Example: "tags"
+   * && ARRAY[?, ?]::text[]
+   */
+  private String prepareFilterStringForArrayInOperator(
       final String parsedLhs,
       final Iterable<Object> parsedRhs,
       final String arrayType,

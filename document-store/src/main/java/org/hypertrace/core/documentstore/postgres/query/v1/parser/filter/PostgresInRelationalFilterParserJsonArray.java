@@ -22,6 +22,9 @@ import org.hypertrace.core.documentstore.postgres.Params;
  *
  * <p>This checks if the JSON array contains ANY of the provided values, using efficient JSONB
  * containment instead of defensive type checking.
+ *
+ * <p>Special case: If the JSONB array field has been unnested, each row contains a scalar value
+ * (not an array), so we use scalar IN syntax instead of the @> containment operator.
  */
 public class PostgresInRelationalFilterParserJsonArray
     implements PostgresInRelationalFilterParserInterface {
@@ -42,11 +45,74 @@ public class PostgresInRelationalFilterParserJsonArray
                     new IllegalStateException(
                         "JsonFieldType must be present - this should have been caught by the selector"));
 
-    return prepareFilterStringForInOperator(
+    // Check if this field has been unnested - if so, treat it as a scalar
+    String fieldName = jsonExpr.getName();
+    if (context.getPgColumnNames().containsKey(fieldName)) {
+      // Field is unnested - each element is now a scalar, not an array
+      // Use scalar IN operator instead of JSONB containment
+      return prepareFilterStringForScalarInOperator(
+          parsedLhs, parsedRhs, context.getParamsBuilder());
+    }
+
+    // Field is NOT unnested - use JSONB containment logic
+    return prepareFilterStringForArrayInOperator(
         parsedLhs, parsedRhs, fieldType, context.getParamsBuilder());
   }
 
-  private String prepareFilterStringForInOperator(
+  /**
+   * Generates SQL for scalar IN operator (used when JSONB array field has been unnested). Example:
+   * "props_dot_source-loc" IN (?::jsonb, ?::jsonb)
+   *
+   * <p>Note: After unnesting with jsonb_array_elements(), each row contains a JSONB scalar value.
+   * We cast the parameters to jsonb for direct JSONB-to-JSONB comparison, which works for all JSONB
+   * types (strings, numbers, booleans, objects).
+   */
+  private String prepareFilterStringForScalarInOperator(
+      final String parsedLhs,
+      final Iterable<Object> parsedRhs,
+      final Params.Builder paramsBuilder) {
+
+    String placeholders =
+        StreamSupport.stream(parsedRhs.spliterator(), false)
+            .map(
+                value -> {
+                  // Add the value as a JSONB-formatted string
+                  // For strings, this needs to be JSON-quoted (e.g., "warehouse-A" becomes
+                  // "\"warehouse-A\"")
+                  String jsonValue = convertToJsonString(value);
+                  paramsBuilder.addObjectParam(jsonValue);
+                  return "?::jsonb";
+                })
+            .collect(Collectors.joining(", "));
+
+    // Direct JSONB comparison - no text conversion needed
+    return String.format("%s IN (%s)", parsedLhs, placeholders);
+  }
+
+  /**
+   * Converts a Java value to its JSON string representation for JSONB casting. Strings are quoted,
+   * numbers/booleans are not.
+   */
+  private String convertToJsonString(Object value) {
+    if (value == null) {
+      return "null";
+    } else if (value instanceof String) {
+      // JSON strings must be quoted
+      return "\"" + value.toString().replace("\"", "\\\"") + "\"";
+    } else if (value instanceof Number || value instanceof Boolean) {
+      // Numbers and booleans are not quoted in JSON
+      return value.toString();
+    } else {
+      // For other types, assume they're already JSON-formatted or treat as string
+      return "\"" + value.toString().replace("\"", "\\\"") + "\"";
+    }
+  }
+
+  /**
+   * Generates SQL for JSONB containment operator (used for non-unnested JSONB array fields).
+   * Example: document->'tags' @> jsonb_build_array(?::text)
+   */
+  private String prepareFilterStringForArrayInOperator(
       final String parsedLhs,
       final Iterable<Object> parsedRhs,
       final JsonFieldType fieldType,
