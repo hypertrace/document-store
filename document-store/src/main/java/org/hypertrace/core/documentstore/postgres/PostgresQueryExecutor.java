@@ -10,7 +10,6 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
-import org.slf4j.MDC;
 
 @Slf4j
 @AllArgsConstructor
@@ -28,7 +27,7 @@ public class PostgresQueryExecutor {
       throws SQLException {
     final String sqlQuery = queryParser.parse();
     final Params params = queryParser.getParamsBuilder().build();
-    //this is closed when the corresponding ResultSet is closed in the iterators
+    // this is closed when the corresponding ResultSet is closed in the iterators
     PreparedStatement preparedStatement = buildPreparedStatement(sqlQuery, params, connection);
     try {
       log.debug("Executing SQL query: {}", sqlQuery);
