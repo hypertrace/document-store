@@ -14,16 +14,17 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
   /**
    * Default pattern for PostgreSQL column/table identifiers.
    *
-   * <p>Pattern: {@code ^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$}
+   * <p>Pattern: {@code ^[a-zA-Z_][a-zA-Z0-9_\[\]-]*(\.[a-zA-Z_][a-zA-Z0-9_\[\]-]*)*$}
    *
    * <p><b>Allowed:</b>
    *
    * <ul>
    *   <li>Must start with: letter (a-z, A-Z) or underscore (_)
-   *   <li>Can contain: letters (a-z, A-Z), digits (0-9), underscores (_), dots (.) for nested field
-   *       notation
+   *   <li>Can contain: letters (a-z, A-Z), digits (0-9), underscores (_), hyphens (-), square
+   *       brackets ([]), dots (.) for nested field notation
    *   <li>Examples: {@code "myColumn"}, {@code "user_id"}, {@code "_internal"}, {@code "TABLE1"},
-   *       {@code "field.name"}, {@code "nested.field.name"}
+   *       {@code "field.name"}, {@code "nested.field.name"}, {@code "array_field[]"}, {@code
+   *       "DISTINCT_COUNT_API_id_[]"}
    * </ul>
    *
    * <p><b>Not allowed:</b>
@@ -32,7 +33,6 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
    *   <li>Starting with numbers: {@code "123column"}
    *   <li>Starting or ending with dots: {@code ".field"}, {@code "field."}
    *   <li>Consecutive dots: {@code "field..name"}
-   *   <li>Special characters: {@code "col-name"}
    *   <li>Spaces: {@code "my column"}, {@code "field OR 1=1"}
    *   <li>Quotes: {@code "field\"name"}, {@code "field'name"}
    *   <li>Semicolons: {@code "col;DROP"}
@@ -43,9 +43,8 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
    * Documentation</a>
    */
   private static final String DEFAULT_IDENTIFIER_PATTERN =
-      "^[a-zA-Z_][a-zA-Z0-9_-]*(\\.[a-zA-Z_][a-zA-Z0-9_-]*)*$";
+      "^[a-zA-Z_][a-zA-Z0-9_\\[\\]-]*(\\.[a-zA-Z_][a-zA-Z0-9_\\[\\]-]*)*$";
 
-  /** Default instance with hardcoded values for convenient static access. */
   private static final BasicPostgresSecurityValidator DEFAULT =
       new BasicPostgresSecurityValidator(
           DEFAULT_MAX_IDENTIFIER_LENGTH,
@@ -53,17 +52,11 @@ public class BasicPostgresSecurityValidator implements PostgresSecurityValidator
           DEFAULT_MAX_JSON_PATH_DEPTH,
           DEFAULT_IDENTIFIER_PATTERN);
 
-  // Instance variables for configured limits
   private final Pattern validIdentifier;
   private final int maxIdentifierLength;
   private final int maxJsonFieldLength;
   private final int maxJsonPathDepth;
 
-  /**
-   * Returns the default validator instance with hardcoded values.
-   *
-   * @return the default validator instance
-   */
   public static BasicPostgresSecurityValidator getDefault() {
     return DEFAULT;
   }

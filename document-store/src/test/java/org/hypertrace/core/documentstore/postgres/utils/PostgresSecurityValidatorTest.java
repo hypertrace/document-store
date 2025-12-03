@@ -301,4 +301,24 @@ public class PostgresSecurityValidatorTest {
             SecurityException.class, () -> validator.validateJsonPath(List.of("field'\"'; DROP")));
     assertTrue(ex.getMessage().contains("invalid characters"));
   }
+
+  @Test
+  void testValidIdentifierWithSquareBrackets() {
+    assertDoesNotThrow(
+        () -> validator.validateIdentifier("DISTINCT_COUNT_API_riskScoreCategory_[]"));
+  }
+
+  @Test
+  void testValidIdentifierWithSquareBracketsSimple() {
+    assertDoesNotThrow(() -> validator.validateIdentifier("field_name[]"));
+    assertDoesNotThrow(() -> validator.validateIdentifier("array_field[]"));
+  }
+
+  @Test
+  void testValidIdentifierWithSquareBracketsComplex() {
+    assertDoesNotThrow(() -> validator.validateIdentifier("DISTINCT_COUNT_API_id_[]"));
+    assertDoesNotThrow(() -> validator.validateIdentifier("array_field[0]"));
+    assertDoesNotThrow(() -> validator.validateIdentifier("field[key]"));
+    assertDoesNotThrow(() -> validator.validateIdentifier("nested[array][index]"));
+  }
 }
