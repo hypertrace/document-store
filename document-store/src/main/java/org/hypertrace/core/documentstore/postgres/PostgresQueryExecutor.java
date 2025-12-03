@@ -28,9 +28,9 @@ public class PostgresQueryExecutor {
       throws SQLException {
     final String sqlQuery = queryParser.parse();
     final Params params = queryParser.getParamsBuilder().build();
-
-    try (PreparedStatement preparedStatement = buildPreparedStatement(sqlQuery, params,
-        connection)) {
+    //this is closed when the corresponding ResultSet is closed in the iterators
+    PreparedStatement preparedStatement = buildPreparedStatement(sqlQuery, params, connection);
+    try {
       log.debug("Executing SQL query: {}", sqlQuery);
       return preparedStatement.executeQuery();
     } catch (SQLException e) {
