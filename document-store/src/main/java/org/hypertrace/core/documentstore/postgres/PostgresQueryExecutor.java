@@ -26,14 +26,25 @@ public class PostgresQueryExecutor {
   protected ResultSet execute(final Connection connection, PostgresQueryParser queryParser)
       throws SQLException {
     final String sqlQuery = queryParser.parse();
-    final PreparedStatement preparedStatement =
-        buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build(), connection);
-    log.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
-    return preparedStatement.executeQuery();
+    final Params params = queryParser.getParamsBuilder().build();
+    // this is closed when the corresponding ResultSet is closed in the iterators
+    PreparedStatement preparedStatement = buildPreparedStatement(sqlQuery, params, connection);
+    try {
+      log.debug("Executing SQL query: {}", sqlQuery);
+      return preparedStatement.executeQuery();
+    } catch (SQLException e) {
+      log.error(
+          "SQL execution failed. Query: {}, SQLState: {}, ErrorCode: {}",
+          sqlQuery,
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+      throw e;
+    }
   }
 
   public PreparedStatement buildPreparedStatement(
-      String sqlQuery, Params params, Connection connection) throws SQLException, RuntimeException {
+      String sqlQuery, Params params, Connection connection) throws SQLException {
     PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery);
     enrichPreparedStatementWithParams(preparedStatement, params);
     return preparedStatement;
