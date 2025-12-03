@@ -10,7 +10,6 @@ import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
-import org.slf4j.MDC;
 
 @Slf4j
 @AllArgsConstructor
@@ -27,25 +26,14 @@ public class PostgresQueryExecutor {
   protected ResultSet execute(final Connection connection, PostgresQueryParser queryParser)
       throws SQLException {
     final String sqlQuery = queryParser.parse();
-    final Params params = queryParser.getParamsBuilder().build();
-
-    try (PreparedStatement preparedStatement = buildPreparedStatement(sqlQuery, params,
-        connection)) {
-      log.debug("Executing SQL query: {}", sqlQuery);
-      return preparedStatement.executeQuery();
-    } catch (SQLException e) {
-      log.error(
-          "SQL execution failed. Query: {}, SQLState: {}, ErrorCode: {}",
-          sqlQuery,
-          e.getSQLState(),
-          e.getErrorCode(),
-          e);
-      throw e;
-    }
+    final PreparedStatement preparedStatement =
+        buildPreparedStatement(sqlQuery, queryParser.getParamsBuilder().build(), connection);
+    log.debug("Executing executeQueryV1 sqlQuery:{}", preparedStatement.toString());
+    return preparedStatement.executeQuery();
   }
 
   public PreparedStatement buildPreparedStatement(
-      String sqlQuery, Params params, Connection connection) throws SQLException {
+      String sqlQuery, Params params, Connection connection) throws SQLException, RuntimeException {
     PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery);
     enrichPreparedStatementWithParams(preparedStatement, params);
     return preparedStatement;
