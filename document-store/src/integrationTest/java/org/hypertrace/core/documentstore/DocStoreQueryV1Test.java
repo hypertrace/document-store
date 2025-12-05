@@ -5509,7 +5509,8 @@ public class DocStoreQueryV1Test {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
       // This looks for an exact match for an array: ["warehouse-B", "store-2", "online"] in the
-      // props->source-loc array. The corresponding Mongo's pipeline is: [{"$match": {"props.colors": {"$elemMatch": {"$eq": ["warehouse-B", "store-2", "online"]}}}}]
+      // props->source-loc array. The corresponding Mongo's pipeline is: [{"$match":
+      // {"props.colors": {"$elemMatch": {"$eq": ["warehouse-B", "store-2", "online"]}}}}]
       Query containsQuery =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
