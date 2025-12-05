@@ -3215,9 +3215,8 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFindAll(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test basic query to retrieve all documents
       Query query = Query.builder().build();
@@ -3242,9 +3241,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testUnnestPreserveEmptyArraysFalse(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query unnestQuery =
           Query.builder()
@@ -3262,9 +3259,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testUnnestPreserveEmptyArraysTrue(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Include all documents in result irrespective of tags field (LEFT JOIN)
       // Counts rows after unnest: 25 (from 8 docs with tags) + 2 (from docs with NULL/empty)
@@ -3426,9 +3421,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionUnnestWithComplexQuery(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Tests UNNEST with WHERE filter (price >= 5), unnest filter (NOT LIKE 'home-%'),
       // GROUP BY tags, HAVING (count > 1), ORDER BY count DESC
@@ -3471,9 +3464,7 @@ public class DocStoreQueryV1Test {
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionUnnestWithOnlyUnnestFilter(String dataStoreName)
         throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Query with unnest filter but NO main WHERE filter
       Query unnestFilterOnlyQuery =
@@ -3501,9 +3492,7 @@ public class DocStoreQueryV1Test {
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionUnnestWithOnlyMainFilter(String dataStoreName)
         throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Query with main WHERE filter but NO unnest filter
       Query mainFilterOnlyQuery =
@@ -3528,9 +3517,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionArrayRelationalFilter(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Filter: ANY tag in tags equals "hygiene" AND _id <= 8
       // Exclude docs 9-10 (NULL/empty arrays) to avoid ARRAY[] type error
@@ -3564,9 +3551,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testFlatPostgresCollectionUnnestMixedCaseField(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test UNNEST on field with mixed case: categoryTags
       // This will create alias "categoryTags_unnested" which must be quoted to preserve case
@@ -3734,9 +3719,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testGroupBy(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test GROUP BY on scalar field (item) with COUNT aggregation
       Query groupByQuery =
@@ -3769,9 +3752,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testAllRelationalOps(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test NEQ (Not Equal) on string field
       Query neqQuery =
@@ -3881,9 +3862,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testSorting(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test 1: Sort by string field ASC
       Query sortItemAscQuery =
@@ -3968,9 +3947,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNumericAggregations(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test SUM, AVG, MIN, MAX, COUNT on integer fields
       Query aggQuery =
@@ -4035,9 +4012,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNullHandling(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Note: All scalar fields (item, price, quantity, in_stock) have non-NULL values
       // in existing data. This test validates correct handling when no NULLs are present.
@@ -4099,9 +4074,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotEmpty(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -4129,9 +4102,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testEmpty(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -4160,9 +4131,7 @@ public class DocStoreQueryV1Test {
     @ArgumentsSource(PostgresProvider.class)
     void testUnnest(String dataStoreName) {
 
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       for (boolean preserveNullAndEmpty : List.of(true, false)) {
         Query unnestQuery =
@@ -4194,9 +4163,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testInStringArray(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query inQuery =
           Query.builder()
@@ -4246,9 +4213,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotInStringArray(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test NOT_IN on native array WITHOUT unnest
       // This should use NOT (array overlap) to check arrays don't contain any of the values
@@ -4297,9 +4262,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testInIntArray(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test IN on integer array (numbers column)
       Query inQuery =
@@ -4346,9 +4309,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testInDoubleArray(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test IN on double precision array (scores column)
       Query inQuery =
@@ -4395,9 +4356,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testInWithUnnest(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       for (boolean preserveNullAndEmptyArrays : List.of(true, false)) {
         Query unnestQuery =
@@ -4435,9 +4394,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotInWithUnnest(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       for (boolean preserveNullAndEmptyArrays : List.of(true, false)) {
         Query unnestQuery =
@@ -4476,9 +4433,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testEmptyWithUnnest(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query unnestQuery =
           Query.builder()
@@ -4513,9 +4468,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotEmptyWithUnnest(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query unnestQuery =
           Query.builder()
@@ -4547,9 +4500,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testContainsStrArrayWithUnnest(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -4576,9 +4527,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testContainsStrArray(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -4627,9 +4576,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotContainsStrArray(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -4676,9 +4623,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testContainsOnIntArray(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -4725,9 +4670,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotContainsOnIntArray(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -4776,9 +4719,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testContainsOnDoubleArray(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -4824,9 +4765,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testAnyOnIntegerArray(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query integerArrayQuery =
           Query.builder()
@@ -4848,9 +4787,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testAnyOnDoubleArray(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query doubleArrayQuery =
           Query.builder()
@@ -4872,9 +4809,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testAnyOnBooleanArray(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query booleanArrayQuery =
           Query.builder()
@@ -4900,9 +4835,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testSelections(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query brandSelectionQuery =
           Query.builder()
@@ -4940,9 +4873,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testRelOpArrayContains(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test 1: CONTAINS - props.colors CONTAINS "Green"
       // Expected: 1 document (id=1, Dettol Soap has ["Green", "White"])
@@ -4989,9 +4920,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testRelOpArrayIN(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test 1: IN - props.brand IN ["Dettol", "Lifebuoy"]
       // Expected: 2 documents (id=1 Dettol, id=5 Lifebuoy)
@@ -5032,9 +4961,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testRelOpScalarEq(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query eqQuery =
           Query.builder()
@@ -5068,9 +4995,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testRelOpScalarNumericComparison(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query gtQuery =
           Query.builder()
@@ -5140,9 +5065,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testUnnest(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test UNNEST on JSONB array field: props.colors
       // Expected: Should unnest colors and count distinct items with colors
@@ -5172,9 +5095,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testGroupByScalarField(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test GROUP BY on JSONB scalar field: props.brand
       // This tests grouping by a nested string field in a JSONB column
@@ -5196,9 +5117,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testGroupByArray(String dataStoreName) throws IOException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test GROUP BY on JSONB array field: props.colors with UNNEST
       // This tests grouping by individual elements (after unnesting) in a JSONB array
@@ -5223,9 +5142,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testAnyOnArray(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Test ArrayRelationalFilterExpression.ANY on JSONB array (props.colors)
       // This uses jsonb_array_elements() internally
@@ -5251,9 +5168,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testInOnUnnestedArray(String dataStoreName) throws Exception {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query unnestQuery =
           Query.builder()
@@ -5293,9 +5208,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotInOnUnnestedArray(String dataStoreName) throws Exception {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query unnestQuery =
           Query.builder()
@@ -5334,9 +5247,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testExistsOnArrays(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Query using EXISTS on JSONB array field
       // props.colors has: non-empty (rows 1, 3, 5), empty (row 7), NULL (rest)
@@ -5376,9 +5287,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotExistsOnArrays(String dataStoreName) throws JsonProcessingException {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Query using NOT_EXISTS on JSONB array field
       // Test with props.colors field
@@ -5425,9 +5334,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testExistsOnScalars(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -5455,9 +5362,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotExistsOnScalars(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
           Query.builder()
@@ -5485,9 +5390,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testExistsOnUnnestedArray(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query unnestQuery =
           Query.builder()
@@ -5522,9 +5425,7 @@ public class DocStoreQueryV1Test {
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
     void testNotExistsOnUnnestedArray(String dataStoreName) {
-      Datastore datastore = datastoreMap.get(dataStoreName);
-      Collection flatCollection =
-          datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+      Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query unnestQuery =
           Query.builder()
@@ -5553,6 +5454,110 @@ public class DocStoreQueryV1Test {
       }
       assertEquals(7, count);
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testContainsNotContainsScalarsInArrays(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      Query containsQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      CONTAINS,
+                      ConstantExpression.of("warehouse-A")))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(containsQuery);
+
+      int count = 0;
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        count++;
+      }
+      assertEquals(1, count);
+
+      Query notContainsQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      NOT_CONTAINS,
+                      ConstantExpression.of("warehouse-A")))
+              .build();
+
+      resultIterator = flatCollection.find(notContainsQuery);
+
+      count = 0;
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        count++;
+      }
+      assertEquals(9, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testContainsNotContainsArraysInArrays(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // This looks for an exact match for an array: ["warehouse-B", "store-2", "online"] in the
+      // props->source-loc array. The corresponding Mongo's pipeline is: [{"$match":
+      // {"props.colors": {"$elemMatch": {"$eq": ["warehouse-B", "store-2", "online"]}}}}]
+      Query containsQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      CONTAINS,
+                      ConstantExpression.ofStrings(List.of("warehouse-B", "store-2", "online"))))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(containsQuery);
+
+      int count = 0;
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        count++;
+      }
+      assertEquals(1, count);
+
+      Query notContainsQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      NOT_CONTAINS,
+                      ConstantExpression.ofStrings(List.of("warehouse-B", "store-2", "online"))))
+              .build();
+
+      resultIterator = flatCollection.find(notContainsQuery);
+
+      count = 0;
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        count++;
+      }
+      assertEquals(9, count);
+    }
+  }
+
+  private static Collection getFlatCollection(String dataStoreName) {
+    Datastore datastore = datastoreMap.get(dataStoreName);
+    return datastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
   }
 
   @Nested
