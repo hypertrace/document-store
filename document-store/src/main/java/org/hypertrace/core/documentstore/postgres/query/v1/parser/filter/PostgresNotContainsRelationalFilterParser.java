@@ -35,8 +35,7 @@ class PostgresNotContainsRelationalFilterParser implements PostgresRelationalFil
 
     boolean isJsonField = expression.getLhs() instanceof JsonIdentifierExpression;
     boolean isFlatCollection = context.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
-    boolean useJsonParser = !isFlatCollection || isJsonField;
 
-    return useJsonParser;
+    return !isFlatCollection || isJsonField;
   }
 }

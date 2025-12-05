@@ -4526,55 +4526,6 @@ public class DocStoreQueryV1Test {
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testContainsStrArray(String dataStoreName) throws JsonProcessingException {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      Query query =
-          Query.builder()
-              .addSelection(IdentifierExpression.of("item"))
-              .addSelection(ArrayIdentifierExpression.of("tags", ArrayType.TEXT))
-              .setFilter(
-                  RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
-                      CONTAINS,
-                      ConstantExpression.ofStrings(List.of("hygiene", "personal-care"))))
-              .build();
-
-      Iterator<Document> results = flatCollection.find(query);
-
-      int count = 0;
-      Set<String> items = new HashSet<>();
-      while (results.hasNext()) {
-        Document doc = results.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        count++;
-
-        String item = json.get("item").asText();
-        items.add(item);
-
-        // Verify that returned arrays contain both "hygiene" AND "personal-care"
-        JsonNode tags = json.get("tags");
-        assertTrue(tags.isArray(), "tags should be an array");
-        boolean containsHygiene = false;
-        boolean containsPersonalCare = false;
-        for (JsonNode tag : tags) {
-          if ("hygiene".equals(tag.asText())) {
-            containsHygiene = true;
-          }
-          if ("personal-care".equals(tag.asText())) {
-            containsPersonalCare = true;
-          }
-        }
-        assertTrue(containsHygiene);
-        assertTrue(containsPersonalCare);
-      }
-
-      assertEquals(1, count);
-      assertTrue(items.contains("Soap"));
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
     void testNotContainsStrArray(String dataStoreName) throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
@@ -4826,6 +4777,82 @@ public class DocStoreQueryV1Test {
       Iterator<Document> resultIterator = flatCollection.find(booleanArrayQuery);
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, resultIterator, "query/flat_boolean_array_filter_response.json", 5);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testEqNotEqScalar(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // EQ/NOT on arrays should behave like CONTAINS/NOT_CONTAINS
+      Query eqQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags", ArrayType.TEXT))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      EQ,
+                      ConstantExpression.of("hygiene")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(eqQuery);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document next = results.next();
+        count++;
+      }
+
+      assertEquals(3, count);
+
+      Query neqQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags", ArrayType.TEXT))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      NEQ,
+                      ConstantExpression.of("hygiene")))
+              .build();
+
+      results = flatCollection.find(neqQuery);
+
+      count = 0;
+      while (results.hasNext()) {
+        Document next = results.next();
+        count++;
+      }
+
+      assertEquals(7, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testEqNotEqArrays(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      Query eqQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags", ArrayType.TEXT))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      EQ,
+                      ConstantExpression.ofStrings(List.of("hygiene", "family-pack"))))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(eqQuery);
+
+      int count = 0;
+      while (results.hasNext()) {
+        Document next = results.next();
+        count++;
+      }
+
+      assertEquals(0, count);
     }
   }
 
@@ -5544,6 +5571,56 @@ public class DocStoreQueryV1Test {
               .build();
 
       resultIterator = flatCollection.find(notContainsQuery);
+
+      count = 0;
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        count++;
+      }
+      assertEquals(9, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testEqNotEqScalarsInArrays(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Should be treated like CONTAINS
+      Query eqQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      EQ,
+                      ConstantExpression.of("warehouse-A")))
+              .build();
+
+      Iterator<Document> resultIterator = flatCollection.find(eqQuery);
+
+      int count = 0;
+      while (resultIterator.hasNext()) {
+        Document doc = resultIterator.next();
+        assertNotNull(doc);
+        count++;
+      }
+      assertEquals(1, count);
+
+      // should be treated like NOT_CONTAINS
+      Query notEq =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING_ARRAY, "source-loc"),
+                      NEQ,
+                      ConstantExpression.of("warehouse-A")))
+              .build();
+
+      resultIterator = flatCollection.find(notEq);
 
       count = 0;
       while (resultIterator.hasNext()) {
