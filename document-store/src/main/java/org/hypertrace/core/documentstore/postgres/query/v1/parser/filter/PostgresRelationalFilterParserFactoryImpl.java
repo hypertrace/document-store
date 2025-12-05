@@ -51,7 +51,8 @@ public class PostgresRelationalFilterParserFactoryImpl
 
     RelationalOperator operator = expression.getOperator();
     // Transform EQ/NEQ to CONTAINS/NOT_CONTAINS for array fields with scalar RHS
-    if (shouldConvertEqToContains(expression)) {
+    // (but not for unnested fields, which are already scalar)
+    if (shouldConvertEqToContains(expression, postgresQueryParser)) {
       operator = (expression.getOperator() == EQ) ? CONTAINS : NOT_CONTAINS;
     }
 
@@ -64,7 +65,7 @@ public class PostgresRelationalFilterParserFactoryImpl
     }
 
     // For EQ/NEQ on array fields with array RHS, use specialized array equality parser
-    if (shouldUseArrayEqualityParser(expression)) {
+    if (shouldUseArrayEqualityParser(expression, postgresQueryParser)) {
       return expression.getLhs().accept(new PostgresArrayEqualityParserSelector());
     }
 
@@ -82,6 +83,7 @@ public class PostgresRelationalFilterParserFactoryImpl
    *   <li>LHS is a JsonIdentifierExpression with an array field type (STRING_ARRAY, NUMBER_ARRAY,
    *       etc.) OR
    *   <li>LHS is an ArrayIdentifierExpression with an array type (TEXT, BIGINT, etc.)
+   *   <li>Field has NOT been unnested (unnested fields are scalar, not arrays)
    * </ul>
    *
    * <p>If RHS is an array, we DO NOT convert - we want exact equality match (= operator), not
@@ -90,7 +92,8 @@ public class PostgresRelationalFilterParserFactoryImpl
    * <p>This provides semantic equivalence: checking if an array contains a scalar value is more
    * intuitive than checking if the array equals the value.
    */
-  private boolean shouldConvertEqToContains(final RelationalExpression expression) {
+  private boolean shouldConvertEqToContains(
+      final RelationalExpression expression, final PostgresQueryParser postgresQueryParser) {
     if (expression.getOperator() != EQ && expression.getOperator() != NEQ) {
       return false;
     }
@@ -100,8 +103,18 @@ public class PostgresRelationalFilterParserFactoryImpl
       return false;
     }
 
-    // RHS is scalar - check if LHS is an array field
-    return isArrayField(expression.getLhs());
+    // Check if LHS is an array field
+    if (!isArrayField(expression.getLhs())) {
+      return false;
+    }
+
+    // Check if field has been unnested - unnested fields are scalar, not arrays
+    String fieldName = getFieldName(expression.getLhs());
+    if (fieldName != null && postgresQueryParser.getPgColumnNames().containsKey(fieldName)) {
+      return false; // Field is unnested - treat as scalar
+    }
+
+    return true;
   }
 
   /**
@@ -113,14 +126,27 @@ public class PostgresRelationalFilterParserFactoryImpl
    *   <li>Operator is EQ or NEQ
    *   <li>RHS is an array/iterable (for exact match)
    *   <li>LHS is either JsonIdentifierExpression with array type OR ArrayIdentifierExpression
+   *   <li>Field has NOT been unnested (unnested fields are scalar, not arrays)
    * </ul>
    */
-  private boolean shouldUseArrayEqualityParser(final RelationalExpression expression) {
+  private boolean shouldUseArrayEqualityParser(
+      final RelationalExpression expression, final PostgresQueryParser postgresQueryParser) {
     if (expression.getOperator() != EQ && expression.getOperator() != NEQ) {
       return false;
     }
+
     // Check if RHS is an array/iterable AND LHS is an array field
-    return isArrayRhs(expression.getRhs()) && isArrayField(expression.getLhs());
+    if (!isArrayRhs(expression.getRhs()) || !isArrayField(expression.getLhs())) {
+      return false;
+    }
+
+    // Check if field has been unnested - unnested fields are scalar, not arrays
+    String fieldName = getFieldName(expression.getLhs());
+    if (fieldName != null && postgresQueryParser.getPgColumnNames().containsKey(fieldName)) {
+      return false;
+    }
+
+    return true;
   }
 
   /** Checks if the RHS expression contains an array/iterable value. */
@@ -147,5 +173,15 @@ public class PostgresRelationalFilterParserFactoryImpl
           .orElse(false);
     }
     return lhs instanceof ArrayIdentifierExpression;
+  }
+
+  /** Extracts the field name from an identifier expression. */
+  private String getFieldName(final SelectTypeExpression lhs) {
+    if (lhs instanceof JsonIdentifierExpression) {
+      return ((JsonIdentifierExpression) lhs).getName();
+    } else if (lhs instanceof ArrayIdentifierExpression) {
+      return ((ArrayIdentifierExpression) lhs).getName();
+    }
+    return null;
   }
 }
