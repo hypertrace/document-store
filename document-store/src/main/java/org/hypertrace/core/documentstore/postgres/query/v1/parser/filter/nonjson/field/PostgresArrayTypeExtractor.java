@@ -26,7 +26,7 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
  *   <li>{@code null} if {@link ArrayIdentifierExpression} is used without an explicit type
  * </ul>
  */
-class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
+public class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
 
   public PostgresArrayTypeExtractor() {}
 
