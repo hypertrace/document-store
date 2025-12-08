@@ -172,7 +172,7 @@ public class PostgresRelationalFilterParserFactoryImpl
                       || fieldType == JsonFieldType.OBJECT_ARRAY)
           .orElse(false);
     }
-    return !(lhs instanceof ArrayIdentifierExpression);
+    return lhs instanceof ArrayIdentifierExpression;
   }
 
   /** Extracts the field name from an identifier expression. */
