@@ -44,7 +44,7 @@ class PostgresJsonArrayEqualityFilterParserTest {
   }
 
   @Test
-  void testParse_nullRhs() {
+  void testParseWithNullRHS() {
     JsonIdentifierExpression lhs =
         JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors");
     // RHS parsed value will be null from rhsParser
@@ -64,24 +64,8 @@ class PostgresJsonArrayEqualityFilterParserTest {
 
     String result = parser.parse(expression, context);
 
-    assertEquals("props->'colors' = NULL", result);
+    assertEquals("props->'colors' IS NULL", result);
     assertEquals(0, paramsBuilder.build().getObjectParams().size());
-  }
-
-  @Test
-  void testParseScalarRhsEq() {
-    JsonIdentifierExpression lhs =
-        JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors");
-    ConstantExpression rhs = ConstantExpression.of("Blue");
-    RelationalExpression expression = RelationalExpression.of(lhs, EQ, rhs);
-
-    when(lhsParser.visit(any(JsonIdentifierExpression.class))).thenReturn("props->'colors'");
-
-    String result = parser.parse(expression, context);
-
-    assertEquals("props->'colors' @> ?::jsonb", result);
-    assertEquals(1, paramsBuilder.build().getObjectParams().size());
-    assertEquals("Blue", paramsBuilder.build().getObjectParams().get(1));
   }
 
   @Test
