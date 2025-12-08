@@ -64,7 +64,8 @@ public class PostgresRelationalFilterParserFactoryImpl
       return parserMap.get(NOT_CONTAINS);
     }
 
-    // For EQ/NEQ on array fields with array RHS, use specialized array equality parser
+    // For EQ/NEQ on array fields with array RHS, use specialized array equality parser (exact match
+    // instead of containment)
     if (shouldUseArrayEqualityParser(expression, postgresQueryParser)) {
       return expression.getLhs().accept(new PostgresArrayEqualityParserSelector());
     }
@@ -110,11 +111,10 @@ public class PostgresRelationalFilterParserFactoryImpl
 
     // Check if field has been unnested - unnested fields are scalar, not arrays
     String fieldName = getFieldName(expression.getLhs());
-    if (fieldName != null && postgresQueryParser.getPgColumnNames().containsKey(fieldName)) {
-      return false; // Field is unnested - treat as scalar
-    }
-
-    return true;
+    return fieldName == null
+        || !postgresQueryParser
+            .getPgColumnNames()
+            .containsKey(fieldName); // Field is unnested - treat as scalar
   }
 
   /**
@@ -124,8 +124,9 @@ public class PostgresRelationalFilterParserFactoryImpl
    *
    * <ul>
    *   <li>Operator is EQ or NEQ
-   *   <li>RHS is an array/iterable (for exact match)
-   *   <li>LHS is either JsonIdentifierExpression with array type OR ArrayIdentifierExpression
+   *   <li>RHS is an array/iterable (for exact match).
+   *   <li>LHS is either {@link JsonIdentifierExpression} with array type OR {@link
+   *       ArrayIdentifierExpression}
    *   <li>Field has NOT been unnested (unnested fields are scalar, not arrays)
    * </ul>
    */
@@ -142,14 +143,13 @@ public class PostgresRelationalFilterParserFactoryImpl
 
     // Check if field has been unnested - unnested fields are scalar, not arrays
     String fieldName = getFieldName(expression.getLhs());
-    if (fieldName != null && postgresQueryParser.getPgColumnNames().containsKey(fieldName)) {
-      return false;
-    }
-
-    return true;
+    return fieldName == null || !postgresQueryParser.getPgColumnNames().containsKey(fieldName);
   }
 
-  /** Checks if the RHS expression contains an array/iterable value. */
+  /**
+   * Checks if the RHS expression contains an array/iterable value. Currently, we don't have a very
+   * clean way to get the RHS data type. //todo: Implement a clean way to get the RHS data type
+   */
   private boolean isArrayRhs(final SelectTypeExpression rhs) {
     if (rhs instanceof ConstantExpression) {
       ConstantExpression constExpr = (ConstantExpression) rhs;
@@ -172,7 +172,7 @@ public class PostgresRelationalFilterParserFactoryImpl
                       || fieldType == JsonFieldType.OBJECT_ARRAY)
           .orElse(false);
     }
-    return lhs instanceof ArrayIdentifierExpression;
+    return !(lhs instanceof ArrayIdentifierExpression);
   }
 
   /** Extracts the field name from an identifier expression. */

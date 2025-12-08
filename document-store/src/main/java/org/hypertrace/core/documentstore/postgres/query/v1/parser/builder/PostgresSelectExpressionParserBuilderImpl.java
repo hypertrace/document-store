@@ -9,6 +9,7 @@ import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresConstantExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.vistors.PostgresDataAccessorIdentifierExpressionVisitor;
@@ -27,9 +28,6 @@ public class PostgresSelectExpressionParserBuilderImpl
 
   @Override
   public PostgresSelectTypeExpressionVisitor build(final RelationalExpression expression) {
-    // For EQ/NEQ on array fields, treat like CONTAINS to use -> instead of ->>
-    boolean isEqOrNeqOnArrayField = isEqOrNeqOnArrayField(expression);
-
     switch (expression.getOperator()) {
       case CONTAINS:
       case NOT_CONTAINS:
@@ -42,13 +40,13 @@ public class PostgresSelectExpressionParserBuilderImpl
 
       case EQ:
       case NEQ:
-        if (isEqOrNeqOnArrayField) {
+        // For EQ/NEQ on array fields, treat like CONTAINS to use -> instead of ->>
+        if (shouldSwitchToContainsFlow(expression)) {
           // Use field identifier (JSON accessor ->) for array fields
           return new PostgresFunctionExpressionVisitor(
               new PostgresFieldIdentifierExpressionVisitor(this.postgresQueryParser));
         }
       // Fall through to default for non-array fields
-
       default:
         return new PostgresFunctionExpressionVisitor(
             new PostgresDataAccessorIdentifierExpressionVisitor(
@@ -66,11 +64,11 @@ public class PostgresSelectExpressionParserBuilderImpl
    * <p>Handles both:
    *
    * <ul>
-   *   <li>JsonIdentifierExpression with array field type (JSONB arrays)
-   *   <li>ArrayIdentifierExpression with array type (top-level array columns)
+   *   <li>{@link JsonIdentifierExpression} with array field type (JSONB arrays)
+   *   <li>{@link ArrayIdentifierExpression} with array type (top-level array columns)
    * </ul>
    */
-  private boolean isEqOrNeqOnArrayField(final RelationalExpression expression) {
+  private boolean shouldSwitchToContainsFlow(final RelationalExpression expression) {
     if (expression.getOperator() != EQ && expression.getOperator() != NEQ) {
       return false;
     }
@@ -87,9 +85,7 @@ public class PostgresSelectExpressionParserBuilderImpl
     return isArrayField(expression.getLhs());
   }
 
-  /** Checks if the expression is an array field. */
-  private boolean isArrayField(
-      final org.hypertrace.core.documentstore.expression.type.SelectTypeExpression lhs) {
+  private boolean isArrayField(final SelectTypeExpression lhs) {
     if (lhs instanceof JsonIdentifierExpression) {
       JsonIdentifierExpression jsonExpr = (JsonIdentifierExpression) lhs;
       return jsonExpr

@@ -4828,9 +4828,10 @@ public class DocStoreQueryV1Test {
       assertEquals(7, count);
     }
 
+    /** Tests the behavior of EQ/NEQ on array fields with array RHS. */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testEqNotEqArrays(String dataStoreName) {
+    void testEqAndNeqOnArrays(String dataStoreName) {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query eqQuery =
@@ -5581,9 +5582,13 @@ public class DocStoreQueryV1Test {
       assertEquals(9, count);
     }
 
+    /**
+     * Given LHS is a nested array, operator is EQ/NEQ, and RHS is a scalar, it should behave as
+     * containment (LHS contains RHS)
+     */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testEqNotEqScalarsInArrays(String dataStoreName) {
+    void testEqNeqScalarsOnArrays(String dataStoreName) {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
       // Should be treated like CONTAINS
