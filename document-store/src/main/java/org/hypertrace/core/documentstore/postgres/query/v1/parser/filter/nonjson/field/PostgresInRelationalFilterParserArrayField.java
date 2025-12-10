@@ -49,7 +49,7 @@ public class PostgresInRelationalFilterParserArrayField
 
   /**
    * Generates SQL for scalar IN operator (used when array field has been unnested). Example:
-   * "tags_unnested" IN (?, ?, ?)
+   * "tags_unnested" = ANY(ARRAY[?, ?, ?])
    */
   private String prepareFilterStringForScalarInOperator(
       final String parsedLhs,
@@ -65,8 +65,8 @@ public class PostgresInRelationalFilterParserArrayField
                 })
             .collect(Collectors.joining(", "));
 
-    // Scalar IN operator for unnested array elements
-    return String.format("%s IN (%s)", parsedLhs, placeholders);
+    // Optimized scalar IN operator for unnested array elements
+    return String.format("%s = ANY(ARRAY[%s])", parsedLhs, placeholders);
   }
 
   /**

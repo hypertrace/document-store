@@ -11,12 +11,13 @@ import org.hypertrace.core.documentstore.postgres.Params;
  * Optimized parser for IN operations on JSON primitive fields (string, number, boolean) with proper
  * type casting.
  *
- * <p>Generates efficient SQL using {@code ->>} operator with appropriate PostgreSQL casting:
+ * <p>Generates efficient SQL using {@code ->>} operator with {@code = ANY(ARRAY[])} and appropriate
+ * PostgreSQL casting:
  *
  * <ul>
- *   <li><b>STRING:</b> {@code "document" ->> 'item' IN ('Soap', 'Shampoo')}
- *   <li><b>NUMBER:</b> {@code CAST("document" ->> 'price' AS NUMERIC) IN (10, 20)}
- *   <li><b>BOOLEAN:</b> {@code CAST("document" ->> 'active' AS BOOLEAN) IN (true, false)}
+ *   <li><b>STRING:</b> {@code "document" ->> 'item' = ANY(ARRAY['Soap', 'Shampoo'])}
+ *   <li><b>NUMBER:</b> {@code CAST("document" ->> 'price' AS NUMERIC) = ANY(ARRAY[10, 20])}
+ *   <li><b>BOOLEAN:</b> {@code CAST("document" ->> 'active' AS BOOLEAN) = ANY(ARRAY[true, false])}
  * </ul>
  *
  * <p>This is much more efficient than the defensive approach that checks both array and scalar
@@ -79,6 +80,6 @@ public class PostgresInRelationalFilterParserJsonPrimitive
     }
     // STRING or null fieldType: no casting needed
 
-    return String.format("%s IN (%s)", lhsWithCast, placeholders);
+    return String.format("%s = ANY(ARRAY[%s])", lhsWithCast, placeholders);
   }
 }
