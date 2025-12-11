@@ -58,6 +58,11 @@ public class PostgresInRelationalFilterParserArrayField
 
     Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
+    if (values.length == 0) {
+      // return FALSE
+      return "1 = 0";
+    }
+
     // SQL type is needed during parameter binding
     paramsBuilder.addArrayParam(values, PostgresUtils.inferSqlTypeFromValue(values));
 
@@ -78,6 +83,10 @@ public class PostgresInRelationalFilterParserArrayField
 
     // Collect all values into an array
     Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
+
+    if (values.length == 0) {
+      return "1 = 0";
+    }
 
     // Infer SQL type from first value or array type hint
     String sqlType =

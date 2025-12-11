@@ -31,6 +31,11 @@ public class PostgresInRelationalFilterParserScalarField
 
     Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
+    if (values.length == 0) {
+      // return FALSE
+      return "1 = 0";
+    }
+
     paramsBuilder.addArrayParam(values, PostgresUtils.inferSqlTypeFromValue(values));
 
     return String.format("%s = ANY(?)", parsedLhs);

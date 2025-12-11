@@ -64,6 +64,11 @@ public class PostgresInRelationalFilterParserJsonPrimitive
 
     Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
+    if (values.length == 0) {
+      // return FALSE
+      return "1 = 0";
+    }
+
     // Add as single array parameter
     paramsBuilder.addArrayParam(values, PostgresUtils.inferSqlTypeFromValue(values));
 
@@ -74,8 +79,6 @@ public class PostgresInRelationalFilterParserJsonPrimitive
     } else if (fieldType == JsonFieldType.BOOLEAN) {
       lhsWithCast = String.format("CAST(%s AS BOOLEAN)", parsedLhs);
     }
-    // STRING or null fieldType: no casting needed
-
     return String.format("%s = ANY(?)", lhsWithCast);
   }
 }

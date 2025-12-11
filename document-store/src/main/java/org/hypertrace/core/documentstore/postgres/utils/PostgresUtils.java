@@ -596,6 +596,10 @@ public class PostgresUtils {
    * Infers PostgreSQL SQL type name for createArrayOf() from Java array values. Inspects the first
    * element to determine the appropriate type.
    *
+   * <p><b>Note:</b> Empty arrays should be handled by the caller before SQL generation to avoid
+   * PostgreSQL type mismatch errors (e.g., {@code integer = text[]}). Filter parsers should return
+   * {@code "1 = 0"} for empty IN clauses instead of calling this method.
+   *
    * @param values Array of values to infer type from
    * @return PostgreSQL internal type name: "int4", "float8", "bool", or "text"
    */
