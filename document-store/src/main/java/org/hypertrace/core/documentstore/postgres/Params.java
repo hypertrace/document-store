@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres;
 
 import java.util.HashMap;
 import java.util.Map;
+import lombok.Getter;
 
 /**
  * Holds the params that need to be set in the PreparedStatement for constructing the final SQL
@@ -29,6 +30,18 @@ public class Params {
     return new Builder();
   }
 
+  /** Wrapper class to hold array parameter metadata for PostgreSQL array binding */
+  @Getter
+  public static class ArrayParam {
+    private final Object[] values;
+    private final String sqlType;
+
+    public ArrayParam(Object[] values, String sqlType) {
+      this.values = values;
+      this.sqlType = sqlType;
+    }
+  }
+
   public static class Builder {
 
     private int nextIndex;
@@ -41,6 +54,11 @@ public class Params {
 
     public Builder addObjectParam(Object paramValue) {
       objectParams.put(nextIndex++, paramValue);
+      return this;
+    }
+
+    public Builder addArrayParam(Object[] values, String sqlType) {
+      objectParams.put(nextIndex++, new ArrayParam(values, sqlType));
       return this;
     }
 

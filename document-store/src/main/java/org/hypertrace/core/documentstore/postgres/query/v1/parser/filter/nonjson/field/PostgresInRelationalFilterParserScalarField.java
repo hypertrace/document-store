@@ -1,11 +1,11 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field;
 
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresInRelationalFilterParserInterface;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParser;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 /**
  * Implementation of PostgresInRelationalFilterParserInterface for handling IN operations on
@@ -29,15 +29,10 @@ public class PostgresInRelationalFilterParserScalarField
       final Iterable<Object> parsedRhs,
       final Params.Builder paramsBuilder) {
 
-    String placeholders =
-        StreamSupport.stream(parsedRhs.spliterator(), false)
-            .map(
-                value -> {
-                  paramsBuilder.addObjectParam(value);
-                  return "?";
-                })
-            .collect(Collectors.joining(", "));
+    Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
-    return String.format("%s = ANY(ARRAY[%s])", parsedLhs, placeholders);
+    paramsBuilder.addArrayParam(values, PostgresUtils.inferSqlTypeFromValue(values));
+
+    return String.format("%s = ANY(?)", parsedLhs);
   }
 }

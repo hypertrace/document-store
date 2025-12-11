@@ -1,12 +1,12 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field;
 
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresInRelationalFilterParserInterface;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParser;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 /**
  * Implementation of PostgresInRelationalFilterParserInterface for handling IN operations on array
@@ -49,29 +49,26 @@ public class PostgresInRelationalFilterParserArrayField
 
   /**
    * Generates SQL for scalar IN operator (used when array field has been unnested). Example:
-   * "tags_unnested" = ANY(ARRAY[?, ?, ?])
+   * "tags_unnested" = ANY(?)
    */
   private String prepareFilterStringForScalarInOperator(
       final String parsedLhs,
       final Iterable<Object> parsedRhs,
       final Params.Builder paramsBuilder) {
 
-    String placeholders =
-        StreamSupport.stream(parsedRhs.spliterator(), false)
-            .map(
-                value -> {
-                  paramsBuilder.addObjectParam(value);
-                  return "?";
-                })
-            .collect(Collectors.joining(", "));
+    Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
-    // Optimized scalar IN operator for unnested array elements
-    return String.format("%s = ANY(ARRAY[%s])", parsedLhs, placeholders);
+    // SQL type is needed during parameter binding
+    paramsBuilder.addArrayParam(values, PostgresUtils.inferSqlTypeFromValue(values));
+
+    return String.format("%s = ANY(?)", parsedLhs);
   }
 
   /**
    * Generates SQL for array overlap operator (used for non-unnested array fields). Example: "tags"
-   * && ARRAY[?, ?]::text[]
+   * && ?
+   *
+   * <p>Uses a single array parameter.
    */
   private String prepareFilterStringForArrayInOperator(
       final String parsedLhs,
@@ -79,31 +76,38 @@ public class PostgresInRelationalFilterParserArrayField
       final String arrayType,
       final Params.Builder paramsBuilder) {
 
-    String placeholders =
-        StreamSupport.stream(parsedRhs.spliterator(), false)
-            .map(
-                value -> {
-                  paramsBuilder.addObjectParam(value);
-                  return "?";
-                })
-            .collect(Collectors.joining(", "));
+    // Collect all values into an array
+    Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
-    // Use array overlap operator for array fields
-    if (arrayType != null) {
-      // Type-aware optimization
-      if (arrayType.equals("text[]")) {
-        // cast RHS to text[] otherwise JDBC binds it as character varying[].
-        return String.format("%s && ARRAY[%s]::text[]", parsedLhs, placeholders);
-      } else {
-        // INTEGER/BOOLEAN arrays: No casting needed, JDBC binds them correctly
-        // "numbers" && ARRAY[?, ?]  (PostgreSQL infers integer[])
-        // "flags" && ARRAY[?, ?]    (PostgreSQL infers boolean[])
-        return String.format("%s && ARRAY[%s]", parsedLhs, placeholders);
-      }
-    } else {
-      // Fallback: Cast both LHS and RHS to text[] to avoid type mismatch issues. This has the worst
-      // performance because casting LHS doesn't let PG use indexes on this col
-      return String.format("%s::text[] && ARRAY[%s]::text[]", parsedLhs, placeholders);
+    // Infer SQL type from first value or array type hint
+    String sqlType =
+        arrayType != null
+            ? mapArrayTypeToSqlType(arrayType)
+            : PostgresUtils.inferSqlTypeFromValue(values);
+
+    // Add as single array parameter
+    paramsBuilder.addArrayParam(values, sqlType);
+
+    // Use array overlap operator with single parameter
+    return String.format("%s && ?", parsedLhs);
+  }
+
+  private String mapArrayTypeToSqlType(String arrayType) {
+    // Remove [] suffix
+    String baseType = arrayType.replace("[]", "");
+
+    // Map to internal type names for createArrayOf()
+    switch (baseType) {
+      case "double precision":
+        return "float8";
+      case "integer":
+        return "int4";
+      case "boolean":
+        return "bool";
+      case "text":
+        return "text";
+      default:
+        return baseType;
     }
   }
 }

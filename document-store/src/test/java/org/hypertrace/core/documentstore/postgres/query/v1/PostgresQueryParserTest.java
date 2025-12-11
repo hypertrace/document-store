@@ -684,7 +684,7 @@ public class PostgresQueryParserTest {
             + "\"quantity\" AS \"quantity\", "
             + "\"date\" AS \"date\" "
             + "FROM \"testCollection\" "
-            + "WHERE \"item\" = ANY(ARRAY[?, ?, ?, ?]) "
+            + "WHERE \"item\" = ANY(?) "
             + "ORDER BY \"quantity\" DESC NULLS LAST,\"item\" ASC NULLS FIRST "
             + "OFFSET ? LIMIT ?",
         postgresQueryParser.parse());
@@ -1506,11 +1506,11 @@ public class PostgresQueryParserTest {
 
     String sql = postgresQueryParser.parse();
     assertEquals(
-        "SELECT * FROM \"testCollection\" WHERE \"category\" IS NULL OR NOT (\"category\" = ANY(ARRAY[?, ?]))",
+        "SELECT * FROM \"testCollection\" WHERE \"category\" IS NULL OR NOT (\"category\" = ANY(?))",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
-    assertEquals(2, params.getObjectParams().size());
+    assertEquals(1, params.getObjectParams().size());
   }
 
   @Test
@@ -1808,5 +1808,142 @@ public class PostgresQueryParserTest {
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals("team-alpha", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testInOperatorWithScalarStringField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("category"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("electronics", "clothing", "books"))))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"category\" = ANY(?)", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("text", arrayParam.getSqlType());
+    assertEquals(3, arrayParam.getValues().length);
+  }
+
+  @Test
+  void testInOperatorWithScalarIntegerField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("price"),
+                    IN,
+                    ConstantExpression.ofNumbers(List.of(10, 20, 30))))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"price\" = ANY(?)", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("int4", arrayParam.getSqlType());
+    assertEquals(3, arrayParam.getValues().length);
+  }
+
+  @Test
+  void testInOperatorWithTextArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("premium", "sale", "new"))))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"tags\" && ?", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("text", arrayParam.getSqlType());
+    assertEquals(3, arrayParam.getValues().length);
+  }
+
+  @Test
+  void testInOperatorWithIntegerArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                    IN,
+                    ConstantExpression.ofNumbers(List.of(5, 10, 15))))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"numbers\" && ?", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("int4", arrayParam.getSqlType());
+    assertEquals(3, arrayParam.getValues().length);
+  }
+
+  @Test
+  void testNotInOperatorWithScalarStringField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("status"),
+                    NOT_IN,
+                    ConstantExpression.ofStrings(List.of("inactive", "archived"))))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" WHERE \"status\" IS NULL OR NOT (\"status\" = ANY(?))",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("text", arrayParam.getSqlType());
+    assertEquals(2, arrayParam.getValues().length);
   }
 }

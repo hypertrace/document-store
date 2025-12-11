@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -591,6 +592,30 @@ public class PostgresUtils {
     return new DocumentAndId(documentWithoutId, id);
   }
 
+  /**
+   * Infers PostgreSQL SQL type name for createArrayOf() from Java array values. Inspects the first
+   * element to determine the appropriate type.
+   *
+   * @param values Array of values to infer type from
+   * @return PostgreSQL internal type name: "int4", "float8", "bool", or "text"
+   */
+  public static String inferSqlTypeFromValue(Object[] values) {
+    if (values.length == 0) {
+      return "text";
+    }
+
+    Object firstValue = values[0];
+    if (firstValue instanceof Integer || firstValue instanceof Long) {
+      return "int4";
+    } else if (firstValue instanceof Double || firstValue instanceof Float) {
+      return "float8";
+    } else if (firstValue instanceof Boolean) {
+      return "bool";
+    } else {
+      return "text";
+    }
+  }
+
   public static void enrichPreparedStatementWithParams(
       final PreparedStatement preparedStatement, final Params params) {
     params
@@ -598,13 +623,22 @@ public class PostgresUtils {
         .forEach(
             (k, v) -> {
               try {
-                if (isValidPrimitiveType(v)) {
+                if (v instanceof Params.ArrayParam) {
+                  // Handle array parameter - create PostgreSQL array
+                  Params.ArrayParam arrayParam = (Params.ArrayParam) v;
+                  Array sqlArray =
+                      preparedStatement
+                          .getConnection()
+                          .createArrayOf(arrayParam.getSqlType(), arrayParam.getValues());
+                  preparedStatement.setArray(k, sqlArray);
+                } else if (isValidPrimitiveType(v)) {
                   preparedStatement.setObject(k, v);
                 } else {
                   throw new UnsupportedOperationException("Un-supported object types in filter");
                 }
               } catch (SQLException e) {
                 log.error("SQLException setting Param. key: {}, value: {}", k, v);
+                throw new RuntimeException("Failed to set parameter " + k, e);
               }
             });
     if (log.isDebugEnabled()) {

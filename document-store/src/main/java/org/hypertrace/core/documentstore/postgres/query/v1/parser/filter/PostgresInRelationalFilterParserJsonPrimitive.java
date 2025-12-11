@@ -1,11 +1,11 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter;
 
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 /**
  * Optimized parser for IN operations on JSON primitive fields (string, number, boolean) with proper
@@ -62,14 +62,10 @@ public class PostgresInRelationalFilterParserJsonPrimitive
       final JsonFieldType fieldType,
       final Params.Builder paramsBuilder) {
 
-    String placeholders =
-        StreamSupport.stream(parsedRhs.spliterator(), false)
-            .map(
-                value -> {
-                  paramsBuilder.addObjectParam(value);
-                  return "?";
-                })
-            .collect(Collectors.joining(", "));
+    Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
+
+    // Add as single array parameter
+    paramsBuilder.addArrayParam(values, PostgresUtils.inferSqlTypeFromValue(values));
 
     // Apply appropriate casting based on field type
     String lhsWithCast = parsedLhs;
@@ -80,6 +76,6 @@ public class PostgresInRelationalFilterParserJsonPrimitive
     }
     // STRING or null fieldType: no casting needed
 
-    return String.format("%s = ANY(ARRAY[%s])", lhsWithCast, placeholders);
+    return String.format("%s = ANY(?)", lhsWithCast);
   }
 }
