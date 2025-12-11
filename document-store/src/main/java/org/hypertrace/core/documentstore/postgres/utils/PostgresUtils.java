@@ -638,7 +638,6 @@ public class PostgresUtils {
                 }
               } catch (SQLException e) {
                 log.error("SQLException setting Param. key: {}, value: {}", k, v);
-                throw new RuntimeException("Failed to set parameter " + k, e);
               }
             });
     if (log.isDebugEnabled()) {
