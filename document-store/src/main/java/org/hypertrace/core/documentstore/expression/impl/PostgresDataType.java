@@ -31,7 +31,8 @@ enum PostgresDataType implements FlatCollectionDataType {
   TIMESTAMPTZ("timestamptz"),
   DATE("date"),
   UUID("uuid"),
-  JSONB("jsonb");
+  JSONB("jsonb"),
+  BYTEA("bytea"); // Java: byte[], ByteBuffer (binary data)
 
   private final String pgTypeName;
 

@@ -83,6 +83,10 @@ public class ArrayIdentifierExpression extends IdentifierExpression {
     return of(name, PostgresDataType.UUID);
   }
 
+  public static ArrayIdentifierExpression ofBytesArray(final String name) {
+    return of(name, PostgresDataType.BYTEA);
+  }
+
   // Package-private: used internally by getPostgresArrayTypeString()
   Optional<FlatCollectionDataType> getArrayElementType() {
     return Optional.ofNullable(arrayElementType);
@@ -130,6 +134,8 @@ public class ArrayIdentifierExpression extends IdentifierExpression {
         return "double precision[]";
       case "bool":
         return "boolean[]";
+      case "bytea":
+        return "bytea[]";
       default:
         // For most types, just append []
         return baseType + "[]";

@@ -97,6 +97,10 @@ public class IdentifierExpression
     return of(name, PostgresDataType.JSONB);
   }
 
+  public static IdentifierExpression ofBytes(final String name) {
+    return of(name, PostgresDataType.BYTEA);
+  }
+
   @Override
   public <T> T accept(final GroupTypeExpressionVisitor visitor) {
     return visitor.visit(this);
