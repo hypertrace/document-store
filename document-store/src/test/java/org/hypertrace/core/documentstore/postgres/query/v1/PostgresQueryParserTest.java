@@ -34,7 +34,6 @@ import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -1442,7 +1441,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                    ArrayIdentifierExpression.ofStrings("tags"),
                     NOT_CONTAINS,
                     ConstantExpression.of("premium")))
             .build();
@@ -1542,7 +1541,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    ArrayIdentifierExpression.of("keywords", ArrayType.TEXT),
+                    ArrayIdentifierExpression.ofStrings("keywords"),
                     CONTAINS,
                     ConstantExpression.of("java")))
             .build();
@@ -1593,7 +1592,7 @@ public class PostgresQueryParserTest {
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      ArrayIdentifierExpression.ofStrings("tags"),
                       EXISTS,
                       ConstantExpression.of("null")))
               .build();
@@ -1692,7 +1691,7 @@ public class PostgresQueryParserTest {
           Query.builder()
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      ArrayIdentifierExpression.ofStrings("tags"),
                       NOT_EXISTS,
                       ConstantExpression.of("null")))
               .build();

@@ -90,7 +90,6 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -4171,7 +4170,7 @@ public class DocStoreQueryV1Test {
               .addSelection(ArrayIdentifierExpression.of("tags"))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      ArrayIdentifierExpression.ofStrings("tags"),
                       IN,
                       ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
               .build();
@@ -4223,7 +4222,7 @@ public class DocStoreQueryV1Test {
               .addSelection(ArrayIdentifierExpression.of("tags"))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      ArrayIdentifierExpression.ofStrings("tags"),
                       NOT_IN,
                       ConstantExpression.ofStrings(List.of("premium", "hygiene"))))
               .build();
@@ -4271,7 +4270,7 @@ public class DocStoreQueryV1Test {
               .addSelection(ArrayIdentifierExpression.of("numbers"))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                      ArrayIdentifierExpression.ofInts("numbers"),
                       IN,
                       ConstantExpression.ofNumbers(List.of(1, 10, 20))))
               .build();
@@ -4318,7 +4317,7 @@ public class DocStoreQueryV1Test {
               .addSelection(ArrayIdentifierExpression.of("scores"))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("scores", ArrayType.DOUBLE_PRECISION),
+                      ArrayIdentifierExpression.ofDoubles("scores"),
                       IN,
                       ConstantExpression.ofNumbers(List.of(3.14, 5.0))))
               .build();
@@ -4365,12 +4364,11 @@ public class DocStoreQueryV1Test {
                 .addSelection(ArrayIdentifierExpression.of("tags"))
                 .addFromClause(
                     UnnestExpression.of(
-                        ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
-                        preserveNullAndEmptyArrays))
+                        ArrayIdentifierExpression.ofStrings("tags"), preserveNullAndEmptyArrays))
                 // Should return unnested tag elements that match 'hygiene' OR 'grooming'
                 .setFilter(
                     RelationalExpression.of(
-                        ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                        ArrayIdentifierExpression.ofStrings("tags"),
                         IN,
                         ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
                 .build();
@@ -4403,11 +4401,10 @@ public class DocStoreQueryV1Test {
                 .addSelection(ArrayIdentifierExpression.of("tags"))
                 .addFromClause(
                     UnnestExpression.of(
-                        ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
-                        preserveNullAndEmptyArrays))
+                        ArrayIdentifierExpression.ofStrings("tags"), preserveNullAndEmptyArrays))
                 .setFilter(
                     RelationalExpression.of(
-                        ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                        ArrayIdentifierExpression.ofStrings("tags"),
                         NOT_IN,
                         ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
                 .build();
@@ -4439,8 +4436,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
               .addSelection(ArrayIdentifierExpression.of("tags"))
-              .addFromClause(
-                  UnnestExpression.of(ArrayIdentifierExpression.of("tags", ArrayType.TEXT), true))
+              .addFromClause(UnnestExpression.of(ArrayIdentifierExpression.ofStrings("tags"), true))
               // Only include tags[] that are either NULL or empty (we have one row with NULL tag
               // and one with empty tag. Unnest will result in two rows with NULL for
               // "tags_unnested"). Note that this behavior will change with
@@ -4448,7 +4444,7 @@ public class DocStoreQueryV1Test {
               // rows for which the unnested column is NULL then.
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      ArrayIdentifierExpression.ofStrings("tags"),
                       NOT_EXISTS,
                       ConstantExpression.of("null")))
               .build();
@@ -4474,13 +4470,12 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
               .addSelection(ArrayIdentifierExpression.of("tags"))
-              .addFromClause(
-                  UnnestExpression.of(ArrayIdentifierExpression.of("tags", ArrayType.TEXT), true))
+              .addFromClause(UnnestExpression.of(ArrayIdentifierExpression.ofStrings("tags"), true))
               // Only include tags[] that have at least 1 element, all rows with NULL or empty tags
               // should be excluded.
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      ArrayIdentifierExpression.ofStrings("tags"),
                       EXISTS,
                       ConstantExpression.of("null")))
               .build();
@@ -4505,11 +4500,10 @@ public class DocStoreQueryV1Test {
       Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addFromClause(
-                  UnnestExpression.of(ArrayIdentifierExpression.of("tags", ArrayType.TEXT), true))
+              .addFromClause(UnnestExpression.of(ArrayIdentifierExpression.ofStrings("tags"), true))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      ArrayIdentifierExpression.ofStrings("tags"),
                       CONTAINS,
                       ConstantExpression.ofStrings(List.of("hygiene", "premium"))))
               .build();
@@ -4532,10 +4526,10 @@ public class DocStoreQueryV1Test {
       Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(ArrayIdentifierExpression.of("tags", ArrayType.TEXT))
+              .addSelection(ArrayIdentifierExpression.ofStrings("tags"))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      ArrayIdentifierExpression.ofStrings("tags"),
                       CONTAINS,
                       ConstantExpression.ofStrings(List.of("hygiene", "personal-care"))))
               .build();
@@ -4584,7 +4578,7 @@ public class DocStoreQueryV1Test {
               .addSelection(ArrayIdentifierExpression.of("tags"))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                      ArrayIdentifierExpression.ofStrings("tags"),
                       NOT_CONTAINS,
                       ConstantExpression.ofStrings(List.of("hair-care", "personal-care"))))
               .build();
@@ -4628,10 +4622,10 @@ public class DocStoreQueryV1Test {
       Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER))
+              .addSelection(ArrayIdentifierExpression.ofInts("numbers"))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                      ArrayIdentifierExpression.ofInts("numbers"),
                       CONTAINS,
                       ConstantExpression.ofNumbers(List.of(1, 2))))
               .build();
@@ -4675,10 +4669,10 @@ public class DocStoreQueryV1Test {
       Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER))
+              .addSelection(ArrayIdentifierExpression.ofInts("numbers"))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                      ArrayIdentifierExpression.ofInts("numbers"),
                       NOT_CONTAINS,
                       ConstantExpression.ofNumbers(List.of(10, 20))))
               .build();
@@ -4724,10 +4718,10 @@ public class DocStoreQueryV1Test {
       Query query =
           Query.builder()
               .addSelection(IdentifierExpression.of("item"))
-              .addSelection(ArrayIdentifierExpression.of("scores", ArrayType.DOUBLE_PRECISION))
+              .addSelection(ArrayIdentifierExpression.ofDoubles("scores"))
               .setFilter(
                   RelationalExpression.of(
-                      ArrayIdentifierExpression.of("scores", ArrayType.DOUBLE_PRECISION),
+                      ArrayIdentifierExpression.ofDoubles("scores"),
                       CONTAINS,
                       ConstantExpression.ofNumbers(List.of(3.14, 2.71))))
               .build();
