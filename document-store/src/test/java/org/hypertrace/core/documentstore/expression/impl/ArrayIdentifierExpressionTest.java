@@ -2,7 +2,9 @@ package org.hypertrace.core.documentstore.expression.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class ArrayIdentifierExpressionTest {
@@ -68,5 +70,40 @@ class ArrayIdentifierExpressionTest {
     assertEquals(expr1, expr3);
     assertEquals(expr1.hashCode(), expr2.hashCode());
     assertEquals(expr2.hashCode(), expr3.hashCode());
+  }
+
+  @Test
+  void testOfBytesArrayCreatesInstanceWithBytesType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofBytesArray("binaryData");
+
+    assertEquals("binaryData", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.BYTEA, expression.getArrayElementType().get());
+  }
+
+  @Test
+  void testOfBytesArrayReturnsCorrectPostgresArrayType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofBytesArray("fileContent");
+
+    Optional<String> arrayType = expression.getPostgresArrayTypeString();
+    assertTrue(arrayType.isPresent());
+    assertEquals("bytea[]", arrayType.get());
+  }
+
+  @Test
+  void testOfBytesArrayEquality() {
+    ArrayIdentifierExpression expr1 = ArrayIdentifierExpression.ofBytesArray("data");
+    ArrayIdentifierExpression expr2 = ArrayIdentifierExpression.ofBytesArray("data");
+
+    assertEquals(expr1, expr2);
+    assertEquals(expr1.hashCode(), expr2.hashCode());
+  }
+
+  @Test
+  void testOfBytesArrayInequality() {
+    ArrayIdentifierExpression expr1 = ArrayIdentifierExpression.ofBytesArray("data1");
+    ArrayIdentifierExpression expr2 = ArrayIdentifierExpression.ofBytesArray("data2");
+
+    assertNotEquals(expr1, expr2);
   }
 }
