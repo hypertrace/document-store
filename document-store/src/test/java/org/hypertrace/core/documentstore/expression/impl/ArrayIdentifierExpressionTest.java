@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.expression.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Optional;
@@ -105,5 +106,153 @@ class ArrayIdentifierExpressionTest {
     ArrayIdentifierExpression expr2 = ArrayIdentifierExpression.ofBytesArray("data2");
 
     assertNotEquals(expr1, expr2);
+  }
+
+  @Test
+  void testOfStringsCreatesInstanceWithTextType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofStrings("tags");
+
+    assertEquals("tags", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.TEXT, expression.getArrayElementType().get());
+    assertEquals("text[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfIntsCreatesInstanceWithIntegerType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofInts("ids");
+
+    assertEquals("ids", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.INTEGER, expression.getArrayElementType().get());
+    assertEquals("integer[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfLongsCreatesInstanceWithBigintType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofLongs("timestamps");
+
+    assertEquals("timestamps", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.BIGINT, expression.getArrayElementType().get());
+    assertEquals("bigint[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfShortsCreatesInstanceWithSmallintType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofShorts("counts");
+
+    assertEquals("counts", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.SMALLINT, expression.getArrayElementType().get());
+    assertEquals("smallint[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfFloatsCreatesInstanceWithFloatType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofFloats("temperatures");
+
+    assertEquals("temperatures", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.FLOAT, expression.getArrayElementType().get());
+    assertEquals("real[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfDoublesCreatesInstanceWithDoubleType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofDoubles("coordinates");
+
+    assertEquals("coordinates", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.DOUBLE, expression.getArrayElementType().get());
+    assertEquals("double precision[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfDecimalsCreatesInstanceWithNumericType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofDecimals("prices");
+
+    assertEquals("prices", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.NUMERIC, expression.getArrayElementType().get());
+    assertEquals("numeric[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfBooleansCreatesInstanceWithBooleanType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofBooleans("flags");
+
+    assertEquals("flags", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.BOOLEAN, expression.getArrayElementType().get());
+    assertEquals("boolean[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfTimestampsCreatesInstanceWithTimestampType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofTimestamps("events");
+
+    assertEquals("events", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.TIMESTAMP, expression.getArrayElementType().get());
+    assertEquals("timestamp[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfTimestampsTzCreatesInstanceWithTimestampTzType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofTimestampsTz("eventsTz");
+
+    assertEquals("eventsTz", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.TIMESTAMPTZ, expression.getArrayElementType().get());
+    assertEquals("timestamptz[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfDatesCreatesInstanceWithDateType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofDates("dates");
+
+    assertEquals("dates", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.DATE, expression.getArrayElementType().get());
+    assertEquals("date[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testOfUuidsCreatesInstanceWithUuidType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofUuids("uuids");
+
+    assertEquals("uuids", expression.getName());
+    assertTrue(expression.getArrayElementType().isPresent());
+    assertEquals(PostgresDataType.UUID, expression.getArrayElementType().get());
+    assertEquals("uuid[]", expression.getPostgresArrayTypeString().orElse(null));
+  }
+
+  @Test
+  void testToPostgresArrayTypeThrowsExceptionForNonPostgresDataType() throws Exception {
+    // Create an expression with a custom FlatCollectionDataType that is not PostgresDataType
+    FlatCollectionDataType customType =
+        new FlatCollectionDataType() {
+          @Override
+          public String getType() {
+            return "custom_type";
+          }
+        };
+
+    ArrayIdentifierExpression expression = new ArrayIdentifierExpression("test", customType);
+
+    // Calling getPostgresArrayTypeString should throw IllegalArgumentException
+    IllegalArgumentException exception =
+        assertThrows(IllegalArgumentException.class, () -> expression.getPostgresArrayTypeString());
+
+    assertTrue(exception.getMessage().contains("Only PostgresDataType is currently supported"));
+  }
+
+  @Test
+  void testGetPostgresArrayTypeStringReturnsEmptyForNullType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.of("untyped");
+
+    Optional<String> arrayType = expression.getPostgresArrayTypeString();
+    assertTrue(arrayType.isEmpty());
   }
 }

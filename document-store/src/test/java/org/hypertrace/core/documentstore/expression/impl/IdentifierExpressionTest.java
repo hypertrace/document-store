@@ -84,6 +84,78 @@ class IdentifierExpressionTest {
   }
 
   @Test
+  void testOfShortCreatesInstanceWithSmallintType() {
+    IdentifierExpression expression = IdentifierExpression.ofShort("count");
+
+    assertEquals("count", expression.getName());
+    assertEquals(PostgresDataType.SMALLINT, expression.getFlatCollectionDataType());
+  }
+
+  @Test
+  void testOfFloatCreatesInstanceWithFloatType() {
+    IdentifierExpression expression = IdentifierExpression.ofFloat("temperature");
+
+    assertEquals("temperature", expression.getName());
+    assertEquals(PostgresDataType.FLOAT, expression.getFlatCollectionDataType());
+  }
+
+  @Test
+  void testOfDoubleCreatesInstanceWithDoubleType() {
+    IdentifierExpression expression = IdentifierExpression.ofDouble("latitude");
+
+    assertEquals("latitude", expression.getName());
+    assertEquals(PostgresDataType.DOUBLE, expression.getFlatCollectionDataType());
+  }
+
+  @Test
+  void testOfDecimalCreatesInstanceWithNumericType() {
+    IdentifierExpression expression = IdentifierExpression.ofDecimal("price");
+
+    assertEquals("price", expression.getName());
+    assertEquals(PostgresDataType.NUMERIC, expression.getFlatCollectionDataType());
+  }
+
+  @Test
+  void testOfTimestampCreatesInstanceWithTimestampType() {
+    IdentifierExpression expression = IdentifierExpression.ofTimestamp("createdAt");
+
+    assertEquals("createdAt", expression.getName());
+    assertEquals(PostgresDataType.TIMESTAMP, expression.getFlatCollectionDataType());
+  }
+
+  @Test
+  void testOfTimestampTzCreatesInstanceWithTimestampTzType() {
+    IdentifierExpression expression = IdentifierExpression.ofTimestampTz("updatedAt");
+
+    assertEquals("updatedAt", expression.getName());
+    assertEquals(PostgresDataType.TIMESTAMPTZ, expression.getFlatCollectionDataType());
+  }
+
+  @Test
+  void testOfDateCreatesInstanceWithDateType() {
+    IdentifierExpression expression = IdentifierExpression.ofDate("birthDate");
+
+    assertEquals("birthDate", expression.getName());
+    assertEquals(PostgresDataType.DATE, expression.getFlatCollectionDataType());
+  }
+
+  @Test
+  void testOfUuidCreatesInstanceWithUuidType() {
+    IdentifierExpression expression = IdentifierExpression.ofUuid("id");
+
+    assertEquals("id", expression.getName());
+    assertEquals(PostgresDataType.UUID, expression.getFlatCollectionDataType());
+  }
+
+  @Test
+  void testOfJsonbCreatesInstanceWithJsonbType() {
+    IdentifierExpression expression = IdentifierExpression.ofJsonb("metadata");
+
+    assertEquals("metadata", expression.getName());
+    assertEquals(PostgresDataType.JSONB, expression.getFlatCollectionDataType());
+  }
+
+  @Test
   void testMultipleTypedExpressionsAreEqualWithSameNameAndType() {
     IdentifierExpression expr1 = IdentifierExpression.ofBytes("file");
     IdentifierExpression expr2 = IdentifierExpression.ofBytes("file");

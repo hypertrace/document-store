@@ -4,7 +4,7 @@ package org.hypertrace.core.documentstore.expression.impl;
  * Marker interface for database-specific type metadata used in flat relational collections.
  *
  * <p>Implementations of this interface represent the native data types of specific relational
- * databases (e.g., PostgreSQL, MySQL, Oracle). Type information enables:
+ * databases (e.g., PostgreSQL, MySQL, etc). Type information enables:
  *
  * <ul>
  *   <li>Type-safe query generation without runtime type inference
