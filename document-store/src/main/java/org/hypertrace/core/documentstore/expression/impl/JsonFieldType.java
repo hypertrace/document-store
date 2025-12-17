@@ -9,5 +9,6 @@ public enum JsonFieldType {
   NUMBER_ARRAY,
   BOOLEAN_ARRAY,
   OBJECT_ARRAY,
-  OBJECT
+  OBJECT,
+  UNSPECIFIED
 }

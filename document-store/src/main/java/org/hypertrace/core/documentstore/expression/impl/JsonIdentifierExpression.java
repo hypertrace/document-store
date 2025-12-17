@@ -21,7 +21,7 @@ public class JsonIdentifierExpression extends IdentifierExpression {
 
   String columnName; // e.g., "customAttr" (the top-level JSONB column)
   List<String> jsonPath; // e.g., ["myAttribute", "nestedField"]
-  JsonFieldType fieldType; // Optional: PRIMITIVE or ARRAY for optimization
+  JsonFieldType fieldType;
 
   public static JsonIdentifierExpression of(final String columnName) {
     throw new IllegalArgumentException(

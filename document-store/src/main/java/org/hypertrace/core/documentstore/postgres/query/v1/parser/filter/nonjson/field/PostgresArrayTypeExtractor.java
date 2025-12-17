@@ -21,7 +21,7 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
  *
  * <ul>
  *   <li>The PostgreSQL array type string (e.g., "text[]", "integer[]")
- *   <li>{@code null} if {@link ArrayIdentifierExpression} is used without an explicit type
+ *   <li>{@code null} if {@link ArrayIdentifierExpression} has UNSPECIFIED type
  * </ul>
  */
 public class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
@@ -30,7 +30,8 @@ public class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
 
   @Override
   public String visit(ArrayIdentifierExpression expression) {
-    return expression.getPostgresArrayTypeString().orElse(null);
+    PostgresDataType pgType = PostgresDataType.fromDataType(expression.getElementDataType());
+    return pgType == PostgresDataType.UNKNOWN ? null : pgType.getArraySqlType();
   }
 
   @Override

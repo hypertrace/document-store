@@ -1,6 +1,5 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
-import java.util.Optional;
 import lombok.EqualsAndHashCode;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
@@ -14,15 +13,14 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 @EqualsAndHashCode(callSuper = true)
 public class ArrayIdentifierExpression extends IdentifierExpression {
 
-  private final FlatCollectionDataType arrayElementType;
+  private final DataType arrayElementType;
 
-  public ArrayIdentifierExpression(String name) {
-    this(name, null);
+  ArrayIdentifierExpression(String name) {
+    this(name, DataType.UNSPECIFIED);
   }
 
-  // Package-private: used internally by factory methods
-  ArrayIdentifierExpression(String name, FlatCollectionDataType arrayElementType) {
-    super(name, null);
+  ArrayIdentifierExpression(String name, DataType arrayElementType) {
+    super(name);
     this.arrayElementType = arrayElementType;
   }
 
@@ -30,116 +28,51 @@ public class ArrayIdentifierExpression extends IdentifierExpression {
     return new ArrayIdentifierExpression(name);
   }
 
-  // Package-private: used internally by factory methods
-  static ArrayIdentifierExpression of(String name, FlatCollectionDataType arrayElementType) {
+  static ArrayIdentifierExpression of(String name, DataType arrayElementType) {
     return new ArrayIdentifierExpression(name, arrayElementType);
   }
 
   public static ArrayIdentifierExpression ofStrings(final String name) {
-    return of(name, PostgresDataType.TEXT);
+    return of(name, DataType.STRING);
   }
 
   public static ArrayIdentifierExpression ofInts(final String name) {
-    return of(name, PostgresDataType.INTEGER);
+    return of(name, DataType.INTEGER);
   }
 
   public static ArrayIdentifierExpression ofLongs(final String name) {
-    return of(name, PostgresDataType.BIGINT);
-  }
-
-  public static ArrayIdentifierExpression ofShorts(final String name) {
-    return of(name, PostgresDataType.SMALLINT);
+    return of(name, DataType.LONG);
   }
 
   public static ArrayIdentifierExpression ofFloats(final String name) {
-    return of(name, PostgresDataType.FLOAT);
+    return of(name, DataType.FLOAT);
   }
 
   public static ArrayIdentifierExpression ofDoubles(final String name) {
-    return of(name, PostgresDataType.DOUBLE);
-  }
-
-  public static ArrayIdentifierExpression ofDecimals(final String name) {
-    return of(name, PostgresDataType.NUMERIC);
+    return of(name, DataType.DOUBLE);
   }
 
   public static ArrayIdentifierExpression ofBooleans(final String name) {
-    return of(name, PostgresDataType.BOOLEAN);
-  }
-
-  public static ArrayIdentifierExpression ofTimestamps(final String name) {
-    return of(name, PostgresDataType.TIMESTAMP);
+    return of(name, DataType.BOOLEAN);
   }
 
   public static ArrayIdentifierExpression ofTimestampsTz(final String name) {
-    return of(name, PostgresDataType.TIMESTAMPTZ);
+    return of(name, DataType.TIMESTAMPTZ);
   }
 
   public static ArrayIdentifierExpression ofDates(final String name) {
-    return of(name, PostgresDataType.DATE);
-  }
-
-  public static ArrayIdentifierExpression ofUuids(final String name) {
-    return of(name, PostgresDataType.UUID);
-  }
-
-  public static ArrayIdentifierExpression ofBytesArray(final String name) {
-    return of(name, PostgresDataType.BYTEA);
-  }
-
-  // Package-private: used internally by getPostgresArrayTypeString()
-  Optional<FlatCollectionDataType> getArrayElementType() {
-    return Optional.ofNullable(arrayElementType);
+    return of(name, DataType.DATE);
   }
 
   /**
-   * Returns the PostgreSQL array type string for this expression, if the element type is specified.
+   * Returns the data type of array elements.
    *
-   * <p>Examples:
+   * <p>This is used by database-specific type extractors to generate appropriate type casts.
    *
-   * <ul>
-   *   <li>TEXT → "text[]"
-   *   <li>INTEGER → "integer[]"
-   *   <li>BOOLEAN → "boolean[]"
-   *   <li>FLOAT → "real[]"
-   *   <li>DOUBLE → "double precision[]"
-   * </ul>
-   *
-   * @return Optional containing the PostgreSQL array type string, or empty if no type is specified
-   * @throws IllegalArgumentException if the element type is not a PostgresDataType
+   * @return The element DataType (UNSPECIFIED if no type was explicitly set)
    */
-  public Optional<String> getPostgresArrayTypeString() {
-    return getArrayElementType().map(this::toPostgresArrayType);
-  }
-
-  private String toPostgresArrayType(FlatCollectionDataType type) {
-    if (!(type instanceof PostgresDataType)) {
-      throw new IllegalArgumentException(
-          "Only PostgresDataType is currently supported, got: " + type.getClass());
-    }
-    PostgresDataType postgresType = (PostgresDataType) type;
-    String baseType = postgresType.getPgTypeName();
-
-    // Map internal type names to SQL array type names
-    switch (baseType) {
-      case "int4":
-        return "integer[]";
-      case "int8":
-        return "bigint[]";
-      case "int2":
-        return "smallint[]";
-      case "float4":
-        return "real[]";
-      case "float8":
-        return "double precision[]";
-      case "bool":
-        return "boolean[]";
-      case "bytea":
-        return "bytea[]";
-      default:
-        // For most types, just append []
-        return baseType + "[]";
-    }
+  public DataType getElementDataType() {
+    return arrayElementType;
   }
 
   /**
