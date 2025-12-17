@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
 import com.google.common.base.Preconditions;
+import lombok.EqualsAndHashCode;
 import lombok.Value;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
@@ -20,6 +21,7 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
  * </code> the rhs of the join condition "latest.item" can be expressed as: <code>
  *  AliasedIdentifierExpression.builder().name("item").alias("alias1").build() </code>
  */
+@EqualsAndHashCode(callSuper = true)
 @Value
 public class AliasedIdentifierExpression extends IdentifierExpression {
   String contextAlias;
