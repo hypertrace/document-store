@@ -67,7 +67,7 @@ public class JsonIdentifierExpression extends IdentifierExpression {
 
   protected JsonIdentifierExpression(
       String name, String columnName, List<String> jsonPath, JsonFieldType fieldType) {
-    super(name, null);
+    super(name);
     this.columnName = columnName;
     this.jsonPath = jsonPath;
     this.fieldType = fieldType;

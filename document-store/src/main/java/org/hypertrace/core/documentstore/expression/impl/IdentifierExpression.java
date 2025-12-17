@@ -44,7 +44,6 @@ public class IdentifierExpression
     return new IdentifierExpression(name);
   }
 
-  // Package-private: used internally by factory methods
   static IdentifierExpression of(final String name, final DataType dataType) {
     Preconditions.checkArgument(name != null && !name.isBlank(), "name is null or blank");
     return new IdentifierExpression(name, dataType);
