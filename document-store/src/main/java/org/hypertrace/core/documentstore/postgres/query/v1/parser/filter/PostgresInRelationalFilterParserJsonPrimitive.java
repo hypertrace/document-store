@@ -1,6 +1,5 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter;
 
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
@@ -11,12 +10,13 @@ import org.hypertrace.core.documentstore.postgres.Params;
  * Optimized parser for IN operations on JSON primitive fields (string, number, boolean) with proper
  * type casting.
  *
- * <p>Generates efficient SQL using {@code ->>} operator with appropriate PostgreSQL casting:
+ * <p>Generates efficient SQL using {@code ->>} operator with {@code = ANY(ARRAY[])} and appropriate
+ * PostgreSQL casting:
  *
  * <ul>
- *   <li><b>STRING:</b> {@code "document" ->> 'item' IN ('Soap', 'Shampoo')}
- *   <li><b>NUMBER:</b> {@code CAST("document" ->> 'price' AS NUMERIC) IN (10, 20)}
- *   <li><b>BOOLEAN:</b> {@code CAST("document" ->> 'active' AS BOOLEAN) IN (true, false)}
+ *   <li><b>STRING:</b> {@code "document" ->> 'item' = ANY(ARRAY['Soap', 'Shampoo'])}
+ *   <li><b>NUMBER:</b> {@code CAST("document" ->> 'price' AS NUMERIC) = ANY(ARRAY[10, 20])}
+ *   <li><b>BOOLEAN:</b> {@code CAST("document" ->> 'active' AS BOOLEAN) = ANY(ARRAY[true, false])}
  * </ul>
  *
  * <p>This is much more efficient than the defensive approach that checks both array and scalar
@@ -61,14 +61,15 @@ public class PostgresInRelationalFilterParserJsonPrimitive
       final JsonFieldType fieldType,
       final Params.Builder paramsBuilder) {
 
-    String placeholders =
-        StreamSupport.stream(parsedRhs.spliterator(), false)
-            .map(
-                value -> {
-                  paramsBuilder.addObjectParam(value);
-                  return "?";
-                })
-            .collect(Collectors.joining(", "));
+    Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
+
+    if (values.length == 0) {
+      // return FALSE
+      return "1 = 0";
+    }
+
+    String sqlType = mapJsonFieldTypeToSqlType(fieldType);
+    paramsBuilder.addArrayParam(values, sqlType);
 
     // Apply appropriate casting based on field type
     String lhsWithCast = parsedLhs;
@@ -77,8 +78,18 @@ public class PostgresInRelationalFilterParserJsonPrimitive
     } else if (fieldType == JsonFieldType.BOOLEAN) {
       lhsWithCast = String.format("CAST(%s AS BOOLEAN)", parsedLhs);
     }
-    // STRING or null fieldType: no casting needed
+    return String.format("%s = ANY(?)", lhsWithCast);
+  }
 
-    return String.format("%s IN (%s)", lhsWithCast, placeholders);
+  private String mapJsonFieldTypeToSqlType(JsonFieldType fieldType) {
+    switch (fieldType) {
+      case NUMBER:
+        return "float8";
+      case BOOLEAN:
+        return "bool";
+      case STRING:
+      default:
+        return "text";
+    }
   }
 }

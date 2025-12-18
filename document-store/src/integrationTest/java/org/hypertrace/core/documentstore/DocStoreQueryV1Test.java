@@ -68,6 +68,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -3966,18 +3967,18 @@ public class DocStoreQueryV1Test {
       JsonNode json = new ObjectMapper().readTree(aggDoc.toJson());
 
       // Validate aggregation results
-      assertTrue(json.get("sum").asDouble() > 0, "SUM should be positive");
-      assertTrue(json.get("avg").asDouble() > 0, "AVG should be positive");
-      assertTrue(json.get("min").asDouble() > 0, "MIN should be positive");
-      assertTrue(json.get("max").asDouble() > 0, "MAX should be positive");
-      assertEquals(10, json.get("count").asInt(), "COUNT should be 10");
+      assertTrue(json.get("sum").asDouble() > 0);
+      assertTrue(json.get("avg").asDouble() > 0);
+      assertTrue(json.get("min").asDouble() > 0);
+      assertTrue(json.get("max").asDouble() > 0);
+      assertEquals(10, json.get("count").asInt());
 
       // Verify MIN <= AVG <= MAX
       double min = json.get("min").asDouble();
       double avg = json.get("avg").asDouble();
       double max = json.get("max").asDouble();
-      assertTrue(min <= avg, "MIN should be <= AVG");
-      assertTrue(avg <= max, "AVG should be <= MAX");
+      assertTrue(min <= avg);
+      assertTrue(avg <= max);
 
       // Test GROUP BY with aggregations
       Query groupAggQuery =
@@ -4048,11 +4049,11 @@ public class DocStoreQueryV1Test {
       int countPrice = json.get("count_price").asInt();
       int countAll = json.get("count_all").asInt();
 
-      assertEquals(10, countItem, "COUNT(item) should be 10");
-      assertEquals(10, countPrice, "COUNT(price) should be 10");
-      assertEquals(10, countAll, "COUNT(*) should be 10");
-      assertEquals(countItem, countAll, "COUNT(item) should equal COUNT(*) when no NULLs");
-      assertEquals(countPrice, countAll, "COUNT(price) should equal COUNT(*) when no NULLs");
+      assertEquals(10, countItem);
+      assertEquals(10, countPrice);
+      assertEquals(10, countAll);
+      assertEquals(countItem, countAll);
+      assertEquals(countPrice, countAll);
 
       // Test 3: Test NULL equality filter returns empty result
       Query nullEqualQuery =
@@ -4064,6 +4065,264 @@ public class DocStoreQueryV1Test {
 
       long nullCount = flatCollection.count(nullEqualQuery);
       assertEquals(0, nullCount);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testInOperatorOnScalarFields(String dataStoreName) throws JsonProcessingException {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Test 1: IN operator on TEXT field (item column)
+      Query textInQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Soap", "Mirror", "Comb"))))
+              .build();
+
+      Iterator<Document> textResults = flatCollection.find(textInQuery);
+      Set<String> foundItems = new HashSet<>();
+      int textCount = 0;
+      while (textResults.hasNext()) {
+        Document doc = textResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        textCount++;
+        foundItems.add(json.get("item").asText());
+      }
+      assertEquals(6, textCount);
+      assertTrue(foundItems.contains("Soap"));
+      assertTrue(foundItems.contains("Mirror"));
+      assertTrue(foundItems.contains("Comb"));
+      assertEquals(3, foundItems.size());
+
+      // Test 2: IN operator on INTEGER field (price column)
+      Query intInQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(5, 10, 15))))
+              .build();
+
+      Iterator<Document> intResults = flatCollection.find(intInQuery);
+      Set<Integer> foundPrices = new HashSet<>();
+      int intCount = 0;
+      while (intResults.hasNext()) {
+        Document doc = intResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        intCount++;
+        foundPrices.add(json.get("price").asInt());
+      }
+      assertTrue(intCount > 0);
+      assertTrue(foundPrices.stream().allMatch(p -> p == 5 || p == 10 || p == 15));
+
+      // Test 3: IN operator on BOOLEAN field (in_stock column)
+      Query boolInQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("in_stock"))
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("in_stock"),
+                      IN,
+                      ConstantExpression.ofBooleans(List.of(true))))
+              .build();
+
+      Iterator<Document> boolResults = flatCollection.find(boolInQuery);
+      int boolCount = 0;
+      while (boolResults.hasNext()) {
+        Document doc = boolResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        boolCount++;
+        assertTrue(json.get("in_stock").asBoolean());
+      }
+      assertTrue(boolCount > 0);
+
+      // Test 4: IN operator with single value
+      Query singleValueInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Soap"))))
+              .build();
+
+      long singleValueCount = flatCollection.count(singleValueInQuery);
+      assertEquals(3, singleValueCount);
+
+      // Test 5: IN operator with no matches
+      Query noMatchInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("NonExistent", "AlsoNotFound"))))
+              .build();
+
+      long noMatchCount = flatCollection.count(noMatchInQuery);
+      assertEquals(0, noMatchCount);
+
+      // Test 6: IN operator with large list
+      List<String> largeList = new ArrayList<>();
+      for (int i = 0; i < 100; i++) {
+        largeList.add("Item" + i);
+      }
+      largeList.add("Soap");
+
+      Query largeListInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"), IN, ConstantExpression.ofStrings(largeList)))
+              .build();
+
+      long largeListCount = flatCollection.count(largeListInQuery);
+      assertEquals(3, largeListCount);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testNotInOperatorOnScalarFields(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Test 1: NOT IN operator on TEXT field
+      Query textNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("Soap", "Mirror"))))
+              .build();
+
+      long textNotInCount = flatCollection.count(textNotInQuery);
+      assertEquals(6, textNotInCount);
+
+      // Test 2: NOT IN operator on INTEGER field
+      Query intNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"),
+                      NOT_IN,
+                      ConstantExpression.ofNumbers(List.of(5, 10))))
+              .build();
+
+      long intNotInCount = flatCollection.count(intNotInQuery);
+      assertTrue(intNotInCount > 0);
+
+      // Test 3: NOT IN operator on BOOLEAN field
+      Query boolNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("in_stock"),
+                      NOT_IN,
+                      ConstantExpression.ofBooleans(List.of(false))))
+              .build();
+
+      long boolNotInCount = flatCollection.count(boolNotInQuery);
+      assertTrue(boolNotInCount > 0);
+
+      // Test 4: NOT IN with single value
+      Query singleNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("Soap"))))
+              .build();
+
+      long singleNotInCount = flatCollection.count(singleNotInQuery);
+      assertEquals(7, singleNotInCount);
+
+      // Test 5: NOT IN with values that don't exist (should return all records)
+      Query noMatchNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("NonExistent", "AlsoNotFound"))))
+              .build();
+
+      long noMatchNotInCount = flatCollection.count(noMatchNotInQuery);
+      assertEquals(10, noMatchNotInCount);
+
+      // Test 6: NOT IN with large list
+      List<String> largeList = new ArrayList<>();
+      for (int i = 0; i < 100; i++) {
+        largeList.add("Item" + i);
+      }
+      largeList.add("Soap");
+
+      Query largeListNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(largeList)))
+              .build();
+
+      long largeListNotInCount = flatCollection.count(largeListNotInQuery);
+      assertEquals(7, largeListNotInCount);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testInOperatorWithoutTypeSpecified(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Test 1: IN operator on string field without type - uses fallback IN (?, ?, ?) syntax
+      Query untypedStringInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Soap", "Mirror", "Comb"))))
+              .build();
+
+      long untypedStringCount = flatCollection.count(untypedStringInQuery);
+      assertEquals(6, untypedStringCount); // 3 Soap + 1 Mirror + 2 Comb = 6
+
+      // Test 2: IN operator on integer field without type - uses fallback IN (?, ?, ?) syntax
+      Query untypedIntInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(5, 10, 15))))
+              .build();
+
+      long untypedIntCount = flatCollection.count(untypedIntInQuery);
+      assertTrue(untypedIntCount > 0);
+
+      // Test 3: NOT_IN operator on string field without type - uses fallback NOT IN (?, ?, ?)
+      // syntax
+      Query untypedNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("Soap", "Mirror"))))
+              .build();
+
+      long untypedNotInCount = flatCollection.count(untypedNotInQuery);
+      assertEquals(6, untypedNotInCount); // 10 total - 3 Soap - 1 Mirror = 6
     }
   }
 
@@ -4820,6 +5079,83 @@ public class DocStoreQueryV1Test {
       Iterator<Document> resultIterator = flatCollection.find(booleanArrayQuery);
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, resultIterator, "query/flat_boolean_array_filter_response.json", 5);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testInOperatorOnArrayFieldWithoutTypeSpecified(String dataStoreName)
+        throws JsonProcessingException {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Test 1: IN operator on string array field without type - uses fallback syntax
+      Query untypedStringArrayInQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
+              .build();
+
+      Iterator<Document> stringResults = flatCollection.find(untypedStringArrayInQuery);
+      int stringCount = 0;
+      while (stringResults.hasNext()) {
+        Document doc = stringResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        stringCount++;
+
+        // Verify that returned arrays contain at least one of the IN values
+        JsonNode tags = json.get("tags");
+        if (tags != null && tags.isArray()) {
+          boolean containsMatch = false;
+          for (JsonNode tag : tags) {
+            String tagValue = tag.asText();
+            if ("hygiene".equals(tagValue) || "grooming".equals(tagValue)) {
+              containsMatch = true;
+              break;
+            }
+          }
+          assertTrue(containsMatch, "Array should contain at least one IN value");
+        }
+      }
+      assertTrue(stringCount >= 5, "Should return at least 5 items with hygiene/grooming tags");
+
+      // Test 2: IN operator on integer array field without type - uses fallback syntax
+      Query untypedIntArrayInQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("numbers"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("numbers"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(1, 10, 20))))
+              .build();
+
+      Iterator<Document> intResults = flatCollection.find(untypedIntArrayInQuery);
+      int intCount = 0;
+      while (intResults.hasNext()) {
+        Document doc = intResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        intCount++;
+
+        // Verify that returned arrays contain at least one of the IN values
+        JsonNode numbers = json.get("numbers");
+        if (numbers != null && numbers.isArray()) {
+          boolean containsMatch = false;
+          for (JsonNode num : numbers) {
+            int value = num.asInt();
+            if (value == 1 || value == 10 || value == 20) {
+              containsMatch = true;
+              break;
+            }
+          }
+          assertTrue(containsMatch, "Array should contain at least one IN value");
+        }
+      }
+      assertTrue(intCount >= 6, "Should return at least 6 items");
     }
   }
 

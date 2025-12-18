@@ -61,7 +61,7 @@ public class PostgresInRelationalFilterParserJsonArray
 
   /**
    * Generates SQL for scalar IN operator (used when JSONB array field has been unnested). Example:
-   * "props_dot_source-loc" IN (?::jsonb, ?::jsonb)
+   * "props_dot_source-loc" = ANY(ARRAY[?::jsonb, ?::jsonb])
    *
    * <p>Note: After unnesting with jsonb_array_elements(), each row contains a JSONB scalar value.
    * We cast the parameters to jsonb for direct JSONB-to-JSONB comparison, which works for all JSONB
@@ -86,7 +86,7 @@ public class PostgresInRelationalFilterParserJsonArray
             .collect(Collectors.joining(", "));
 
     // Direct JSONB comparison - no text conversion needed
-    return String.format("%s IN (%s)", parsedLhs, placeholders);
+    return String.format("%s = ANY(ARRAY[%s])", parsedLhs, placeholders);
   }
 
   /**

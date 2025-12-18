@@ -14,9 +14,9 @@ import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpressio
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.junit.jupiter.api.Test;
 
-class PostgresPostgresDataTypeExtractorTest {
+class PostgresTypeExtractorTest {
 
-  private final PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+  private final PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
 
   @Test
   void testVisitArrayIdentifierExpression_withType() {
@@ -29,14 +29,14 @@ class PostgresPostgresDataTypeExtractorTest {
   void testVisitArrayIdentifierExpression_withIntegerType() {
     ArrayIdentifierExpression expr = ArrayIdentifierExpression.ofInts("numbers");
     String result = extractor.visit(expr);
-    assertEquals("integer[]", result);
+    assertEquals("int4[]", result);
   }
 
   @Test
   void testVisitArrayIdentifierExpression_withBooleanType() {
     ArrayIdentifierExpression expr = ArrayIdentifierExpression.ofBooleans("flags");
     String result = extractor.visit(expr);
-    assertEquals("boolean[]", result);
+    assertEquals("bool[]", result);
   }
 
   @Test
@@ -53,9 +53,41 @@ class PostgresPostgresDataTypeExtractorTest {
   }
 
   @Test
-  void testVisitIdentifierExpression() {
+  void testVisitIdentifierExpression_withType() {
+    IdentifierExpression expr = IdentifierExpression.ofString("item");
+    String result = extractor.visit(expr);
+    assertEquals("text[]", result);
+  }
+
+  @Test
+  void testVisitIdentifierExpression_withoutType() {
     IdentifierExpression expr = IdentifierExpression.of("item");
-    assertThrows(UnsupportedOperationException.class, () -> extractor.visit(expr));
+    String result = extractor.visit(expr);
+    assertNull(result);
+  }
+
+  @Test
+  void testVisitIdentifierExpression_scalarType_withStringType() {
+    PostgresTypeExtractor scalarExtractor = PostgresTypeExtractor.scalarType();
+    IdentifierExpression expr = IdentifierExpression.ofString("item");
+    String result = scalarExtractor.visit(expr);
+    assertEquals("text", result);
+  }
+
+  @Test
+  void testVisitIdentifierExpression_scalarType_withIntType() {
+    PostgresTypeExtractor scalarExtractor = PostgresTypeExtractor.scalarType();
+    IdentifierExpression expr = IdentifierExpression.ofInt("price");
+    String result = scalarExtractor.visit(expr);
+    assertEquals("int4", result);
+  }
+
+  @Test
+  void testVisitIdentifierExpression_scalarType_withoutType() {
+    PostgresTypeExtractor scalarExtractor = PostgresTypeExtractor.scalarType();
+    IdentifierExpression expr = IdentifierExpression.of("item");
+    String result = scalarExtractor.visit(expr);
+    assertNull(result);
   }
 
   @Test

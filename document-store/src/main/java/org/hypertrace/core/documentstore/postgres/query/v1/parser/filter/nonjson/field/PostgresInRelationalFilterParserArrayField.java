@@ -31,6 +31,9 @@ public class PostgresInRelationalFilterParserArrayField
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
     final Iterable<Object> parsedRhs = expression.getRhs().accept(context.rhsParser());
 
+    // Extract element type from expression metadata for type-safe query generation
+    String sqlType = expression.getLhs().accept(PostgresTypeExtractor.scalarType());
+
     // Check if this field has been unnested - if so, treat it as a scalar
     ArrayIdentifierExpression arrayExpr = (ArrayIdentifierExpression) expression.getLhs();
     String fieldName = arrayExpr.getName();
@@ -38,72 +41,91 @@ public class PostgresInRelationalFilterParserArrayField
       // Field is unnested - each element is now a scalar, not an array
       // Use scalar IN operator instead of array overlap
       return prepareFilterStringForScalarInOperator(
-          parsedLhs, parsedRhs, context.getParamsBuilder());
+          parsedLhs, parsedRhs, sqlType, context.getParamsBuilder());
     }
 
     // Field is NOT unnested - use array overlap logic
-    String arrayTypeCast = expression.getLhs().accept(new PostgresArrayTypeExtractor());
     return prepareFilterStringForArrayInOperator(
-        parsedLhs, parsedRhs, arrayTypeCast, context.getParamsBuilder());
+        parsedLhs, parsedRhs, sqlType, context.getParamsBuilder());
   }
 
   /**
    * Generates SQL for scalar IN operator (used when array field has been unnested). Example:
-   * "tags_unnested" IN (?, ?, ?)
+   * "tags_unnested" = ANY(?)
    */
   private String prepareFilterStringForScalarInOperator(
       final String parsedLhs,
       final Iterable<Object> parsedRhs,
+      final String sqlType,
       final Params.Builder paramsBuilder) {
+    // If type is specified, use optimized ANY(ARRAY[]) syntax
+    // Otherwise, fall back to traditional IN (?, ?, ?) for backward compatibility
+    if (sqlType != null) {
+      Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
-    String placeholders =
-        StreamSupport.stream(parsedRhs.spliterator(), false)
-            .map(
-                value -> {
-                  paramsBuilder.addObjectParam(value);
-                  return "?";
-                })
-            .collect(Collectors.joining(", "));
+      if (values.length == 0) {
+        return "1 = 0";
+      }
 
-    // Scalar IN operator for unnested array elements
-    return String.format("%s IN (%s)", parsedLhs, placeholders);
+      paramsBuilder.addArrayParam(values, sqlType);
+      return String.format("%s = ANY(?)", parsedLhs);
+    } else {
+      return prepareFilterStringFallback(parsedLhs, parsedRhs, paramsBuilder, "%s IN (%s)");
+    }
   }
 
   /**
    * Generates SQL for array overlap operator (used for non-unnested array fields). Example: "tags"
-   * && ARRAY[?, ?]::text[]
+   * && ?
+   *
+   * <p>Uses a single array parameter.
    */
   private String prepareFilterStringForArrayInOperator(
       final String parsedLhs,
       final Iterable<Object> parsedRhs,
-      final String arrayType,
+      final String sqlType,
       final Params.Builder paramsBuilder) {
+    // If type is specified, use optimized array overlap with typed array
+    // Otherwise, fall back to jsonb-based approach for backward compatibility
+    if (sqlType != null) {
+      Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
-    String placeholders =
+      if (values.length == 0) {
+        return "1 = 0";
+      }
+
+      paramsBuilder.addArrayParam(values, sqlType);
+      return String.format("%s && ?", parsedLhs);
+    } else {
+      // Fallback: cast both sides to text[] for backward compatibility with any array type
+      return prepareFilterStringFallback(
+          parsedLhs, parsedRhs, paramsBuilder, "%s::text[] && ARRAY[%s]::text[]");
+    }
+  }
+
+  /**
+   * Fallback method using traditional (?, ?, ?) syntax for backward compatibility when type
+   * information is not available.
+   */
+  private String prepareFilterStringFallback(
+      final String parsedLhs,
+      final Iterable<Object> parsedRhs,
+      final Params.Builder paramsBuilder,
+      final String formatPattern) {
+
+    String collect =
         StreamSupport.stream(parsedRhs.spliterator(), false)
             .map(
-                value -> {
-                  paramsBuilder.addObjectParam(value);
+                val -> {
+                  paramsBuilder.addObjectParam(val);
                   return "?";
                 })
             .collect(Collectors.joining(", "));
 
-    // Use array overlap operator for array fields
-    if (arrayType != null) {
-      // Type-aware optimization
-      if (arrayType.equals("text[]")) {
-        // cast RHS to text[] otherwise JDBC binds it as character varying[].
-        return String.format("%s && ARRAY[%s]::text[]", parsedLhs, placeholders);
-      } else {
-        // INTEGER/BOOLEAN arrays: No casting needed, JDBC binds them correctly
-        // "numbers" && ARRAY[?, ?]  (PostgreSQL infers integer[])
-        // "flags" && ARRAY[?, ?]    (PostgreSQL infers boolean[])
-        return String.format("%s && ARRAY[%s]", parsedLhs, placeholders);
-      }
-    } else {
-      // Fallback: Cast both LHS and RHS to text[] to avoid type mismatch issues. This has the worst
-      // performance because casting LHS doesn't let PG use indexes on this col
-      return String.format("%s::text[] && ARRAY[%s]::text[]", parsedLhs, placeholders);
+    if (collect.isEmpty()) {
+      return "1 = 0";
     }
+
+    return String.format(formatPattern, parsedLhs, collect);
   }
 }

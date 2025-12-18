@@ -5,7 +5,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
-import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresArrayTypeExtractor;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresTypeExtractor;
 
 /**
  * Handles EQ/NEQ operations on top-level array columns when RHS is also an array, using exact
@@ -43,7 +43,7 @@ class PostgresTopLevelArrayEqualityFilterParser implements PostgresRelationalFil
             .collect(Collectors.joining(", "));
 
     ArrayIdentifierExpression arrayExpr = (ArrayIdentifierExpression) expression.getLhs();
-    String arrayTypeCast = arrayExpr.accept(new PostgresArrayTypeExtractor());
+    String arrayTypeCast = arrayExpr.accept(PostgresTypeExtractor.arrayType());
 
     // Generate: tags = ARRAY[?, ?]::text[]
     if (arrayTypeCast != null) {

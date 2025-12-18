@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.sql.Array;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
@@ -598,7 +599,15 @@ public class PostgresUtils {
         .forEach(
             (k, v) -> {
               try {
-                if (isValidPrimitiveType(v)) {
+                if (v instanceof Params.ArrayParam) {
+                  // Handle array parameter - create PostgreSQL array
+                  Params.ArrayParam arrayParam = (Params.ArrayParam) v;
+                  Array sqlArray =
+                      preparedStatement
+                          .getConnection()
+                          .createArrayOf(arrayParam.getSqlType(), arrayParam.getValues());
+                  preparedStatement.setArray(k, sqlArray);
+                } else if (isValidPrimitiveType(v)) {
                   preparedStatement.setObject(k, v);
                 } else {
                   throw new UnsupportedOperationException("Un-supported object types in filter");

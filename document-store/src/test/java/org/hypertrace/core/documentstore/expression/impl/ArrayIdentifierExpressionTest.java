@@ -4,7 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
-import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresArrayTypeExtractor;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresTypeExtractor;
 import org.junit.jupiter.api.Test;
 
 class ArrayIdentifierExpressionTest {
@@ -79,7 +79,7 @@ class ArrayIdentifierExpressionTest {
     assertEquals("tags", expression.getName());
     assertEquals(DataType.STRING, expression.getElementDataType());
 
-    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
     assertEquals("text[]", expression.accept(extractor));
   }
 
@@ -90,8 +90,8 @@ class ArrayIdentifierExpressionTest {
     assertEquals("ids", expression.getName());
     assertEquals(DataType.INTEGER, expression.getElementDataType());
 
-    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
-    assertEquals("integer[]", expression.accept(extractor));
+    PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
+    assertEquals("int4[]", expression.accept(extractor));
   }
 
   @Test
@@ -101,8 +101,8 @@ class ArrayIdentifierExpressionTest {
     assertEquals("timestamps", expression.getName());
     assertEquals(DataType.LONG, expression.getElementDataType());
 
-    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
-    assertEquals("bigint[]", expression.accept(extractor));
+    PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
+    assertEquals("int8[]", expression.accept(extractor));
   }
 
   @Test
@@ -112,8 +112,8 @@ class ArrayIdentifierExpressionTest {
     assertEquals("temperatures", expression.getName());
     assertEquals(DataType.FLOAT, expression.getElementDataType());
 
-    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
-    assertEquals("real[]", expression.accept(extractor));
+    PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
+    assertEquals("float4[]", expression.accept(extractor));
   }
 
   @Test
@@ -123,8 +123,8 @@ class ArrayIdentifierExpressionTest {
     assertEquals("coordinates", expression.getName());
     assertEquals(DataType.DOUBLE, expression.getElementDataType());
 
-    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
-    assertEquals("double precision[]", expression.accept(extractor));
+    PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
+    assertEquals("float8[]", expression.accept(extractor));
   }
 
   @Test
@@ -134,8 +134,8 @@ class ArrayIdentifierExpressionTest {
     assertEquals("flags", expression.getName());
     assertEquals(DataType.BOOLEAN, expression.getElementDataType());
 
-    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
-    assertEquals("boolean[]", expression.accept(extractor));
+    PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
+    assertEquals("bool[]", expression.accept(extractor));
   }
 
   @Test
@@ -145,7 +145,7 @@ class ArrayIdentifierExpressionTest {
     assertEquals("eventsTz", expression.getName());
     assertEquals(DataType.TIMESTAMPTZ, expression.getElementDataType());
 
-    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
     assertEquals("timestamptz[]", expression.accept(extractor));
   }
 
@@ -156,17 +156,17 @@ class ArrayIdentifierExpressionTest {
     assertEquals("dates", expression.getName());
     assertEquals(DataType.DATE, expression.getElementDataType());
 
-    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
     assertEquals("date[]", expression.accept(extractor));
   }
 
   @Test
-  void testPostgresArrayTypeExtractorReturnsNullForUnspecifiedType() {
+  void testPostgresTypeExtractorReturnsNullForUnspecifiedType() {
     ArrayIdentifierExpression expression = ArrayIdentifierExpression.of("untyped");
 
     assertEquals(DataType.UNSPECIFIED, expression.getElementDataType());
 
-    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    PostgresTypeExtractor extractor = PostgresTypeExtractor.arrayType();
     String arrayType = expression.accept(extractor);
     assertNull(arrayType);
   }
