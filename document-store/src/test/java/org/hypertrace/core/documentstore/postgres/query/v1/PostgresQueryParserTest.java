@@ -625,7 +625,7 @@ public class PostgresQueryParserTest {
         Filter.builder()
             .expression(
                 RelationalExpression.of(
-                    IdentifierExpression.of("item"),
+                    IdentifierExpression.ofString("item"),
                     IN,
                     ConstantExpression.ofStrings(List.of("Mirror", "Comb", "Shampoo", "Bottle"))))
             .build();
@@ -1492,7 +1492,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    IdentifierExpression.of("category"),
+                    IdentifierExpression.ofString("category"),
                     NOT_IN,
                     ConstantExpression.ofStrings(List.of("electronics", "clothing"))))
             .build();
@@ -1815,7 +1815,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    IdentifierExpression.of("category"),
+                    IdentifierExpression.ofString("category"),
                     IN,
                     ConstantExpression.ofStrings(List.of("electronics", "clothing", "books"))))
             .build();
@@ -1842,7 +1842,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    IdentifierExpression.of("price"),
+                    IdentifierExpression.ofInt("price"),
                     IN,
                     ConstantExpression.ofNumbers(List.of(10, 20, 30))))
             .build();
@@ -1869,7 +1869,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    ArrayIdentifierExpression.of("tags", ArrayType.TEXT),
+                    ArrayIdentifierExpression.ofStrings("tags"),
                     IN,
                     ConstantExpression.ofStrings(List.of("premium", "sale", "new"))))
             .build();
@@ -1896,7 +1896,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    ArrayIdentifierExpression.of("numbers", ArrayType.INTEGER),
+                    ArrayIdentifierExpression.ofInts("numbers"),
                     IN,
                     ConstantExpression.ofNumbers(List.of(5, 10, 15))))
             .build();
@@ -1923,7 +1923,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 RelationalExpression.of(
-                    IdentifierExpression.of("status"),
+                    IdentifierExpression.ofString("status"),
                     NOT_IN,
                     ConstantExpression.ofStrings(List.of("inactive", "archived"))))
             .build();

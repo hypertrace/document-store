@@ -50,18 +50,11 @@ public class PostgresContainsRelationalFilterParserNonJsonField
     }
 
     // Field is NOT unnested - use array containment operator
-    String arrayTypeCast = expression.getLhs().accept(new PostgresArrayTypeExtractor());
+    String arrayType = expression.getLhs().accept(PostgresTypeExtractor.arrayType());
+    // Fallback to text[] if type is unknown
+    String typeCast = (arrayType != null) ? arrayType : "text[]";
 
-    // Use ARRAY[?, ?, ...] syntax with appropriate type cast
-    if (arrayTypeCast != null && arrayTypeCast.equals("text[]")) {
-      return String.format("%s @> ARRAY[%s]::text[]", parsedLhs, placeholders);
-    } else if (arrayTypeCast != null) {
-      // INTEGER/BOOLEAN/DOUBLE arrays: Use the correct type cast
-      return String.format("%s @> ARRAY[%s]::%s", parsedLhs, placeholders, arrayTypeCast);
-    } else {
-      // Fallback: use text[] cast
-      return String.format("%s @> ARRAY[%s]::text[]", parsedLhs, placeholders);
-    }
+    return String.format("%s @> ARRAY[%s]::%s", parsedLhs, placeholders, typeCast);
   }
 
   private Iterable<Object> normalizeToIterable(final Object value) {

@@ -1,12 +1,12 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field;
 
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresInRelationalFilterParserInterface;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParser;
-import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 /**
  * Implementation of PostgresInRelationalFilterParserInterface for handling IN operations on array
@@ -31,6 +31,9 @@ public class PostgresInRelationalFilterParserArrayField
     final String parsedLhs = expression.getLhs().accept(context.lhsParser());
     final Iterable<Object> parsedRhs = expression.getRhs().accept(context.rhsParser());
 
+    // Extract element type from expression metadata for type-safe query generation
+    String sqlType = expression.getLhs().accept(PostgresTypeExtractor.scalarType());
+
     // Check if this field has been unnested - if so, treat it as a scalar
     ArrayIdentifierExpression arrayExpr = (ArrayIdentifierExpression) expression.getLhs();
     String fieldName = arrayExpr.getName();
@@ -38,13 +41,12 @@ public class PostgresInRelationalFilterParserArrayField
       // Field is unnested - each element is now a scalar, not an array
       // Use scalar IN operator instead of array overlap
       return prepareFilterStringForScalarInOperator(
-          parsedLhs, parsedRhs, context.getParamsBuilder());
+          parsedLhs, parsedRhs, sqlType, context.getParamsBuilder());
     }
 
     // Field is NOT unnested - use array overlap logic
-    String arrayTypeCast = expression.getLhs().accept(new PostgresArrayTypeExtractor());
     return prepareFilterStringForArrayInOperator(
-        parsedLhs, parsedRhs, arrayTypeCast, context.getParamsBuilder());
+        parsedLhs, parsedRhs, sqlType, context.getParamsBuilder());
   }
 
   /**
@@ -54,19 +56,22 @@ public class PostgresInRelationalFilterParserArrayField
   private String prepareFilterStringForScalarInOperator(
       final String parsedLhs,
       final Iterable<Object> parsedRhs,
+      final String sqlType,
       final Params.Builder paramsBuilder) {
+    // If type is specified, use optimized ANY(ARRAY[]) syntax
+    // Otherwise, fall back to traditional IN (?, ?, ?) for backward compatibility
+    if (sqlType != null) {
+      Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
-    Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
+      if (values.length == 0) {
+        return "1 = 0";
+      }
 
-    if (values.length == 0) {
-      // return FALSE
-      return "1 = 0";
+      paramsBuilder.addArrayParam(values, sqlType);
+      return String.format("%s = ANY(?)", parsedLhs);
+    } else {
+      return prepareFilterStringFallback(parsedLhs, parsedRhs, paramsBuilder, "%s IN (%s)");
     }
-
-    // SQL type is needed during parameter binding
-    paramsBuilder.addArrayParam(values, PostgresUtils.inferSqlTypeFromValue(values));
-
-    return String.format("%s = ANY(?)", parsedLhs);
   }
 
   /**
@@ -78,45 +83,48 @@ public class PostgresInRelationalFilterParserArrayField
   private String prepareFilterStringForArrayInOperator(
       final String parsedLhs,
       final Iterable<Object> parsedRhs,
-      final String arrayType,
+      final String sqlType,
       final Params.Builder paramsBuilder) {
+    // If type is specified, use optimized array overlap with typed array
+    // Otherwise, fall back to jsonb-based approach for backward compatibility
+    if (sqlType != null) {
+      Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
 
-    // Collect all values into an array
-    Object[] values = StreamSupport.stream(parsedRhs.spliterator(), false).toArray();
+      if (values.length == 0) {
+        return "1 = 0";
+      }
 
-    if (values.length == 0) {
+      paramsBuilder.addArrayParam(values, sqlType);
+      return String.format("%s && ?", parsedLhs);
+    } else {
+      // Fallback: use jsonb array contains approach
+      return prepareFilterStringFallback(parsedLhs, parsedRhs, paramsBuilder, "%s @> ARRAY[%s]");
+    }
+  }
+
+  /**
+   * Fallback method using traditional (?, ?, ?) syntax for backward compatibility when type
+   * information is not available.
+   */
+  private String prepareFilterStringFallback(
+      final String parsedLhs,
+      final Iterable<Object> parsedRhs,
+      final Params.Builder paramsBuilder,
+      final String formatPattern) {
+
+    String collect =
+        StreamSupport.stream(parsedRhs.spliterator(), false)
+            .map(
+                val -> {
+                  paramsBuilder.addObjectParam(val);
+                  return "?";
+                })
+            .collect(Collectors.joining(", "));
+
+    if (collect.isEmpty()) {
       return "1 = 0";
     }
 
-    // Infer SQL type from first value or array type hint
-    String sqlType =
-        arrayType != null
-            ? mapArrayTypeToSqlType(arrayType)
-            : PostgresUtils.inferSqlTypeFromValue(values);
-
-    // Add as single array parameter
-    paramsBuilder.addArrayParam(values, sqlType);
-
-    // Use array overlap operator with single parameter
-    return String.format("%s && ?", parsedLhs);
-  }
-
-  private String mapArrayTypeToSqlType(String arrayType) {
-    // Remove [] suffix
-    String baseType = arrayType.replace("[]", "");
-
-    // Map to internal type names for createArrayOf()
-    switch (baseType) {
-      case "double precision":
-        return "float8";
-      case "integer":
-        return "int4";
-      case "boolean":
-        return "bool";
-      case "text":
-        return "text";
-      default:
-        return baseType;
-    }
+    return String.format(formatPattern, parsedLhs, collect);
   }
 }

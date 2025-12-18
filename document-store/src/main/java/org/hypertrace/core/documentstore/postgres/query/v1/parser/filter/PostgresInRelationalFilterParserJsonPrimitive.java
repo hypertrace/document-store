@@ -5,7 +5,6 @@ import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
-import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 /**
  * Optimized parser for IN operations on JSON primitive fields (string, number, boolean) with proper
@@ -69,8 +68,8 @@ public class PostgresInRelationalFilterParserJsonPrimitive
       return "1 = 0";
     }
 
-    // Add as single array parameter
-    paramsBuilder.addArrayParam(values, PostgresUtils.inferSqlTypeFromValue(values));
+    String sqlType = mapJsonFieldTypeToSqlType(fieldType);
+    paramsBuilder.addArrayParam(values, sqlType);
 
     // Apply appropriate casting based on field type
     String lhsWithCast = parsedLhs;
@@ -80,5 +79,17 @@ public class PostgresInRelationalFilterParserJsonPrimitive
       lhsWithCast = String.format("CAST(%s AS BOOLEAN)", parsedLhs);
     }
     return String.format("%s = ANY(?)", lhsWithCast);
+  }
+
+  private String mapJsonFieldTypeToSqlType(JsonFieldType fieldType) {
+    switch (fieldType) {
+      case NUMBER:
+        return "float8";
+      case BOOLEAN:
+        return "bool";
+      case STRING:
+      default:
+        return "text";
+    }
   }
 }

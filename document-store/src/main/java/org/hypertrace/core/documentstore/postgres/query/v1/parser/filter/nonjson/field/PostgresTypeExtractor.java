@@ -11,39 +11,66 @@ import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpressio
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
 /**
- * Visitor to extract PostgreSQL array type information from {@link ArrayIdentifierExpression}.
+ * Visitor to extract PostgreSQL type information from identifier expressions.
  *
- * <p>This visitor is specifically designed to work ONLY with {@link ArrayIdentifierExpression}. Any
- * other expression type will throw {@link UnsupportedOperationException} to catch programming
- * errors early.
- *
- * <p>Returns:
+ * <p>Supports two extraction modes:
  *
  * <ul>
- *   <li>The PostgreSQL array type string (e.g., "text[]", "integer[]")
- *   <li>{@code null} if {@link ArrayIdentifierExpression} has UNSPECIFIED type
+ *   <li><b>Scalar type:</b> Returns type names (e.g., "int4", "text") for use with {@code
+ *       Connection.createArrayOf()}
+ *   <li><b>Array type:</b> Returns array type strings (e.g., "int4[]", "text[]") for SQL type
+ *       casting
  * </ul>
+ *
+ * <p>Returns {@code null} if the expression has UNSPECIFIED type.
  */
-public class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
+public class PostgresTypeExtractor implements SelectTypeExpressionVisitor {
 
-  public PostgresArrayTypeExtractor() {}
+  private final boolean extractArrayType;
+
+  private PostgresTypeExtractor(boolean extractArrayType) {
+    this.extractArrayType = extractArrayType;
+  }
+
+  /**
+   * Creates an extractor that returns scalar SQL type names.
+   *
+   * @return A type extractor returning types like "int4", "float8", "text"
+   */
+  public static PostgresTypeExtractor scalarType() {
+    return new PostgresTypeExtractor(false);
+  }
+
+  /**
+   * Creates an extractor that returns array SQL type strings for SQL type casting.
+   *
+   * @return A type extractor returning array types like "int4[]", "text[]"
+   */
+  public static PostgresTypeExtractor arrayType() {
+    return new PostgresTypeExtractor(true);
+  }
+
+  @Override
+  public String visit(IdentifierExpression expression) {
+    PostgresDataType pgType = PostgresDataType.fromDataType(expression.getDataType());
+    if (pgType == PostgresDataType.UNKNOWN) {
+      return null;
+    }
+    return extractArrayType ? pgType.getArraySqlType() : pgType.getSqlType();
+  }
 
   @Override
   public String visit(ArrayIdentifierExpression expression) {
     PostgresDataType pgType = PostgresDataType.fromDataType(expression.getElementDataType());
-    return pgType == PostgresDataType.UNKNOWN ? null : pgType.getArraySqlType();
+    if (pgType == PostgresDataType.UNKNOWN) {
+      return null;
+    }
+    return extractArrayType ? pgType.getArraySqlType() : pgType.getSqlType();
   }
 
   @Override
   public String visit(JsonIdentifierExpression expression) {
     throw unsupportedExpression("JsonIdentifierExpression");
-  }
-
-  @Override
-  public String visit(IdentifierExpression expression) {
-    throw new UnsupportedOperationException(
-        "PostgresArrayTypeExtractor should only be used with ArrayIdentifierExpression. "
-            + "Use IdentifierExpression only for scalar fields, not arrays.");
   }
 
   @Override
@@ -73,7 +100,8 @@ public class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
 
   private static UnsupportedOperationException unsupportedExpression(String expressionType) {
     return new UnsupportedOperationException(
-        "PostgresArrayTypeExtractor should only be used with ArrayIdentifierExpression, not "
+        "PostgresTypeExtractor should only be used with IdentifierExpression or "
+            + "ArrayIdentifierExpression, not "
             + expressionType);
   }
 }
