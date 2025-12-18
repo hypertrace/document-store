@@ -73,6 +73,8 @@ public class IdentifierExpression
     return of(name, DataType.BOOLEAN);
   }
 
+  // Timestamp with time-zone information. For example: 2004-10-19 10:23:54+02. For more info, see:
+  // https://www.postgresql.org/docs/current/datatype-datetime.html
   public static IdentifierExpression ofTimestampTz(final String name) {
     return of(name, DataType.TIMESTAMPTZ);
   }
