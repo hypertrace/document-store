@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -23,7 +22,7 @@ class PostgresFieldTypeDetectorTest {
 
   @Test
   void testVisitArrayIdentifierExpression_returnsArray() {
-    ArrayIdentifierExpression expr = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression expr = ArrayIdentifierExpression.ofStrings("tags");
     FieldCategory result = detector.visit(expr);
     assertNotNull(result);
     assertEquals(FieldCategory.ARRAY, result, "ArrayIdentifierExpression should return ARRAY");

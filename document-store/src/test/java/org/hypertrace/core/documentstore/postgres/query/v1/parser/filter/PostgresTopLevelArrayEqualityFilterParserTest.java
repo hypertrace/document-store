@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
@@ -45,7 +44,7 @@ class PostgresTopLevelArrayEqualityFilterParserTest {
 
   @Test
   void testParseNullRhs() {
-    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.ofStrings("tags");
     ConstantExpression rhs = ConstantExpression.of("ignored");
     RelationalExpression expression = RelationalExpression.of(lhs, EQ, rhs);
 
@@ -68,7 +67,7 @@ class PostgresTopLevelArrayEqualityFilterParserTest {
 
   @Test
   void testParseScalarRhsEq() {
-    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.ofStrings("tags");
     ConstantExpression rhs = ConstantExpression.of("hygiene");
     RelationalExpression expression = RelationalExpression.of(lhs, EQ, rhs);
 
@@ -83,7 +82,7 @@ class PostgresTopLevelArrayEqualityFilterParserTest {
 
   @Test
   void testParseIterableRhsEq() {
-    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.ofStrings("tags");
     ConstantExpression rhs = ConstantExpression.ofStrings(List.of("hygiene", "family-pack"));
     RelationalExpression expression = RelationalExpression.of(lhs, EQ, rhs);
 
@@ -99,7 +98,7 @@ class PostgresTopLevelArrayEqualityFilterParserTest {
 
   @Test
   void testParseIterableRhsNeq() {
-    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.ofStrings("tags");
     ConstantExpression rhs = ConstantExpression.ofStrings(List.of("a", "b"));
     RelationalExpression expression = RelationalExpression.of(lhs, NEQ, rhs);
 

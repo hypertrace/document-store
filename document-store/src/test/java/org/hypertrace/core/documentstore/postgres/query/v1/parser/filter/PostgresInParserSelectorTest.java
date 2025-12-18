@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -23,7 +22,7 @@ class PostgresInParserSelectorTest {
   @Test
   void testVisitArrayIdentifierExpression_flatCollection() {
     PostgresInParserSelector selector = new PostgresInParserSelector(true);
-    ArrayIdentifierExpression expr = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression expr = ArrayIdentifierExpression.ofStrings("tags");
     PostgresInRelationalFilterParserInterface result = selector.visit(expr);
     assertNotNull(result);
     assertInstanceOf(PostgresInRelationalFilterParserArrayField.class, result);
@@ -32,7 +31,7 @@ class PostgresInParserSelectorTest {
   @Test
   void testVisitArrayIdentifierExpression_nestedCollection() {
     PostgresInParserSelector selector = new PostgresInParserSelector(false);
-    ArrayIdentifierExpression expr = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression expr = ArrayIdentifierExpression.ofStrings("tags");
     PostgresInRelationalFilterParserInterface result = selector.visit(expr);
     assertNotNull(result);
     assertInstanceOf(PostgresInRelationalFilterParser.class, result);

@@ -3,7 +3,6 @@ package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjso
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -21,9 +20,8 @@ import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
  * <p>Returns:
  *
  * <ul>
- *   <li>The PostgreSQL array type string (e.g., "text[]", "integer[]") if {@link ArrayType} is
- *       specified
- *   <li>{@code null} if {@link ArrayIdentifierExpression} is used without an explicit type
+ *   <li>The PostgreSQL array type string (e.g., "text[]", "integer[]")
+ *   <li>{@code null} if {@link ArrayIdentifierExpression} has UNSPECIFIED type
  * </ul>
  */
 public class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
@@ -32,7 +30,8 @@ public class PostgresArrayTypeExtractor implements SelectTypeExpressionVisitor {
 
   @Override
   public String visit(ArrayIdentifierExpression expression) {
-    return expression.getArrayType().map(ArrayType::getPostgresType).orElse(null);
+    PostgresDataType pgType = PostgresDataType.fromDataType(expression.getElementDataType());
+    return pgType == PostgresDataType.UNKNOWN ? null : pgType.getArraySqlType();
   }
 
   @Override

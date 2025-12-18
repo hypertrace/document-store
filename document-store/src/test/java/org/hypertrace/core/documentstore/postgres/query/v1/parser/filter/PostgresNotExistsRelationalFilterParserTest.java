@@ -7,7 +7,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
@@ -35,7 +34,7 @@ class PostgresNotExistsRelationalFilterParserTest {
   @Test
   void testParse_arrayField_rhsFalse() {
     // Test NOT_EXISTS on array with RHS = false (means NOT_EXISTS should be true)
-    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.ofStrings("tags");
     ConstantExpression rhs = ConstantExpression.of(false);
     RelationalExpression expression = RelationalExpression.of(lhs, NOT_EXISTS, rhs);
 
@@ -52,7 +51,7 @@ class PostgresNotExistsRelationalFilterParserTest {
   @Test
   void testParse_arrayField_rhsTrue() {
     // Test NOT_EXISTS on array with RHS = true (means NOT_EXISTS should be false)
-    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression lhs = ArrayIdentifierExpression.ofStrings("tags");
     ConstantExpression rhs = ConstantExpression.of("null"); // Any non-false value
     RelationalExpression expression = RelationalExpression.of(lhs, NOT_EXISTS, rhs);
 
