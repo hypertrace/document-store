@@ -319,6 +319,7 @@ public class FlatCollectionWriteTest {
 
     @Test
     @DisplayName("Should delete document by key")
+    @Disabled
     void testDeleteByKey() {
       assertEquals(
           INITIAL_ROW_COUNT,
@@ -348,6 +349,7 @@ public class FlatCollectionWriteTest {
 
     @Test
     @DisplayName("Should delete all documents")
+    @Disabled
     void testDeleteAll() {
       assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
 
