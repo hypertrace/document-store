@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
-import org.hypertrace.core.documentstore.expression.impl.ArrayType;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
@@ -34,7 +33,7 @@ class PostgresArrayEqualityParserSelectorTest {
   @Test
   void testVisitArrayIdentifierExpression() {
     PostgresArrayEqualityParserSelector selector = new PostgresArrayEqualityParserSelector();
-    ArrayIdentifierExpression expr = ArrayIdentifierExpression.of("tags", ArrayType.TEXT);
+    ArrayIdentifierExpression expr = ArrayIdentifierExpression.ofStrings("tags");
 
     Object result = selector.visit(expr);
 
