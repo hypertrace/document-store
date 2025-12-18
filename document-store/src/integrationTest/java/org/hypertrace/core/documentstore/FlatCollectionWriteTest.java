@@ -1,10 +1,7 @@
 package org.hypertrace.core.documentstore;
 
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,7 +19,6 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -170,146 +166,106 @@ public class FlatCollectionWriteTest {
 
   @Nested
   @DisplayName("Upsert Operations")
-  @Disabled("Upsert operations not yet implemented for flat collections")
   class UpsertTests {
 
     @Test
-    @DisplayName("Should insert new document when key does not exist")
-    void testUpsertNewDocument() throws IOException {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
+    @DisplayName("Should throw UnsupportedOperationException for upsert")
+    void testUpsertNewDocument() {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("_id", 100);
       objectNode.put("item", "NewItem");
       objectNode.put("price", 99);
-      objectNode.put("quantity", 10);
-      objectNode.put("in_stock", true);
       Document document = new JSONDocument(objectNode);
-
       Key key = new SingleValueKey("default", "100");
-      boolean result = flatCollection.upsert(key, document);
-      assertTrue(result);
 
-      assertEquals(INITIAL_ROW_COUNT + 1, flatCollection.count());
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.upsert(key, document));
     }
 
     @Test
-    @DisplayName("Should update existing document when key exists")
-    void testUpsertUpdatesExistingDocument() throws IOException {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
+    @DisplayName("Should throw UnsupportedOperationException for upsertAndReturn")
+    void testUpsertAndReturn() {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("_id", 1);
-      objectNode.put("item", "Soap Premium");
-      objectNode.put("price", 25);
-      objectNode.put("quantity", 100);
+      objectNode.put("_id", 100);
+      objectNode.put("item", "NewItem");
       Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "100");
 
-      Key key = new SingleValueKey("default", "1");
-      flatCollection.upsert(key, document);
-
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-    }
-
-    @Test
-    @DisplayName("Should upsert document with JSONB field")
-    void testUpsertWithJsonbField() throws IOException {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("_id", 400);
-      objectNode.put("item", "ItemWithProps");
-      objectNode.put("price", 50);
-
-      ObjectNode propsNode = OBJECT_MAPPER.createObjectNode();
-      propsNode.put("color", "green");
-      propsNode.put("size", "XL");
-      objectNode.set("props", propsNode);
-
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "400");
-
-      boolean result = flatCollection.upsert(key, document);
-      assertTrue(result);
-      assertEquals(INITIAL_ROW_COUNT + 1, flatCollection.count());
+      assertThrows(
+          UnsupportedOperationException.class, () -> flatCollection.upsertAndReturn(key, document));
     }
   }
 
   @Nested
   @DisplayName("Create Operations")
-  @Disabled("Create operations not yet implemented for flat collections")
   class CreateTests {
 
     @Test
-    @DisplayName("Should create new document")
-    void testCreate() throws IOException {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
+    @DisplayName("Should throw UnsupportedOperationException for create")
+    void testCreate() {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("_id", 300);
       objectNode.put("item", "Brand New Item");
-      objectNode.put("price", 15);
       Document document = new JSONDocument(objectNode);
-
       Key key = new SingleValueKey("default", "300");
-      CreateResult result = flatCollection.create(key, document);
 
-      assertNotNull(result);
-      assertEquals(INITIAL_ROW_COUNT + 1, flatCollection.count());
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.create(key, document));
     }
 
     @Test
-    @DisplayName("Should create or replace document")
-    void testCreateOrReplace() throws IOException {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
+    @DisplayName("Should throw UnsupportedOperationException for createOrReplace")
+    void testCreateOrReplace() {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("_id", 200);
       objectNode.put("item", "NewMirror");
-      objectNode.put("price", 30);
       Document document = new JSONDocument(objectNode);
-
       Key key = new SingleValueKey("default", "200");
 
-      boolean created = flatCollection.createOrReplace(key, document);
-      assertTrue(created);
-      assertEquals(INITIAL_ROW_COUNT + 1, flatCollection.count());
+      assertThrows(
+          UnsupportedOperationException.class, () -> flatCollection.createOrReplace(key, document));
+    }
 
-      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
-      updatedNode.put("_id", 200);
-      updatedNode.put("item", "Mirror Deluxe");
-      updatedNode.put("price", 50);
-      Document updatedDocument = new JSONDocument(updatedNode);
+    @Test
+    @DisplayName("Should throw UnsupportedOperationException for createOrReplaceAndReturn")
+    void testCreateOrReplaceAndReturn() {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("_id", 200);
+      objectNode.put("item", "NewMirror");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "200");
 
-      boolean createdAgain = flatCollection.createOrReplace(key, updatedDocument);
-      assertFalse(createdAgain);
-      assertEquals(INITIAL_ROW_COUNT + 1, flatCollection.count());
+      assertThrows(
+          UnsupportedOperationException.class,
+          () -> flatCollection.createOrReplaceAndReturn(key, document));
     }
   }
 
   @Nested
   @DisplayName("Bulk Operations")
-  @Disabled("Bulk operations not yet implemented for flat collections")
   class BulkOperationTests {
 
     @Test
-    @DisplayName("Should bulk upsert multiple documents")
+    @DisplayName("Should throw UnsupportedOperationException for bulkUpsert")
     void testBulkUpsert() {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
       Map<Key, Document> bulkMap = new HashMap<>();
-      for (int i = 101; i <= 105; i++) {
-        ObjectNode node = OBJECT_MAPPER.createObjectNode();
-        node.put("_id", i);
-        node.put("item", "BulkItem" + i);
-        node.put("price", i * 10);
-        bulkMap.put(new SingleValueKey("default", String.valueOf(i)), new JSONDocument(node));
-      }
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("_id", 101);
+      node.put("item", "BulkItem101");
+      bulkMap.put(new SingleValueKey("default", "101"), new JSONDocument(node));
 
-      boolean result = flatCollection.bulkUpsert(bulkMap);
-      assertTrue(result);
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.bulkUpsert(bulkMap));
+    }
 
-      assertEquals(INITIAL_ROW_COUNT + 5, flatCollection.count());
+    @Test
+    @DisplayName("Should throw UnsupportedOperationException for bulkUpsertAndReturnOlderDocuments")
+    void testBulkUpsertAndReturnOlderDocuments() {
+      Map<Key, Document> bulkMap = new HashMap<>();
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("_id", 101);
+      bulkMap.put(new SingleValueKey("default", "101"), new JSONDocument(node));
+
+      assertThrows(
+          UnsupportedOperationException.class,
+          () -> flatCollection.bulkUpsertAndReturnOlderDocuments(bulkMap));
     }
   }
 
@@ -318,129 +274,96 @@ public class FlatCollectionWriteTest {
   class DeleteTests {
 
     @Test
-    @DisplayName("Should delete document by key")
-    @Disabled
+    @DisplayName("Should throw UnsupportedOperationException for delete by key")
     void testDeleteByKey() {
-      assertEquals(
-          INITIAL_ROW_COUNT,
-          flatCollection.count(),
-          getPreconditionFailureMessage(
-              "DB does not have initial row count of: " + INITIAL_ROW_COUNT));
-
       Key keyToDelete = new SingleValueKey("default", "1");
-      boolean deleted = flatCollection.delete(keyToDelete);
-      assertTrue(deleted);
-
-      assertEquals(INITIAL_ROW_COUNT - 1, flatCollection.count());
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(keyToDelete));
     }
 
     @Test
-    @DisplayName("Should delete documents by filter")
-    @Disabled("Delete by filter not yet implemented for flat collections")
+    @DisplayName("Should throw UnsupportedOperationException for delete by filter")
     void testDeleteByFilter() {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
       Filter filter = Filter.eq("item", "Soap");
-      boolean deleted = flatCollection.delete(filter);
-      assertTrue(deleted);
-
-      assertEquals(7, flatCollection.count());
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(filter));
     }
 
     @Test
-    @DisplayName("Should delete all documents")
-    @Disabled
+    @DisplayName("Should throw UnsupportedOperationException for delete by keys")
+    void testDeleteByKeys() {
+      Set<Key> keys =
+          Set.of(new SingleValueKey("default", "1"), new SingleValueKey("default", "2"));
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(keys));
+    }
+
+    @Test
+    @DisplayName("Should throw UnsupportedOperationException for deleteAll")
     void testDeleteAll() {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
-      boolean deleted = flatCollection.deleteAll();
-      assertTrue(deleted);
-
-      assertEquals(0, flatCollection.count());
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.deleteAll());
     }
   }
 
   @Nested
   @DisplayName("Update Operations")
-  @Disabled("Update operations not yet implemented for flat collections")
   class UpdateTests {
 
     @Test
-    @DisplayName("Should update document with condition")
-    void testUpdateWithCondition() throws IOException {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
+    @DisplayName("Should throw UnsupportedOperationException for update with condition")
+    void testUpdateWithCondition() {
       Key key = new SingleValueKey("default", "1");
-
       ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
       updatedNode.put("_id", 1);
       updatedNode.put("item", "Soap");
-      updatedNode.put("price", 15);
-      updatedNode.put("quantity", 100);
-
+      Document document = new JSONDocument(updatedNode);
       Filter condition = Filter.eq("price", 10);
-      UpdateResult result = flatCollection.update(key, new JSONDocument(updatedNode), condition);
 
-      assertNotNull(result);
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
+      assertThrows(
+          UnsupportedOperationException.class,
+          () -> flatCollection.update(key, document, condition));
     }
   }
 
   @Nested
-  @DisplayName("Count Operations")
-  @Disabled("Count operations rely on bulk upsert which is not yet implemented")
-  class CountTests {
+  @DisplayName("Drop Operations")
+  class DropTests {
 
     @Test
-    @DisplayName("Should return correct count after bulk upsert")
-    void testCount() {
-      assertEquals(INITIAL_ROW_COUNT, flatCollection.count());
-
-      Map<Key, Document> bulkMap = new HashMap<>();
-      for (int i = 201; i <= 203; i++) {
-        ObjectNode node = OBJECT_MAPPER.createObjectNode();
-        node.put("_id", i);
-        node.put("item", "CountItem" + i);
-        bulkMap.put(new SingleValueKey("default", String.valueOf(i)), new JSONDocument(node));
-      }
-      flatCollection.bulkUpsert(bulkMap);
-
-      assertEquals(INITIAL_ROW_COUNT + 3, flatCollection.count());
+    @DisplayName("Should throw UnsupportedOperationException for drop")
+    void testDrop() {
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.drop());
     }
   }
 
   @Nested
   @DisplayName("Sub-Document Operations")
-  @Disabled("Sub-document operations not yet implemented for flat collections")
   class SubDocumentTests {
 
     @Test
-    @DisplayName("Should update sub-document at path")
-    void testSubDocumentUpdate() throws IOException {
+    @DisplayName("Should throw UnsupportedOperationException for updateSubDoc")
+    void testSubDocumentUpdate() {
       Key docKey = new SingleValueKey("default", "1");
-
       ObjectNode subDoc = OBJECT_MAPPER.createObjectNode();
       subDoc.put("newField", "newValue");
       Document subDocument = new JSONDocument(subDoc);
 
-      boolean result = flatCollection.updateSubDoc(docKey, "props.nested", subDocument);
-      assertTrue(result);
+      assertThrows(
+          UnsupportedOperationException.class,
+          () -> flatCollection.updateSubDoc(docKey, "props.nested", subDocument));
     }
 
     @Test
-    @DisplayName("Should delete sub-document at path")
+    @DisplayName("Should throw UnsupportedOperationException for deleteSubDoc")
     void testSubDocumentDelete() {
       Key docKey = new SingleValueKey("default", "1");
 
-      boolean result = flatCollection.deleteSubDoc(docKey, "props.brand");
-      assertTrue(result);
+      assertThrows(
+          UnsupportedOperationException.class,
+          () -> flatCollection.deleteSubDoc(docKey, "props.brand"));
     }
 
     @Test
-    @DisplayName("Should bulk update sub-documents")
-    void testBulkUpdateSubDocs() throws Exception {
+    @DisplayName("Should throw UnsupportedOperationException for bulkUpdateSubDocs")
+    void testBulkUpdateSubDocs() {
       Map<Key, Map<String, Document>> documents = new HashMap<>();
-
       Key key1 = new SingleValueKey("default", "1");
       Map<String, Document> subDocs1 = new HashMap<>();
       ObjectNode subDoc1 = OBJECT_MAPPER.createObjectNode();
@@ -448,69 +371,29 @@ public class FlatCollectionWriteTest {
       subDocs1.put("props.status", new JSONDocument(subDoc1));
       documents.put(key1, subDocs1);
 
-      BulkUpdateResult result = flatCollection.bulkUpdateSubDocs(documents);
-      assertNotNull(result);
+      assertThrows(
+          UnsupportedOperationException.class, () -> flatCollection.bulkUpdateSubDocs(documents));
     }
   }
 
   @Nested
   @DisplayName("Bulk Array Value Operations")
-  @Disabled("Bulk array value operations not yet implemented for flat collections")
   class BulkArrayValueOperationTests {
 
     @Test
-    @DisplayName("Should set array values in bulk")
-    void testBulkOperationOnArrayValue_setOperation() throws Exception {
+    @DisplayName("Should throw UnsupportedOperationException for bulkOperationOnArrayValue")
+    void testBulkOperationOnArrayValue() throws IOException {
       Set<Key> keys =
           Set.of(new SingleValueKey("default", "1"), new SingleValueKey("default", "2"));
-
       List<Document> subDocs =
           List.of(new JSONDocument("\"newTag1\""), new JSONDocument("\"newTag2\""));
-
       BulkArrayValueUpdateRequest request =
           new BulkArrayValueUpdateRequest(
               keys, "tags", BulkArrayValueUpdateRequest.Operation.SET, subDocs);
 
-      BulkUpdateResult result = flatCollection.bulkOperationOnArrayValue(request);
-      assertNotNull(result);
+      assertThrows(
+          UnsupportedOperationException.class,
+          () -> flatCollection.bulkOperationOnArrayValue(request));
     }
-
-    @Test
-    @DisplayName("Should add array values in bulk")
-    void testBulkOperationOnArrayValue_addOperation() throws Exception {
-      Set<Key> keys =
-          Set.of(new SingleValueKey("default", "1"), new SingleValueKey("default", "2"));
-
-      List<Document> subDocs = List.of(new JSONDocument("\"addedTag\""));
-
-      BulkArrayValueUpdateRequest request =
-          new BulkArrayValueUpdateRequest(
-              keys, "tags", BulkArrayValueUpdateRequest.Operation.ADD, subDocs);
-
-      BulkUpdateResult result = flatCollection.bulkOperationOnArrayValue(request);
-      assertNotNull(result);
-    }
-
-    @Test
-    @DisplayName("Should remove array values in bulk")
-    void testBulkOperationOnArrayValue_removeOperation() throws Exception {
-      Set<Key> keys =
-          Set.of(new SingleValueKey("default", "1"), new SingleValueKey("default", "2"));
-
-      List<Document> subDocs = List.of(new JSONDocument("\"hygiene\""));
-
-      BulkArrayValueUpdateRequest request =
-          new BulkArrayValueUpdateRequest(
-              keys, "tags", BulkArrayValueUpdateRequest.Operation.REMOVE, subDocs);
-
-      BulkUpdateResult result = flatCollection.bulkOperationOnArrayValue(request);
-      assertNotNull(result);
-    }
-  }
-
-  // ==================== Helper Methods ====================
-
-  private static String getPreconditionFailureMessage(String message) {
-    return String.format("%s: %s", "Precondition failure:", message);
   }
 }
