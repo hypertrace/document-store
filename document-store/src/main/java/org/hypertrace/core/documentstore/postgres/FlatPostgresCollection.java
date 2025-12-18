@@ -35,7 +35,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(FlatPostgresCollection.class);
   private static final String WRITE_NOT_SUPPORTED =
-      "Write operations are not supported for flat collections";
+      "Write operations are not supported for flat collections yet!";
 
   FlatPostgresCollection(final PostgresClient client, final String collectionName) {
     super(client, collectionName);
@@ -96,11 +96,6 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
-  }
-
-  @Override
-  public boolean delete(Filter filter) {
     throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
   }
 
