@@ -4278,6 +4278,52 @@ public class DocStoreQueryV1Test {
       long largeListNotInCount = flatCollection.count(largeListNotInQuery);
       assertEquals(7, largeListNotInCount);
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testInOperatorWithoutTypeSpecified(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Test 1: IN operator on string field without type - uses fallback IN (?, ?, ?) syntax
+      Query untypedStringInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Soap", "Mirror", "Comb"))))
+              .build();
+
+      long untypedStringCount = flatCollection.count(untypedStringInQuery);
+      assertEquals(6, untypedStringCount); // 3 Soap + 1 Mirror + 2 Comb = 6
+
+      // Test 2: IN operator on integer field without type - uses fallback IN (?, ?, ?) syntax
+      Query untypedIntInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(5, 10, 15))))
+              .build();
+
+      long untypedIntCount = flatCollection.count(untypedIntInQuery);
+      assertTrue(untypedIntCount > 0);
+
+      // Test 3: NOT_IN operator on string field without type - uses fallback NOT IN (?, ?, ?)
+      // syntax
+      Query untypedNotInQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      NOT_IN,
+                      ConstantExpression.ofStrings(List.of("Soap", "Mirror"))))
+              .build();
+
+      long untypedNotInCount = flatCollection.count(untypedNotInQuery);
+      assertEquals(6, untypedNotInCount); // 10 total - 3 Soap - 1 Mirror = 6
+    }
   }
 
   @Nested
@@ -5033,6 +5079,83 @@ public class DocStoreQueryV1Test {
       Iterator<Document> resultIterator = flatCollection.find(booleanArrayQuery);
       assertDocsAndSizeEqualWithoutOrder(
           dataStoreName, resultIterator, "query/flat_boolean_array_filter_response.json", 5);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testInOperatorOnArrayFieldWithoutTypeSpecified(String dataStoreName)
+        throws JsonProcessingException {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Test 1: IN operator on string array field without type - uses fallback syntax
+      Query untypedStringArrayInQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("tags"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("tags"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
+              .build();
+
+      Iterator<Document> stringResults = flatCollection.find(untypedStringArrayInQuery);
+      int stringCount = 0;
+      while (stringResults.hasNext()) {
+        Document doc = stringResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        stringCount++;
+
+        // Verify that returned arrays contain at least one of the IN values
+        JsonNode tags = json.get("tags");
+        if (tags != null && tags.isArray()) {
+          boolean containsMatch = false;
+          for (JsonNode tag : tags) {
+            String tagValue = tag.asText();
+            if ("hygiene".equals(tagValue) || "grooming".equals(tagValue)) {
+              containsMatch = true;
+              break;
+            }
+          }
+          assertTrue(containsMatch, "Array should contain at least one IN value");
+        }
+      }
+      assertTrue(stringCount >= 5, "Should return at least 5 items with hygiene/grooming tags");
+
+      // Test 2: IN operator on integer array field without type - uses fallback syntax
+      Query untypedIntArrayInQuery =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(ArrayIdentifierExpression.of("numbers"))
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.of("numbers"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(1, 10, 20))))
+              .build();
+
+      Iterator<Document> intResults = flatCollection.find(untypedIntArrayInQuery);
+      int intCount = 0;
+      while (intResults.hasNext()) {
+        Document doc = intResults.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        intCount++;
+
+        // Verify that returned arrays contain at least one of the IN values
+        JsonNode numbers = json.get("numbers");
+        if (numbers != null && numbers.isArray()) {
+          boolean containsMatch = false;
+          for (JsonNode num : numbers) {
+            int value = num.asInt();
+            if (value == 1 || value == 10 || value == 20) {
+              containsMatch = true;
+              break;
+            }
+          }
+          assertTrue(containsMatch, "Array should contain at least one IN value");
+        }
+      }
+      assertTrue(intCount >= 6, "Should return at least 6 items");
     }
   }
 
