@@ -2,7 +2,9 @@ package org.hypertrace.core.documentstore.expression.impl;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresArrayTypeExtractor;
 import org.junit.jupiter.api.Test;
 
 class ArrayIdentifierExpressionTest {
@@ -68,5 +70,104 @@ class ArrayIdentifierExpressionTest {
     assertEquals(expr1, expr3);
     assertEquals(expr1.hashCode(), expr2.hashCode());
     assertEquals(expr2.hashCode(), expr3.hashCode());
+  }
+
+  @Test
+  void testOfStringsCreatesInstanceWithTextType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofStrings("tags");
+
+    assertEquals("tags", expression.getName());
+    assertEquals(DataType.STRING, expression.getElementDataType());
+
+    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    assertEquals("text[]", expression.accept(extractor));
+  }
+
+  @Test
+  void testOfIntsCreatesInstanceWithIntegerType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofInts("ids");
+
+    assertEquals("ids", expression.getName());
+    assertEquals(DataType.INTEGER, expression.getElementDataType());
+
+    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    assertEquals("integer[]", expression.accept(extractor));
+  }
+
+  @Test
+  void testOfLongsCreatesInstanceWithBigintType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofLongs("timestamps");
+
+    assertEquals("timestamps", expression.getName());
+    assertEquals(DataType.LONG, expression.getElementDataType());
+
+    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    assertEquals("bigint[]", expression.accept(extractor));
+  }
+
+  @Test
+  void testOfFloatsCreatesInstanceWithFloatType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofFloats("temperatures");
+
+    assertEquals("temperatures", expression.getName());
+    assertEquals(DataType.FLOAT, expression.getElementDataType());
+
+    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    assertEquals("real[]", expression.accept(extractor));
+  }
+
+  @Test
+  void testOfDoublesCreatesInstanceWithDoubleType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofDoubles("coordinates");
+
+    assertEquals("coordinates", expression.getName());
+    assertEquals(DataType.DOUBLE, expression.getElementDataType());
+
+    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    assertEquals("double precision[]", expression.accept(extractor));
+  }
+
+  @Test
+  void testOfBooleansCreatesInstanceWithBooleanType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofBooleans("flags");
+
+    assertEquals("flags", expression.getName());
+    assertEquals(DataType.BOOLEAN, expression.getElementDataType());
+
+    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    assertEquals("boolean[]", expression.accept(extractor));
+  }
+
+  @Test
+  void testOfTimestampsTzCreatesInstanceWithTimestampTzType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofTimestampsTz("eventsTz");
+
+    assertEquals("eventsTz", expression.getName());
+    assertEquals(DataType.TIMESTAMPTZ, expression.getElementDataType());
+
+    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    assertEquals("timestamptz[]", expression.accept(extractor));
+  }
+
+  @Test
+  void testOfDatesCreatesInstanceWithDateType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.ofDates("dates");
+
+    assertEquals("dates", expression.getName());
+    assertEquals(DataType.DATE, expression.getElementDataType());
+
+    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    assertEquals("date[]", expression.accept(extractor));
+  }
+
+  @Test
+  void testPostgresArrayTypeExtractorReturnsNullForUnspecifiedType() {
+    ArrayIdentifierExpression expression = ArrayIdentifierExpression.of("untyped");
+
+    assertEquals(DataType.UNSPECIFIED, expression.getElementDataType());
+
+    PostgresArrayTypeExtractor extractor = new PostgresArrayTypeExtractor();
+    String arrayType = expression.accept(extractor);
+    assertNull(arrayType);
   }
 }
