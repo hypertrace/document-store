@@ -97,8 +97,9 @@ public class PostgresInRelationalFilterParserArrayField
       paramsBuilder.addArrayParam(values, sqlType);
       return String.format("%s && ?", parsedLhs);
     } else {
-      // Fallback: use jsonb array contains approach
-      return prepareFilterStringFallback(parsedLhs, parsedRhs, paramsBuilder, "%s @> ARRAY[%s]");
+      // Fallback: cast both sides to text[] for backward compatibility with any array type
+      return prepareFilterStringFallback(
+          parsedLhs, parsedRhs, paramsBuilder, "%s::text[] && ARRAY[%s]::text[]");
     }
   }
 
