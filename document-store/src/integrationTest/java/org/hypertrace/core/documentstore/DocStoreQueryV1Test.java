@@ -69,6 +69,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -6544,6 +6545,58 @@ public class DocStoreQueryV1Test {
     Iterator<Document> iterator = collection.aggregate(mainQuery);
     assertDocsAndSizeEqual(
         dataStoreName, iterator, "query/sub_query_join_response_with_nested_fields.json", 3);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(MongoProvider.class)
+  void testDateConstantExpressionInFilterForMongo(String dataStoreName) throws IOException {
+    Collection collection = getCollection(dataStoreName);
+    Date currentDate = new Date(System.currentTimeMillis());
+
+    // Test that DateConstantExpression works in a filter for Mongo
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("_lastUpdateTime"),
+                    LTE,
+                    ConstantExpression.of(currentDate)))
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("price"))
+            .addSelection(IdentifierExpression.of("quantity"))
+            .addSort(IdentifierExpression.of("price"), ASC)
+            .addSort(IdentifierExpression.of("quantity"), DESC)
+            .build();
+
+    // Verify results
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsAndSizeEqual(
+        dataStoreName, iterator, "query/filter_contains_date_constant_expression.json", 8);
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  void testDateConstantExpressionInFilterForPostgresThrowsException(String dataStoreName) {
+    Collection collection = getCollection(dataStoreName);
+    Date currentDate = new Date(System.currentTimeMillis());
+
+    // Test that DateConstantExpression throws UnsupportedOperationException in a filter for
+    // Postgres
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("_lastUpdateTime"),
+                    LTE,
+                    ConstantExpression.of(currentDate)))
+            .addSelection(IdentifierExpression.of("item"))
+            .build();
+
+    // This should throw UnsupportedOperationException for Postgres
+    assertThrows(
+        UnsupportedOperationException.class,
+        () -> collection.aggregate(query),
+        "DateConstantExpression should throw UnsupportedOperationException for Postgres");
   }
 
   private static Collection getCollection(final String dataStoreName) {

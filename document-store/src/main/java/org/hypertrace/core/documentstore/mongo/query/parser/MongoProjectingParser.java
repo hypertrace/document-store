@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DateConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
@@ -39,6 +40,21 @@ public final class MongoProjectingParser extends MongoSelectTypeExpressionParser
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final ConstantExpression expression) {
+    final Object parsed;
+
+    try {
+      parsed = baseParser.visit(expression);
+    } catch (UnsupportedOperationException e) {
+      return Map.of();
+    }
+
+    final String key = getAlias(expression);
+    return convertToMap(key, parsed);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(final DateConstantExpression expression) {
     final Object parsed;
 
     try {

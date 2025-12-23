@@ -6,6 +6,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mongodb.BasicDBObject;
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DateConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 
 @NoArgsConstructor
@@ -28,6 +29,12 @@ public final class MongoConstantExpressionParser extends MongoSelectTypeExpressi
     } catch (final JsonProcessingException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Object visit(final DateConstantExpression expression) {
+    return expression.getValue();
   }
 
   Object parse(final ConstantExpression expression) {

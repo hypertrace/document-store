@@ -17,6 +17,7 @@ import java.util.function.Function;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DateConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -110,6 +111,12 @@ final class MongoSelectionsUpdatingTransformation implements SelectTypeExpressio
   @SuppressWarnings("unchecked")
   @Override
   public SelectionSpec visit(final DocumentConstantExpression expression) {
+    return source;
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public SelectionSpec visit(final DateConstantExpression expression) {
     return source;
   }
 

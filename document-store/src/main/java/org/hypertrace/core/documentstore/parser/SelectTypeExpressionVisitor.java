@@ -4,6 +4,7 @@ import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DateConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -36,5 +37,13 @@ public interface SelectTypeExpressionVisitor {
    */
   default <T> T visit(final JsonIdentifierExpression expression) {
     return visit((IdentifierExpression) expression);
+  }
+
+  /**
+   * Visit a DateConstantExpression. Default implementation throws UnsupportedOperationException.
+   * Override this method in implementations that support DateConstantExpression.
+   */
+  default <T> T visit(final DateConstantExpression expression) {
+    throw new UnsupportedOperationException("DateConstantExpression is not supported");
   }
 }
