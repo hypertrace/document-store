@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.expression.impl;
 
+import java.util.Date;
 import java.util.List;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -41,6 +42,10 @@ public class ConstantExpression implements SelectTypeExpression {
 
   public static ConstantExpression of(final Document value) {
     return new DocumentConstantExpression(value);
+  }
+
+  public static ConstantExpression of(final Date value) {
+    return new DateConstantExpression(value);
   }
 
   public static ConstantExpression ofStrings(final List<String> values) {
@@ -94,6 +99,27 @@ public class ConstantExpression implements SelectTypeExpression {
     @Override
     public String toString() {
       return "JSON(" + StringUtils.wrap(getValue().toJson(), "'") + ")";
+    }
+  }
+
+  public static class DateConstantExpression extends ConstantExpression {
+    private DateConstantExpression(final Date value) {
+      super(value);
+    }
+
+    @Override
+    public <T> T accept(final SelectTypeExpressionVisitor visitor) {
+      return visitor.visit(this);
+    }
+
+    @Override
+    public Date getValue() {
+      return (Date) value;
+    }
+
+    @Override
+    public String toString() {
+      return "DATE(" + StringUtils.wrap(getValue().toString(), "'") + ")";
     }
   }
 }

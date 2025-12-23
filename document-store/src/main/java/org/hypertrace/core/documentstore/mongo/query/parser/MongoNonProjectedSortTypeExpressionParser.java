@@ -15,6 +15,7 @@ import org.apache.commons.collections4.CollectionUtils;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DateConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -87,6 +88,16 @@ public class MongoNonProjectedSortTypeExpressionParser
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(DocumentConstantExpression expression) {
+    throw new UnsupportedOperationException(
+        String.format(
+            "Cannot sort a constant expression ($%s) in MongoDB."
+                + "Set alias in selection and sort by the alias as identifier",
+            expression.getValue().toString()));
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Map<String, Object> visit(DateConstantExpression expression) {
     throw new UnsupportedOperationException(
         String.format(
             "Cannot sort a constant expression ($%s) in MongoDB."

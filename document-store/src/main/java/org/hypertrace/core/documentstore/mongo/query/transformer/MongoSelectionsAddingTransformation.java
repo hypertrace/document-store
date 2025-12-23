@@ -10,6 +10,7 @@ import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.AliasedIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DateConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression.DocumentConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -110,6 +111,12 @@ final class MongoSelectionsAddingTransformation implements SelectTypeExpressionV
   @SuppressWarnings("unchecked")
   @Override
   public Optional<SelectionSpec> visit(final DocumentConstantExpression expression) {
+    return Optional.empty();
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public Optional<SelectionSpec> visit(final DateConstantExpression expression) {
     return Optional.empty();
   }
 
