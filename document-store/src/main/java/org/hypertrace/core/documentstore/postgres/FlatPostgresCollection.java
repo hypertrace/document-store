@@ -128,16 +128,16 @@ public class FlatPostgresCollection extends PostgresCollection {
       // Build UPSERT SQL: INSERT ... ON CONFLICT DO UPDATE
       String columnList = String.join(", ", columns);
       String placeholders = columns.stream().map(c -> "?").collect(Collectors.joining(", "));
-      String updateSet = columns.stream()
-          .map(c -> c + " = EXCLUDED." + c)
-          .collect(Collectors.joining(", "));
+      String updateSet =
+          columns.stream().map(c -> c + " = EXCLUDED." + c).collect(Collectors.joining(", "));
 
       // Determine primary key column (assume first column or 'id')
       String pkColumn = schema.containsKey("id") ? "id" : columns.get(0);
 
-      String sql = String.format(
-          "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING *",
-          tableIdentifier, columnList, placeholders, pkColumn, updateSet);
+      String sql =
+          String.format(
+              "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING *",
+              tableIdentifier, columnList, placeholders, pkColumn, updateSet);
 
       try (PreparedStatement ps = client.getConnection().prepareStatement(sql)) {
         for (int i = 0; i < values.size(); i++) {
