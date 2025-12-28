@@ -2,6 +2,8 @@ package org.hypertrace.core.documentstore;
 
 import java.util.Map;
 import java.util.Set;
+import org.hypertrace.core.documentstore.commons.ColumnMetadata;
+import org.hypertrace.core.documentstore.commons.SchemaRegistry;
 import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
 
 public interface Datastore {
@@ -18,6 +20,10 @@ public interface Datastore {
 
   @SuppressWarnings("unused")
   DocStoreMetricProvider getDocStoreMetricProvider();
+
+  default <T extends ColumnMetadata> SchemaRegistry<T> getSchemaRegistry() {
+    return null;
+  }
 
   void close();
 
