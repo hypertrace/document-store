@@ -126,6 +126,8 @@ public class ConnectionConfig {
               credentials,
               applicationName,
               connectionPoolConfig,
+              null,
+              null,
               customParameters);
       }
 

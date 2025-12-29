@@ -52,27 +52,10 @@ import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
  */
 public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMetadata> {
 
-  /** Default cache expiry time: 24 hours. */
-  private static final Duration DEFAULT_CACHE_EXPIRY = Duration.ofHours(24);
-
-  /** Default cooldown period between refresh attempts: 15 minutes. */
-  private static final Duration DEFAULT_REFRESH_COOLDOWN = Duration.ofMinutes(15);
-
   private final LoadingCache<String, Map<String, PostgresColumnMetadata>> cache;
   private final Map<String, Instant> lastRefreshTimes;
   private final Duration refreshCooldown;
   private final Clock clock;
-
-  /**
-   * Creates a new schema registry with default settings.
-   *
-   * <p>Uses default cache expiry of 24 hours and refresh cooldown of 15 minutes.
-   *
-   * @param fetcher the metadata fetcher to use for loading schema information
-   */
-  public PostgresSchemaRegistry(PostgresMetadataFetcher fetcher) {
-    this(fetcher, DEFAULT_CACHE_EXPIRY, DEFAULT_REFRESH_COOLDOWN, Clock.systemUTC());
-  }
 
   /**
    * Creates a new schema registry with custom cache settings.
