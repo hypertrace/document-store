@@ -3,7 +3,6 @@ package org.hypertrace.core.documentstore.postgres;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -55,7 +54,6 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
   private final LoadingCache<String, Map<String, PostgresColumnMetadata>> cache;
   private final Map<String, Instant> lastRefreshTimes;
   private final Duration refreshCooldown;
-  private final Clock clock;
 
   /**
    * Creates a new schema registry with custom cache settings.
@@ -66,24 +64,7 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
    */
   public PostgresSchemaRegistry(
       PostgresMetadataFetcher fetcher, Duration cacheExpiry, Duration refreshCooldown) {
-    this(fetcher, cacheExpiry, refreshCooldown, Clock.systemUTC());
-  }
-
-  /**
-   * Creates a new schema registry with custom settings and clock (for testing).
-   *
-   * @param fetcher the metadata fetcher to use for loading schema information
-   * @param cacheExpiry how long to keep cached schemas before they expire
-   * @param refreshCooldown minimum time between refresh attempts for missing columns
-   * @param clock the clock to use for time-based operations
-   */
-  PostgresSchemaRegistry(
-      PostgresMetadataFetcher fetcher,
-      Duration cacheExpiry,
-      Duration refreshCooldown,
-      Clock clock) {
     this.refreshCooldown = refreshCooldown;
-    this.clock = clock;
     this.lastRefreshTimes = new ConcurrentHashMap<>();
     this.cache =
         CacheBuilder.newBuilder()
@@ -92,7 +73,7 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
                 new CacheLoader<>() {
                   @Override
                   public Map<String, PostgresColumnMetadata> load(String tableName) {
-                    lastRefreshTimes.put(tableName, clock.instant());
+                    lastRefreshTimes.put(tableName, Instant.now());
                     return fetcher.fetch(tableName);
                   }
                 });
@@ -167,6 +148,6 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
     if (lastRefresh == null) {
       return true;
     }
-    return Duration.between(lastRefresh, clock.instant()).compareTo(refreshCooldown) >= 0;
+    return Duration.between(lastRefresh, Instant.now()).compareTo(refreshCooldown) >= 0;
   }
 }

@@ -8,10 +8,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -32,17 +29,15 @@ class PostgresSchemaRegistryTest {
   private static final String COL_NAME = "name";
   private static final String COL_PRICE = "price";
   private static final Duration CACHE_EXPIRY = Duration.ofHours(24);
-  private static final Duration REFRESH_COOLDOWN = Duration.ofMinutes(15);
+  private static final Duration REFRESH_COOLDOWN = Duration.ofMillis(50);
 
   @Mock private PostgresMetadataFetcher fetcher;
 
   private PostgresSchemaRegistry registry;
-  private MutableClock mutableClock;
 
   @BeforeEach
   void setUp() {
-    mutableClock = new MutableClock(Instant.parse("2024-01-01T00:00:00Z"));
-    registry = new PostgresSchemaRegistry(fetcher, CACHE_EXPIRY, REFRESH_COOLDOWN, mutableClock);
+    registry = new PostgresSchemaRegistry(fetcher, CACHE_EXPIRY, REFRESH_COOLDOWN);
   }
 
   @Test
@@ -157,7 +152,7 @@ class PostgresSchemaRegistryTest {
   }
 
   @Test
-  void getColumnOrRefreshRefreshesSchemaIfColumnMissingAndCooldownExpired() {
+  void getColumnOrRefreshRefreshesSchemaIfColumnMissingAndCooldownExpired() throws Exception {
     // Initial schema without the "new_col"
     Map<String, PostgresColumnMetadata> initialSchema = createTestSchema();
 
@@ -179,8 +174,8 @@ class PostgresSchemaRegistryTest {
     registry.getSchema(TEST_TABLE);
     verify(fetcher, times(1)).fetch(TEST_TABLE);
 
-    // Advance time past cooldown period
-    mutableClock.advance(REFRESH_COOLDOWN.plusMinutes(1));
+    // Wait past cooldown period
+    Thread.sleep(REFRESH_COOLDOWN.toMillis() + 10);
 
     // Now try to get missing column - should trigger refresh
     Optional<PostgresColumnMetadata> result = registry.getColumnOrRefresh(TEST_TABLE, "new_col");
@@ -210,7 +205,7 @@ class PostgresSchemaRegistryTest {
   }
 
   @Test
-  void getColumnOrRefreshRefreshesAfterCooldownExpires() {
+  void getColumnOrRefreshRefreshesAfterCooldownExpires() throws Exception {
     Map<String, PostgresColumnMetadata> schema = createTestSchema();
     when(fetcher.fetch(TEST_TABLE)).thenReturn(schema);
 
@@ -222,8 +217,8 @@ class PostgresSchemaRegistryTest {
     registry.getColumnOrRefresh(TEST_TABLE, "nonexistent_col");
     verify(fetcher, times(1)).fetch(TEST_TABLE);
 
-    // Advance time past cooldown
-    mutableClock.advance(REFRESH_COOLDOWN.plusSeconds(1));
+    // Wait past cooldown
+    Thread.sleep(REFRESH_COOLDOWN.toMillis() + 10);
 
     // Try again - should refresh now
     registry.getColumnOrRefresh(TEST_TABLE, "nonexistent_col");
@@ -231,15 +226,15 @@ class PostgresSchemaRegistryTest {
   }
 
   @Test
-  void getColumnOrRefreshReturnsNullIfColumnStillMissingAfterRefresh() {
+  void getColumnOrRefreshReturnsEmptyIfColumnStillMissingAfterRefresh() throws Exception {
     Map<String, PostgresColumnMetadata> schema = createTestSchema();
     when(fetcher.fetch(TEST_TABLE)).thenReturn(schema);
 
     // First call loads the schema
     registry.getSchema(TEST_TABLE);
 
-    // Advance past cooldown
-    mutableClock.advance(REFRESH_COOLDOWN.plusMinutes(1));
+    // Wait past cooldown
+    Thread.sleep(REFRESH_COOLDOWN.toMillis() + 10);
 
     // Try to get a column that doesn't exist even after refresh
     Optional<PostgresColumnMetadata> result =
@@ -307,35 +302,5 @@ class PostgresSchemaRegistryTest {
             .nullable(true)
             .build());
     return schema;
-  }
-
-  /** A mutable clock for testing time-dependent behavior. */
-  private static class MutableClock extends Clock {
-    private Instant currentInstant;
-    private final ZoneId zone;
-
-    MutableClock(Instant initialInstant) {
-      this.currentInstant = initialInstant;
-      this.zone = ZoneId.of("UTC");
-    }
-
-    void advance(Duration duration) {
-      currentInstant = currentInstant.plus(duration);
-    }
-
-    @Override
-    public ZoneId getZone() {
-      return zone;
-    }
-
-    @Override
-    public Clock withZone(ZoneId zone) {
-      return this;
-    }
-
-    @Override
-    public Instant instant() {
-      return currentInstant;
-    }
   }
 }
