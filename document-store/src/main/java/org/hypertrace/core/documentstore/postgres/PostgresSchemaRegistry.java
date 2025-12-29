@@ -52,7 +52,7 @@ import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMetadata> {
 
   private final LoadingCache<String, Map<String, PostgresColumnMetadata>> cache;
-  private final Map<String, Instant> lastRefreshTimes;
+  private final ConcurrentHashMap<String, Instant> lastRefreshTimes;
   private final Duration refreshCooldown;
 
   /**
@@ -120,6 +120,11 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
    *   <li>If the column is not found but the cooldown period has not elapsed, {@code null} is
    *       returned without hitting the database.
    * </ul>
+   *
+   * <p>Note that this is a check-then-act sequence that should ideally be atomic. However, this
+   * method is deliberately not thread-safe since even in case of a data race, it will result in one
+   * extra call to the DB, which will not be allowed anyway due to the cooldown period having been
+   * reset by the previous call. This is likely to be more performant than contending for locks.
    *
    * @param tableName the name of the table
    * @param colName the name of the column
