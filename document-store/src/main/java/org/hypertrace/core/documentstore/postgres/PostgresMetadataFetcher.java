@@ -18,7 +18,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson
 @AllArgsConstructor
 public class PostgresMetadataFetcher {
 
-  private final PostgresDatastore datastore;
+  private final PostgresClient client;
 
   private static final String DISCOVERY_SQL =
       "SELECT column_name, udt_name, is_nullable "
@@ -28,7 +28,7 @@ public class PostgresMetadataFetcher {
   public Map<String, PostgresColumnMetadata> fetch(String tableName) {
     Map<String, PostgresColumnMetadata> metadataMap = new HashMap<>();
 
-    try (Connection conn = datastore.getPostgresClient();
+    try (Connection conn = client.getPooledConnection();
         PreparedStatement ps = conn.prepareStatement(DISCOVERY_SQL)) {
 
       ps.setString(1, tableName);

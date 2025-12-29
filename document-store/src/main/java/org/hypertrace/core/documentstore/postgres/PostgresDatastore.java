@@ -60,7 +60,7 @@ public class PostgresDatastore implements Datastore {
       client = new PostgresClient(postgresConnectionConfig);
       database = connectionConfig.database();
       docStoreMetricProvider = new PostgresDocStoreMetricProvider(this, postgresConnectionConfig);
-      schemaRegistry = new PostgresSchemaRegistry(new PostgresMetadataFetcher(this));
+      schemaRegistry = new PostgresSchemaRegistry(new PostgresMetadataFetcher(client));
     } catch (final IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Unable to instantiate PostgresClient with config:%s", connectionConfig),
