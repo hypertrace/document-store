@@ -81,6 +81,8 @@ public class PostgresMetadataFetcher {
       case "bpchar":
       case "uuid":
         return DataType.STRING;
+      case "jsonb":
+        return DataType.JSON;
       default:
         return DataType.UNSPECIFIED;
     }
@@ -114,6 +116,8 @@ public class PostgresMetadataFetcher {
       case "bpchar":
       case "uuid":
         return PostgresDataType.TEXT;
+      case "jsonb":
+        return PostgresDataType.JSONB;
       default:
         return PostgresDataType.UNKNOWN;
     }
