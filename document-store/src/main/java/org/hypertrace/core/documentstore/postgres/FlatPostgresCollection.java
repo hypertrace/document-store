@@ -114,8 +114,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       while (fields.hasNext()) {
         Map.Entry<String, JsonNode> field = fields.next();
         String colName = field.getKey();
-        PostgresColumnMetadata colMeta = schemaRegistry.getColumnOrRefresh(tableName, colName);
-        if (colMeta != null) {
+        if (schemaRegistry.getColumnOrRefresh(tableName, colName).isPresent()) {
           columns.add(colName);
           values.add(extractValue(field.getValue()));
         }

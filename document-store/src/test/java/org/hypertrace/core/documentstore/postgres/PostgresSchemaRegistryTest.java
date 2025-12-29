@@ -1,9 +1,9 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import org.hypertrace.core.documentstore.expression.impl.DataType;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
@@ -146,11 +147,11 @@ class PostgresSchemaRegistryTest {
     Map<String, PostgresColumnMetadata> schema = createTestSchema();
     when(fetcher.fetch(TEST_TABLE)).thenReturn(schema);
 
-    PostgresColumnMetadata result = registry.getColumnOrRefresh(TEST_TABLE, COL_ID);
+    Optional<PostgresColumnMetadata> result = registry.getColumnOrRefresh(TEST_TABLE, COL_ID);
 
-    assertNotNull(result);
-    assertEquals(COL_ID, result.getName());
-    assertEquals(DataType.INTEGER, result.getCanonicalType());
+    assertTrue(result.isPresent());
+    assertEquals(COL_ID, result.get().getName());
+    assertEquals(DataType.INTEGER, result.get().getCanonicalType());
     // Should only call fetcher once (initial load)
     verify(fetcher, times(1)).fetch(TEST_TABLE);
   }
@@ -182,10 +183,10 @@ class PostgresSchemaRegistryTest {
     mutableClock.advance(REFRESH_COOLDOWN.plusMinutes(1));
 
     // Now try to get missing column - should trigger refresh
-    PostgresColumnMetadata result = registry.getColumnOrRefresh(TEST_TABLE, "new_col");
+    Optional<PostgresColumnMetadata> result = registry.getColumnOrRefresh(TEST_TABLE, "new_col");
 
-    assertNotNull(result);
-    assertEquals("new_col", result.getName());
+    assertTrue(result.isPresent());
+    assertEquals("new_col", result.get().getName());
     // Should call fetcher twice (initial load + refresh after cooldown)
     verify(fetcher, times(2)).fetch(TEST_TABLE);
   }
@@ -200,9 +201,10 @@ class PostgresSchemaRegistryTest {
     verify(fetcher, times(1)).fetch(TEST_TABLE);
 
     // Try to get a missing column - should NOT refresh because we're within cooldown
-    PostgresColumnMetadata result = registry.getColumnOrRefresh(TEST_TABLE, "nonexistent_col");
+    Optional<PostgresColumnMetadata> result =
+        registry.getColumnOrRefresh(TEST_TABLE, "nonexistent_col");
 
-    assertNull(result);
+    assertFalse(result.isPresent());
     // Should only call fetcher once (initial load, no refresh due to cooldown)
     verify(fetcher, times(1)).fetch(TEST_TABLE);
   }
@@ -240,9 +242,10 @@ class PostgresSchemaRegistryTest {
     mutableClock.advance(REFRESH_COOLDOWN.plusMinutes(1));
 
     // Try to get a column that doesn't exist even after refresh
-    PostgresColumnMetadata result = registry.getColumnOrRefresh(TEST_TABLE, "nonexistent_col");
+    Optional<PostgresColumnMetadata> result =
+        registry.getColumnOrRefresh(TEST_TABLE, "nonexistent_col");
 
-    assertNull(result);
+    assertFalse(result.isPresent());
     // Should call fetcher twice (initial load + refresh attempt after cooldown)
     verify(fetcher, times(2)).fetch(TEST_TABLE);
   }
@@ -256,10 +259,10 @@ class PostgresSchemaRegistryTest {
     registry.getSchema(TEST_TABLE);
 
     // Get existing column - should not trigger refresh
-    PostgresColumnMetadata result = registry.getColumnOrRefresh(TEST_TABLE, COL_NAME);
+    Optional<PostgresColumnMetadata> result = registry.getColumnOrRefresh(TEST_TABLE, COL_NAME);
 
-    assertNotNull(result);
-    assertEquals(COL_NAME, result.getName());
+    assertTrue(result.isPresent());
+    assertEquals(COL_NAME, result.get().getName());
     // Should only call fetcher once (initial getSchema)
     verify(fetcher, times(1)).fetch(TEST_TABLE);
   }

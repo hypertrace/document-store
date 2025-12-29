@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -158,10 +159,10 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
    *
    * @param tableName the name of the table
    * @param colName the name of the column
-   * @return the column metadata, or {@code null} if the column does not exist
+   * @return an Optional containing the column metadata, or empty if the column does not exist
    */
   @Override
-  public PostgresColumnMetadata getColumnOrRefresh(String tableName, String colName) {
+  public Optional<PostgresColumnMetadata> getColumnOrRefresh(String tableName, String colName) {
     Map<String, PostgresColumnMetadata> schema = getSchema(tableName);
 
     if (!schema.containsKey(colName) && canRefresh(tableName)) {
@@ -169,7 +170,7 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
       schema = getSchema(tableName);
     }
 
-    return schema.get(colName);
+    return Optional.ofNullable(schema.get(colName));
   }
 
   /**

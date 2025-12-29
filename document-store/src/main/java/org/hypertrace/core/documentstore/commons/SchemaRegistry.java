@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.commons;
 
 import java.util.Map;
+import java.util.Optional;
 
 public interface SchemaRegistry<T extends ColumnMetadata> {
 
@@ -8,5 +9,5 @@ public interface SchemaRegistry<T extends ColumnMetadata> {
 
   void invalidate(String tableName);
 
-  T getColumnOrRefresh(String tableName, String colName);
+  Optional<T> getColumnOrRefresh(String tableName, String colName);
 }
