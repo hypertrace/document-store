@@ -7,7 +7,5 @@ public interface SchemaRegistry<T extends ColumnMetadata> {
 
   Map<String, T> getSchema(String tableName);
 
-  void invalidate(String tableName);
-
   Optional<T> getColumnOrRefresh(String tableName, String colName);
 }
