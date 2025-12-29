@@ -3,6 +3,8 @@ package org.hypertrace.core.documentstore.postgres;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.typesafe.config.Config;
@@ -260,7 +262,7 @@ class PostgresSchemaRegistryIntegrationTest {
     Map<String, PostgresColumnMetadata> schema2 = registry.getSchema(TABLE_NAME);
 
     // Should be the same cached instance
-    assertTrue(schema1 == schema2);
+    assertSame(schema1, schema2);
   }
 
   @Test
@@ -272,7 +274,7 @@ class PostgresSchemaRegistryIntegrationTest {
     Map<String, PostgresColumnMetadata> schema2 = registry.getSchema(TABLE_NAME);
 
     // Should be different instances after invalidation
-    assertFalse(schema1 == schema2);
+    assertNotSame(schema1, schema2);
     // But same content
     assertEquals(schema1.keySet(), schema2.keySet());
   }
