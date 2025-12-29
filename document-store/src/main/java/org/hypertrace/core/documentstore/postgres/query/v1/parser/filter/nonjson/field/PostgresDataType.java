@@ -15,6 +15,7 @@ public enum PostgresDataType {
   REAL("float4"),
   DOUBLE_PRECISION("float8"),
   BOOLEAN("bool"),
+  JSONB("jsonb"),
   TIMESTAMPTZ("timestamptz"),
   DATE("date"),
   UNKNOWN(null);
