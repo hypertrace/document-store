@@ -28,11 +28,6 @@ public class PostgresColumnMetadata implements ColumnMetadata {
   }
 
   @Override
-  public String getInternalType() {
-    return pgType;
-  }
-
-  @Override
   public boolean isNullable() {
     return nullable;
   }
