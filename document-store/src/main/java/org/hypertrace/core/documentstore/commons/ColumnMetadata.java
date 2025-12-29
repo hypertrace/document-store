@@ -7,7 +7,5 @@ public interface ColumnMetadata {
 
   DataType getCanonicalType();
 
-  String getInternalType();
-
   boolean isNullable();
 }
