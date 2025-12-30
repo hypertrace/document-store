@@ -1,7 +1,9 @@
 package org.hypertrace.core.documentstore;
 
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,10 +12,12 @@ import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -200,22 +204,109 @@ public class FlatCollectionWriteTest {
   class CreateTests {
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for create")
-    void testCreate() {
+    @DisplayName("Should create a new document with all field types")
+    void testCreateNewDocument() throws Exception {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("_id", 300);
+      objectNode.put("id", "new-doc-100");
       objectNode.put("item", "Brand New Item");
+      objectNode.put("price", 999);
+      objectNode.put("quantity", 50);
+      objectNode.put("in_stock", true);
       Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "300");
+      Key key = new SingleValueKey("default", "new-doc-100");
 
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.create(key, document));
+      CreateResult result = flatCollection.create(key, document);
+
+      assertTrue(result.isSucceed());
+
+      // Verify the data was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'new-doc-100'", FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Brand New Item", rs.getString("item"));
+        assertEquals(999, rs.getInt("price"));
+        assertEquals(50, rs.getInt("quantity"));
+        assertTrue(rs.getBoolean("in_stock"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should throw DuplicateDocumentException when creating with existing key")
+    void testCreateDuplicateDocument() throws Exception {
+      // First create succeeds
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "dup-doc-200");
+      objectNode.put("item", "First Item");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "dup-doc-200");
+
+      flatCollection.create(key, document);
+
+      // Second create with same key should fail
+      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
+      objectNode2.put("id", "dup-doc-200");
+      objectNode2.put("item", "Second Item");
+      Document document2 = new JSONDocument(objectNode2);
+
+      assertThrows(DuplicateDocumentException.class, () -> flatCollection.create(key, document2));
+    }
+
+    @Test
+    @DisplayName("Should create document with JSONB field")
+    void testCreateWithJsonbField() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "jsonb-doc-300");
+      objectNode.put("item", "Item with Props");
+      ObjectNode propsNode = OBJECT_MAPPER.createObjectNode();
+      propsNode.put("color", "blue");
+      propsNode.put("size", "large");
+      objectNode.set("props", propsNode);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "jsonb-doc-300");
+
+      CreateResult result = flatCollection.create(key, document);
+
+      assertTrue(result.isSucceed());
+
+      // Verify JSONB data
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT props->>'color' as color FROM \"%s\" WHERE \"id\" = 'jsonb-doc-300'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("blue", rs.getString("color"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should skip unknown fields when creating document")
+    void testCreateSkipsUnknownFields() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "unknown-field-doc-400");
+      objectNode.put("item", "Item");
+      objectNode.put("unknown_column", "should be ignored");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "unknown-field-doc-400");
+
+      CreateResult result = flatCollection.create(key, document);
+
+      assertTrue(result.isSucceed());
     }
 
     @Test
     @DisplayName("Should throw UnsupportedOperationException for createOrReplace")
     void testCreateOrReplace() {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("_id", 200);
+      objectNode.put("id", "200");
       objectNode.put("item", "NewMirror");
       Document document = new JSONDocument(objectNode);
       Key key = new SingleValueKey("default", "200");
@@ -228,7 +319,7 @@ public class FlatCollectionWriteTest {
     @DisplayName("Should throw UnsupportedOperationException for createOrReplaceAndReturn")
     void testCreateOrReplaceAndReturn() {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("_id", 200);
+      objectNode.put("id", "200");
       objectNode.put("item", "NewMirror");
       Document document = new JSONDocument(objectNode);
       Key key = new SingleValueKey("default", "200");
