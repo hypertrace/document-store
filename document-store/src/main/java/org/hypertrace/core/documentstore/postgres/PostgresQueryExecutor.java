@@ -50,7 +50,7 @@ public class PostgresQueryExecutor {
 
   public PreparedStatement buildPreparedStatement(
       String sqlQuery, Params params, Connection connection) throws SQLException {
-    return buildPreparedStatement(sqlQuery, params, connection, 0);
+    return buildPreparedStatement(sqlQuery, params, connection, this.queryTimeoutSeconds);
   }
 
   public PreparedStatement buildPreparedStatement(
