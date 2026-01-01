@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.model.config.postgres;
 import static java.util.Collections.unmodifiableList;
 import static java.util.function.Predicate.not;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
 
   @NonNull String applicationName;
   @NonNull ConnectionPoolConfig connectionPoolConfig;
+  @NonNull Duration queryTimeout;
 
   public static ConnectionConfigBuilder builder() {
     return ConnectionConfig.builder().type(DatabaseType.POSTGRES);
@@ -47,6 +49,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
       @Nullable final ConnectionCredentials credentials,
       @NonNull final String applicationName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig,
+      @NonNull final Duration queryTimeout,
       @NonNull final Map<String, String> customParameters) {
     super(
         ensureSingleEndpoint(endpoints),
@@ -55,6 +58,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
         customParameters);
     this.applicationName = applicationName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);
+    this.queryTimeout = queryTimeout;
   }
 
   public String toConnectionString() {

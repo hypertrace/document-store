@@ -6,14 +6,18 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.PostgresQueryTransformer;
 
 @Slf4j
-@AllArgsConstructor
 public class PostgresQueryExecutor {
+
+  private final int queryTimeoutSeconds;
+
+  public PostgresQueryExecutor(int queryTimeoutSeconds) {
+    this.queryTimeoutSeconds = queryTimeoutSeconds;
+  }
 
   static org.hypertrace.core.documentstore.query.Query transformAndLog(
       org.hypertrace.core.documentstore.query.Query query) {
@@ -28,7 +32,8 @@ public class PostgresQueryExecutor {
     final String sqlQuery = queryParser.parse();
     final Params params = queryParser.getParamsBuilder().build();
     // this is closed when the corresponding ResultSet is closed in the iterators
-    PreparedStatement preparedStatement = buildPreparedStatement(sqlQuery, params, connection);
+    PreparedStatement preparedStatement =
+        buildPreparedStatement(sqlQuery, params, connection, queryTimeoutSeconds);
     try {
       log.debug("Executing SQL query: {}", sqlQuery);
       return preparedStatement.executeQuery();
@@ -45,7 +50,16 @@ public class PostgresQueryExecutor {
 
   public PreparedStatement buildPreparedStatement(
       String sqlQuery, Params params, Connection connection) throws SQLException {
+    return buildPreparedStatement(sqlQuery, params, connection, this.queryTimeoutSeconds);
+  }
+
+  public PreparedStatement buildPreparedStatement(
+      String sqlQuery, Params params, Connection connection, int queryTimeoutSeconds)
+      throws SQLException {
     PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery);
+    if (queryTimeoutSeconds > 0) {
+      preparedStatement.setQueryTimeout(queryTimeoutSeconds);
+    }
     enrichPreparedStatementWithParams(preparedStatement, params);
     return preparedStatement;
   }

@@ -126,6 +126,7 @@ public class ConnectionConfig {
               credentials,
               applicationName,
               connectionPoolConfig,
+              queryTimeout,
               customParameters);
       }
 

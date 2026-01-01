@@ -69,6 +69,10 @@ class PostgresClient {
     return connectionConfig.customParameters();
   }
 
+  public int getQueryTimeoutSeconds() {
+    return (int) connectionConfig.queryTimeout().toSeconds();
+  }
+
   public void close() {
     if (connection != null) {
       try {
