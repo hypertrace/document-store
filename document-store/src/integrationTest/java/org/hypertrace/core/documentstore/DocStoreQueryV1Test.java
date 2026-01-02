@@ -1920,9 +1920,8 @@ public class DocStoreQueryV1Test {
   public void testUnnestTopLevelArrayWithNullValue(String dataStoreName) throws IOException {
     Collection collection = getFlatCollection(dataStoreName);
 
-    // Row 9 (Bottle) has categoryTags as NULL
-    org.hypertrace.core.documentstore.query.Query query =
-        org.hypertrace.core.documentstore.query.Query.builder()
+    Query query =
+        Query.builder()
             .addSelection(IdentifierExpression.of("item"))
             .addSelection(IdentifierExpression.of("categoryTags"))
             .addFromClause(UnnestExpression.of(IdentifierExpression.of("categoryTags"), true))
