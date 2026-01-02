@@ -222,8 +222,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     } else {
       // For nested collections OR JSONB arrays in flat collections, use jsonb_array_elements()
       return String.format(
-          "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
-          parsedLhs, alias, parsedFilter);
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END) AS \"%s\" WHERE %s)",
+          parsedLhs, parsedLhs, alias, parsedFilter);
     }
   }
 
@@ -331,9 +331,10 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
           parsedLhs, arrayTypeCast, alias, parsedFilter);
     } else {
       // For nested collections OR JSONB arrays in flat collections, use jsonb_array_elements()
+      // Use jsonb_typeof() to handle JSON null values - COALESCE only handles SQL NULL
       return String.format(
-          "EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(%s, '[]'::jsonb)) AS \"%s\" WHERE %s)",
-          parsedLhs, alias, parsedFilter);
+          "EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END) AS \"%s\" WHERE %s)",
+          parsedLhs, parsedLhs, alias, parsedFilter);
     }
   }
 }

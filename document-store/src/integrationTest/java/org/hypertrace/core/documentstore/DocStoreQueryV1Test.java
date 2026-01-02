@@ -1916,6 +1916,26 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  public void testUnnestTopLevelArrayWithNullValue(String dataStoreName) throws IOException {
+    Collection collection = getFlatCollection(dataStoreName);
+
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(IdentifierExpression.of("categoryTags"))
+            .addFromClause(UnnestExpression.of(IdentifierExpression.of("categoryTags"), true))
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"), EQ, ConstantExpression.of("Bottle")))
+            .build();
+
+    Iterator<Document> iterator = collection.aggregate(query);
+    assertDocsAndSizeEqualWithoutOrder(
+        dataStoreName, iterator, "query/unnest_null_top_level_array_response.json", 1);
+  }
+
+  @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
   public void testQueryV1DistinctCountWithSortingSpecs(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
@@ -5573,6 +5593,49 @@ public class DocStoreQueryV1Test {
       }
       // Should NOT contain 'warehouse-A'
       assertEquals(12, count, "Should return unnested locations not matching the filter");
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    public void testUnnestNestedArrayWithNullValue(String dataStoreName) throws IOException {
+      Collection collection = getFlatCollection(dataStoreName);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addFromClause(
+                  UnnestExpression.of(JsonIdentifierExpression.of("props", "source-loc"), true))
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("_id"), EQ, ConstantExpression.of(1)))
+              .build();
+
+      Iterator<Document> iterator = collection.aggregate(query);
+      assertDocsAndSizeEqualWithoutOrder(
+          dataStoreName, iterator, "query/unnest_null_nested_array_response.json", 2);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    public void testArrayFilterAnyWithJsonNullArray(String dataStoreName) {
+      Collection collection = getFlatCollection(dataStoreName);
+
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ANY)
+                      .filter(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", "colors"),
+                              EQ,
+                              ConstantExpression.of("Blue")))
+                      .build())
+              .build();
+
+      long count = collection.count(query);
+      assertEquals(2, count, "Should find 2 items with 'Blue' color");
     }
 
     @ParameterizedTest

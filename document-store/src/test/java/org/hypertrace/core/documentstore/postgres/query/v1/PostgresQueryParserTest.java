@@ -708,8 +708,8 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\"),\n"
-            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(\"sales\")),\n"
-            + "table2 as (SELECT * from table1 t1, jsonb_array_elements(sales->'medium') p2(\"sales_dot_medium\"))\n"
+            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\")),\n"
+            + "table2 as (SELECT * from table1 t1, jsonb_array_elements(CASE WHEN jsonb_typeof(sales->'medium') = 'array' THEN sales->'medium' ELSE '[]'::jsonb END) p2(\"sales_dot_medium\"))\n"
             + "SELECT document->'item' AS \"item\", "
             + "document->'price' AS \"price\", "
             + "sales->'city' AS \"sales_dot_city\", "
@@ -740,8 +740,8 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\"),\n"
-            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(\"sales\") on TRUE),\n"
-            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(\"sales_dot_medium\") on TRUE)\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\") on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(sales->'medium') = 'array' THEN sales->'medium' ELSE '[]'::jsonb END) p2(\"sales_dot_medium\") on TRUE)\n"
             + "SELECT document->'item' AS \"item\", "
             + "document->'price' AS \"price\", "
             + "sales->'city' AS \"sales_dot_city\", "
@@ -784,8 +784,8 @@ public class PostgresQueryParserTest {
         "With \n"
             + "table0 as (SELECT * from \"testCollection\" "
             + "WHERE CAST (document->>'quantity' AS NUMERIC) != ?),\n"
-            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(\"sales\")),\n"
-            + "table2 as (SELECT * from table1 t1, jsonb_array_elements(sales->'medium') p2(\"sales_dot_medium\"))\n"
+            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\")),\n"
+            + "table2 as (SELECT * from table1 t1, jsonb_array_elements(CASE WHEN jsonb_typeof(sales->'medium') = 'array' THEN sales->'medium' ELSE '[]'::jsonb END) p2(\"sales_dot_medium\"))\n"
             + "SELECT document->'item' AS \"item\", "
             + "sales->'city' AS \"sales_dot_city\", "
             + "sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" "
@@ -829,8 +829,8 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
-            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(\"sales\") on TRUE),\n"
-            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(\"sales_dot_medium\") on TRUE)\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\") on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(sales->'medium') = 'array' THEN sales->'medium' ELSE '[]'::jsonb END) p2(\"sales_dot_medium\") on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'price' AS \"price\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE sales_dot_medium->>'type' = ?",
         sql);
 
@@ -869,8 +869,8 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\"),\n"
-            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(\"sales\") on TRUE),\n"
-            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(\"sales_dot_medium\") on TRUE)\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\") on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(sales->'medium') = 'array' THEN sales->'medium' ELSE '[]'::jsonb END) p2(\"sales_dot_medium\") on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'price' AS \"price\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE (CAST (document->>'quantity' AS NUMERIC) > ?) OR (sales_dot_medium->>'type' = ?)",
         sql);
 
@@ -918,8 +918,8 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'price' AS NUMERIC) > ?),\n"
-            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(\"sales\") on TRUE),\n"
-            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(\"sales_dot_medium\") on TRUE)\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\") on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(sales->'medium') = 'array' THEN sales->'medium' ELSE '[]'::jsonb END) p2(\"sales_dot_medium\") on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'price' AS \"price\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE (CAST (document->>'quantity' AS NUMERIC) > ?) OR (sales_dot_medium->>'type' = ?)",
         sql);
 
@@ -967,8 +967,8 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
-            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(\"sales\") on TRUE),\n"
-            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(\"sales_dot_medium\") on TRUE)\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\") on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(sales->'medium') = 'array' THEN sales->'medium' ELSE '[]'::jsonb END) p2(\"sales_dot_medium\") on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'quantity' AS \"quantity\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE (sales_dot_medium->>'type' = ?) AND (sales_dot_medium->>'type' = ?)",
         sql);
 
@@ -1016,8 +1016,8 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
-            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(\"sales\") on TRUE),\n"
-            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(\"sales_dot_medium\") on TRUE)\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\") on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(sales->'medium') = 'array' THEN sales->'medium' ELSE '[]'::jsonb END) p2(\"sales_dot_medium\") on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'quantity' AS \"quantity\", sales->'city' AS \"sales_dot_city\", sales_dot_medium->'type' AS \"sales_dot_medium_dot_type\" FROM table2 WHERE (sales_dot_medium->>'type' = ?) AND (sales_dot_medium->>'channel' = ?)",
         sql);
 
@@ -1064,8 +1064,8 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\" WHERE CAST (document->>'quantity' AS NUMERIC) > ?),\n"
-            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(document->'sales') p1(\"sales\") on TRUE),\n"
-            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(sales->'medium') p2(\"sales_dot_medium\") on TRUE)\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\") on TRUE),\n"
+            + "table2 as (SELECT * from table1 t1 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(sales->'medium') = 'array' THEN sales->'medium' ELSE '[]'::jsonb END) p2(\"sales_dot_medium\") on TRUE)\n"
             + "SELECT document->'item' AS \"item\", document->'quantity' AS \"quantity\", sales->'city' AS \"sales_dot_city\" FROM table2 WHERE (sales->>'channel' = ?) AND (sales->>'city' = ?)",
         sql);
 
@@ -1380,7 +1380,7 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\"),\n"
-            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(\"sales\"))\n"
+            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\"))\n"
             + "SELECT document->'item' AS \"item\", sales->'medium' AS \"sales_dot_medium\" FROM table1 WHERE sales->'medium' @> ?::jsonb",
         sql);
 
@@ -1415,7 +1415,7 @@ public class PostgresQueryParserTest {
     assertEquals(
         "With \n"
             + "table0 as (SELECT * from \"testCollection\"),\n"
-            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(document->'sales') p1(\"sales\"))\n"
+            + "table1 as (SELECT * from table0 t0, jsonb_array_elements(CASE WHEN jsonb_typeof(document->'sales') = 'array' THEN document->'sales' ELSE '[]'::jsonb END) p1(\"sales\"))\n"
             + "SELECT document->'item' AS \"item\", sales->'medium' AS \"sales_dot_medium\" FROM table1 WHERE sales->'medium' IS NULL OR NOT sales->'medium' @> ?::jsonb",
         sql);
 
@@ -1799,7 +1799,7 @@ public class PostgresQueryParserTest {
     String expectedSql =
         "With \n"
             + "table0 as (SELECT * from \"testCollection\"),\n"
-            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(\"customAttribute\"->'dev-ops-owner') p1(\"customAttribute_dot_dev-ops-owner\") on TRUE)\n"
+            + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(\"customAttribute\"->'dev-ops-owner') = 'array' THEN \"customAttribute\"->'dev-ops-owner' ELSE '[]'::jsonb END) p1(\"customAttribute_dot_dev-ops-owner\") on TRUE)\n"
             + "SELECT \"id\" AS \"id\", \"customAttribute_dot_dev-ops-owner\" AS \"customAttribute_dot_dev-ops-owner\" "
             + "FROM table1 WHERE \"customAttribute_dot_dev-ops-owner\" = ?";
 
