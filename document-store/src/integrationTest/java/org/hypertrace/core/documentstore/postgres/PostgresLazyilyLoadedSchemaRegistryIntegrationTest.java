@@ -29,7 +29,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 @Testcontainers
-class PostgresSchemaRegistryIntegrationTest {
+class PostgresLazyilyLoadedSchemaRegistryIntegrationTest {
 
   private static final String TABLE_NAME = "myTestFlat";
 

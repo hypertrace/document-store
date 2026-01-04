@@ -12,6 +12,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.hypertrace.core.documentstore.commons.SchemaRegistry;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A lazily-loaded, cached schema registry for PostgreSQL tables.
@@ -49,10 +51,17 @@ import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
  * @see PostgresMetadataFetcher
  * @see PostgresColumnMetadata
  */
-public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMetadata> {
+public class PostgresLazyilyLoadedSchemaRegistry implements SchemaRegistry<PostgresColumnMetadata> {
 
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(PostgresLazyilyLoadedSchemaRegistry.class);
+
+  // The cache registry - Key: Table name, value: Map of column name to column metadata
   private final LoadingCache<String, Map<String, PostgresColumnMetadata>> cache;
+  // This tracks when was the last time a cache was refreshed for a table. This helps track the
+  // cooldown period on a per-table level
   private final ConcurrentHashMap<String, Instant> lastRefreshTimes;
+  // How long to wait for a tables' schema refresh before it is refreshed again
   private final Duration refreshCooldown;
 
   /**
@@ -62,8 +71,9 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
    * @param cacheExpiry how long to keep cached schemas before they expire
    * @param refreshCooldown minimum time between refresh attempts for missing columns
    */
-  public PostgresSchemaRegistry(
+  public PostgresLazyilyLoadedSchemaRegistry(
       PostgresMetadataFetcher fetcher, Duration cacheExpiry, Duration refreshCooldown) {
+
     this.refreshCooldown = refreshCooldown;
     this.lastRefreshTimes = new ConcurrentHashMap<>();
     this.cache =
@@ -73,8 +83,11 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
                 new CacheLoader<>() {
                   @Override
                   public Map<String, PostgresColumnMetadata> load(String tableName) {
+                    LOGGER.info("Loading schema for table: {}", tableName);
+                    Map<String, PostgresColumnMetadata> updatedSchema = fetcher.fetch(tableName);
                     lastRefreshTimes.put(tableName, Instant.now());
-                    return fetcher.fetch(tableName);
+                    LOGGER.info("Successfully loading schema for table: {}", tableName);
+                    return updatedSchema;
                   }
                 });
   }
@@ -91,6 +104,7 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
     try {
       return cache.get(tableName);
     } catch (ExecutionException e) {
+      LOGGER.error("Could not fetch the schema for table from the cache: {}", tableName, e);
       throw new RuntimeException("Failed to fetch schema for " + tableName, e.getCause());
     }
   }
@@ -104,6 +118,7 @@ public class PostgresSchemaRegistry implements SchemaRegistry<PostgresColumnMeta
    */
   @Override
   public void invalidate(String tableName) {
+    LOGGER.info("Invalidating schema for table: {}", tableName);
     cache.invalidate(tableName);
   }
 

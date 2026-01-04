@@ -14,7 +14,6 @@ public class PostgresColumnMetadata implements ColumnMetadata {
   private final String colName;
   private final DataType canonicalType;
   @Getter private final PostgresDataType postgresType;
-  private final String pgType;
   private final boolean nullable;
 
   @Override

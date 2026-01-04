@@ -22,7 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class PostgresSchemaRegistryTest {
+class PostgresLazyilyLoadedSchemaRegistryTest {
 
   private static final String TEST_TABLE = "test_table";
   private static final String COL_ID = "id";
@@ -33,11 +33,11 @@ class PostgresSchemaRegistryTest {
 
   @Mock private PostgresMetadataFetcher fetcher;
 
-  private PostgresSchemaRegistry registry;
+  private PostgresLazyilyLoadedSchemaRegistry registry;
 
   @BeforeEach
   void setUp() {
-    registry = new PostgresSchemaRegistry(fetcher, CACHE_EXPIRY, REFRESH_COOLDOWN);
+    registry = new PostgresLazyilyLoadedSchemaRegistry(fetcher, CACHE_EXPIRY, REFRESH_COOLDOWN);
   }
 
   @Test
@@ -79,7 +79,6 @@ class PostgresSchemaRegistryTest {
             .colName("other_col")
             .canonicalType(DataType.BOOLEAN)
             .postgresType(PostgresDataType.BOOLEAN)
-            .pgType("bool")
             .nullable(false)
             .build());
 
@@ -164,7 +163,6 @@ class PostgresSchemaRegistryTest {
             .colName("new_col")
             .canonicalType(DataType.STRING)
             .postgresType(PostgresDataType.TEXT)
-            .pgType("text")
             .nullable(true)
             .build());
 
@@ -280,7 +278,6 @@ class PostgresSchemaRegistryTest {
             .colName(COL_ID)
             .canonicalType(DataType.INTEGER)
             .postgresType(PostgresDataType.INTEGER)
-            .pgType("int4")
             .nullable(false)
             .build());
     schema.put(
@@ -289,7 +286,6 @@ class PostgresSchemaRegistryTest {
             .colName(COL_NAME)
             .canonicalType(DataType.STRING)
             .postgresType(PostgresDataType.TEXT)
-            .pgType("text")
             .nullable(true)
             .build());
     schema.put(
@@ -298,7 +294,6 @@ class PostgresSchemaRegistryTest {
             .colName(COL_PRICE)
             .canonicalType(DataType.DOUBLE)
             .postgresType(PostgresDataType.DOUBLE_PRECISION)
-            .pgType("float8")
             .nullable(true)
             .build());
     return schema;

@@ -54,12 +54,12 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final String WRITE_NOT_SUPPORTED =
       "Write operations are not supported for flat collections yet!";
 
-  private final PostgresSchemaRegistry schemaRegistry;
+  private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
   FlatPostgresCollection(
       final PostgresClient client,
       final String collectionName,
-      final PostgresSchemaRegistry schemaRegistry) {
+      final PostgresLazyilyLoadedSchemaRegistry schemaRegistry) {
     super(client, collectionName);
     this.schemaRegistry = schemaRegistry;
   }

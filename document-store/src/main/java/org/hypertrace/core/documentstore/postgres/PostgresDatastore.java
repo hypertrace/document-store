@@ -61,7 +61,7 @@ public class PostgresDatastore implements Datastore {
       database = connectionConfig.database();
       docStoreMetricProvider = new PostgresDocStoreMetricProvider(this, postgresConnectionConfig);
       schemaRegistry =
-          new PostgresSchemaRegistry(
+          new PostgresLazyilyLoadedSchemaRegistry(
               new PostgresMetadataFetcher(client),
               postgresConnectionConfig.schemaCacheExpiry(),
               postgresConnectionConfig.schemaRefreshCooldown());
@@ -172,7 +172,7 @@ public class PostgresDatastore implements Datastore {
       case FLAT:
         {
           return new FlatPostgresCollection(
-              client, collectionName, (PostgresSchemaRegistry) schemaRegistry);
+              client, collectionName, (PostgresLazyilyLoadedSchemaRegistry) schemaRegistry);
         }
       case NESTED:
         return getCollection(collectionName);
