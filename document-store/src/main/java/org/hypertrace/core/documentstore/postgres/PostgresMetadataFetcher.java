@@ -40,11 +40,7 @@ public class PostgresMetadataFetcher {
           metadataMap.put(
               columnName,
               new PostgresColumnMetadata(
-                  columnName,
-                  mapToCanonicalType(udtName),
-                  mapToPostgresType(udtName),
-                  udtName,
-                  isNullable));
+                  columnName, mapToCanonicalType(udtName), mapToPostgresType(udtName), isNullable));
         }
       }
       return metadataMap;
