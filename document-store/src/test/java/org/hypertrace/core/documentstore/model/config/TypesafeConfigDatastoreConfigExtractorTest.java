@@ -158,6 +158,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
             .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
             .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
+            .queryTimeoutKey(QUERY_TIMEOUT_KEY)
             .extract()
             .connectionConfig();
     final ConnectionConfig expected =
@@ -179,6 +180,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                     .connectionSurrenderTimeout(surrenderTimeout)
                     .build())
             .aggregationPipelineMode(SORT_OPTIMIZED_IF_POSSIBLE)
+            .queryTimeout(queryTimeout)
             .build();
 
     assertEquals(expected, config);
