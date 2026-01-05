@@ -93,6 +93,7 @@ interface TypesafeDatastoreConfigAdapter {
               connectionConfig.credentials(),
               connectionConfig.applicationName(),
               connectionConfig.connectionPoolConfig(),
+              connectionConfig.queryTimeout(),
               connectionConfig.customParameters()) {
             @Override
             public String toConnectionString() {
