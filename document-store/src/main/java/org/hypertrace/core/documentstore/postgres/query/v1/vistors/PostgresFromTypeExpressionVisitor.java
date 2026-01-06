@@ -24,7 +24,8 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
       "%s as (SELECT * from %s %s, %s %s)";
   private static final String PRESERVE_NULL_AND_EMPTY_TABLE_QUERY_FMT =
       "%s as (SELECT * from %s %s LEFT JOIN LATERAL %s %s on TRUE)";
-  private static final String JSONB_UNWIND_EXP_FMT = "jsonb_array_elements(%s)";
+  private static final String JSONB_UNWIND_EXP_FMT =
+      "jsonb_array_elements(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END)";
   private static final String NATIVE_UNWIND_EXP_FMT = "unnest(%s)";
   private static final String UNWIND_EXP_ALIAS_FMT = "p%s(%s)";
 
@@ -80,7 +81,10 @@ public class PostgresFromTypeExpressionVisitor implements FromTypeExpressionVisi
     String preTable = "table" + preIndex;
     String newTable = "table" + nextIndex;
     String tableAlias = "t" + preIndex;
-    String unwindExpr = String.format(unnestFunction, transformedFieldName);
+    String unwindExpr =
+        unnestFunction.equals(JSONB_UNWIND_EXP_FMT)
+            ? String.format(unnestFunction, transformedFieldName, transformedFieldName)
+            : String.format(unnestFunction, transformedFieldName);
 
     // we'll quote the col name to prevent folding to lower case for top-level array fields
     String unwindExprAlias =
