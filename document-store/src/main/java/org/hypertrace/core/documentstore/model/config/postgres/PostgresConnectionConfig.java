@@ -35,9 +35,14 @@ public class PostgresConnectionConfig extends ConnectionConfig {
           .password(PostgresDefaults.DEFAULT_PASSWORD)
           .build();
 
+  private static final Duration DEFAULT_SCHEMA_CACHE_EXPIRY = Duration.ofHours(24);
+  private static final Duration DEFAULT_SCHEMA_REFRESH_COOLDOWN = Duration.ofMinutes(15);
+
   @NonNull String applicationName;
   @NonNull ConnectionPoolConfig connectionPoolConfig;
   @NonNull Duration queryTimeout;
+  @NonNull Duration schemaCacheExpiry;
+  @NonNull Duration schemaRefreshCooldown;
 
   public static ConnectionConfigBuilder builder() {
     return ConnectionConfig.builder().type(DatabaseType.POSTGRES);
@@ -50,6 +55,8 @@ public class PostgresConnectionConfig extends ConnectionConfig {
       @NonNull final String applicationName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig,
       @NonNull final Duration queryTimeout,
+      @Nullable final Duration schemaCacheExpiry,
+      @Nullable final Duration schemaRefreshCooldown,
       @NonNull final Map<String, String> customParameters) {
     super(
         ensureSingleEndpoint(endpoints),
@@ -59,6 +66,8 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     this.applicationName = applicationName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);
     this.queryTimeout = queryTimeout;
+    this.schemaCacheExpiry = getSchemaCacheExpiryOrDefault(schemaCacheExpiry);
+    this.schemaRefreshCooldown = getSchemaRefreshCooldownOrDefault(schemaRefreshCooldown);
   }
 
   public String toConnectionString() {
@@ -130,5 +139,16 @@ public class PostgresConnectionConfig extends ConnectionConfig {
   private ConnectionPoolConfig getConnectionPoolConfigOrDefault(
       @Nullable final ConnectionPoolConfig connectionPoolConfig) {
     return Optional.ofNullable(connectionPoolConfig).orElse(ConnectionPoolConfig.builder().build());
+  }
+
+  @NonNull
+  private Duration getSchemaCacheExpiryOrDefault(@Nullable final Duration schemaCacheExpiry) {
+    return Optional.ofNullable(schemaCacheExpiry).orElse(DEFAULT_SCHEMA_CACHE_EXPIRY);
+  }
+
+  @NonNull
+  private Duration getSchemaRefreshCooldownOrDefault(
+      @Nullable final Duration schemaRefreshCooldown) {
+    return Optional.ofNullable(schemaRefreshCooldown).orElse(DEFAULT_SCHEMA_REFRESH_COOLDOWN);
   }
 }

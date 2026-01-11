@@ -22,6 +22,7 @@ public enum DataType {
   FLOAT,
   DOUBLE,
   BOOLEAN,
+  JSON,
   // timestamp with time-zone information. For example: 2004-10-19 10:23:54+02.
   // For more info, see: https://www.postgresql.org/docs/current/datatype-datetime.html
   TIMESTAMPTZ,

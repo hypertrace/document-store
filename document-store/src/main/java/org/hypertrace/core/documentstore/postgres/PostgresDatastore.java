@@ -20,11 +20,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DocumentType;
+import org.hypertrace.core.documentstore.commons.SchemaRegistry;
 import org.hypertrace.core.documentstore.metric.DocStoreMetricProvider;
 import org.hypertrace.core.documentstore.metric.postgres.PostgresDocStoreMetricProvider;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
+import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,6 +39,7 @@ public class PostgresDatastore implements Datastore {
   private final PostgresClient client;
   private final String database;
   private final DocStoreMetricProvider docStoreMetricProvider;
+  private final SchemaRegistry<PostgresColumnMetadata> schemaRegistry;
 
   public PostgresDatastore(@NonNull final DatastoreConfig datastoreConfig) {
     final ConnectionConfig connectionConfig = datastoreConfig.connectionConfig();
@@ -57,6 +60,11 @@ public class PostgresDatastore implements Datastore {
       client = new PostgresClient(postgresConnectionConfig);
       database = connectionConfig.database();
       docStoreMetricProvider = new PostgresDocStoreMetricProvider(this, postgresConnectionConfig);
+      schemaRegistry =
+          new PostgresLazyilyLoadedSchemaRegistry(
+              new PostgresMetadataFetcher(client),
+              postgresConnectionConfig.schemaCacheExpiry(),
+              postgresConnectionConfig.schemaRefreshCooldown());
     } catch (final IllegalArgumentException e) {
       throw new IllegalArgumentException(
           String.format("Unable to instantiate PostgresClient with config:%s", connectionConfig),
@@ -163,7 +171,8 @@ public class PostgresDatastore implements Datastore {
     switch (documentType) {
       case FLAT:
         {
-          return new FlatPostgresCollection(client, collectionName);
+          return new FlatPostgresCollection(
+              client, collectionName, (PostgresLazyilyLoadedSchemaRegistry) schemaRegistry);
         }
       case NESTED:
         return getCollection(collectionName);
@@ -187,6 +196,12 @@ public class PostgresDatastore implements Datastore {
   @Override
   public DocStoreMetricProvider getDocStoreMetricProvider() {
     return docStoreMetricProvider;
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public SchemaRegistry<PostgresColumnMetadata> getSchemaRegistry() {
+    return schemaRegistry;
   }
 
   @Override
