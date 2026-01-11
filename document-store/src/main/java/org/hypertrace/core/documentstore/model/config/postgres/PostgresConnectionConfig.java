@@ -40,6 +40,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
 
   @NonNull String applicationName;
   @NonNull ConnectionPoolConfig connectionPoolConfig;
+  @NonNull Duration queryTimeout;
   @NonNull Duration schemaCacheExpiry;
   @NonNull Duration schemaRefreshCooldown;
 
@@ -53,6 +54,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
       @Nullable final ConnectionCredentials credentials,
       @NonNull final String applicationName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig,
+      @NonNull final Duration queryTimeout,
       @Nullable final Duration schemaCacheExpiry,
       @Nullable final Duration schemaRefreshCooldown,
       @NonNull final Map<String, String> customParameters) {
@@ -63,6 +65,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
         customParameters);
     this.applicationName = applicationName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);
+    this.queryTimeout = queryTimeout;
     this.schemaCacheExpiry = getSchemaCacheExpiryOrDefault(schemaCacheExpiry);
     this.schemaRefreshCooldown = getSchemaRefreshCooldownOrDefault(schemaRefreshCooldown);
   }
