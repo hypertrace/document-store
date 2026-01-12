@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore;
 
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -288,45 +289,145 @@ public class FlatCollectionWriteTest {
     }
 
     @Test
-    @DisplayName("Should skip unknown fields when creating document")
+    @DisplayName("Should skip unknown fields and insert known fields")
     void testCreateSkipsUnknownFields() throws Exception {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("id", "unknown-field-doc-400");
       objectNode.put("item", "Item");
-      objectNode.put("unknown_column", "should be ignored");
+      objectNode.put("unknown_column", "should be skipped");
       Document document = new JSONDocument(objectNode);
       Key key = new SingleValueKey("default", "unknown-field-doc-400");
 
       CreateResult result = flatCollection.create(key, document);
 
       assertTrue(result.isSucceed());
+
+      // Verify only known columns were inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'unknown-field-doc-400'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Item", rs.getString("item"));
+      }
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for createOrReplace")
-    void testCreateOrReplace() {
+    @DisplayName("Should create a new document when key does not exist")
+    void testCreateOrReplaceNewDocument() throws Exception {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "200");
+      objectNode.put("id", "createorreplace-new-500");
       objectNode.put("item", "NewMirror");
+      objectNode.put("price", 150);
       Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "200");
+      Key key = new SingleValueKey("default", "createorreplace-new-500");
 
-      assertThrows(
-          UnsupportedOperationException.class, () -> flatCollection.createOrReplace(key, document));
+      boolean result = flatCollection.createOrReplace(key, document);
+
+      assertTrue(result);
+
+      // Verify the data was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'createorreplace-new-500'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("NewMirror", rs.getString("item"));
+        assertEquals(150, rs.getInt("price"));
+      }
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for createOrReplaceAndReturn")
-    void testCreateOrReplaceAndReturn() {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "200");
-      objectNode.put("item", "NewMirror");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "200");
+    @DisplayName("Should replace an existing document when key exists")
+    void testCreateOrReplaceExistingDocument() throws Exception {
+      // First create a document
+      ObjectNode objectNode1 = OBJECT_MAPPER.createObjectNode();
+      objectNode1.put("id", "createorreplace-existing-600");
+      objectNode1.put("item", "OriginalItem");
+      objectNode1.put("price", 100);
+      Document document1 = new JSONDocument(objectNode1);
+      Key key = new SingleValueKey("default", "createorreplace-existing-600");
+      flatCollection.create(key, document1);
 
-      assertThrows(
-          UnsupportedOperationException.class,
-          () -> flatCollection.createOrReplaceAndReturn(key, document));
+      // Now replace it
+      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
+      objectNode2.put("id", "createorreplace-existing-600");
+      objectNode2.put("item", "ReplacedItem");
+      objectNode2.put("price", 200);
+      Document document2 = new JSONDocument(objectNode2);
+
+      boolean result = flatCollection.createOrReplace(key, document2);
+
+      assertTrue(result);
+
+      // Verify the data was replaced
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'createorreplace-existing-600'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("ReplacedItem", rs.getString("item"));
+        assertEquals(200, rs.getInt("price"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should create and return a new document when key does not exist")
+    void testCreateOrReplaceAndReturnNewDocument() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "createorreplace-return-700");
+      objectNode.put("item", "ReturnedItem");
+      objectNode.put("price", 250);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "createorreplace-return-700");
+
+      Document result = flatCollection.createOrReplaceAndReturn(key, document);
+
+      assertNotNull(result);
+      JsonNode resultNode = OBJECT_MAPPER.readTree(result.toJson());
+      assertEquals("createorreplace-return-700", resultNode.get("id").asText());
+      assertEquals("ReturnedItem", resultNode.get("item").asText());
+      assertEquals(250, resultNode.get("price").asInt());
+    }
+
+    @Test
+    @DisplayName("Should replace and return an existing document when key exists")
+    void testCreateOrReplaceAndReturnExistingDocument() throws Exception {
+      // First create a document
+      ObjectNode objectNode1 = OBJECT_MAPPER.createObjectNode();
+      objectNode1.put("id", "createorreplace-return-existing-800");
+      objectNode1.put("item", "OriginalReturnItem");
+      objectNode1.put("price", 300);
+      Document document1 = new JSONDocument(objectNode1);
+      Key key = new SingleValueKey("default", "createorreplace-return-existing-800");
+      flatCollection.create(key, document1);
+
+      // Now replace it
+      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
+      objectNode2.put("id", "createorreplace-return-existing-800");
+      objectNode2.put("item", "ReplacedReturnItem");
+      objectNode2.put("price", 400);
+      Document document2 = new JSONDocument(objectNode2);
+
+      Document result = flatCollection.createOrReplaceAndReturn(key, document2);
+
+      assertNotNull(result);
+      JsonNode resultNode = OBJECT_MAPPER.readTree(result.toJson());
+      assertEquals("createorreplace-return-existing-800", resultNode.get("id").asText());
+      assertEquals("ReplacedReturnItem", resultNode.get("item").asText());
+      assertEquals(400, resultNode.get("price").asInt());
     }
   }
 

@@ -4,9 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
@@ -14,8 +15,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
@@ -24,6 +27,7 @@ import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
@@ -164,64 +168,322 @@ public class FlatPostgresCollection extends PostgresCollection {
   }
 
   @Override
-  public CreateResult create(Key key, Document document)
+  public CreateResult create(Key key, Document document) throws IOException {
+    return createWithRetry(key, document, false);
+  }
+
+  @Override
+  public boolean createOrReplace(Key key, Document document) throws IOException {
+    return createOrReplaceWithRetry(key, document, false);
+  }
+
+  @Override
+  public Document createOrReplaceAndReturn(Key key, Document document) throws IOException {
+    return createOrReplaceAndReturnWithRetry(key, document, false);
+  }
+
+  @Override
+  public BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) {
+    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+  }
+
+  @Override
+  public UpdateResult update(Key key, Document document, Filter condition) throws IOException {
+    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+  }
+
+  @Override
+  public Optional<Document> update(
+      org.hypertrace.core.documentstore.query.Query query,
+      java.util.Collection<SubDocumentUpdate> updates,
+      UpdateOptions updateOptions)
+      throws IOException {
+    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+  }
+
+  @Override
+  public CloseableIterator<Document> bulkUpdate(
+      org.hypertrace.core.documentstore.query.Query query,
+      java.util.Collection<SubDocumentUpdate> updates,
+      UpdateOptions updateOptions)
+      throws IOException {
+    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+  }
+
+  private CreateResult createWithRetry(Key key, Document document, boolean isRetry)
       throws IOException {
     String tableName = tableIdentifier.getTableName();
-    Map<String, PostgresColumnMetadata> schema = schemaRegistry.getSchema(tableName);
 
     try {
-      JsonNode jsonNode = MAPPER.readTree(document.toJson());
-
-      List<String> columns = new ArrayList<>();
-      List<Object> values = new ArrayList<>();
-      List<PostgresDataType> types = new ArrayList<>();
-
-      Iterator<Map.Entry<String, JsonNode>> fields = jsonNode.fields();
-      while (fields.hasNext()) {
-        Map.Entry<String, JsonNode> field = fields.next();
-        String fieldName = field.getKey();
-        JsonNode fieldValue = field.getValue();
-
-        PostgresColumnMetadata columnMeta = schema.get(fieldName);
-        if (columnMeta == null) {
-          LOGGER.warn(
-              "Skipping field '{}' - not found in schema for table '{}'", fieldName, tableName);
-          continue;
-        }
-
-        columns.add("\"" + fieldName + "\"");
-        values.add(extractValue(fieldValue, columnMeta.getPostgresType()));
-        types.add(columnMeta.getPostgresType());
+      TypedDocument parsed = parseDocument(document, tableName);
+      // if there are no valid columns in the document
+      if (parsed.isEmpty()) {
+        LOGGER.warn("No valid columns found in the document for table: {}", tableName);
+        return new CreateResult(false);
       }
 
-      if (columns.isEmpty()) {
-        throw new IOException("No valid columns found in document for table: " + tableName);
-      }
-
-      String sql = buildInsertSql(columns);
+      String sql = buildInsertSql(parsed.getColumns());
       LOGGER.debug("Insert SQL: {}", sql);
 
-      try (Connection conn = client.getPooledConnection();
-          PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+      int result = executeUpdate(sql, parsed);
+      LOGGER.debug("Create result: {}", result);
+      return new CreateResult(result > 0);
 
-        for (int i = 0; i < values.size(); i++) {
-          setParameter(ps, i + 1, values.get(i), types.get(i));
-        }
-
-        int result = ps.executeUpdate();
-        LOGGER.debug("Create result: {}", result);
-        return new CreateResult(result > 0);
-      }
     } catch (PSQLException e) {
       if (PSQLState.UNIQUE_VIOLATION.getState().equals(e.getSQLState())) {
         throw new DuplicateDocumentException();
       }
-      LOGGER.error("SQLException creating document. key: {} content: {}", key, document, e);
-      throw new IOException(e);
+      return handlePSQLExceptionForCreate(e, key, document, tableName, isRetry);
     } catch (SQLException e) {
       LOGGER.error("SQLException creating document. key: {} content: {}", key, document, e);
       throw new IOException(e);
     }
+  }
+
+  private boolean createOrReplaceWithRetry(Key key, Document document, boolean isRetry)
+      throws IOException {
+    String tableName = tableIdentifier.getTableName();
+
+    try {
+      TypedDocument parsed = parseDocument(document, tableName);
+      if (parsed.isEmpty()) {
+        LOGGER.warn("No valid columns found in the document for table: {}", tableName);
+        return false;
+      }
+
+      String sql = buildUpsertSql(parsed.getColumns());
+      LOGGER.debug("Upsert SQL: {}", sql);
+
+      int result = executeUpdate(sql, parsed);
+      LOGGER.debug("CreateOrReplace result: {}", result);
+      return result > 0;
+
+    } catch (PSQLException e) {
+      return handlePSQLExceptionForCreateOrReplace(e, key, document, tableName, isRetry);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  private Document createOrReplaceAndReturnWithRetry(Key key, Document document, boolean isRetry)
+      throws IOException {
+    String tableName = tableIdentifier.getTableName();
+
+    try {
+      TypedDocument parsed = parseDocument(document, tableName);
+      if (parsed.isEmpty()) {
+        LOGGER.warn("No valid columns found in the document for table: {}", tableName);
+        return null;
+      }
+
+      String sql = buildUpsertSqlWithReturning(parsed.getColumns());
+      LOGGER.debug("Upsert with RETURNING SQL: {}", sql);
+
+      return executeQueryAndReturn(sql, parsed);
+
+    } catch (PSQLException e) {
+      return handlePSQLExceptionForCreateOrReplaceAndReturn(e, key, document, tableName, isRetry);
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException in createOrReplaceAndReturn. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  private TypedDocument parseDocument(Document document, String tableName) throws IOException {
+    JsonNode jsonNode = MAPPER.readTree(document.toJson());
+    List<ColumnEntry> entries = new ArrayList<>();
+
+    Iterator<Entry<String, JsonNode>> fields = jsonNode.fields();
+    while (fields.hasNext()) {
+      Entry<String, JsonNode> field = fields.next();
+      String fieldName = field.getKey();
+      JsonNode fieldValue = field.getValue();
+
+      Optional<PostgresColumnMetadata> columnMetadata =
+          schemaRegistry.getColumnOrRefresh(tableName, fieldName);
+
+      if (columnMetadata.isEmpty()) {
+        LOGGER.warn("Could not find column metadata for column: {}, skipping it", fieldName);
+        continue;
+      }
+
+      PostgresDataType type = columnMetadata.get().getPostgresType();
+      entries.add(new ColumnEntry("\"" + fieldName + "\"", extractValue(fieldValue, type), type));
+    }
+
+    return new TypedDocument(entries);
+  }
+
+  private int executeUpdate(String sql, TypedDocument parsed) throws SQLException {
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      int index = 1;
+      for (ColumnEntry entry : parsed.entries) {
+        setParameter(ps, index++, entry.value, entry.type);
+      }
+      return ps.executeUpdate();
+    }
+  }
+
+  private Document executeQueryAndReturn(String sql, TypedDocument parsed)
+      throws SQLException, IOException {
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      int index = 1;
+      for (ColumnEntry entry : parsed.entries) {
+        setParameter(ps, index++, entry.value, entry.type);
+      }
+      try (ResultSet rs = ps.executeQuery()) {
+        if (rs.next()) {
+          return resultSetToDocument(rs);
+        }
+        return null;
+      }
+    }
+  }
+
+  private CreateResult handlePSQLExceptionForCreate(
+      PSQLException e, Key key, Document document, String tableName, boolean isRetry)
+      throws IOException {
+    if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
+      LOGGER.info(
+          "Schema mismatch detected (SQLState: {}), refreshing schema and retrying. key: {}",
+          e.getSQLState(),
+          key);
+      schemaRegistry.invalidate(tableName);
+      return createWithRetry(key, document, true);
+    }
+    LOGGER.error("SQLException creating document. key: {} content: {}", key, document, e);
+    throw new IOException(e);
+  }
+
+  private boolean handlePSQLExceptionForCreateOrReplace(
+      PSQLException e, Key key, Document document, String tableName, boolean isRetry)
+      throws IOException {
+    if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
+      LOGGER.info(
+          "Schema mismatch detected (SQLState: {}), refreshing schema and retrying. key: {}",
+          e.getSQLState(),
+          key);
+      schemaRegistry.invalidate(tableName);
+      return createOrReplaceWithRetry(key, document, true);
+    }
+    LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+    throw new IOException(e);
+  }
+
+  private Document handlePSQLExceptionForCreateOrReplaceAndReturn(
+      PSQLException e, Key key, Document document, String tableName, boolean isRetry)
+      throws IOException {
+    if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
+      LOGGER.info(
+          "Schema mismatch detected (SQLState: {}), refreshing schema and retrying. key: {}",
+          e.getSQLState(),
+          key);
+      schemaRegistry.invalidate(tableName);
+      return createOrReplaceAndReturnWithRetry(key, document, true);
+    }
+    LOGGER.error("SQLException in createOrReplaceAndReturn. key: {} content: {}", key, document, e);
+    throw new IOException(e);
+  }
+
+  private boolean shouldRefreshSchemaAndRetry(String sqlState) {
+    return PSQLState.UNDEFINED_COLUMN.getState().equals(sqlState)
+        || PSQLState.DATATYPE_MISMATCH.getState().equals(sqlState);
+  }
+
+  private static class ColumnEntry {
+    final String column;
+    final Object value;
+    final PostgresDataType type;
+
+    ColumnEntry(String column, Object value, PostgresDataType type) {
+      this.column = column;
+      this.value = value;
+      this.type = type;
+    }
+  }
+
+  private static class TypedDocument {
+    final List<ColumnEntry> entries;
+
+    TypedDocument(List<ColumnEntry> entries) {
+      this.entries = entries;
+    }
+
+    boolean isEmpty() {
+      return entries.isEmpty();
+    }
+
+    List<String> getColumns() {
+      return entries.stream().map(e -> e.column).collect(Collectors.toList());
+    }
+  }
+
+  private String buildUpsertSql(List<String> columns) {
+    String columnList = String.join(", ", columns);
+    String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
+    String updateSet =
+        columns.stream()
+            .filter(col -> !"\"id\"".equals(col))
+            .map(col -> col + " = EXCLUDED." + col)
+            .collect(Collectors.joining(", "));
+
+    if (updateSet.isEmpty()) {
+      return String.format(
+          "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (\"id\") DO NOTHING",
+          tableIdentifier, columnList, placeholders);
+    }
+
+    return String.format(
+        "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (\"id\") DO UPDATE SET %s",
+        tableIdentifier, columnList, placeholders, updateSet);
+  }
+
+  private String buildUpsertSqlWithReturning(List<String> columns) {
+    return buildUpsertSql(columns) + " RETURNING *";
+  }
+
+  private Document resultSetToDocument(ResultSet rs) throws SQLException, IOException {
+    int columnCount = rs.getMetaData().getColumnCount();
+    com.fasterxml.jackson.databind.node.ObjectNode objectNode = MAPPER.createObjectNode();
+
+    for (int i = 1; i <= columnCount; i++) {
+      String columnName = rs.getMetaData().getColumnName(i);
+      Object value = rs.getObject(i);
+
+      if (value == null) {
+        objectNode.putNull(columnName);
+      } else if (value instanceof Integer) {
+        objectNode.put(columnName, (Integer) value);
+      } else if (value instanceof Long) {
+        objectNode.put(columnName, (Long) value);
+      } else if (value instanceof Double) {
+        objectNode.put(columnName, (Double) value);
+      } else if (value instanceof Float) {
+        objectNode.put(columnName, (Float) value);
+      } else if (value instanceof Boolean) {
+        objectNode.put(columnName, (Boolean) value);
+      } else if (value instanceof Timestamp) {
+        objectNode.put(columnName, ((Timestamp) value).toInstant().toString());
+      } else if (value instanceof java.sql.Date) {
+        objectNode.put(columnName, value.toString());
+      } else if (value instanceof org.postgresql.util.PGobject) {
+        // Handle JSONB
+        String jsonValue = ((org.postgresql.util.PGobject) value).getValue();
+        if (jsonValue != null) {
+          objectNode.set(columnName, MAPPER.readTree(jsonValue));
+        } else {
+          objectNode.putNull(columnName);
+        }
+      } else {
+        objectNode.put(columnName, value.toString());
+      }
+    }
+
+    return new JSONDocument(objectNode);
   }
 
   private String buildInsertSql(List<String> columns) {
@@ -247,8 +509,6 @@ public class FlatPostgresCollection extends PostgresCollection {
         return node.isNumber() ? node.doubleValue() : Double.parseDouble(node.asText());
       case BOOLEAN:
         return node.isBoolean() ? node.booleanValue() : Boolean.parseBoolean(node.asText());
-      case TEXT:
-        return node.asText();
       case TIMESTAMPTZ:
         if (node.isTextual()) {
           return Timestamp.from(Instant.parse(node.asText()));
@@ -258,7 +518,7 @@ public class FlatPostgresCollection extends PostgresCollection {
         return null;
       case DATE:
         if (node.isTextual()) {
-          return java.sql.Date.valueOf(node.asText());
+          return Date.valueOf(node.asText());
         }
         return null;
       case JSONB:
@@ -271,7 +531,7 @@ public class FlatPostgresCollection extends PostgresCollection {
   private void setParameter(PreparedStatement ps, int index, Object value, PostgresDataType type)
       throws SQLException {
     if (value == null) {
-      ps.setNull(index, getSqlType(type));
+      ps.setObject(index, null);
       return;
     }
 
@@ -306,68 +566,5 @@ public class FlatPostgresCollection extends PostgresCollection {
       default:
         ps.setString(index, value.toString());
     }
-  }
-
-  private int getSqlType(PostgresDataType type) {
-    switch (type) {
-      case INTEGER:
-        return Types.INTEGER;
-      case BIGINT:
-        return Types.BIGINT;
-      case REAL:
-        return Types.REAL;
-      case DOUBLE_PRECISION:
-        return Types.DOUBLE;
-      case BOOLEAN:
-        return Types.BOOLEAN;
-      case TEXT:
-        return Types.VARCHAR;
-      case TIMESTAMPTZ:
-        return Types.TIMESTAMP_WITH_TIMEZONE;
-      case DATE:
-        return Types.DATE;
-      case JSONB:
-        return Types.OTHER;
-      default:
-        return Types.VARCHAR;
-    }
-  }
-
-  @Override
-  public boolean createOrReplace(Key key, Document document) throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
-  }
-
-  @Override
-  public Document createOrReplaceAndReturn(Key key, Document document) throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
-  }
-
-  @Override
-  public BulkUpdateResult bulkUpdate(List<BulkUpdateRequest> bulkUpdateRequests) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
-  }
-
-  @Override
-  public UpdateResult update(Key key, Document document, Filter condition) throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
-  }
-
-  @Override
-  public Optional<Document> update(
-      org.hypertrace.core.documentstore.query.Query query,
-      java.util.Collection<SubDocumentUpdate> updates,
-      UpdateOptions updateOptions)
-      throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
-  }
-
-  @Override
-  public CloseableIterator<Document> bulkUpdate(
-      org.hypertrace.core.documentstore.query.Query query,
-      java.util.Collection<SubDocumentUpdate> updates,
-      UpdateOptions updateOptions)
-      throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
   }
 }
