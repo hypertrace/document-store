@@ -38,6 +38,9 @@ public class PostgresConnectionConfig extends ConnectionConfig {
   private static final Duration DEFAULT_SCHEMA_CACHE_EXPIRY = Duration.ofHours(24);
   private static final Duration DEFAULT_SCHEMA_REFRESH_COOLDOWN = Duration.ofMinutes(15);
 
+  private static final String SCHEMA_CACHE_EXPIRY_MS_KEY = "schemaCacheExpiryMs";
+  private static final String SCHEMA_REFRESH_COOLDOWN_MS_KEY = "schemaRefreshCooldownMs";
+
   @NonNull String applicationName;
   @NonNull ConnectionPoolConfig connectionPoolConfig;
   @NonNull Duration queryTimeout;
@@ -55,8 +58,6 @@ public class PostgresConnectionConfig extends ConnectionConfig {
       @NonNull final String applicationName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig,
       @NonNull final Duration queryTimeout,
-      @Nullable final Duration schemaCacheExpiry,
-      @Nullable final Duration schemaRefreshCooldown,
       @NonNull final Map<String, String> customParameters) {
     super(
         ensureSingleEndpoint(endpoints),
@@ -66,8 +67,8 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     this.applicationName = applicationName;
     this.connectionPoolConfig = getConnectionPoolConfigOrDefault(connectionPoolConfig);
     this.queryTimeout = queryTimeout;
-    this.schemaCacheExpiry = getSchemaCacheExpiryOrDefault(schemaCacheExpiry);
-    this.schemaRefreshCooldown = getSchemaRefreshCooldownOrDefault(schemaRefreshCooldown);
+    this.schemaCacheExpiry = extractSchemaCacheExpiry(customParameters);
+    this.schemaRefreshCooldown = extractSchemaRefreshCooldown(customParameters);
   }
 
   public String toConnectionString() {
@@ -142,13 +143,18 @@ public class PostgresConnectionConfig extends ConnectionConfig {
   }
 
   @NonNull
-  private Duration getSchemaCacheExpiryOrDefault(@Nullable final Duration schemaCacheExpiry) {
-    return Optional.ofNullable(schemaCacheExpiry).orElse(DEFAULT_SCHEMA_CACHE_EXPIRY);
+  private static Duration extractSchemaCacheExpiry(final Map<String, String> customParameters) {
+    return Optional.ofNullable(customParameters.get(SCHEMA_CACHE_EXPIRY_MS_KEY))
+        .map(Long::parseLong)
+        .map(Duration::ofMillis)
+        .orElse(DEFAULT_SCHEMA_CACHE_EXPIRY);
   }
 
   @NonNull
-  private Duration getSchemaRefreshCooldownOrDefault(
-      @Nullable final Duration schemaRefreshCooldown) {
-    return Optional.ofNullable(schemaRefreshCooldown).orElse(DEFAULT_SCHEMA_REFRESH_COOLDOWN);
+  private static Duration extractSchemaRefreshCooldown(final Map<String, String> customParameters) {
+    return Optional.ofNullable(customParameters.get(SCHEMA_REFRESH_COOLDOWN_MS_KEY))
+        .map(Long::parseLong)
+        .map(Duration::ofMillis)
+        .orElse(DEFAULT_SCHEMA_REFRESH_COOLDOWN);
   }
 }
