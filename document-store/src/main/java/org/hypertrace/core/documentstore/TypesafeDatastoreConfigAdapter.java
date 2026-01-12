@@ -93,6 +93,7 @@ interface TypesafeDatastoreConfigAdapter {
               connectionConfig.credentials(),
               connectionConfig.applicationName(),
               connectionConfig.connectionPoolConfig(),
+              connectionConfig.queryTimeout(),
               connectionConfig.schemaCacheExpiry(),
               connectionConfig.schemaRefreshCooldown(),
               connectionConfig.customParameters()) {
