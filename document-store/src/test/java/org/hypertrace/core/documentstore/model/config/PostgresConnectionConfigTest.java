@@ -82,4 +82,40 @@ class PostgresConnectionConfigTest {
 
     assertEquals(properties, config.buildProperties());
   }
+
+  @Test
+  void testSchemaCacheConfigDefaults() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig) ConnectionConfig.builder().type(DatabaseType.POSTGRES).build();
+
+    assertEquals(Duration.ofHours(24), config.schemaCacheExpiry());
+    assertEquals(Duration.ofMinutes(15), config.schemaRefreshCooldown());
+  }
+
+  @Test
+  void testSchemaCacheConfigFromCustomParameters() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig)
+            ConnectionConfig.builder()
+                .type(DatabaseType.POSTGRES)
+                .customParameter("schemaCacheExpiryMs", "3600000") // 1 hour
+                .customParameter("schemaRefreshCooldownMs", "60000") // 1 minute
+                .build();
+
+    assertEquals(Duration.ofHours(1), config.schemaCacheExpiry());
+    assertEquals(Duration.ofMinutes(1), config.schemaRefreshCooldown());
+  }
+
+  @Test
+  void testSchemaCacheConfigPartialCustomParameters() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig)
+            ConnectionConfig.builder()
+                .type(DatabaseType.POSTGRES)
+                .customParameter("schemaCacheExpiryMs", "7200000") // 2 hours
+                .build();
+
+    assertEquals(Duration.ofHours(2), config.schemaCacheExpiry());
+    assertEquals(Duration.ofMinutes(15), config.schemaRefreshCooldown()); // default
+  }
 }
