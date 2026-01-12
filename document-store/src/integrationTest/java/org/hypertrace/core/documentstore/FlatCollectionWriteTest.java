@@ -213,6 +213,15 @@ public class FlatCollectionWriteTest {
       objectNode.put("price", 999);
       objectNode.put("quantity", 50);
       objectNode.put("in_stock", true);
+      objectNode.set("tags", OBJECT_MAPPER.createArrayNode().add("electronics").add("sale"));
+
+      // Add JSONB field
+      ObjectNode propsNode = OBJECT_MAPPER.createObjectNode();
+      propsNode.put("color", "blue");
+      propsNode.put("weight", 2.5);
+      propsNode.put("warranty", true);
+      objectNode.set("props", propsNode);
+
       Document document = new JSONDocument(objectNode);
       Key key = new SingleValueKey("default", "new-doc-100");
 
@@ -233,6 +242,22 @@ public class FlatCollectionWriteTest {
         assertEquals(999, rs.getInt("price"));
         assertEquals(50, rs.getInt("quantity"));
         assertTrue(rs.getBoolean("in_stock"));
+
+        // Verify tags array
+        java.sql.Array tagsArray = rs.getArray("tags");
+        assertNotNull(tagsArray);
+        String[] tags = (String[]) tagsArray.getArray();
+        assertEquals(2, tags.length);
+        assertEquals("electronics", tags[0]);
+        assertEquals("sale", tags[1]);
+
+        // Verify JSONB props
+        String propsJson = rs.getString("props");
+        assertNotNull(propsJson);
+        JsonNode propsResult = OBJECT_MAPPER.readTree(propsJson);
+        assertEquals("blue", propsResult.get("color").asText());
+        assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
+        assertTrue(propsResult.get("warranty").asBoolean());
       }
     }
 
@@ -314,120 +339,6 @@ public class FlatCollectionWriteTest {
         assertTrue(rs.next());
         assertEquals("Item", rs.getString("item"));
       }
-    }
-
-    @Test
-    @DisplayName("Should create a new document when key does not exist")
-    void testCreateOrReplaceNewDocument() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "createorreplace-new-500");
-      objectNode.put("item", "NewMirror");
-      objectNode.put("price", 150);
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "createorreplace-new-500");
-
-      boolean result = flatCollection.createOrReplace(key, document);
-
-      assertTrue(result);
-
-      // Verify the data was inserted
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = 'createorreplace-new-500'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("NewMirror", rs.getString("item"));
-        assertEquals(150, rs.getInt("price"));
-      }
-    }
-
-    @Test
-    @DisplayName("Should replace an existing document when key exists")
-    void testCreateOrReplaceExistingDocument() throws Exception {
-      // First create a document
-      ObjectNode objectNode1 = OBJECT_MAPPER.createObjectNode();
-      objectNode1.put("id", "createorreplace-existing-600");
-      objectNode1.put("item", "OriginalItem");
-      objectNode1.put("price", 100);
-      Document document1 = new JSONDocument(objectNode1);
-      Key key = new SingleValueKey("default", "createorreplace-existing-600");
-      flatCollection.create(key, document1);
-
-      // Now replace it
-      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
-      objectNode2.put("id", "createorreplace-existing-600");
-      objectNode2.put("item", "ReplacedItem");
-      objectNode2.put("price", 200);
-      Document document2 = new JSONDocument(objectNode2);
-
-      boolean result = flatCollection.createOrReplace(key, document2);
-
-      assertTrue(result);
-
-      // Verify the data was replaced
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = 'createorreplace-existing-600'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("ReplacedItem", rs.getString("item"));
-        assertEquals(200, rs.getInt("price"));
-      }
-    }
-
-    @Test
-    @DisplayName("Should create and return a new document when key does not exist")
-    void testCreateOrReplaceAndReturnNewDocument() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "createorreplace-return-700");
-      objectNode.put("item", "ReturnedItem");
-      objectNode.put("price", 250);
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "createorreplace-return-700");
-
-      Document result = flatCollection.createOrReplaceAndReturn(key, document);
-
-      assertNotNull(result);
-      JsonNode resultNode = OBJECT_MAPPER.readTree(result.toJson());
-      assertEquals("createorreplace-return-700", resultNode.get("id").asText());
-      assertEquals("ReturnedItem", resultNode.get("item").asText());
-      assertEquals(250, resultNode.get("price").asInt());
-    }
-
-    @Test
-    @DisplayName("Should replace and return an existing document when key exists")
-    void testCreateOrReplaceAndReturnExistingDocument() throws Exception {
-      // First create a document
-      ObjectNode objectNode1 = OBJECT_MAPPER.createObjectNode();
-      objectNode1.put("id", "createorreplace-return-existing-800");
-      objectNode1.put("item", "OriginalReturnItem");
-      objectNode1.put("price", 300);
-      Document document1 = new JSONDocument(objectNode1);
-      Key key = new SingleValueKey("default", "createorreplace-return-existing-800");
-      flatCollection.create(key, document1);
-
-      // Now replace it
-      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
-      objectNode2.put("id", "createorreplace-return-existing-800");
-      objectNode2.put("item", "ReplacedReturnItem");
-      objectNode2.put("price", 400);
-      Document document2 = new JSONDocument(objectNode2);
-
-      Document result = flatCollection.createOrReplaceAndReturn(key, document2);
-
-      assertNotNull(result);
-      JsonNode resultNode = OBJECT_MAPPER.readTree(result.toJson());
-      assertEquals("createorreplace-return-existing-800", resultNode.get("id").asText());
-      assertEquals("ReplacedReturnItem", resultNode.get("item").asText());
-      assertEquals(400, resultNode.get("price").asInt());
     }
   }
 
