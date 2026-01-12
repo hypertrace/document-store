@@ -127,8 +127,6 @@ public class ConnectionConfig {
               applicationName,
               connectionPoolConfig,
               queryTimeout,
-              null,
-              null,
               customParameters);
       }
 
