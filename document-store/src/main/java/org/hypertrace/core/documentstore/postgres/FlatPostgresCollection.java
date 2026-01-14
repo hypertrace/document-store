@@ -208,16 +208,19 @@ public class FlatPostgresCollection extends PostgresCollection {
     throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
   }
 
+  /*isRetry: Whether this is a retry attempt*/
   private CreateResult createWithRetry(Key key, Document document, boolean isRetry)
       throws IOException {
     String tableName = tableIdentifier.getTableName();
 
+    List<String> skippedFields = new ArrayList<>();
+
     try {
-      TypedDocument parsed = parseDocument(document, tableName);
+      TypedDocument parsed = parseDocument(document, tableName, skippedFields);
       // if there are no valid columns in the document
       if (parsed.isEmpty()) {
         LOGGER.warn("No valid columns found in the document for table: {}", tableName);
-        return new CreateResult(false);
+        return new CreateResult(false, isRetry, skippedFields);
       }
 
       String sql = buildInsertSql(parsed.getColumns());
@@ -225,7 +228,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
       int result = executeUpdate(sql, parsed);
       LOGGER.debug("Create result: {}", result);
-      return new CreateResult(result > 0);
+      return new CreateResult(result > 0, isRetry, skippedFields);
 
     } catch (PSQLException e) {
       if (PSQLState.UNIQUE_VIOLATION.getState().equals(e.getSQLState())) {
@@ -238,7 +241,8 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
-  private TypedDocument parseDocument(Document document, String tableName) throws IOException {
+  private TypedDocument parseDocument(
+      Document document, String tableName, List<String> skippedColumns) throws IOException {
     JsonNode jsonNode = MAPPER.readTree(document.toJson());
     TypedDocument typedDocument = new TypedDocument();
 
@@ -253,6 +257,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
       if (columnMetadata.isEmpty()) {
         LOGGER.warn("Could not find column metadata for column: {}, skipping it", fieldName);
+        skippedColumns.add(fieldName);
         continue;
       }
 
@@ -297,6 +302,10 @@ public class FlatPostgresCollection extends PostgresCollection {
     throw new IOException(e);
   }
 
+  /**
+   * Returns true if the SQL state indicates a schema mismatch, i.e. the column does not exist or
+   * the data type is mismatched.
+   */
   private boolean shouldRefreshSchemaAndRetry(String sqlState) {
     return PSQLState.UNDEFINED_COLUMN.getState().equals(sqlState)
         || PSQLState.DATATYPE_MISMATCH.getState().equals(sqlState);

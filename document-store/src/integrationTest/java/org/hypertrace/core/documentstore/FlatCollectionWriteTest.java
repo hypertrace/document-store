@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore;
 
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -339,6 +340,62 @@ public class FlatCollectionWriteTest {
         assertTrue(rs.next());
         assertEquals("Item", rs.getString("item"));
       }
+    }
+
+    @Test
+    @DisplayName("Should return skipped fields in CreateResult when columns are missing")
+    void testCreateReturnsSkippedFieldsInResult() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "skipped-fields-doc-500");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("price", 100);
+      objectNode.put("nonexistent_field1", "value1");
+      objectNode.put("nonexistent_field2", "value2");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "skipped-fields-doc-500");
+
+      CreateResult result = flatCollection.create(key, document);
+
+      assertTrue(result.isSucceed());
+      assertTrue(result.isPartial());
+      assertNotNull(result.getSkippedFields());
+      assertEquals(2, result.getSkippedFields().size());
+      assertTrue(
+          result
+              .getSkippedFields()
+              .containsAll(List.of("nonexistent_field1", "nonexistent_field2")));
+
+      // Verify the valid fields were inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'skipped-fields-doc-500'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Valid Item", rs.getString("item"));
+        assertEquals(100, rs.getInt("price"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should return empty skipped fields when all columns exist")
+    void testCreateReturnsEmptySkippedFieldsWhenAllColumnsExist() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "all-valid-doc-600");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("price", 200);
+      objectNode.put("quantity", 10);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "all-valid-doc-600");
+
+      CreateResult result = flatCollection.create(key, document);
+
+      assertTrue(result.isSucceed());
+      assertFalse(result.isPartial());
+      assertTrue(result.getSkippedFields().isEmpty());
     }
   }
 
