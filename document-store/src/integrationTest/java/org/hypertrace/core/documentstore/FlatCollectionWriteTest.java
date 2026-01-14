@@ -99,7 +99,11 @@ public class FlatCollectionWriteTest {
                 + "\"sales\" JSONB,"
                 + "\"numbers\" INTEGER[],"
                 + "\"scores\" DOUBLE PRECISION[],"
-                + "\"flags\" BOOLEAN[]"
+                + "\"flags\" BOOLEAN[],"
+                + "\"big_number\" BIGINT,"
+                + "\"rating\" REAL,"
+                + "\"created_date\" DATE,"
+                + "\"weight\" DOUBLE PRECISION"
                 + ");",
             FLAT_COLLECTION_NAME);
 
@@ -534,6 +538,155 @@ public class FlatCollectionWriteTest {
         // price should be null since it was skipped
         assertEquals(0, rs.getInt("price"));
         assertTrue(rs.wasNull());
+      }
+    }
+
+    @Test
+    @DisplayName("Should handle all scalar data types including string parsing and nulls")
+    void testCreateWithAllDataTypes() throws Exception {
+      // Test 1: All types with native values (number nodes, boolean nodes, etc.)
+      ObjectNode nativeTypesNode = OBJECT_MAPPER.createObjectNode();
+      nativeTypesNode.put("id", "native-types-doc");
+      nativeTypesNode.put("item", "Native Types"); // TEXT
+      nativeTypesNode.put("price", 100); // INTEGER (number node)
+      nativeTypesNode.put("big_number", 9223372036854775807L); // BIGINT (number node)
+      nativeTypesNode.put("rating", 4.5f); // REAL (number node)
+      nativeTypesNode.put("weight", 123.456789); // DOUBLE PRECISION (number node)
+      nativeTypesNode.put("in_stock", true); // BOOLEAN (boolean node)
+      nativeTypesNode.put("date", "2024-01-15T10:30:00Z"); // TIMESTAMPTZ (textual)
+      nativeTypesNode.put("created_date", "2024-01-15"); // DATE (textual)
+      nativeTypesNode.putObject("props").put("key", "value"); // JSONB
+
+      CreateResult result1 =
+          flatCollection.create(
+              new SingleValueKey("default", "native-types-doc"), new JSONDocument(nativeTypesNode));
+      assertTrue(result1.isSucceed());
+
+      // Test 2: String representations of numbers (covers parseInt, parseLong, etc.)
+      ObjectNode stringTypesNode = OBJECT_MAPPER.createObjectNode();
+      stringTypesNode.put("id", "string-types-doc");
+      stringTypesNode.put("item", "String Types");
+      stringTypesNode.put("price", "200"); // INTEGER from string
+      stringTypesNode.put("big_number", "1234567890123"); // BIGINT from string
+      stringTypesNode.put("rating", "3.75"); // REAL from string
+      stringTypesNode.put("weight", "987.654"); // DOUBLE PRECISION from string
+      stringTypesNode.put("in_stock", "true"); // BOOLEAN from string
+
+      CreateResult result2 =
+          flatCollection.create(
+              new SingleValueKey("default", "string-types-doc"), new JSONDocument(stringTypesNode));
+      assertTrue(result2.isSucceed());
+
+      // Test 3: TIMESTAMPTZ from epoch milliseconds
+      long epochMillis = 1705315800000L;
+      ObjectNode epochNode = OBJECT_MAPPER.createObjectNode();
+      epochNode.put("id", "epoch-doc");
+      epochNode.put("item", "Epoch Timestamp");
+      epochNode.put("date", epochMillis); // TIMESTAMPTZ from number
+
+      CreateResult result3 =
+          flatCollection.create(
+              new SingleValueKey("default", "epoch-doc"), new JSONDocument(epochNode));
+      assertTrue(result3.isSucceed());
+
+      // Test 4: Null values (covers setParameter null handling)
+      ObjectNode nullNode = OBJECT_MAPPER.createObjectNode();
+      nullNode.put("id", "null-doc");
+      nullNode.put("item", "Null Values");
+      nullNode.putNull("price");
+      nullNode.putNull("date");
+      nullNode.putNull("in_stock");
+
+      CreateResult result4 =
+          flatCollection.create(
+              new SingleValueKey("default", "null-doc"), new JSONDocument(nullNode));
+      assertTrue(result4.isSucceed());
+
+      // Verify all inserts
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" IN ('native-types-doc', 'string-types-doc', 'epoch-doc', 'null-doc') ORDER BY \"id\"",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+
+        // epoch-doc
+        assertTrue(rs.next());
+        assertEquals(epochMillis, rs.getTimestamp("date").getTime());
+
+        // native-types-doc
+        assertTrue(rs.next());
+        assertEquals(100, rs.getInt("price"));
+        assertEquals(9223372036854775807L, rs.getLong("big_number"));
+        assertEquals(4.5f, rs.getFloat("rating"), 0.01f);
+        assertEquals(123.456789, rs.getDouble("weight"), 0.0001);
+        assertTrue(rs.getBoolean("in_stock"));
+
+        // null-doc
+        assertTrue(rs.next());
+        rs.getInt("price");
+        assertTrue(rs.wasNull());
+
+        // string-types-doc
+        assertTrue(rs.next());
+        assertEquals(200, rs.getInt("price"));
+        assertEquals(1234567890123L, rs.getLong("big_number"));
+        assertEquals(3.75f, rs.getFloat("rating"), 0.01f);
+      }
+    }
+
+    @Test
+    @DisplayName("Should handle array types and single-to-array conversion")
+    void testCreateWithArrayTypes() throws Exception {
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Test 1: Proper arrays
+      ObjectNode arrayNode = OBJECT_MAPPER.createObjectNode();
+      arrayNode.put("id", "array-doc");
+      arrayNode.put("item", "Array Types");
+      arrayNode.putArray("tags").add("tag1").add("tag2"); // TEXT[]
+      arrayNode.putArray("numbers").add(10).add(20); // INTEGER[]
+      arrayNode.putArray("scores").add(1.5).add(2.5); // DOUBLE PRECISION[]
+      arrayNode.putArray("flags").add(true).add(false); // BOOLEAN[]
+
+      CreateResult result1 =
+          flatCollection.create(
+              new SingleValueKey("default", "array-doc"), new JSONDocument(arrayNode));
+      assertTrue(result1.isSucceed());
+
+      // Test 2: Single values auto-converted to arrays
+      ObjectNode singleNode = OBJECT_MAPPER.createObjectNode();
+      singleNode.put("id", "single-to-array-doc");
+      singleNode.put("item", "Single to Array");
+      singleNode.put("tags", "single-tag"); // TEXT[] from single value
+      singleNode.put("numbers", 42); // INTEGER[] from single value
+
+      CreateResult result2 =
+          flatCollection.create(
+              new SingleValueKey("default", "single-to-array-doc"), new JSONDocument(singleNode));
+      assertTrue(result2.isSucceed());
+
+      // Verify
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" IN ('array-doc', 'single-to-array-doc') ORDER BY \"id\"",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+
+        // array-doc
+        assertTrue(rs.next());
+        assertEquals(2, ((String[]) rs.getArray("tags").getArray()).length);
+        assertEquals(2, ((Integer[]) rs.getArray("numbers").getArray()).length);
+
+        // single-to-array-doc
+        assertTrue(rs.next());
+        String[] tags = (String[]) rs.getArray("tags").getArray();
+        assertEquals(1, tags.length);
+        assertEquals("single-tag", tags[0]);
       }
     }
   }
