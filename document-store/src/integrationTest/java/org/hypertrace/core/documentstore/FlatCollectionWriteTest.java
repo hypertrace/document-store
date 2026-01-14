@@ -397,6 +397,148 @@ public class FlatCollectionWriteTest {
       assertFalse(result.isPartial());
       assertTrue(result.getSkippedFields().isEmpty());
     }
+
+    @Test
+    @DisplayName("Should return failure when all fields are unknown (parsed.isEmpty)")
+    void testCreateFailsWhenAllFieldsAreUnknown() throws Exception {
+      // Document with only unknown fields - no valid columns will be found
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("completely_unknown_field1", "value1");
+      objectNode.put("completely_unknown_field2", "value2");
+      objectNode.put("another_nonexistent_column", 123);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "all-unknown-doc-700");
+
+      CreateResult result = flatCollection.create(key, document);
+
+      // Should fail because no valid columns found (parsed.isEmpty() == true)
+      assertFalse(result.isSucceed());
+      assertEquals(3, result.getSkippedFields().size());
+      assertTrue(
+          result
+              .getSkippedFields()
+              .containsAll(
+                  List.of(
+                      "completely_unknown_field1",
+                      "completely_unknown_field2",
+                      "another_nonexistent_column")));
+
+      // Verify no row was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = 'all-unknown-doc-700'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(0, rs.getInt(1));
+      }
+    }
+
+    @Test
+    @DisplayName("Should refresh schema and retry on UNDEFINED_COLUMN error")
+    void testCreateRefreshesSchemaOnUndefinedColumnError() throws Exception {
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Step 1: Add a temporary column and do a create to cache the schema
+      String addColumnSQL =
+          String.format(
+              "ALTER TABLE \"%s\" ADD COLUMN \"temp_col\" TEXT", FLAT_COLLECTION_NAME);
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps = conn.prepareStatement(addColumnSQL)) {
+        ps.execute();
+        LOGGER.info("Added temporary column 'temp_col' to table");
+      }
+
+      // Step 2: Create a document with the temp column to cache the schema
+      ObjectNode objectNode1 = OBJECT_MAPPER.createObjectNode();
+      objectNode1.put("id", "cache-schema-doc");
+      objectNode1.put("item", "Item to cache schema");
+      objectNode1.put("temp_col", "temp value");
+      flatCollection.create(
+          new SingleValueKey("default", "cache-schema-doc"), new JSONDocument(objectNode1));
+      LOGGER.info("Schema cached with temp_col");
+
+      // Step 3: DROP the column - now the cached schema is stale
+      String dropColumnSQL =
+          String.format("ALTER TABLE \"%s\" DROP COLUMN \"temp_col\"", FLAT_COLLECTION_NAME);
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps = conn.prepareStatement(dropColumnSQL)) {
+        ps.execute();
+        LOGGER.info("Dropped temp_col - schema cache is now stale");
+      }
+
+      // Step 4: Try to create with the dropped column
+      // Schema registry still thinks temp_col exists, so it will include it in INSERT
+      // INSERT will fail with UNDEFINED_COLUMN, triggering handlePSQLExceptionForCreate
+      // which will refresh schema and retry
+      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
+      objectNode2.put("id", "retry-doc-800");
+      objectNode2.put("item", "Item after schema refresh");
+      objectNode2.put("temp_col", "this column no longer exists");
+      Document document = new JSONDocument(objectNode2);
+      Key key = new SingleValueKey("default", "retry-doc-800");
+
+      CreateResult result = flatCollection.create(key, document);
+
+      // Should succeed after retry - temp_col will be skipped on retry
+      assertTrue(result.isSucceed());
+      // On retry, the column won't be found and will be skipped
+      assertTrue(result.getSkippedFields().contains("temp_col"));
+      // Should be marked as retry
+      assertTrue(result.isOnRetry());
+
+      // Verify the valid fields were inserted
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'retry-doc-800'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Item after schema refresh", rs.getString("item"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should skip column with unparseable value and add to skippedFields")
+    void testCreateSkipsUnparseableValues() throws Exception {
+      // Try to insert a string value into an integer column with wrong type
+      // The unparseable column should be skipped, not throw an exception
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "datatype-mismatch-doc-900");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("price", "not_a_number_at_all"); // price is INTEGER, this will fail parsing
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "datatype-mismatch-doc-900");
+
+      CreateResult result = flatCollection.create(key, document);
+
+      // Should succeed with the valid columns, skipping the unparseable one
+      assertTrue(result.isSucceed());
+      assertTrue(result.isPartial());
+      assertEquals(1, result.getSkippedFields().size());
+      assertTrue(result.getSkippedFields().contains("price"));
+
+      // Verify the valid fields were inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'datatype-mismatch-doc-900'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Valid Item", rs.getString("item"));
+        // price should be null since it was skipped
+        assertEquals(0, rs.getInt("price"));
+        assertTrue(rs.wasNull());
+      }
+    }
   }
 
   @Nested

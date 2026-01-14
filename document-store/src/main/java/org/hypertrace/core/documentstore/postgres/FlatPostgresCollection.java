@@ -263,8 +263,19 @@ public class FlatPostgresCollection extends PostgresCollection {
 
       PostgresDataType type = columnMetadata.get().getPostgresType();
       boolean isArray = columnMetadata.get().isArray();
-      typedDocument.add(
-          "\"" + fieldName + "\"", extractValue(fieldValue, type, isArray), type, isArray);
+
+      try {
+        Object value = extractValue(fieldValue, type, isArray);
+        typedDocument.add("\"" + fieldName + "\"", value, type, isArray);
+      } catch (Exception e) {
+        //If we fail to parse the value, we skip this field to write on a best-effort basis
+        LOGGER.warn(
+            "Could not parse value for column: {} with type: {}, skipping it. Error: {}",
+            fieldName,
+            type,
+            e.getMessage());
+        skippedColumns.add(fieldName);
+      }
     }
 
     return typedDocument;
