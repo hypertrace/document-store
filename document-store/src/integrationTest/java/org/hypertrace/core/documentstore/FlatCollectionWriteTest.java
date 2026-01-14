@@ -1,7 +1,10 @@
 package org.hypertrace.core.documentstore;
 
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,10 +14,16 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.hypertrace.core.documentstore.expression.impl.DataType;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
+import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -169,16 +178,115 @@ public class FlatCollectionWriteTest {
   class UpsertTests {
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for upsert")
-    void testUpsertNewDocument() {
+    @DisplayName("Should upsert a new document with TypedDocument")
+    void testUpsertNewDocument() throws IOException {
+      // Create TypedDocument with value and type coupled together
+      TypedDocument typedDoc =
+          TypedDocument.builder()
+              .field("item", "NewItem", DataType.STRING)
+              .field("price", 99, DataType.INTEGER)
+              .field("quantity", 50, DataType.INTEGER)
+              .field("in_stock", true, DataType.BOOLEAN)
+              .arrayField("tags", List.of("new", "test"), DataType.STRING)
+              .jsonbField("props", Map.of("brand", "TestBrand", "size", "medium"))
+              .build();
+
+      Key key = new SingleValueKey("default", "100");
+
+      // Perform upsert
+      boolean result = flatCollection.upsert(key, typedDoc);
+      assertTrue(result, "Upsert should return true for new document");
+
+      // Verify the document was inserted by querying it
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      RelationalOperator.EQ,
+                      org.hypertrace.core.documentstore.expression.impl.ConstantExpression.of(
+                          "NewItem")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+      assertTrue(results.hasNext(), "Should find the inserted document");
+
+      Document foundDoc = results.next();
+      assertNotNull(foundDoc);
+
+      JsonNode foundJson = OBJECT_MAPPER.readTree(foundDoc.toJson());
+      assertEquals("NewItem", foundJson.get("item").asText());
+      assertEquals(99, foundJson.get("price").asInt());
+      assertEquals(50, foundJson.get("quantity").asInt());
+      assertTrue(foundJson.get("in_stock").asBoolean());
+
+      // Verify array field
+      JsonNode tagsNode = foundJson.get("tags");
+      assertNotNull(tagsNode);
+      assertTrue(tagsNode.isArray());
+      assertEquals(2, tagsNode.size());
+
+      // Verify JSONB field
+      JsonNode propsResult = foundJson.get("props");
+      assertNotNull(propsResult);
+      assertEquals("TestBrand", propsResult.get("brand").asText());
+    }
+
+    @Test
+    @DisplayName("Should update existing document on upsert with TypedDocument")
+    void testUpsertExistingDocument() throws IOException {
+      // First, get an existing document ID from the initial data
+      String existingId = "1"; // ID 1 exists in initial data
+
+      // Create TypedDocument with updated values
+      TypedDocument typedDoc =
+          TypedDocument.builder()
+              .field("item", "UpdatedSoap", DataType.STRING)
+              .field("price", 999, DataType.INTEGER)
+              .field("quantity", 100, DataType.INTEGER)
+              .field("in_stock", false, DataType.BOOLEAN)
+              .build();
+
+      Key key = new SingleValueKey("default", existingId);
+
+      // Perform upsert (should update existing)
+      boolean result = flatCollection.upsert(key, typedDoc);
+      assertTrue(result, "Upsert should return true for existing document update");
+
+      // Verify the document was updated
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      RelationalOperator.EQ,
+                      org.hypertrace.core.documentstore.expression.impl.ConstantExpression.of(
+                          "UpdatedSoap")))
+              .build();
+
+      Iterator<Document> results = flatCollection.find(query);
+      assertTrue(results.hasNext(), "Should find the updated document");
+
+      Document foundDoc = results.next();
+      JsonNode foundJson = OBJECT_MAPPER.readTree(foundDoc.toJson());
+      assertEquals("UpdatedSoap", foundJson.get("item").asText());
+      assertEquals(999, foundJson.get("price").asInt());
+      assertEquals(100, foundJson.get("quantity").asInt());
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException for non-TypedDocument")
+    void testUpsertWithoutTypedDocument() {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("_id", 100);
       objectNode.put("item", "NewItem");
       objectNode.put("price", 99);
       Document document = new JSONDocument(objectNode);
       Key key = new SingleValueKey("default", "100");
 
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.upsert(key, document));
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> flatCollection.upsert(key, document),
+          "Should throw IllegalArgumentException when not using TypedDocument");
     }
 
     @Test
