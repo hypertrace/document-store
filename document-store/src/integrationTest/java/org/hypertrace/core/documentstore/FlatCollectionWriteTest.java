@@ -444,8 +444,7 @@ public class FlatCollectionWriteTest {
 
       // Step 1: Add a temporary column and do a create to cache the schema
       String addColumnSQL =
-          String.format(
-              "ALTER TABLE \"%s\" ADD COLUMN \"temp_col\" TEXT", FLAT_COLLECTION_NAME);
+          String.format("ALTER TABLE \"%s\" ADD COLUMN \"temp_col\" TEXT", FLAT_COLLECTION_NAME);
       try (Connection conn = pgDatastore.getPostgresClient();
           PreparedStatement ps = conn.prepareStatement(addColumnSQL)) {
         ps.execute();

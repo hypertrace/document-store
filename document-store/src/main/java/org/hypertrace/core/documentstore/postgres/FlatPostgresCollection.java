@@ -268,7 +268,7 @@ public class FlatPostgresCollection extends PostgresCollection {
         Object value = extractValue(fieldValue, type, isArray);
         typedDocument.add("\"" + fieldName + "\"", value, type, isArray);
       } catch (Exception e) {
-        //If we fail to parse the value, we skip this field to write on a best-effort basis
+        // If we fail to parse the value, we skip this field to write on a best-effort basis
         LOGGER.warn(
             "Could not parse value for column: {} with type: {}, skipping it. Error: {}",
             fieldName,
