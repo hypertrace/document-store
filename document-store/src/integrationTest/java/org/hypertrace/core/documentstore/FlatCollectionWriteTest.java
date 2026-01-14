@@ -482,12 +482,10 @@ public class FlatCollectionWriteTest {
 
       CreateResult result = flatCollection.create(key, document);
 
-      // Should succeed after retry - temp_col will be skipped on retry
+      // Should succeed - temp_col will be skipped (either via retry or schema refresh)
       assertTrue(result.isSucceed());
-      // On retry, the column won't be found and will be skipped
+      // The dropped column should be skipped
       assertTrue(result.getSkippedFields().contains("temp_col"));
-      // Should be marked as retry
-      assertTrue(result.isOnRetry());
 
       // Verify the valid fields were inserted
       try (Connection conn = pgDatastore.getPostgresClient();
