@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -846,6 +847,118 @@ public class FlatCollectionWriteTest {
       assertThrows(
           UnsupportedOperationException.class,
           () -> flatCollection.bulkOperationOnArrayValue(request));
+    }
+  }
+
+  @Nested
+  @DisplayName("Strict Mode (bestEffortWrites=false)")
+  class StrictModeTests {
+
+    private Datastore strictDatastore;
+    private Collection strictCollection;
+
+    @BeforeEach
+    void setupStrictModeDatastore() {
+      // Create a datastore with bestEffortWrites=false (strict mode)
+      String postgresConnectionUrl =
+          String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
+
+      Map<String, Object> strictConfig = new HashMap<>();
+      strictConfig.put("url", postgresConnectionUrl);
+      strictConfig.put("user", "postgres");
+      strictConfig.put("password", "postgres");
+      // Configure strict mode via customParams
+      Map<String, String> customParams = new HashMap<>();
+      customParams.put("bestEffortWrites", "false");
+      strictConfig.put("customParams", customParams);
+
+      strictDatastore =
+          DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(strictConfig));
+      strictCollection =
+          strictDatastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+    }
+
+    @Test
+    @DisplayName("Should throw SchemaMismatchException when column not in schema (strict mode)")
+    void testStrictModeThrowsOnUnknownColumn() {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "strict-unknown-col-doc");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("unknown_column", "this should fail");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "strict-unknown-col-doc");
+
+      SchemaMismatchException exception =
+          assertThrows(SchemaMismatchException.class, () -> strictCollection.create(key, document));
+
+      assertTrue(exception.getMessage().contains("unknown_column"));
+      assertTrue(exception.getMessage().contains("not found in schema"));
+    }
+
+    @Test
+    @DisplayName(
+        "Should throw SchemaMismatchException when value type doesn't match schema (strict mode)")
+    void testStrictModeThrowsOnTypeMismatch() {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "strict-type-mismatch-doc");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("price", "not_a_number_at_all"); // price is INTEGER
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "strict-type-mismatch-doc");
+
+      SchemaMismatchException exception =
+          assertThrows(SchemaMismatchException.class, () -> strictCollection.create(key, document));
+
+      assertTrue(exception.getMessage().contains("price"));
+      assertTrue(exception.getMessage().contains("Failed to parse value"));
+    }
+
+    @Test
+    @DisplayName("Should succeed in strict mode when all fields match schema")
+    void testStrictModeSucceedsWithValidDocument() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "strict-valid-doc");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("price", 100);
+      objectNode.put("quantity", 5);
+      objectNode.put("in_stock", true);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "strict-valid-doc");
+
+      CreateResult result = strictCollection.create(key, document);
+
+      assertTrue(result.isSucceed());
+      assertFalse(result.isPartial());
+      assertTrue(result.getSkippedFields().isEmpty());
+
+      // Verify data was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'strict-valid-doc'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Valid Item", rs.getString("item"));
+        assertEquals(100, rs.getInt("price"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should throw SchemaMismatchException on first unknown field (strict mode)")
+    void testStrictModeFailsFastOnFirstUnknownField() {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "strict-multi-unknown-doc");
+      objectNode.put("unknown_field_1", "value1");
+      objectNode.put("unknown_field_2", "value2");
+      objectNode.put("item", "Valid Item");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "strict-multi-unknown-doc");
+
+      // Should throw on the first unknown field encountered
+      assertThrows(SchemaMismatchException.class, () -> strictCollection.create(key, document));
     }
   }
 }

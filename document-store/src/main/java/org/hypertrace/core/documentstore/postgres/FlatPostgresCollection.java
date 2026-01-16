@@ -29,6 +29,7 @@ import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
+import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
 import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -55,8 +56,16 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String WRITE_NOT_SUPPORTED =
       "Write operations are not supported for flat collections yet!";
+  private static final String BEST_EFFORT_WRITES_CONFIG = "bestEffortWrites";
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
+
+  /**
+   * When true (default), fields that don't match the schema are skipped. When false (strict mode),
+   * all fields must be present in the schema with correct types (any fields present in the doc that
+   * are not present in the schema would make this check fail)
+   */
+  private final boolean bestEffortWrites;
 
   FlatPostgresCollection(
       final PostgresClient client,
@@ -64,6 +73,9 @@ public class FlatPostgresCollection extends PostgresCollection {
       final PostgresLazyilyLoadedSchemaRegistry schemaRegistry) {
     super(client, collectionName);
     this.schemaRegistry = schemaRegistry;
+    this.bestEffortWrites =
+        Boolean.parseBoolean(
+            client.getCustomParameters().getOrDefault(BEST_EFFORT_WRITES_CONFIG, "true"));
   }
 
   @Override
@@ -256,6 +268,10 @@ public class FlatPostgresCollection extends PostgresCollection {
           schemaRegistry.getColumnOrRefresh(tableName, fieldName);
 
       if (columnMetadata.isEmpty()) {
+        if (!bestEffortWrites) {
+          throw new SchemaMismatchException(
+              "Column '" + fieldName + "' not found in schema for table: " + tableName);
+        }
         LOGGER.warn("Could not find column metadata for column: {}, skipping it", fieldName);
         skippedColumns.add(fieldName);
         continue;
@@ -268,7 +284,16 @@ public class FlatPostgresCollection extends PostgresCollection {
         Object value = extractValue(fieldValue, type, isArray);
         typedDocument.add("\"" + fieldName + "\"", value, type, isArray);
       } catch (Exception e) {
-        // If we fail to parse the value, we skip this field to write on a best-effort basis
+        if (!bestEffortWrites) {
+          throw new SchemaMismatchException(
+              "Failed to parse value for column '"
+                  + fieldName
+                  + "' with type "
+                  + type
+                  + ": "
+                  + e.getMessage(),
+              e);
+        }
         LOGGER.warn(
             "Could not parse value for column: {} with type: {}, skipping it. Error: {}",
             fieldName,
