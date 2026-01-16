@@ -1,7 +1,10 @@
 package org.hypertrace.core.documentstore;
 
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,11 +13,22 @@ import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
+import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
+import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -319,6 +333,256 @@ public class FlatCollectionWriteTest {
       assertThrows(
           UnsupportedOperationException.class,
           () -> flatCollection.update(key, document, condition));
+    }
+  }
+
+  @Nested
+  @DisplayName("SubDocument Update Operations")
+  class SubDocUpdateTests {
+
+    @Nested
+    @DisplayName("SET Operator Tests")
+    class SetOperatorTests {
+
+      @Test
+      @DisplayName("Should update top-level column with SET operator")
+      void testUpdateTopLevelColumn() throws Exception {
+        // Update the price of item with id = 1
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 999));
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(999, resultJson.get("price").asInt());
+
+        // Verify in database
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"price\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals(999, rs.getInt("price"));
+        }
+      }
+
+      @Test
+      @DisplayName("Should update multiple top-level columns in single update")
+      void testUpdateMultipleColumns() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("2")))
+                .build();
+
+        List<SubDocumentUpdate> updates =
+            List.of(SubDocumentUpdate.of("price", 555), SubDocumentUpdate.of("quantity", 100));
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(555, resultJson.get("price").asInt());
+        assertEquals(100, resultJson.get("quantity").asInt());
+      }
+
+      @Test
+      @DisplayName("Should update nested path in JSONB column")
+      void testUpdateNestedJsonbPath() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("3")))
+                .build();
+
+        // Update props.brand nested path
+        List<SubDocumentUpdate> updates =
+            List.of(SubDocumentUpdate.of("props.brand", "UpdatedBrand"));
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertNotNull(resultJson.get("props"));
+        assertEquals("UpdatedBrand", resultJson.get("props").get("brand").asText());
+      }
+
+      @Test
+      @DisplayName("Should return BEFORE_UPDATE document")
+      void testUpdateReturnsBeforeDocument() throws Exception {
+        // First get the current price
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("4")))
+                .build();
+
+        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 777));
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.BEFORE_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        // Should return the old price (5 from initial data), not the new one (777)
+        assertEquals(5, resultJson.get("price").asInt());
+
+        // But database should have the new value
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"price\" FROM \"%s\" WHERE \"id\" = '4'", FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals(777, rs.getInt("price"));
+        }
+      }
+    }
+
+    @Test
+    @DisplayName("Should return empty when no document matches query")
+    void testUpdateNoMatch() throws Exception {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of("9999")))
+              .build();
+
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 100));
+
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      Optional<Document> result = flatCollection.update(query, updates, options);
+
+      assertTrue(result.isEmpty());
+    }
+
+    @Test
+    @DisplayName("Should throw IOException when column does not exist")
+    void testUpdateNonExistentColumn() {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("_id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of(1)))
+              .build();
+
+      List<SubDocumentUpdate> updates =
+          List.of(SubDocumentUpdate.of("nonexistent_column", "value"));
+
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      assertThrows(IOException.class, () -> flatCollection.update(query, updates, options));
+    }
+
+    @Test
+    @DisplayName("Should throw IOException when nested path on non-JSONB column")
+    void testUpdateNestedPathOnNonJsonbColumn() {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("_id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of(1)))
+              .build();
+
+      // "item" is TEXT, not JSONB - nested path should fail
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("item.nested", "value"));
+
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      assertThrows(IOException.class, () -> flatCollection.update(query, updates, options));
+    }
+
+    @Test
+    @DisplayName("Should throw IOException for unsupported operator")
+    void testUpdateUnsupportedOperator() {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("_id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of(1)))
+              .build();
+
+      // UNSET is not supported yet
+      List<SubDocumentUpdate> updates =
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("price")
+                  .operator(UpdateOperator.UNSET)
+                  .build());
+
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      assertThrows(IOException.class, () -> flatCollection.update(query, updates, options));
+    }
+
+    @Test
+    @DisplayName("Should throw UnsupportedOperationException for bulkUpdate")
+    void testBulkUpdate() {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"),
+                      RelationalOperator.GT,
+                      ConstantExpression.of(5)))
+              .build();
+
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 100));
+
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      assertThrows(
+          UnsupportedOperationException.class,
+          () -> flatCollection.bulkUpdate(query, updates, options));
     }
   }
 
