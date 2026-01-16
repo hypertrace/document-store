@@ -300,6 +300,70 @@ class PostgresMetadataFetcherTest {
     assertTrue(exception.getCause() instanceof SQLException);
   }
 
+  @Test
+  void fetchMapsTextArrayToStringArray() throws SQLException {
+    setupSingleColumnResult("col", "_text", "NO");
+
+    PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
+
+    assertEquals(DataType.STRING, meta.getCanonicalType());
+    assertEquals(PostgresDataType.TEXT, meta.getPostgresType());
+    assertTrue(meta.isArray());
+  }
+
+  @Test
+  void fetchMapsInt4ArrayToIntegerArray() throws SQLException {
+    setupSingleColumnResult("col", "_int4", "NO");
+
+    PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
+
+    assertEquals(DataType.INTEGER, meta.getCanonicalType());
+    assertEquals(PostgresDataType.INTEGER, meta.getPostgresType());
+    assertTrue(meta.isArray());
+  }
+
+  @Test
+  void fetchMapsInt8ArrayToLongArray() throws SQLException {
+    setupSingleColumnResult("col", "_int8", "NO");
+
+    PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
+
+    assertEquals(DataType.LONG, meta.getCanonicalType());
+    assertEquals(PostgresDataType.BIGINT, meta.getPostgresType());
+    assertTrue(meta.isArray());
+  }
+
+  @Test
+  void fetchMapsFloat8ArrayToDoubleArray() throws SQLException {
+    setupSingleColumnResult("col", "_float8", "NO");
+
+    PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
+
+    assertEquals(DataType.DOUBLE, meta.getCanonicalType());
+    assertEquals(PostgresDataType.DOUBLE_PRECISION, meta.getPostgresType());
+    assertTrue(meta.isArray());
+  }
+
+  @Test
+  void fetchMapsBoolArrayToBooleanArray() throws SQLException {
+    setupSingleColumnResult("col", "_bool", "NO");
+
+    PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
+
+    assertEquals(DataType.BOOLEAN, meta.getCanonicalType());
+    assertEquals(PostgresDataType.BOOLEAN, meta.getPostgresType());
+    assertTrue(meta.isArray());
+  }
+
+  @Test
+  void fetchReturnsIsArrayFalseForNonArrayTypes() throws SQLException {
+    setupSingleColumnResult("col", "text", "NO");
+
+    PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
+
+    assertFalse(meta.isArray());
+  }
+
   private void setupSingleColumnResult(String colName, String udtName, String isNullable)
       throws SQLException {
     when(resultSet.next()).thenReturn(true, false);
