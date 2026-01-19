@@ -488,7 +488,6 @@ public class FlatPostgresCollection extends PostgresCollection {
    * by column name. LinkedHashMap preserves insertion order for consistent parameter binding.
    */
   private static class TypedDocument {
-
     private final Map<String, Object> values = new HashMap<>();
     private final Map<String, PostgresDataType> types = new HashMap<>();
     private final Map<String, Boolean> arrays = new HashMap<>();
