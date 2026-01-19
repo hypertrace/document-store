@@ -18,4 +18,9 @@ public interface ColumnMetadata {
    * @return whether this column can be set to NULL
    */
   boolean isNullable();
+
+  /**
+   * @return whether this column is an array type
+   */
+  boolean isArray();
 }

@@ -37,10 +37,16 @@ public class PostgresMetadataFetcher {
           String columnName = rs.getString("column_name");
           String udtName = rs.getString("udt_name");
           boolean isNullable = "YES".equalsIgnoreCase(rs.getString("is_nullable"));
+          boolean isArray = udtName != null && udtName.startsWith("_");
+          String baseType = isArray ? udtName.substring(1) : udtName;
           metadataMap.put(
               columnName,
               new PostgresColumnMetadata(
-                  columnName, mapToCanonicalType(udtName), mapToPostgresType(udtName), isNullable));
+                  columnName,
+                  mapToCanonicalType(baseType),
+                  mapToPostgresType(baseType),
+                  isNullable,
+                  isArray));
         }
       }
       return metadataMap;
