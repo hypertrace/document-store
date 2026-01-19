@@ -24,12 +24,14 @@ import org.hypertrace.core.documentstore.BulkUpdateRequest;
 import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.CreateResult;
+import org.hypertrace.core.documentstore.CreateStatus;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
+import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
 import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
@@ -56,16 +58,15 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String WRITE_NOT_SUPPORTED =
       "Write operations are not supported for flat collections yet!";
-  private static final String BEST_EFFORT_WRITES_CONFIG = "bestEffortWrites";
+  private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
   /**
-   * When true (default), fields that don't match the schema are skipped. When false (strict mode),
-   * all fields must be present in the schema with correct types (any fields present in the doc that
-   * are not present in the schema would make this check fail)
+   * Strategy for handling fields that don't match the schema. Default is SKIP (best-effort writes).
+   * When THROW, all fields must be present in the schema with correct types.
    */
-  private final boolean bestEffortWrites;
+  private final MissingColumnStrategy missingColumnStrategy;
 
   FlatPostgresCollection(
       final PostgresClient client,
@@ -73,9 +74,23 @@ public class FlatPostgresCollection extends PostgresCollection {
       final PostgresLazyilyLoadedSchemaRegistry schemaRegistry) {
     super(client, collectionName);
     this.schemaRegistry = schemaRegistry;
-    this.bestEffortWrites =
-        Boolean.parseBoolean(
-            client.getCustomParameters().getOrDefault(BEST_EFFORT_WRITES_CONFIG, "true"));
+    this.missingColumnStrategy = parseMissingColumnStrategy(client.getCustomParameters());
+  }
+
+  private static MissingColumnStrategy parseMissingColumnStrategy(Map<String, String> params) {
+    String value = params.get(MISSING_COLUMN_STRATEGY_CONFIG);
+    if (value == null || value.isEmpty()) {
+      return MissingColumnStrategy.SKIP; // default
+    }
+    try {
+      return MissingColumnStrategy.valueOf(value.toUpperCase());
+    } catch (IllegalArgumentException e) {
+      LOGGER.warn(
+          "Invalid missingColumnStrategy value: '{}', using default SKIP. Valid values: {}",
+          value,
+          java.util.Arrays.toString(MissingColumnStrategy.values()));
+      return MissingColumnStrategy.SKIP;
+    }
   }
 
   @Override
@@ -229,10 +244,19 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     try {
       TypedDocument parsed = parseDocument(document, tableName, skippedFields);
+
+      // If IGNORE_DOCUMENT strategy and any fields were skipped, ignore the entire document
+      if (missingColumnStrategy == MissingColumnStrategy.IGNORE_DOCUMENT
+          && !skippedFields.isEmpty()) {
+        LOGGER.info(
+            "Document ignored due to IGNORE_DOCUMENT strategy. Skipped fields: {}", skippedFields);
+        return new CreateResult(CreateStatus.IGNORED, isRetry, skippedFields);
+      }
+
       // if there are no valid columns in the document
       if (parsed.isEmpty()) {
         LOGGER.warn("No valid columns found in the document for table: {}", tableName);
-        return new CreateResult(false, isRetry, skippedFields);
+        return new CreateResult(CreateStatus.FAILED, isRetry, skippedFields);
       }
 
       String sql = buildInsertSql(parsed.getColumns());
@@ -268,7 +292,7 @@ public class FlatPostgresCollection extends PostgresCollection {
           schemaRegistry.getColumnOrRefresh(tableName, fieldName);
 
       if (columnMetadata.isEmpty()) {
-        if (!bestEffortWrites) {
+        if (missingColumnStrategy == MissingColumnStrategy.THROW) {
           throw new SchemaMismatchException(
               "Column '" + fieldName + "' not found in schema for table: " + tableName);
         }
@@ -284,7 +308,7 @@ public class FlatPostgresCollection extends PostgresCollection {
         Object value = extractValue(fieldValue, type, isArray);
         typedDocument.add("\"" + fieldName + "\"", value, type, isArray);
       } catch (Exception e) {
-        if (!bestEffortWrites) {
+        if (missingColumnStrategy == MissingColumnStrategy.THROW) {
           throw new SchemaMismatchException(
               "Failed to parse value for column '"
                   + fieldName

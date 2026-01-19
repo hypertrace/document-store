@@ -851,7 +851,7 @@ public class FlatCollectionWriteTest {
   }
 
   @Nested
-  @DisplayName("Strict Mode (bestEffortWrites=false)")
+  @DisplayName("Strict Mode (missingColumnStrategy=THROW)")
   class StrictModeTests {
 
     private Datastore strictDatastore;
@@ -859,7 +859,7 @@ public class FlatCollectionWriteTest {
 
     @BeforeEach
     void setupStrictModeDatastore() {
-      // Create a datastore with bestEffortWrites=false (strict mode)
+      // Create a datastore with missingColumnStrategy=THROW (strict mode)
       String postgresConnectionUrl =
           String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
 
@@ -869,7 +869,7 @@ public class FlatCollectionWriteTest {
       strictConfig.put("password", "postgres");
       // Configure strict mode via customParams
       Map<String, String> customParams = new HashMap<>();
-      customParams.put("bestEffortWrites", "false");
+      customParams.put("missingColumnStrategy", "THROW");
       strictConfig.put("customParams", customParams);
 
       strictDatastore =
@@ -959,6 +959,145 @@ public class FlatCollectionWriteTest {
 
       // Should throw on the first unknown field encountered
       assertThrows(SchemaMismatchException.class, () -> strictCollection.create(key, document));
+    }
+  }
+
+  @Nested
+  @DisplayName("Ignore Document Mode (missingColumnStrategy=IGNORE_DOCUMENT)")
+  class IgnoreDocumentModeTests {
+
+    private Datastore ignoreDocDatastore;
+    private Collection ignoreDocCollection;
+
+    @BeforeEach
+    void setupIgnoreDocumentModeDatastore() {
+      // Create a datastore with missingColumnStrategy=IGNORE_DOCUMENT
+      String postgresConnectionUrl =
+          String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
+
+      Map<String, Object> config = new HashMap<>();
+      config.put("url", postgresConnectionUrl);
+      config.put("user", "postgres");
+      config.put("password", "postgres");
+      Map<String, String> customParams = new HashMap<>();
+      customParams.put("missingColumnStrategy", "IGNORE_DOCUMENT");
+      config.put("customParams", customParams);
+
+      ignoreDocDatastore =
+          DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(config));
+      ignoreDocCollection =
+          ignoreDocDatastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED status when document has unknown columns")
+    void testIgnoreDocumentWithUnknownColumn() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "ignore-doc-unknown-col");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("unknown_column", "this should cause ignore");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "ignore-doc-unknown-col");
+
+      CreateResult result = ignoreDocCollection.create(key, document);
+
+      assertFalse(result.isSucceed());
+      assertTrue(result.isDocumentIgnored());
+      assertTrue(result.getSkippedFields().contains("unknown_column"));
+
+      // Verify no row was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = 'ignore-doc-unknown-col'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(0, rs.getInt(1));
+      }
+    }
+
+    @Test
+    @DisplayName("Should return IGNORED status when document has type mismatch")
+    void testIgnoreDocumentWithTypeMismatch() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "ignore-doc-type-mismatch");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("price", "not_a_number"); // price is INTEGER
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "ignore-doc-type-mismatch");
+
+      CreateResult result = ignoreDocCollection.create(key, document);
+
+      assertFalse(result.isSucceed());
+      assertTrue(result.isDocumentIgnored());
+      assertTrue(result.getSkippedFields().contains("price"));
+
+      // Verify no row was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = 'ignore-doc-type-mismatch'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(0, rs.getInt(1));
+      }
+    }
+
+    @Test
+    @DisplayName("Should succeed when all fields match schema (IGNORE_DOCUMENT mode)")
+    void testIgnoreDocumentSucceedsWithValidDocument() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "ignore-doc-valid");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("price", 100);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "ignore-doc-valid");
+
+      CreateResult result = ignoreDocCollection.create(key, document);
+
+      assertTrue(result.isSucceed());
+      assertFalse(result.isDocumentIgnored());
+      assertTrue(result.getSkippedFields().isEmpty());
+
+      // Verify data was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'ignore-doc-valid'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Valid Item", rs.getString("item"));
+        assertEquals(100, rs.getInt("price"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should return all problematic fields in skippedFields when ignored")
+    void testIgnoreDocumentReturnsAllSkippedFields() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "ignore-doc-multi-issues");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("unknown_field_1", "value1");
+      objectNode.put("unknown_field_2", "value2");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "ignore-doc-multi-issues");
+
+      CreateResult result = ignoreDocCollection.create(key, document);
+
+      assertFalse(result.isSucceed());
+      assertTrue(result.isDocumentIgnored());
+      assertEquals(2, result.getSkippedFields().size());
+      assertTrue(
+          result.getSkippedFields().containsAll(List.of("unknown_field_1", "unknown_field_2")));
     }
   }
 }
