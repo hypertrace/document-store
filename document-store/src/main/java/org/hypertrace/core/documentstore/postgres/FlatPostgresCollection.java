@@ -304,7 +304,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       throws IOException {
     if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
       LOGGER.info(
-          "Schema mismatch detected (SQLState: {}), refreshing schema and retrying. key: {}",
+          "Schema mismatch detected during upsert (SQLState: {}), refreshing schema and retrying. key: {}",
           e.getSQLState(),
           key);
       schemaRegistry.invalidate(tableName);
@@ -464,7 +464,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       throws IOException {
     if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
       LOGGER.info(
-          "Schema mismatch detected (SQLState: {}), refreshing schema and retrying. key: {}",
+          "Schema mismatch detected during create (SQLState: {}), refreshing schema and retrying. key: {}",
           e.getSQLState(),
           key);
       schemaRegistry.invalidate(tableName);

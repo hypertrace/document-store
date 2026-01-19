@@ -1279,5 +1279,130 @@ public class FlatCollectionWriteTest {
       assertTrue(
           result.getSkippedFields().containsAll(List.of("unknown_field_1", "unknown_field_2")));
     }
+
+    @Test
+    @DisplayName(
+        "createOrReplace should return false when document has unknown columns (IGNORE_DOCUMENT)")
+    void testCreateOrReplaceIgnoresDocumentWithUnknownColumn() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "upsert-ignore-doc-unknown");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("unknown_column", "this should cause ignore");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "upsert-ignore-doc-unknown");
+
+      boolean result = ignoreDocCollection.createOrReplace(key, document);
+
+      assertFalse(result);
+
+      // Verify no row was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = 'upsert-ignore-doc-unknown'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(0, rs.getInt(1));
+      }
+    }
+
+    @Test
+    @DisplayName("createOrReplace should succeed when all fields match schema (IGNORE_DOCUMENT)")
+    void testCreateOrReplaceSucceedsWithValidDocument() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "upsert-ignore-doc-valid");
+      objectNode.put("item", "Valid Item");
+      objectNode.put("price", 100);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "upsert-ignore-doc-valid");
+
+      boolean result = ignoreDocCollection.createOrReplace(key, document);
+
+      assertTrue(result);
+
+      // Verify data was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'upsert-ignore-doc-valid'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Valid Item", rs.getString("item"));
+        assertEquals(100, rs.getInt("price"));
+      }
+    }
+  }
+
+  @Nested
+  @DisplayName("CreateOrReplace Schema Refresh Tests")
+  class CreateOrReplaceSchemaRefreshTests {
+
+    @Test
+    @DisplayName("createOrReplace should refresh schema and retry on dropped column")
+    void testCreateOrReplaceRefreshesSchemaOnDroppedColumn() throws Exception {
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Step 1: Add a temporary column
+      String addColumnSQL =
+          String.format(
+              "ALTER TABLE \"%s\" ADD COLUMN \"temp_upsert_col\" TEXT", FLAT_COLLECTION_NAME);
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps = conn.prepareStatement(addColumnSQL)) {
+        ps.execute();
+        LOGGER.info("Added temporary column 'temp_upsert_col' to table");
+      }
+
+      // Step 2: Create a document with the temp column to cache the schema
+      ObjectNode objectNode1 = OBJECT_MAPPER.createObjectNode();
+      objectNode1.put("id", "upsert-cache-schema-doc");
+      objectNode1.put("item", "Item to cache schema");
+      objectNode1.put("temp_upsert_col", "temp value");
+      flatCollection.createOrReplace(
+          new SingleValueKey("default", "upsert-cache-schema-doc"), new JSONDocument(objectNode1));
+      LOGGER.info("Schema cached with temp_upsert_col");
+
+      // Step 3: DROP the column - now the cached schema is stale
+      String dropColumnSQL =
+          String.format("ALTER TABLE \"%s\" DROP COLUMN \"temp_upsert_col\"", FLAT_COLLECTION_NAME);
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps = conn.prepareStatement(dropColumnSQL)) {
+        ps.execute();
+        LOGGER.info("Dropped temp_upsert_col - schema cache is now stale");
+      }
+
+      // Step 4: Try createOrReplace with the dropped column
+      // Schema registry still thinks temp_upsert_col exists, so it will include it in UPSERT
+      // UPSERT will fail with UNDEFINED_COLUMN, triggering handlePSQLExceptionForUpsert
+      // which will refresh schema and retry
+      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
+      objectNode2.put("id", "upsert-retry-doc");
+      objectNode2.put("item", "Item after schema refresh");
+      objectNode2.put("temp_upsert_col", "this column no longer exists");
+      Document document = new JSONDocument(objectNode2);
+      Key key = new SingleValueKey("default", "upsert-retry-doc");
+
+      boolean result = flatCollection.createOrReplace(key, document);
+
+      // Should succeed after schema refresh - temp_upsert_col will be skipped
+      assertTrue(result);
+
+      // Verify the valid fields were inserted
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'upsert-retry-doc'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Item after schema refresh", rs.getString("item"));
+      }
+    }
   }
 }
