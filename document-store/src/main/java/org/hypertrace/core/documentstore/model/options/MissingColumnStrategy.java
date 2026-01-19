@@ -19,5 +19,9 @@ public enum MissingColumnStrategy {
    * a field doesn't match the schema. The write operation will fail.
    */
   THROW,
-  IGNORE_DOCUMENT
+  IGNORE_DOCUMENT;
+
+  public static MissingColumnStrategy defaultStrategy() {
+    return SKIP;
+  }
 }

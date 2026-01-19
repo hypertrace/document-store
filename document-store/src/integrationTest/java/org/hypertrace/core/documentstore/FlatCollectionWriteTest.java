@@ -693,6 +693,186 @@ public class FlatCollectionWriteTest {
   }
 
   @Nested
+  @DisplayName("CreateOrReplace Operations")
+  class CreateOrReplaceTests {
+
+    @Test
+    @DisplayName("Should create new document and return true")
+    void testCreateOrReplaceNewDocument() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "upsert-new-doc-100");
+      objectNode.put("item", "New Upsert Item");
+      objectNode.put("price", 500);
+      objectNode.put("quantity", 25);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "upsert-new-doc-100");
+
+      boolean isNew = flatCollection.createOrReplace(key, document);
+
+      assertTrue(isNew); // Should return true for new document
+
+      // Verify the data was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'upsert-new-doc-100'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("New Upsert Item", rs.getString("item"));
+        assertEquals(500, rs.getInt("price"));
+        assertEquals(25, rs.getInt("quantity"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should replace existing document and return false")
+    void testCreateOrReplaceExistingDocument() throws Exception {
+      // First create a document
+      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
+      initialNode.put("id", "upsert-existing-doc-200");
+      initialNode.put("item", "Original Item");
+      initialNode.put("price", 100);
+      Document initialDoc = new JSONDocument(initialNode);
+      Key key = new SingleValueKey("default", "upsert-existing-doc-200");
+
+      boolean firstResult = flatCollection.createOrReplace(key, initialDoc);
+      assertTrue(firstResult); // First insert should return true
+
+      // Now replace with updated document
+      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
+      updatedNode.put("id", "upsert-existing-doc-200");
+      updatedNode.put("item", "Updated Item");
+      updatedNode.put("price", 999);
+      updatedNode.put("quantity", 50);
+      Document updatedDoc = new JSONDocument(updatedNode);
+
+      boolean secondResult = flatCollection.createOrReplace(key, updatedDoc);
+      assertFalse(secondResult); // Update should return false
+
+      // Verify the data was updated
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'upsert-existing-doc-200'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Updated Item", rs.getString("item"));
+        assertEquals(999, rs.getInt("price"));
+        assertEquals(50, rs.getInt("quantity"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should skip unknown fields in createOrReplace (default SKIP strategy)")
+    void testCreateOrReplaceSkipsUnknownFields() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "upsert-skip-fields-300");
+      objectNode.put("item", "Item with unknown");
+      objectNode.put("price", 200);
+      objectNode.put("unknown_field", "should be skipped");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "upsert-skip-fields-300");
+
+      boolean isNew = flatCollection.createOrReplace(key, document);
+      assertTrue(isNew);
+
+      // Verify only known fields were inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT * FROM \"%s\" WHERE \"id\" = 'upsert-skip-fields-300'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Item with unknown", rs.getString("item"));
+        assertEquals(200, rs.getInt("price"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should handle JSONB fields in createOrReplace")
+    void testCreateOrReplaceWithJsonbField() throws Exception {
+      // Create initial document with JSONB
+      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
+      initialNode.put("id", "upsert-jsonb-400");
+      initialNode.put("item", "Item with props");
+      ObjectNode initialProps = OBJECT_MAPPER.createObjectNode();
+      initialProps.put("color", "red");
+      initialProps.put("size", "small");
+      initialNode.set("props", initialProps);
+      Document initialDoc = new JSONDocument(initialNode);
+      Key key = new SingleValueKey("default", "upsert-jsonb-400");
+
+      flatCollection.createOrReplace(key, initialDoc);
+
+      // Update with new JSONB value
+      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
+      updatedNode.put("id", "upsert-jsonb-400");
+      updatedNode.put("item", "Updated Item");
+      ObjectNode updatedProps = OBJECT_MAPPER.createObjectNode();
+      updatedProps.put("color", "blue");
+      updatedProps.put("size", "large");
+      updatedProps.put("weight", 2.5);
+      updatedNode.set("props", updatedProps);
+      Document updatedDoc = new JSONDocument(updatedNode);
+
+      boolean isNew = flatCollection.createOrReplace(key, updatedDoc);
+      assertFalse(isNew);
+
+      // Verify JSONB was updated
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"props\" FROM \"%s\" WHERE \"id\" = 'upsert-jsonb-400'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        JsonNode propsResult = OBJECT_MAPPER.readTree(rs.getString("props"));
+        assertEquals("blue", propsResult.get("color").asText());
+        assertEquals("large", propsResult.get("size").asText());
+        assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
+      }
+    }
+
+    @Test
+    @DisplayName("Should throw IOException when id column is missing")
+    void testCreateOrReplaceWithoutIdColumn() {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("item", "No ID Item");
+      objectNode.put("price", 100);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "no-id-key");
+
+      IOException exception =
+          assertThrows(IOException.class, () -> flatCollection.createOrReplace(key, document));
+      assertTrue(exception.getMessage().contains("primary key"));
+    }
+
+    @Test
+    @DisplayName("Should return false when all fields are unknown (no valid columns)")
+    void testCreateOrReplaceAllFieldsUnknown() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("unknown1", "value1");
+      objectNode.put("unknown2", "value2");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "all-unknown-key");
+
+      boolean result = flatCollection.createOrReplace(key, document);
+      assertFalse(result); // Should return false when no valid columns
+    }
+  }
+
+  @Nested
   @DisplayName("Bulk Operations")
   class BulkOperationTests {
 
