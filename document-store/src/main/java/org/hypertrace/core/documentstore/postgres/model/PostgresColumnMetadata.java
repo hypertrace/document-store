@@ -15,6 +15,7 @@ public class PostgresColumnMetadata implements ColumnMetadata {
   private final DataType canonicalType;
   @Getter private final PostgresDataType postgresType;
   private final boolean nullable;
+  private final boolean isArray;
 
   @Override
   public String getName() {
@@ -29,5 +30,10 @@ public class PostgresColumnMetadata implements ColumnMetadata {
   @Override
   public boolean isNullable() {
     return nullable;
+  }
+
+  @Override
+  public boolean isArray() {
+    return isArray;
   }
 }
