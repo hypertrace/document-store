@@ -37,8 +37,8 @@ import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
-import org.hypertrace.core.documentstore.postgres.update.parser.FlatSetOperatorParser;
-import org.hypertrace.core.documentstore.postgres.update.parser.FlatUpdateOperatorParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocSetOperatorParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocUpdateOperatorParser;
 import org.hypertrace.core.documentstore.query.Query;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -56,8 +56,8 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final String WRITE_NOT_SUPPORTED =
       "Write operations are not supported for flat collections yet!";
 
-  private static final Map<UpdateOperator, FlatUpdateOperatorParser> OPERATOR_PARSERS =
-      Map.of(SET, new FlatSetOperatorParser());
+  private static final Map<UpdateOperator, FlatCollectionSubDocUpdateOperatorParser> OPERATOR_PARSERS =
+      Map.of(SET, new FlatCollectionSubDocSetOperatorParser());
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
@@ -211,16 +211,15 @@ public class FlatPostgresCollection extends PostgresCollection {
         // 1. Validate all columns exist and operators are supported
         validateUpdates(updates, tableName);
 
-        // 2. Get before-document if needed
+        // 2. Get before-document if needed (only for BEFORE_UPDATE)
         Optional<Document> beforeDoc = Optional.empty();
         ReturnDocumentType returnType = updateOptions.getReturnDocumentType();
-        if (returnType == BEFORE_UPDATE || returnType == AFTER_UPDATE) {
+        if (returnType == BEFORE_UPDATE) {
           beforeDoc = selectFirstDocument(connection, query);
-        }
-
-        if (beforeDoc.isEmpty() && returnType != NONE) {
-          connection.commit();
-          return Optional.empty();
+          if (beforeDoc.isEmpty()) {
+            connection.commit();
+            return Optional.empty();
+          }
         }
 
         // 3. Build and execute UPDATE
@@ -252,7 +251,6 @@ public class FlatPostgresCollection extends PostgresCollection {
     for (SubDocumentUpdate update : updates) {
       UpdateOperator operator = update.getOperator();
 
-      // Check operator is supported
       if (!OPERATOR_PARSERS.containsKey(operator)) {
         throw new IOException("Unsupported update operator: " + operator);
       }
@@ -328,7 +326,7 @@ public class FlatPostgresCollection extends PostgresCollection {
               .params(params)
               .build();
 
-      FlatUpdateOperatorParser operatorParser = OPERATOR_PARSERS.get(update.getOperator());
+      FlatCollectionSubDocUpdateOperatorParser operatorParser = OPERATOR_PARSERS.get(update.getOperator());
       String fragment = operatorParser.parse(context);
       setFragments.add(fragment);
     }

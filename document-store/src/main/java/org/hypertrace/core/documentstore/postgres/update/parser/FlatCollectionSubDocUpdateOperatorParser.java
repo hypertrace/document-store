@@ -10,7 +10,7 @@ import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
  * org.hypertrace.core.documentstore.model.subdoc.UpdateOperator} and generates the appropriate SQL
  * SET clause fragment.
  */
-public interface FlatUpdateOperatorParser {
+public interface FlatCollectionSubDocUpdateOperatorParser {
 
   /**
    * Generates SQL SET clause fragment for this operator.

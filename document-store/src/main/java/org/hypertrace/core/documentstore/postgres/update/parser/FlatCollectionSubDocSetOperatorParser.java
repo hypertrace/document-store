@@ -19,7 +19,8 @@ import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
  *       to_jsonb(?))}
  * </ul>
  */
-public class FlatSetOperatorParser implements FlatUpdateOperatorParser {
+public class FlatCollectionSubDocSetOperatorParser implements
+    FlatCollectionSubDocUpdateOperatorParser {
 
   /** Visitor to extract raw values from SubDocumentValue for use in prepared statements. */
   private static final SubDocumentValueVisitor<Object> VALUE_EXTRACTOR =
