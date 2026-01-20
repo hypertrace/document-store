@@ -1009,7 +1009,8 @@ public class FlatCollectionWriteTest {
       UpdateOptions options =
           UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
-      assertThrows(IOException.class, () -> flatCollection.update(query, updates, options));
+      assertThrows(
+          IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
     }
 
     @Test
