@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.Date;
@@ -12,6 +13,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -36,12 +38,17 @@ import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentExcept
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
 import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
 import org.hypertrace.core.documentstore.model.options.QueryOptions;
+import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
+import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
+import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocSetOperatorParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocUpdateOperatorParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.query.Query;
 import org.postgresql.util.PSQLException;
@@ -64,6 +71,9 @@ public class FlatPostgresCollection extends PostgresCollection {
       "Write operations are not supported for flat collections yet!";
   private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
   private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
+
+  private static final Map<UpdateOperator, FlatCollectionSubDocUpdateOperatorParser>
+      SUB_DOC_UPDATE_PARSERS = Map.of(SET, new FlatCollectionSubDocSetOperatorParser());
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
@@ -414,10 +424,236 @@ public class FlatPostgresCollection extends PostgresCollection {
   @Override
   public Optional<Document> update(
       org.hypertrace.core.documentstore.query.Query query,
-      java.util.Collection<SubDocumentUpdate> updates,
+      Collection<SubDocumentUpdate> updates,
       UpdateOptions updateOptions)
       throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+
+    Preconditions.checkArgument(
+        updateOptions != null && !updates.isEmpty(), "Updates collection cannot be NULL or empty");
+
+    String tableName = tableIdentifier.getTableName();
+
+    // Acquire a transactional connection that can be managed manually
+    try (Connection connection = client.getTransactionalConnection()) {
+      try {
+        // 1. Validate all columns exist and operators are supported.
+        Map<String, String> resolvedColumns = resolvePathsToColumns(updates, tableName);
+
+        // 2. Get before-document if needed (only for BEFORE_UPDATE)
+        Optional<Document> beforeDoc = Optional.empty();
+        ReturnDocumentType returnType = updateOptions.getReturnDocumentType();
+        if (returnType == BEFORE_UPDATE) {
+          beforeDoc = selectFirstDocument(connection, query);
+          if (beforeDoc.isEmpty()) {
+            connection.commit();
+            return Optional.empty();
+          }
+        }
+
+        // 3. Build and execute UPDATE
+        executeUpdate(connection, query, updates, tableName, resolvedColumns);
+
+        // 4. Resolve return document based on options
+        Document returnDoc = null;
+        if (returnType == BEFORE_UPDATE) {
+          returnDoc = beforeDoc.orElse(null);
+        } else if (returnType == AFTER_UPDATE) {
+          returnDoc = selectFirstDocument(connection, query).orElse(null);
+        }
+
+        connection.commit();
+        return Optional.ofNullable(returnDoc);
+
+      } catch (Exception e) {
+        connection.rollback();
+        throw e;
+      }
+    } catch (SQLException e) {
+      LOGGER.error("SQLException during update operation", e);
+      throw new IOException(e);
+    }
+  }
+
+  /**
+   * Validates all updates and resolves column names.
+   *
+   * @return Map of path -> columnName for all resolved columns. For example: customAttributes.props
+   *     -> customAttributes (since customAttributes is the top-level JSONB col)
+   */
+  private Map<String, String> resolvePathsToColumns(
+      Collection<SubDocumentUpdate> updates, String tableName) {
+    Map<String, String> resolvedColumns = new HashMap<>();
+
+    for (SubDocumentUpdate update : updates) {
+      UpdateOperator operator = update.getOperator();
+
+      Preconditions.checkArgument(
+          SUB_DOC_UPDATE_PARSERS.containsKey(operator), "Unsupported UPDATE operator: " + operator);
+
+      String path = update.getSubDocument().getPath();
+      Optional<String> columnName = resolveColumnName(path, tableName);
+
+      // If the column is not found and missing column strategy is configured to throw, throw an
+      // exception.
+      Preconditions.checkArgument(
+          columnName.isPresent() || missingColumnStrategy != MissingColumnStrategy.THROW,
+          "Column not found in schema for path: "
+              + path
+              + " and missing column strategy is configured to: "
+              + missingColumnStrategy.toString());
+
+      columnName.ifPresent(col -> resolvedColumns.put(path, col));
+    }
+
+    return resolvedColumns;
+  }
+
+  /**
+   * Resolves a path to its column name, handling both dotted column names and JSONB paths.
+   *
+   * <p>Resolution order:
+   *
+   * <ol>
+   *   <li>Check if full path exists as a column name (handles "customProps.something")
+   *   <li>If not, progressively try shorter prefixes to find a JSONB column
+   * </ol>
+   *
+   * @return Optional containing the column name, or empty if no valid column found
+   */
+  private Optional<String> resolveColumnName(String path, String tableName) {
+    // First, check if the full path is a column name. If yes, then it's a top-level field. Return
+    // it.
+    if (schemaRegistry.getColumnOrRefresh(tableName, path).isPresent()) {
+      return Optional.of(path);
+    }
+
+    // Not a direct column - try to find a JSONB column prefix
+    if (!path.contains(".")) {
+      return Optional.empty();
+    }
+
+    String[] parts = path.split("\\.");
+    StringBuilder columnBuilder = new StringBuilder(parts[0]);
+
+    for (int i = 0; i < parts.length - 1; i++) {
+      if (i > 0) {
+        columnBuilder.append(".").append(parts[i]);
+      }
+      String candidateColumn = columnBuilder.toString();
+      Optional<PostgresColumnMetadata> colMeta =
+          schemaRegistry.getColumnOrRefresh(tableName, candidateColumn);
+
+      if (colMeta.isPresent() && colMeta.get().getPostgresType() == PostgresDataType.JSONB) {
+        return Optional.of(candidateColumn);
+      }
+    }
+
+    return Optional.empty();
+  }
+
+  /** Extracts the nested JSONB path from a full path given the resolved column name. */
+  private String[] getNestedPath(String fullPath, String columnName) {
+    if (fullPath.equals(columnName)) {
+      return new String[0];
+    }
+    // Remove column name prefix and split the rest
+    String nested = fullPath.substring(columnName.length() + 1); // +1 for the dot
+    return nested.split("\\.");
+  }
+
+  private Optional<Document> selectFirstDocument(Connection connection, Query query)
+      throws SQLException, IOException {
+    PostgresQueryParser parser = createParser(query);
+    String selectQuery = parser.buildSelectQueryForUpdate();
+
+    try (PreparedStatement ps =
+        queryExecutor.buildPreparedStatement(
+            selectQuery, parser.getParamsBuilder().build(), connection)) {
+      return getFirstDocumentForFlat(ps.executeQuery());
+    }
+  }
+
+  private Optional<Document> getFirstDocumentForFlat(ResultSet resultSet) throws IOException {
+    CloseableIterator<Document> iterator =
+        new PostgresResultIteratorWithBasicTypes(resultSet, DocumentType.FLAT);
+    return getFirstDocument(iterator);
+  }
+
+  private void executeUpdate(
+      Connection connection,
+      Query query,
+      Collection<SubDocumentUpdate> updates,
+      String tableName,
+      Map<String, String> resolvedColumns)
+      throws SQLException {
+
+    // Build WHERE clause
+    PostgresQueryParser filterParser = createParser(query);
+    String filterClause = filterParser.buildFilterClause();
+    Params filterParams = filterParser.getParamsBuilder().build();
+
+    // Build SET clause fragments
+    List<String> setFragments = new ArrayList<>();
+    List<Object> params = new ArrayList<>();
+
+    for (SubDocumentUpdate update : updates) {
+      String path = update.getSubDocument().getPath();
+      String columnName = resolvedColumns.get(path);
+
+      if (columnName == null) {
+        LOGGER.warn("Skipping update for unresolved path: {}", path);
+        continue;
+      }
+
+      PostgresColumnMetadata colMeta =
+          schemaRegistry.getColumnOrRefresh(tableName, columnName).orElseThrow();
+
+      FlatUpdateContext context =
+          FlatUpdateContext.builder()
+              .columnName(columnName)
+              // get the nested path. So for example, if colName is `customAttr` and full path is
+              // `customAttr.props`, then the nested path is `props`.
+              .nestedPath(getNestedPath(path, columnName))
+              .columnType(colMeta.getPostgresType())
+              .value(update.getSubDocumentValue())
+              .params(params)
+              .build();
+
+      FlatCollectionSubDocUpdateOperatorParser operatorParser =
+          SUB_DOC_UPDATE_PARSERS.get(update.getOperator());
+      String fragment = operatorParser.parse(context);
+      setFragments.add(fragment);
+    }
+
+    // If all updates were skipped, nothing to do
+    if (setFragments.isEmpty()) {
+      LOGGER.warn("All update paths were skipped - no valid columns to update");
+      return;
+    }
+
+    // Build final UPDATE SQL
+    String sql =
+        String.format(
+            "UPDATE %s SET %s %s", tableIdentifier, String.join(", ", setFragments), filterClause);
+
+    LOGGER.debug("Executing update SQL: {}", sql);
+
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+      int idx = 1;
+      // Add SET clause params
+      for (Object param : params) {
+        ps.setObject(idx++, param);
+      }
+      // Add WHERE clause params
+      for (Object param : filterParams.getObjectParams().values()) {
+        ps.setObject(idx++, param);
+      }
+      int rowsUpdated = ps.executeUpdate();
+      LOGGER.debug("Rows updated: {}", rowsUpdated);
+    } catch (SQLException e) {
+      LOGGER.error("Failed to execute update. SQL: {}, SQLState: {}", sql, e.getSQLState(), e);
+      throw e;
+    }
   }
 
   @Override
@@ -587,6 +823,7 @@ public class FlatPostgresCollection extends PostgresCollection {
    * by column name. LinkedHashMap preserves insertion order for consistent parameter binding.
    */
   private static class TypedDocument {
+
     private final Map<String, Object> values = new HashMap<>();
     private final Map<String, PostgresDataType> types = new HashMap<>();
     private final Map<String, Boolean> arrays = new HashMap<>();
