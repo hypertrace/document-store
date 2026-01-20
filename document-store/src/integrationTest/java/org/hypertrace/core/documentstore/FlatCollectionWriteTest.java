@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1581,6 +1582,99 @@ public class FlatCollectionWriteTest {
           ResultSet rs = ps.executeQuery()) {
         assertTrue(rs.next());
         assertEquals("UpdatedSoap", rs.getString("item"));
+      }
+    }
+
+    @Test
+    @DisplayName("SET with empty object value")
+    void testSetWithEmptyObjectValue() throws Exception {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of("1")))
+              .build();
+
+      // SET a JSON object containing an empty object
+      SubDocumentUpdate update =
+          SubDocumentUpdate.builder()
+              .subDocument("props.newProperty")
+              .operator(UpdateOperator.SET)
+              .subDocumentValue(
+                  org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                      new JSONDocument(
+                          Map.of("hello", "world", "emptyObject", Collections.emptyMap()))))
+              .build();
+
+      Optional<Document> result =
+          flatCollection.update(
+              query,
+              List.of(update),
+              UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build());
+
+      assertTrue(result.isPresent());
+
+      // Verify the JSON object was set correctly
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"props\"->'newProperty' as newProp FROM \"%s\" WHERE \"id\" = '1'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        String jsonStr = rs.getString("newProp");
+        assertNotNull(jsonStr);
+        assertTrue(jsonStr.contains("hello"));
+        assertTrue(jsonStr.contains("emptyObject"));
+      }
+    }
+
+    @Test
+    @DisplayName("SET with JSON document as value")
+    void testSetWithJsonDocumentValue() throws Exception {
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of("1")))
+              .build();
+
+      // SET a JSON document as value
+      SubDocumentUpdate update =
+          SubDocumentUpdate.builder()
+              .subDocument("props.nested")
+              .operator(UpdateOperator.SET)
+              .subDocumentValue(
+                  org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                      new JSONDocument(Map.of("key1", "value1", "key2", 123))))
+              .build();
+
+      Optional<Document> result =
+          flatCollection.update(
+              query,
+              List.of(update),
+              UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build());
+
+      assertTrue(result.isPresent());
+
+      // Verify the JSON document was set correctly
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"props\"->'nested'->>'key1' as key1, \"props\"->'nested'->>'key2' as key2 FROM \"%s\" WHERE \"id\" = '1'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("value1", rs.getString("key1"));
+        assertEquals("123", rs.getString("key2"));
       }
     }
   }

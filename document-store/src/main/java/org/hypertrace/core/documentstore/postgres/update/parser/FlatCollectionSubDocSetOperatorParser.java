@@ -51,6 +51,39 @@ public class FlatCollectionSubDocSetOperatorParser
         }
       };
 
+  /**
+   * Visitor that returns the appropriate SQL value expression for jsonb_set. JSON document values
+   * use ?::jsonb to parse the JSON string directly. Primitive values use to_jsonb(?) to convert to
+   * proper JSONB format.
+   */
+  private static final SubDocumentValueVisitor<String> VALUE_EXPR_VISITOR =
+      new SubDocumentValueVisitor<>() {
+        @Override
+        public String visit(PrimitiveSubDocumentValue value) {
+          return "to_jsonb(?)";
+        }
+
+        @Override
+        public String visit(MultiValuedPrimitiveSubDocumentValue value) {
+          return "to_jsonb(?)";
+        }
+
+        @Override
+        public String visit(NestedSubDocumentValue value) {
+          return "?::jsonb";
+        }
+
+        @Override
+        public String visit(MultiValuedNestedSubDocumentValue value) {
+          return "?::jsonb";
+        }
+
+        @Override
+        public String visit(NullSubDocumentValue value) {
+          return "to_jsonb(?)";
+        }
+      };
+
   @Override
   public String parse(FlatUpdateContext context) {
     if (context.isTopLevel()) {
@@ -73,11 +106,11 @@ public class FlatCollectionSubDocSetOperatorParser
     context.getParams().add(value);
 
     // Use jsonb_set with COALESCE to handle null columns
-    // to_jsonb(?) converts the value to proper JSONB format
     // 4th param (true) creates the key if it doesn't exist
+    String valueExpr = context.getValue().accept(VALUE_EXPR_VISITOR);
     return String.format(
-        "\"%s\" = jsonb_set(COALESCE(\"%s\", '{}'), ?::text[], to_jsonb(?), true)",
-        context.getColumnName(), context.getColumnName());
+        "\"%s\" = jsonb_set(COALESCE(\"%s\", '{}'), ?::text[], %s, true)",
+        context.getColumnName(), context.getColumnName(), valueExpr);
   }
 
   /**
