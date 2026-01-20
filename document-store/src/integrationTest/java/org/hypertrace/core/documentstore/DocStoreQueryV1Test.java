@@ -201,7 +201,7 @@ public class DocStoreQueryV1Test {
     String createTableSQL =
         String.format(
             "CREATE TABLE \"%s\" ("
-                + "\"_id\" INTEGER PRIMARY KEY,"
+                + "\"id\" TEXT PRIMARY KEY,"
                 + "\"item\" TEXT,"
                 + "\"price\" INTEGER,"
                 + "\"quantity\" INTEGER,"
@@ -3540,7 +3540,7 @@ public class DocStoreQueryV1Test {
     void testFlatPostgresCollectionArrayRelationalFilter(String dataStoreName) throws IOException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
-      // Filter: ANY tag in tags equals "hygiene" AND _id <= 8
+      // Filter: ANY tag in tags equals "hygiene" AND id IN (1-8)
       // Exclude docs 9-10 (NULL/empty arrays) to avoid ARRAY[] type error
       Query arrayRelationalQuery =
           Query.builder()
@@ -3560,7 +3560,10 @@ public class DocStoreQueryV1Test {
                               .build())
                       .operand(
                           RelationalExpression.of(
-                              IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                              IdentifierExpression.of("id"),
+                              IN,
+                              ConstantExpression.ofStrings(
+                                  List.of("1", "2", "3", "4", "5", "6", "7", "8"))))
                       .build())
               .build();
 
@@ -3617,7 +3620,10 @@ public class DocStoreQueryV1Test {
               .addSort(IdentifierExpression.of("item"), ASC)
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                      IdentifierExpression.of("id"),
+                      IN,
+                      ConstantExpression.ofStrings(
+                          List.of("1", "2", "3", "4", "5", "6", "7", "8"))))
               .build();
 
       // Assert both match the expected response
@@ -3643,7 +3649,10 @@ public class DocStoreQueryV1Test {
               .addSort(IdentifierExpression.of("item"), ASC)
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                      IdentifierExpression.of("id"),
+                      IN,
+                      ConstantExpression.ofStrings(
+                          List.of("1", "2", "3", "4", "5", "6", "7", "8"))))
               .build();
 
       // Assert both match the expected response
@@ -3669,7 +3678,10 @@ public class DocStoreQueryV1Test {
               .addSort(IdentifierExpression.of("item"), ASC)
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                      IdentifierExpression.of("id"),
+                      IN,
+                      ConstantExpression.ofStrings(
+                          List.of("1", "2", "3", "4", "5", "6", "7", "8"))))
               .build();
 
       // Assert both match the expected response with nested structure
@@ -5242,7 +5254,7 @@ public class DocStoreQueryV1Test {
       // @> ('["Green"]')::jsonb) p(countWithParser)
       assertEquals(1, containsCount);
 
-      // Test 2: NOT_CONTAINS - props.colors NOT_CONTAINS "Green" AND _id <= 8
+      // Test 2: NOT_CONTAINS - props.colors NOT_CONTAINS "Green" AND id IN (1-8)
       // Expected: 7 documents (all except id=1 which has Green, limited to first 8)
       Query notContainsQuery =
           Query.builder()
@@ -5257,13 +5269,16 @@ public class DocStoreQueryV1Test {
                               ConstantExpression.of("Green")))
                       .operand(
                           RelationalExpression.of(
-                              IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                              IdentifierExpression.of("id"),
+                              IN,
+                              ConstantExpression.ofStrings(
+                                  List.of("1", "2", "3", "4", "5", "6", "7", "8"))))
                       .build())
               .build();
 
       long notContainsCount = flatCollection.count(notContainsQuery);
       // Generated query: SELECT COUNT(*) FROM (SELECT * FROM "myTestFlat" WHERE ("props"->'colors'
-      // IS NULL OR NOT "props"->'colors' @> ('["Green"]')::jsonb) AND ("_id" <= ('8'::int4)))
+      // IS NULL OR NOT "props"->'colors' @> ('["Green"]')::jsonb) AND ("id" IN ('1', '2', ...)))
       // p(countWithParser)
       assertEquals(7, notContainsCount);
     }
@@ -5287,7 +5302,7 @@ public class DocStoreQueryV1Test {
       long inCount = flatCollection.count(inQuery);
       assertEquals(2, inCount);
 
-      // Test 2: NOT_IN - props.brand NOT_IN ["Dettol"] AND _id <= 8
+      // Test 2: NOT_IN - props.brand NOT_IN ["Dettol"] AND id IN (1-8)
       // Expected: 7 documents (all except id=1 which is Dettol, limited to first 8)
       Query notInQuery =
           Query.builder()
@@ -5301,7 +5316,10 @@ public class DocStoreQueryV1Test {
                               ConstantExpression.ofStrings(List.of("Dettol"))))
                       .operand(
                           RelationalExpression.of(
-                              IdentifierExpression.of("_id"), LTE, ConstantExpression.of(8)))
+                              IdentifierExpression.of("id"),
+                              IN,
+                              ConstantExpression.ofStrings(
+                                  List.of("1", "2", "3", "4", "5", "6", "7", "8"))))
                       .build())
               .build();
 
@@ -5607,7 +5625,7 @@ public class DocStoreQueryV1Test {
                   UnnestExpression.of(JsonIdentifierExpression.of("props", "source-loc"), true))
               .setFilter(
                   RelationalExpression.of(
-                      IdentifierExpression.of("_id"), EQ, ConstantExpression.of(1)))
+                      IdentifierExpression.of("id"), EQ, ConstantExpression.of("1")))
               .build();
 
       Iterator<Document> iterator = collection.aggregate(query);
