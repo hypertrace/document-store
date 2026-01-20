@@ -136,6 +136,9 @@ public class FlatCollectionWriteTest {
           if (!statement.isEmpty()) {
             try (PreparedStatement preparedStatement = connection.prepareStatement(statement)) {
               preparedStatement.executeUpdate();
+            } catch (Exception e) {
+              LOGGER.error("Failed to execute INSERT statement: {}", e.getMessage(), e);
+              throw e;
             }
           }
         }

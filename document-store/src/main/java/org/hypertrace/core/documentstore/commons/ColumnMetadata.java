@@ -23,4 +23,6 @@ public interface ColumnMetadata {
    * @return whether this column is an array type
    */
   boolean isArray();
+
+  boolean isPrimaryKey();
 }

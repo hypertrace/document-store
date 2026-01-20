@@ -170,4 +170,19 @@ public class PostgresLazyilyLoadedSchemaRegistry implements SchemaRegistry<Postg
     }
     return Duration.between(lastRefresh, Instant.now()).compareTo(refreshCooldown) >= 0;
   }
+
+  /**
+   * Returns the primary key column name for the given table.
+   *
+   * @param tableName the name of the table
+   * @return optional of the primary key column name, or empty if no primary key is found
+   */
+  @Override
+  public Optional<String> getPrimaryKeyColumn(String tableName) {
+    Map<String, PostgresColumnMetadata> schema = getSchema(tableName);
+    return schema.values().stream()
+        .filter(PostgresColumnMetadata::isPrimaryKey)
+        .map(PostgresColumnMetadata::getName)
+        .findFirst();
+  }
 }

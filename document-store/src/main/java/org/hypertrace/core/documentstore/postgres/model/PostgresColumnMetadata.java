@@ -16,6 +16,7 @@ public class PostgresColumnMetadata implements ColumnMetadata {
   @Getter private final PostgresDataType postgresType;
   private final boolean nullable;
   private final boolean isArray;
+  private final boolean isPrimaryKey;
 
   @Override
   public String getName() {
@@ -35,5 +36,10 @@ public class PostgresColumnMetadata implements ColumnMetadata {
   @Override
   public boolean isArray() {
     return isArray;
+  }
+
+  @Override
+  public boolean isPrimaryKey() {
+    return isPrimaryKey;
   }
 }
