@@ -19,8 +19,8 @@ import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
  *       to_jsonb(?))}
  * </ul>
  */
-public class FlatCollectionSubDocSetOperatorParser implements
-    FlatCollectionSubDocUpdateOperatorParser {
+public class FlatCollectionSubDocSetOperatorParser
+    implements FlatCollectionSubDocUpdateOperatorParser {
 
   /** Visitor to extract raw values from SubDocumentValue for use in prepared statements. */
   private static final SubDocumentValueVisitor<Object> VALUE_EXTRACTOR =
@@ -74,8 +74,9 @@ public class FlatCollectionSubDocSetOperatorParser implements
 
     // Use jsonb_set with COALESCE to handle null columns
     // to_jsonb(?) converts the value to proper JSONB format
+    // 4th param (true) creates the key if it doesn't exist
     return String.format(
-        "\"%s\" = jsonb_set(COALESCE(\"%s\", '{}'), ?::text[], to_jsonb(?))",
+        "\"%s\" = jsonb_set(COALESCE(\"%s\", '{}'), ?::text[], to_jsonb(?), true)",
         context.getColumnName(), context.getColumnName());
   }
 
