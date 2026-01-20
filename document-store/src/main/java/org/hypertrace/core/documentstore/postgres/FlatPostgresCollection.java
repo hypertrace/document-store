@@ -462,6 +462,9 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
       int rowsUpdated = ps.executeUpdate();
       LOGGER.debug("Rows updated: {}", rowsUpdated);
+    } catch (SQLException e) {
+      LOGGER.error("Failed to execute update. SQL: {}, SQLState: {}", sql, e.getSQLState(), e);
+      throw e;
     }
   }
 
