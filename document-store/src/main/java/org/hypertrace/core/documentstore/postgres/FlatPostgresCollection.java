@@ -36,7 +36,6 @@ import org.hypertrace.core.documentstore.CreateStatus;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
-import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
@@ -323,108 +322,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public Document createOrReplaceAndReturn(Key key, Document document) throws IOException {
-    return createOrReplaceAndReturnWithRetry(key, document, false);
-  }
-
-  private Document createOrReplaceAndReturnWithRetry(Key key, Document document, boolean isRetry)
-      throws IOException {
-    String tableName = tableIdentifier.getTableName();
-    List<String> skippedFields = new ArrayList<>();
-
-    try {
-      TypedDocument parsed = parseDocument(document, tableName, skippedFields);
-
-      // Add the key as the primary key column
-      String pkColumn = getPKForTable(tableName);
-      String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
-      PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
-      parsed.add(quotedPkColumn, key.toString(), pkType, false);
-
-      String sql = buildUpsertAndReturnSql(parsed.getColumns(), quotedPkColumn);
-      LOGGER.debug("Upsert and return SQL: {}", sql);
-
-      return executeUpsertAndReturn(sql, parsed);
-
-    } catch (PSQLException e) {
-      if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
-        LOGGER.info(
-            "Schema mismatch detected during upsert (SQLState: {}), refreshing schema and retrying. key: {}",
-            e.getSQLState(),
-            key);
-        schemaRegistry.invalidate(tableName);
-        return createOrReplaceAndReturnWithRetry(key, document, true);
-      }
-      LOGGER.error(
-          "SQLException in createOrReplaceAndReturn. key: {} content: {}", key, document, e);
-      throw new IOException(e);
-    } catch (SQLException e) {
-      LOGGER.error(
-          "SQLException in createOrReplaceAndReturn. key: {} content: {}", key, document, e);
-      throw new IOException(e);
-    }
-  }
-
-  private String buildUpsertAndReturnSql(List<String> columns, String pkColumn) {
-    String columnList = String.join(", ", columns);
-    String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
-
-    // Build SET clause for non-PK columns: col = EXCLUDED.col
-    String setClause =
-        columns.stream()
-            .filter(col -> !col.equals(pkColumn))
-            .map(col -> col + " = EXCLUDED." + col)
-            .collect(java.util.stream.Collectors.joining(", "));
-
-    // If all columns are PK (unlikely). This is a no-op.
-    if (setClause.isEmpty()) {
-      return String.format(
-          "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s = EXCLUDED.%s RETURNING *",
-          tableIdentifier, columnList, placeholders, pkColumn, pkColumn, pkColumn);
-    }
-
-    return String.format(
-        "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING *",
-        tableIdentifier, columnList, placeholders, pkColumn, setClause);
-  }
-
-  private Document executeUpsertAndReturn(String sql, TypedDocument parsed)
-      throws SQLException, IOException {
-    try (Connection conn = client.getPooledConnection();
-        PreparedStatement ps = conn.prepareStatement(sql)) {
-      int index = 1;
-      for (String column : parsed.getColumns()) {
-        setParameter(
-            conn,
-            ps,
-            index++,
-            parsed.getValue(column),
-            parsed.getType(column),
-            parsed.isArray(column));
-      }
-      try (ResultSet rs = ps.executeQuery()) {
-        if (rs.next()) {
-          return resultSetToDocument(rs);
-        }
-      }
-      throw new IOException("Unexpected: no row returned from upsert");
-    }
-  }
-
-  private Document resultSetToDocument(ResultSet rs) throws SQLException, IOException {
-    java.sql.ResultSetMetaData metaData = rs.getMetaData();
-    int columnCount = metaData.getColumnCount();
-    Map<String, Object> row = new HashMap<>();
-
-    for (int i = 1; i <= columnCount; i++) {
-      String columnName = metaData.getColumnName(i);
-      Object value = rs.getObject(i);
-      if (value instanceof java.sql.Array) {
-        value = ((java.sql.Array) value).getArray();
-      }
-      row.put(columnName, value);
-    }
-
-    return new JSONDocument(row, DocumentType.FLAT);
+    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
   }
 
   @Override
