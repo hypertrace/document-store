@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
@@ -230,94 +231,6 @@ public class FlatPostgresCollection extends PostgresCollection {
   @Override
   public boolean createOrReplace(Key key, Document document) throws IOException {
     return createOrReplaceWithRetry(key, document, false);
-  }
-
-  private boolean createOrReplaceWithRetry(Key key, Document document, boolean isRetry)
-      throws IOException {
-    String tableName = tableIdentifier.getTableName();
-    List<String> skippedFields = new ArrayList<>();
-
-    try {
-      TypedDocument parsed = parseDocument(document, tableName, skippedFields);
-
-      // Add the key as the primary key column
-      String pkColumn = getPKForTable(tableName);
-      String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
-      PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
-      parsed.add(quotedPkColumn, key.toString(), pkType, false);
-
-      String sql = buildUpsertSql(parsed.getColumns(), quotedPkColumn);
-      LOGGER.debug("Upsert SQL: {}", sql);
-
-      return executeUpsert(sql, parsed);
-
-    } catch (PSQLException e) {
-      return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
-    } catch (SQLException e) {
-      LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
-      throw new IOException(e);
-    }
-  }
-
-  private String buildUpsertSql(List<String> columns, String pkColumn) {
-    String columnList = String.join(", ", columns);
-    String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
-
-    // Build SET clause for non-PK columns: col = EXCLUDED.col
-    String setClause =
-        columns.stream()
-            .filter(col -> !col.equals(pkColumn))
-            .map(col -> col + " = EXCLUDED." + col)
-            .collect(java.util.stream.Collectors.joining(", "));
-
-    // If all columns are PK (unlikely). This is a no-op.
-    if (setClause.isEmpty()) {
-      return String.format(
-          "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s = EXCLUDED.%s RETURNING (xmax = 0) AS is_insert",
-          tableIdentifier, columnList, placeholders, pkColumn, pkColumn, pkColumn);
-    }
-
-    return String.format(
-        "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING (xmax = 0) AS is_insert",
-        tableIdentifier, columnList, placeholders, pkColumn, setClause);
-  }
-
-  private boolean executeUpsert(String sql, TypedDocument parsed) throws SQLException {
-    try (Connection conn = client.getPooledConnection();
-        PreparedStatement ps = conn.prepareStatement(sql)) {
-      int index = 1;
-      for (String column : parsed.getColumns()) {
-        setParameter(
-            conn,
-            ps,
-            index++,
-            parsed.getValue(column),
-            parsed.getType(column),
-            parsed.isArray(column));
-      }
-      try (ResultSet rs = ps.executeQuery()) {
-        if (rs.next()) {
-          // is_insert is true if xmax = 0 (new row), false if updated
-          return rs.getBoolean("is_insert");
-        }
-      }
-      return false;
-    }
-  }
-
-  private boolean handlePSQLExceptionForUpsert(
-      PSQLException e, Key key, Document document, String tableName, boolean isRetry)
-      throws IOException {
-    if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
-      LOGGER.info(
-          "Schema mismatch detected during upsert (SQLState: {}), refreshing schema and retrying. key: {}",
-          e.getSQLState(),
-          key);
-      schemaRegistry.invalidate(tableName);
-      return createOrReplaceWithRetry(key, document, true);
-    }
-    LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
-    throw new IOException(e);
   }
 
   @Override
@@ -697,6 +610,126 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
+  private boolean createOrReplaceWithRetry(Key key, Document document, boolean isRetry)
+      throws IOException {
+    String tableName = tableIdentifier.getTableName();
+    List<String> skippedFields = new ArrayList<>();
+
+    try {
+      TypedDocument parsed = parseDocument(document, tableName, skippedFields);
+
+      // Add the key as the primary key column
+      String pkColumn = getPKForTable(tableName);
+      String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+      PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+      parsed.add(quotedPkColumn, key.toString(), pkType, false);
+
+      String sql = buildUpsertSql(parsed.getColumns(), quotedPkColumn);
+      LOGGER.debug("Upsert SQL: {}", sql);
+
+      return executeUpsert(sql, parsed);
+
+    } catch (PSQLException e) {
+      return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  /**
+   * Builds a PostgreSQL upsert (INSERT ... ON CONFLICT DO UPDATE) SQL statement.
+   *
+   * <p>This method constructs an atomic upsert query that:
+   *
+   * <ul>
+   *   <li>Inserts a new row if no conflict on the primary key
+   *   <li>Updates all non-PK columns if a row with the same PK already exists
+   * </ul>
+   *
+   * <p><b>Generated SQL pattern:</b>
+   *
+   * <pre>{@code
+   * INSERT INTO table (col1, col2, pk_col)
+   * VALUES (?, ?, ?)
+   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2
+   * RETURNING (xmax = 0) AS is_insert
+   * }</pre>
+   *
+   * <p><b>The EXCLUDED table:</b> In PostgreSQL's ON CONFLICT clause, {@code EXCLUDED} is a special
+   * table that references the row that would have been inserted (the "proposed" row). This allows
+   * us to update existing rows with the new values without re-specifying them.
+   *
+   * <p><b>The RETURNING clause:</b> {@code (xmax = 0) AS is_insert} is a PostgreSQL trick to
+   * determine if the operation was an INSERT or UPDATE:
+   *
+   * <ul>
+   *   <li>{@code xmax} is a system column that stores the transaction ID of the deleting/updating
+   *       transaction
+   *   <li>For a freshly inserted row, {@code xmax = 0} (no prior transaction modified it)
+   *   <li>For an updated row, {@code xmax != 0} (the UPDATE sets it to the current transaction ID)
+   *   <li>Thus, {@code is_insert = true} means INSERT, {@code is_insert = false} means UPDATE
+   * </ul>
+   *
+   * @param columns List of quoted column names to include in the upsert (including PK)
+   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @return The complete upsert SQL statement with placeholders for values
+   */
+  private String buildUpsertSql(List<String> columns, String pkColumn) {
+    String columnList = String.join(", ", columns);
+    String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
+
+    // Build SET clause for non-PK columns: col = EXCLUDED.col
+    String setClause =
+        columns.stream()
+            .filter(col -> !col.equals(pkColumn))
+            .map(col -> col + " = EXCLUDED." + col)
+            .collect(Collectors.joining(", "));
+
+    return String.format(
+        "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING (xmax = 0) AS is_insert",
+        tableIdentifier, columnList, placeholders, pkColumn, setClause);
+  }
+
+  private boolean executeUpsert(String sql, TypedDocument parsed) throws SQLException {
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      int index = 1;
+      for (String column : parsed.getColumns()) {
+        setParameter(
+            conn,
+            ps,
+            index++,
+            parsed.getValue(column),
+            parsed.getType(column),
+            parsed.isArray(column));
+      }
+      try (ResultSet rs = ps.executeQuery()) {
+        if (rs.next()) {
+          // is_insert is true if xmax = 0 (new row), false if updated. This helps us differentiate
+          // b/w creates/upserts
+          return rs.getBoolean("is_insert");
+        }
+      }
+      return false;
+    }
+  }
+
+  private boolean handlePSQLExceptionForUpsert(
+      PSQLException e, Key key, Document document, String tableName, boolean isRetry)
+      throws IOException {
+    if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
+      LOGGER.info(
+          "Schema mismatch detected during upsert (SQLState: {}), refreshing schema and retrying. key: {}",
+          e.getSQLState(),
+          key);
+      schemaRegistry.invalidate(tableName);
+      return createOrReplaceWithRetry(key, document, true);
+    }
+    LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+    throw new IOException(e);
+  }
+
   private CreateResult handlePSQLExceptionForCreate(
       PSQLException e, Key key, Document document, String tableName, boolean isRetry)
       throws IOException {
@@ -746,10 +779,6 @@ public class FlatPostgresCollection extends PostgresCollection {
       values.put(column, value);
       types.put(column, type);
       arrays.put(column, isArray);
-    }
-
-    boolean isEmpty() {
-      return values.isEmpty();
     }
 
     List<String> getColumns() {
