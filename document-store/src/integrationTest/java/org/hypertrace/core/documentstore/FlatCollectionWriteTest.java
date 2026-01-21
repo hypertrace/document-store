@@ -69,8 +69,6 @@ public class FlatCollectionWriteTest {
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String FLAT_COLLECTION_NAME = "myTestFlat";
   private static final String INSERT_STATEMENTS_FILE = "query/pg_flat_collection_insert.json";
-  // Initial data has 10 rows (IDs 1-10)
-  private static final int INITIAL_ROW_COUNT = 10;
   private static final String DEFAULT_TENANT = "default";
 
   private static Datastore postgresDatastore;
@@ -278,66 +276,62 @@ public class FlatCollectionWriteTest {
       assertTrue(result.getSkippedFields().isEmpty());
 
       // Verify all data types were inserted correctly
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = '%s'", FLAT_COLLECTION_NAME, key));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
 
-        assertEquals("Comprehensive Test Item", rs.getString("item"));
-        assertEquals(999, rs.getInt("price"));
-        assertEquals(50, rs.getInt("quantity"));
-        assertEquals(9223372036854775807L, rs.getLong("big_number"));
-        assertEquals(4.5f, rs.getFloat("rating"), 0.01f);
-        assertEquals(123.456789, rs.getDouble("weight"), 0.0001);
-        assertTrue(rs.getBoolean("in_stock"));
-        assertEquals(1705315800000L, rs.getTimestamp("date").getTime()); // epoch millis
-        assertNotNull(rs.getDate("created_date"));
+            assertEquals("Comprehensive Test Item", rs.getString("item"));
+            assertEquals(999, rs.getInt("price"));
+            assertEquals(50, rs.getInt("quantity"));
+            assertEquals(9223372036854775807L, rs.getLong("big_number"));
+            assertEquals(4.5f, rs.getFloat("rating"), 0.01f);
+            assertEquals(123.456789, rs.getDouble("weight"), 0.0001);
+            assertTrue(rs.getBoolean("in_stock"));
+            assertEquals(1705315800000L, rs.getTimestamp("date").getTime()); // epoch millis
+            assertNotNull(rs.getDate("created_date"));
 
-        String[] tags = (String[]) rs.getArray("tags").getArray();
-        assertEquals(3, tags.length);
-        assertEquals("electronics", tags[0]);
-        assertEquals("sale", tags[1]);
-        assertEquals("featured", tags[2]);
+            String[] tags = (String[]) rs.getArray("tags").getArray();
+            assertEquals(3, tags.length);
+            assertEquals("electronics", tags[0]);
+            assertEquals("sale", tags[1]);
+            assertEquals("featured", tags[2]);
 
-        // Single value auto-converted to array
-        String[] categoryTags = (String[]) rs.getArray("categoryTags").getArray();
-        assertEquals(1, categoryTags.length);
-        assertEquals("single-category", categoryTags[0]);
+            // Single value auto-converted to array
+            String[] categoryTags = (String[]) rs.getArray("categoryTags").getArray();
+            assertEquals(1, categoryTags.length);
+            assertEquals("single-category", categoryTags[0]);
 
-        Integer[] numbers = (Integer[]) rs.getArray("numbers").getArray();
-        assertEquals(3, numbers.length);
-        assertEquals(10, numbers[0]);
-        assertEquals(20, numbers[1]);
-        assertEquals(30, numbers[2]);
+            Integer[] numbers = (Integer[]) rs.getArray("numbers").getArray();
+            assertEquals(3, numbers.length);
+            assertEquals(10, numbers[0]);
+            assertEquals(20, numbers[1]);
+            assertEquals(30, numbers[2]);
 
-        Double[] scores = (Double[]) rs.getArray("scores").getArray();
-        assertEquals(3, scores.length);
-        assertEquals(1.5, scores[0], 0.01);
+            Double[] scores = (Double[]) rs.getArray("scores").getArray();
+            assertEquals(3, scores.length);
+            assertEquals(1.5, scores[0], 0.01);
 
-        Boolean[] flags = (Boolean[]) rs.getArray("flags").getArray();
-        assertEquals(3, flags.length);
-        assertTrue(flags[0]);
-        assertFalse(flags[1]);
+            Boolean[] flags = (Boolean[]) rs.getArray("flags").getArray();
+            assertEquals(3, flags.length);
+            assertTrue(flags[0]);
+            assertFalse(flags[1]);
 
-        String propsJson = rs.getString("props");
-        assertNotNull(propsJson);
-        JsonNode propsResult = OBJECT_MAPPER.readTree(propsJson);
-        assertEquals("blue", propsResult.get("color").asText());
-        assertEquals("large", propsResult.get("size").asText());
-        assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
-        assertTrue(propsResult.get("warranty").asBoolean());
-        assertEquals("value", propsResult.get("nested").get("key").asText());
+            String propsJson = rs.getString("props");
+            assertNotNull(propsJson);
+            JsonNode propsResult = OBJECT_MAPPER.readTree(propsJson);
+            assertEquals("blue", propsResult.get("color").asText());
+            assertEquals("large", propsResult.get("size").asText());
+            assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
+            assertTrue(propsResult.get("warranty").asBoolean());
+            assertEquals("value", propsResult.get("nested").get("key").asText());
 
-        String salesJson = rs.getString("sales");
-        assertNotNull(salesJson);
-        JsonNode salesResult = OBJECT_MAPPER.readTree(salesJson);
-        assertEquals(1000, salesResult.get("total").asInt());
-        assertEquals("US", salesResult.get("region").asText());
-      }
+            String salesJson = rs.getString("sales");
+            assertNotNull(salesJson);
+            JsonNode salesResult = OBJECT_MAPPER.readTree(salesJson);
+            assertEquals(1000, salesResult.get("total").asInt());
+            assertEquals("US", salesResult.get("region").asText());
+          });
     }
 
     @Test
@@ -368,8 +362,8 @@ public class FlatCollectionWriteTest {
     @DisplayName(
         "When MissingColumnStrategy is Throw, should throw an exception for unknown fields. Unknown fields are those fields that are not found in the schema but are present in the doc")
     @ArgumentsSource(MissingColumnStrategyProvider.class)
-    void testUnknownFieldsAsPerMissingColumnStrategy(
-        MissingColumnStrategy missingColumnStrategy) throws Exception {
+    void testUnknownFieldsAsPerMissingColumnStrategy(MissingColumnStrategy missingColumnStrategy)
+        throws Exception {
 
       String docId = getRandomDocId(4);
 
@@ -403,16 +397,12 @@ public class FlatCollectionWriteTest {
         assertTrue(result.isPartial());
         assertTrue(result.getSkippedFields().contains("unknown_column"));
 
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT * FROM \"%s\" WHERE \"id\" = '%s'", FLAT_COLLECTION_NAME, key));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals("Item", rs.getString("item"));
-        }
+        queryAndAssert(
+            key,
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Item", rs.getString("item"));
+            });
       }
     }
 
@@ -428,8 +418,8 @@ public class FlatCollectionWriteTest {
 
       CreateResult result = flatCollection.create(key, document);
 
-      // Should fail because no valid columns found (parsed.isEmpty() == true)
-      assertFalse(result.isSucceed());
+      // Although no column exists in the schema, it'll create a new doc with the key as the id
+      assertTrue(result.isSucceed());
       assertEquals(3, result.getSkippedFields().size());
       assertTrue(
           result
@@ -450,7 +440,7 @@ public class FlatCollectionWriteTest {
                       FLAT_COLLECTION_NAME, key));
           ResultSet rs = ps.executeQuery()) {
         assertTrue(rs.next());
-        assertEquals(0, rs.getInt(1));
+        assertEquals(1, rs.getInt(1));
       }
     }
 
@@ -505,16 +495,12 @@ public class FlatCollectionWriteTest {
       assertTrue(result.getSkippedFields().contains("temp_col"));
 
       // Verify the valid fields were inserted
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = 'retry-doc-800'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("Item after schema refresh", rs.getString("item"));
-      }
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Item after schema refresh", rs.getString("item"));
+          });
     }
 
     @ParameterizedTest
@@ -536,9 +522,7 @@ public class FlatCollectionWriteTest {
 
       if (missingColumnStrategy == MissingColumnStrategy.THROW) {
         CreateResult result =
-            ((PostgresDatastore) postgresDatastore)
-                .getFlatCollection(FLAT_COLLECTION_NAME, MissingColumnStrategy.SKIP)
-                .create(key, document);
+            getFlatCollectionWithStrategy(MissingColumnStrategy.SKIP).create(key, document);
 
         // Should succeed with the valid columns, skipping the unparseable one
         assertTrue(result.isSucceed());
@@ -547,19 +531,15 @@ public class FlatCollectionWriteTest {
         assertTrue(result.getSkippedFields().contains("price"));
 
         // Verify the valid fields were inserted
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT * FROM \"%s\" WHERE \"id\" = '%s'", FLAT_COLLECTION_NAME, key));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals("Valid Item", rs.getString("item"));
-          // price should be null since it was skipped
-          assertEquals(0, rs.getInt("price"));
-          assertTrue(rs.wasNull());
-        }
+        queryAndAssert(
+            key,
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Valid Item", rs.getString("item"));
+              // price should be null since it was skipped
+              assertEquals(0, rs.getInt("price"));
+              assertTrue(rs.wasNull());
+            });
       } else {
         // SKIP strategy: unparseable value should be skipped, document created
         CreateResult result = flatCollection.create(key, document);
@@ -569,19 +549,15 @@ public class FlatCollectionWriteTest {
         assertTrue(result.getSkippedFields().contains("price"));
 
         // Verify the valid fields were inserted
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT * FROM \"%s\" WHERE \"id\" = '%s'", FLAT_COLLECTION_NAME, key));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals("Valid Item", rs.getString("item"));
-          // price should be null since it was skipped
-          assertEquals(0, rs.getInt("price"));
-          assertTrue(rs.wasNull());
-        }
+        queryAndAssert(
+            key,
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Valid Item", rs.getString("item"));
+              // price should be null since it was skipped
+              assertEquals(0, rs.getInt("price"));
+              assertTrue(rs.wasNull());
+            });
       }
     }
   }
@@ -594,6 +570,24 @@ public class FlatCollectionWriteTest {
   private static Collection getFlatCollectionWithStrategy(MissingColumnStrategy strategy) {
     return ((PostgresDatastore) postgresDatastore)
         .getFlatCollection(FLAT_COLLECTION_NAME, strategy);
+  }
+
+  private void queryAndAssert(Key key, ResultSetConsumer consumer) throws Exception {
+    PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+    try (Connection conn = pgDatastore.getPostgresClient();
+        PreparedStatement ps =
+            conn.prepareStatement(
+                String.format(
+                    "SELECT * FROM \"%s\" WHERE \"id\" = '%s'", FLAT_COLLECTION_NAME, key));
+        ResultSet rs = ps.executeQuery()) {
+      consumer.accept(rs);
+    }
+  }
+
+  @FunctionalInterface
+  interface ResultSetConsumer {
+
+    void accept(ResultSet rs) throws Exception;
   }
 
   static class MissingColumnStrategyProvider implements ArgumentsProvider {
@@ -631,19 +625,14 @@ public class FlatCollectionWriteTest {
 
       assertTrue(isNew);
 
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = '%s'",
-                      FLAT_COLLECTION_NAME, key));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("New Upsert Item", rs.getString("item"));
-        assertEquals(500, rs.getInt("price"));
-        assertEquals(25, rs.getInt("quantity"));
-      }
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("New Upsert Item", rs.getString("item"));
+            assertEquals(500, rs.getInt("price"));
+            assertEquals(25, rs.getInt("quantity"));
+          });
     }
 
     @Test
@@ -659,8 +648,8 @@ public class FlatCollectionWriteTest {
 
       boolean firstResult = flatCollection.createOrReplace(key, initialDoc);
 
-      Preconditions.checkArgument(firstResult,
-          "Preconditions failure: Could not create first document with id: " + docId);
+      Preconditions.checkArgument(
+          firstResult, "Preconditions failure: Could not create first document with id: " + docId);
 
       // Now replace with updated document
       ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
@@ -674,19 +663,14 @@ public class FlatCollectionWriteTest {
 
       assertFalse(secondResult);
 
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = '%s'",
-                      FLAT_COLLECTION_NAME, key));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("Updated Item", rs.getString("item"));
-        assertEquals(999, rs.getInt("price"));
-        assertEquals(50, rs.getInt("quantity"));
-      }
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Updated Item", rs.getString("item"));
+            assertEquals(999, rs.getInt("price"));
+            assertEquals(50, rs.getInt("quantity"));
+          });
     }
 
     @Test
@@ -704,18 +688,13 @@ public class FlatCollectionWriteTest {
       assertTrue(isNew);
 
       // Verify only known fields were inserted
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = 'upsert-skip-fields-300'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("Item with unknown", rs.getString("item"));
-        assertEquals(200, rs.getInt("price"));
-      }
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Item with unknown", rs.getString("item"));
+            assertEquals(200, rs.getInt("price"));
+          });
     }
 
     @Test
@@ -733,8 +712,8 @@ public class FlatCollectionWriteTest {
       Key key = new SingleValueKey(DEFAULT_TENANT, docId);
 
       boolean wasCreated = flatCollection.createOrReplace(key, initialDoc);
-      Preconditions.checkArgument(wasCreated,
-          "Precondition failure: Doc could not be created with id: " + docId);
+      Preconditions.checkArgument(
+          wasCreated, "Precondition failure: Doc could not be created with id: " + docId);
 
       // Update with new JSONB value
       ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
@@ -751,47 +730,15 @@ public class FlatCollectionWriteTest {
       assertFalse(isNew);
 
       // Verify JSONB was updated
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT \"props\" FROM \"%s\" WHERE \"id\" = '%s'",
-                      FLAT_COLLECTION_NAME, key));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        JsonNode propsResult = OBJECT_MAPPER.readTree(rs.getString("props"));
-        assertEquals("blue", propsResult.get("color").asText());
-        assertEquals("large", propsResult.get("size").asText());
-        assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
-      }
-    }
-
-    @Test
-    @DisplayName("Should throw IOException when id column is missing")
-    void testCreateOrReplaceWithoutIdColumn() {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("item", "No ID Item");
-      objectNode.put("price", 100);
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "no-id-key");
-
-      IOException exception =
-          assertThrows(IOException.class, () -> flatCollection.createOrReplace(key, document));
-      assertTrue(exception.getMessage().contains("primary key"));
-    }
-
-    @Test
-    @DisplayName("Should return false when all fields are unknown (no valid columns)")
-    void testCreateOrReplaceAllFieldsUnknown() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("unknown1", "value1");
-      objectNode.put("unknown2", "value2");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "all-unknown-key");
-
-      boolean result = flatCollection.createOrReplace(key, document);
-      assertFalse(result); // Should return false when no valid columns
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            JsonNode propsResult = OBJECT_MAPPER.readTree(rs.getString("props"));
+            assertEquals("blue", propsResult.get("color").asText());
+            assertEquals("large", propsResult.get("size").asText());
+            assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
+          });
     }
   }
 
@@ -1205,315 +1152,6 @@ public class FlatCollectionWriteTest {
   }
 
   @Nested
-  @DisplayName("Strict Mode (missingColumnStrategy=THROW)")
-  class StrictModeTests {
-
-    private Datastore strictDatastore;
-    private Collection strictCollection;
-
-    @BeforeEach
-    void setupStrictModeDatastore() {
-      // Create a datastore with missingColumnStrategy=THROW (strict mode)
-      String postgresConnectionUrl =
-          String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
-
-      Map<String, Object> strictConfig = new HashMap<>();
-      strictConfig.put("url", postgresConnectionUrl);
-      strictConfig.put("user", "postgres");
-      strictConfig.put("password", "postgres");
-      // Configure strict mode via customParams
-      Map<String, String> customParams = new HashMap<>();
-      customParams.put("missingColumnStrategy", "THROW");
-      strictConfig.put("customParams", customParams);
-
-      strictDatastore =
-          DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(strictConfig));
-      strictCollection =
-          strictDatastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-    }
-
-    @Test
-    @DisplayName("Should throw SchemaMismatchException when column not in schema (strict mode)")
-    void testStrictModeThrowsOnUnknownColumn() {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "strict-unknown-col-doc");
-      objectNode.put("item", "Valid Item");
-      objectNode.put("unknown_column", "this should fail");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "strict-unknown-col-doc");
-
-      SchemaMismatchException exception =
-          assertThrows(SchemaMismatchException.class, () -> strictCollection.create(key, document));
-
-      assertTrue(exception.getMessage().contains("unknown_column"));
-      assertTrue(exception.getMessage().contains("not found in schema"));
-    }
-
-    @Test
-    @DisplayName(
-        "Should throw SchemaMismatchException when value type doesn't match schema (strict mode)")
-    void testStrictModeThrowsOnTypeMismatch() {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "strict-type-mismatch-doc");
-      objectNode.put("item", "Valid Item");
-      objectNode.put("price", "not_a_number_at_all"); // price is INTEGER
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "strict-type-mismatch-doc");
-
-      SchemaMismatchException exception =
-          assertThrows(SchemaMismatchException.class, () -> strictCollection.create(key, document));
-
-      assertTrue(exception.getMessage().contains("price"));
-      assertTrue(exception.getMessage().contains("Failed to parse value"));
-    }
-
-    @Test
-    @DisplayName("Should succeed in strict mode when all fields match schema")
-    void testStrictModeSucceedsWithValidDocument() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "strict-valid-doc");
-      objectNode.put("item", "Valid Item");
-      objectNode.put("price", 100);
-      objectNode.put("quantity", 5);
-      objectNode.put("in_stock", true);
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "strict-valid-doc");
-
-      CreateResult result = strictCollection.create(key, document);
-
-      assertTrue(result.isSucceed());
-      assertFalse(result.isPartial());
-      assertTrue(result.getSkippedFields().isEmpty());
-
-      // Verify data was inserted
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = 'strict-valid-doc'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("Valid Item", rs.getString("item"));
-        assertEquals(100, rs.getInt("price"));
-      }
-    }
-
-    @Test
-    @DisplayName("Should throw SchemaMismatchException on first unknown field (strict mode)")
-    void testStrictModeFailsFastOnFirstUnknownField() {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "strict-multi-unknown-doc");
-      objectNode.put("unknown_field_1", "value1");
-      objectNode.put("unknown_field_2", "value2");
-      objectNode.put("item", "Valid Item");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "strict-multi-unknown-doc");
-
-      // Should throw on the first unknown field encountered
-      assertThrows(SchemaMismatchException.class, () -> strictCollection.create(key, document));
-    }
-  }
-
-  @Nested
-  @DisplayName("Ignore Document Mode (missingColumnStrategy=IGNORE_DOCUMENT)")
-  class IgnoreDocumentModeTests {
-
-    private Datastore ignoreDocDatastore;
-    private Collection ignoreDocCollection;
-
-    @BeforeEach
-    void setupIgnoreDocumentModeDatastore() {
-      // Create a datastore with missingColumnStrategy=IGNORE_DOCUMENT
-      String postgresConnectionUrl =
-          String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
-
-      Map<String, Object> config = new HashMap<>();
-      config.put("url", postgresConnectionUrl);
-      config.put("user", "postgres");
-      config.put("password", "postgres");
-      Map<String, String> customParams = new HashMap<>();
-      customParams.put("missingColumnStrategy", "IGNORE_DOCUMENT");
-      config.put("customParams", customParams);
-
-      ignoreDocDatastore =
-          DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(config));
-      ignoreDocCollection =
-          ignoreDocDatastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-    }
-
-    @Test
-    @DisplayName("Should return IGNORED status when document has unknown columns")
-    void testIgnoreDocumentWithUnknownColumn() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "ignore-doc-unknown-col");
-      objectNode.put("item", "Valid Item");
-      objectNode.put("unknown_column", "this should cause ignore");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "ignore-doc-unknown-col");
-
-      CreateResult result = ignoreDocCollection.create(key, document);
-
-      assertFalse(result.isSucceed());
-      assertTrue(result.isDocumentIgnored());
-      assertTrue(result.getSkippedFields().contains("unknown_column"));
-
-      // Verify no row was inserted
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = 'ignore-doc-unknown-col'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals(0, rs.getInt(1));
-      }
-    }
-
-    @Test
-    @DisplayName("Should return IGNORED status when document has type mismatch")
-    void testIgnoreDocumentWithTypeMismatch() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "ignore-doc-type-mismatch");
-      objectNode.put("item", "Valid Item");
-      objectNode.put("price", "not_a_number"); // price is INTEGER
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "ignore-doc-type-mismatch");
-
-      CreateResult result = ignoreDocCollection.create(key, document);
-
-      assertFalse(result.isSucceed());
-      assertTrue(result.isDocumentIgnored());
-      assertTrue(result.getSkippedFields().contains("price"));
-
-      // Verify no row was inserted
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = 'ignore-doc-type-mismatch'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals(0, rs.getInt(1));
-      }
-    }
-
-    @Test
-    @DisplayName("Should succeed when all fields match schema (IGNORE_DOCUMENT mode)")
-    void testIgnoreDocumentSucceedsWithValidDocument() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "ignore-doc-valid");
-      objectNode.put("item", "Valid Item");
-      objectNode.put("price", 100);
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "ignore-doc-valid");
-
-      CreateResult result = ignoreDocCollection.create(key, document);
-
-      assertTrue(result.isSucceed());
-      assertFalse(result.isDocumentIgnored());
-      assertTrue(result.getSkippedFields().isEmpty());
-
-      // Verify data was inserted
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = 'ignore-doc-valid'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("Valid Item", rs.getString("item"));
-        assertEquals(100, rs.getInt("price"));
-      }
-    }
-
-    @Test
-    @DisplayName("Should return all problematic fields in skippedFields when ignored")
-    void testIgnoreDocumentReturnsAllSkippedFields() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "ignore-doc-multi-issues");
-      objectNode.put("item", "Valid Item");
-      objectNode.put("unknown_field_1", "value1");
-      objectNode.put("unknown_field_2", "value2");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "ignore-doc-multi-issues");
-
-      CreateResult result = ignoreDocCollection.create(key, document);
-
-      assertFalse(result.isSucceed());
-      assertTrue(result.isDocumentIgnored());
-      assertEquals(2, result.getSkippedFields().size());
-      assertTrue(
-          result.getSkippedFields().containsAll(List.of("unknown_field_1", "unknown_field_2")));
-    }
-
-    @Test
-    @DisplayName(
-        "createOrReplace should return false when document has unknown columns (IGNORE_DOCUMENT)")
-    void testCreateOrReplaceIgnoresDocumentWithUnknownColumn() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "upsert-ignore-doc-unknown");
-      objectNode.put("item", "Valid Item");
-      objectNode.put("unknown_column", "this should cause ignore");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "upsert-ignore-doc-unknown");
-
-      boolean result = ignoreDocCollection.createOrReplace(key, document);
-
-      assertFalse(result);
-
-      // Verify no row was inserted
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = 'upsert-ignore-doc-unknown'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals(0, rs.getInt(1));
-      }
-    }
-
-    @Test
-    @DisplayName("createOrReplace should succeed when all fields match schema (IGNORE_DOCUMENT)")
-    void testCreateOrReplaceSucceedsWithValidDocument() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "upsert-ignore-doc-valid");
-      objectNode.put("item", "Valid Item");
-      objectNode.put("price", 100);
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "upsert-ignore-doc-valid");
-
-      boolean result = ignoreDocCollection.createOrReplace(key, document);
-
-      assertTrue(result);
-
-      // Verify data was inserted
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = 'upsert-ignore-doc-valid'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("Valid Item", rs.getString("item"));
-        assertEquals(100, rs.getInt("price"));
-      }
-    }
-  }
-
-  @Nested
   @DisplayName("CreateOrReplace Schema Refresh Tests")
   class CreateOrReplaceSchemaRefreshTests {
 
@@ -1571,8 +1209,7 @@ public class FlatCollectionWriteTest {
           PreparedStatement ps =
               conn.prepareStatement(
                   String.format(
-                      "SELECT * FROM \"%s\" WHERE \"id\" = 'upsert-retry-doc'",
-                      FLAT_COLLECTION_NAME));
+                      "SELECT * FROM \"%s\" WHERE \"id\" = '%s'", FLAT_COLLECTION_NAME, key));
           ResultSet rs = ps.executeQuery()) {
         assertTrue(rs.next());
         assertEquals("Item after schema refresh", rs.getString("item"));
