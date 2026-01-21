@@ -12,6 +12,7 @@ import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.DataType;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 /**
  * Fetches schema metadata directly from Postgres system catalogs. Hardcoded to query
@@ -71,7 +72,7 @@ public class PostgresMetadataFetcher {
       throws SQLException {
     Set<String> pkColumns = new HashSet<>();
     try (PreparedStatement ps = conn.prepareStatement(PRIMARY_KEY_SQL)) {
-      ps.setString(1, tableName);
+      ps.setString(1, PostgresUtils.wrapFieldNamesWithDoubleQuotes(tableName));
       try (ResultSet rs = ps.executeQuery()) {
         while (rs.next()) {
           pkColumns.add(rs.getString("column_name"));

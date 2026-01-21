@@ -1,9 +1,14 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
+import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -87,9 +92,20 @@ public class FlatPostgresCollection extends PostgresCollection {
       final PostgresClient client,
       final String collectionName,
       final PostgresLazyilyLoadedSchemaRegistry schemaRegistry) {
+    this(client, collectionName, schemaRegistry, null);
+  }
+
+  FlatPostgresCollection(
+      final PostgresClient client,
+      final String collectionName,
+      final PostgresLazyilyLoadedSchemaRegistry schemaRegistry,
+      final MissingColumnStrategy missingColumnStrategy) {
     super(client, collectionName);
     this.schemaRegistry = schemaRegistry;
-    this.missingColumnStrategy = parseMissingColumnStrategy(client.getCustomParameters());
+    this.missingColumnStrategy =
+        missingColumnStrategy != null
+            ? missingColumnStrategy
+            : parseMissingColumnStrategy(client.getCustomParameters());
   }
 
   private static MissingColumnStrategy parseMissingColumnStrategy(Map<String, String> params) {
@@ -927,7 +943,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     if (isArray) {
       Object[] arrayValues = (value instanceof Object[]) ? (Object[]) value : new Object[] {value};
-      java.sql.Array sqlArray = conn.createArrayOf(type.getSqlType(), arrayValues);
+      Array sqlArray = conn.createArrayOf(type.getSqlType(), arrayValues);
       ps.setArray(index, sqlArray);
       return;
     }

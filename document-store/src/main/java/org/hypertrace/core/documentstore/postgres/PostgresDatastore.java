@@ -26,6 +26,7 @@ import org.hypertrace.core.documentstore.metric.postgres.PostgresDocStoreMetricP
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
+import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -179,6 +180,15 @@ public class PostgresDatastore implements Datastore {
       default:
         throw new IllegalArgumentException("Unknown collection type: " + documentType);
     }
+  }
+
+  public Collection getFlatCollection(
+      String collectionName, MissingColumnStrategy missingColumnStrategy) {
+    return new FlatPostgresCollection(
+        client,
+        collectionName,
+        (PostgresLazyilyLoadedSchemaRegistry) schemaRegistry,
+        missingColumnStrategy);
   }
 
   @Override
