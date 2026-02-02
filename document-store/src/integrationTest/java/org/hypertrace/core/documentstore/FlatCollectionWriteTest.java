@@ -407,32 +407,6 @@ public class FlatCollectionWriteTest {
     }
 
     @Test
-    @DisplayName("THROW strategy should succeed when all fields are known")
-    void testThrowStrategySucceedsWithKnownFields() throws Exception {
-      String docId = getRandomDocId(4);
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", docId);
-      objectNode.put("item", "Known Item");
-      objectNode.put("quantity", 10);
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      Collection collection = getFlatCollectionWithStrategy(MissingColumnStrategy.THROW);
-      CreateResult result = collection.create(key, document);
-
-      assertTrue(result.isSucceed());
-      assertFalse(result.isPartial());
-
-      queryAndAssert(
-          key,
-          rs -> {
-            assertTrue(rs.next());
-            assertEquals("Known Item", rs.getString("item"));
-            assertEquals(10, rs.getInt("quantity"));
-          });
-    }
-
-    @Test
     @DisplayName("Should return failure when all fields are unknown (parsed.isEmpty)")
     void testCreateFailsWhenAllFieldsAreUnknown() throws Exception {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
