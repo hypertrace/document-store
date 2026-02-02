@@ -595,7 +595,7 @@ public class FlatCollectionWriteTest {
 
   private static Collection getFlatCollectionWithStrategy(MissingColumnStrategy strategy) {
     return ((PostgresDatastore) postgresDatastore)
-        .getFlatCollection(FLAT_COLLECTION_NAME, strategy);
+        .getFlatCollectionWithMissingColumnStrategy(FLAT_COLLECTION_NAME, strategy);
   }
 
   private void queryAndAssert(Key key, ResultSetConsumer consumer) throws Exception {
