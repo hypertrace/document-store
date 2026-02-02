@@ -17,15 +17,8 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -119,7 +112,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       LOGGER.warn(
           "Invalid missingColumnStrategy value: '{}', using default SKIP. Valid values: {}",
           value,
-          java.util.Arrays.toString(MissingColumnStrategy.values()));
+          Arrays.toString(MissingColumnStrategy.values()));
       return MissingColumnStrategy.defaultStrategy();
     }
   }
@@ -869,7 +862,8 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
 
     if (isArray) {
-      Object[] arrayValues = (value instanceof Object[]) ? (Object[]) value : new Object[] {value};
+      // todo: Maybe check if the value is actually an array
+      Object[] arrayValues = (Object[]) value;
       Array sqlArray = conn.createArrayOf(type.getSqlType(), arrayValues);
       ps.setArray(index, sqlArray);
       return;
