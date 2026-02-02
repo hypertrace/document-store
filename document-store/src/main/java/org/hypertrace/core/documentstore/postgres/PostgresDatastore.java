@@ -26,7 +26,6 @@ import org.hypertrace.core.documentstore.metric.postgres.PostgresDocStoreMetricP
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
-import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,7 +89,7 @@ public class PostgresDatastore implements Datastore {
     Set<String> collections = new HashSet<>();
     try {
       DatabaseMetaData metaData = client.getConnection().getMetaData();
-      ResultSet tables = metaData.getTables(null, null, "%", new String[]{"TABLE"});
+      ResultSet tables = metaData.getTables(null, null, "%", new String[] {"TABLE"});
       while (tables.next()) {
         Optional<String> nonPublicSchema =
             Optional.ofNullable(tables.getString("TABLE_SCHEM"))
@@ -170,24 +169,16 @@ public class PostgresDatastore implements Datastore {
   @Override
   public Collection getCollectionForType(String collectionName, DocumentType documentType) {
     switch (documentType) {
-      case FLAT: {
-        return new FlatPostgresCollection(
-            client, collectionName, (PostgresLazyilyLoadedSchemaRegistry) schemaRegistry);
-      }
+      case FLAT:
+        {
+          return new FlatPostgresCollection(
+              client, collectionName, (PostgresLazyilyLoadedSchemaRegistry) schemaRegistry);
+        }
       case NESTED:
         return getCollection(collectionName);
       default:
         throw new IllegalArgumentException("Unknown collection type: " + documentType);
     }
-  }
-
-  public Collection getFlatCollectionWithMissingColumnStrategy(
-      String collectionName, MissingColumnStrategy missingColumnStrategy) {
-    return new FlatPostgresCollection(
-        client,
-        collectionName,
-        (PostgresLazyilyLoadedSchemaRegistry) schemaRegistry,
-        missingColumnStrategy);
   }
 
   @Override

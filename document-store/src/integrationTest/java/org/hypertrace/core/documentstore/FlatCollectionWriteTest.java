@@ -375,7 +375,8 @@ public class FlatCollectionWriteTest {
       Key key = new SingleValueKey(DEFAULT_TENANT, docId);
 
       if (missingColumnStrategy == MissingColumnStrategy.THROW) {
-        Collection collection = getFlatCollectionWithStrategy(MissingColumnStrategy.THROW);
+        Collection collection =
+            getFlatCollectionWithStrategy(MissingColumnStrategy.THROW.toString());
         assertThrows(SchemaMismatchException.class, () -> collection.create(key, document));
         // Verify no document was inserted
         PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
@@ -404,6 +405,29 @@ public class FlatCollectionWriteTest {
               assertEquals("Item", rs.getString("item"));
             });
       }
+    }
+
+    @Test
+    @DisplayName(
+        "Should use default SKIP strategy when missingColumnStrategy config is empty string")
+    void testEmptyMissingColumnStrategyConfigUsesDefault() throws Exception {
+      Collection collectionWithEmptyStrategy = getFlatCollectionWithStrategy("");
+
+      // Test that it uses default SKIP strategy (unknown fields are skipped, not thrown)
+      String docId = getRandomDocId(4);
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", docId);
+      objectNode.put("item", "Test Item");
+      objectNode.put("unknown_field", "should be skipped with default SKIP strategy");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      CreateResult result = collectionWithEmptyStrategy.create(key, document);
+
+      // With default SKIP strategy, unknown fields are skipped
+      assertTrue(result.isSucceed());
+      assertTrue(result.isPartial());
+      assertTrue(result.getSkippedFields().contains("unknown_field"));
     }
 
     @Test
@@ -522,7 +546,8 @@ public class FlatCollectionWriteTest {
 
       if (missingColumnStrategy == MissingColumnStrategy.THROW) {
         CreateResult result =
-            getFlatCollectionWithStrategy(MissingColumnStrategy.SKIP).create(key, document);
+            getFlatCollectionWithStrategy(MissingColumnStrategy.SKIP.toString())
+                .create(key, document);
 
         // Should succeed with the valid columns, skipping the unparseable one
         assertTrue(result.isSucceed());
@@ -567,9 +592,20 @@ public class FlatCollectionWriteTest {
         len, true, false);
   }
 
-  private static Collection getFlatCollectionWithStrategy(MissingColumnStrategy strategy) {
-    return ((PostgresDatastore) postgresDatastore)
-        .getFlatCollectionWithMissingColumnStrategy(FLAT_COLLECTION_NAME, strategy);
+  private static Collection getFlatCollectionWithStrategy(String strategy) {
+    String postgresConnectionUrl =
+        String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
+
+    Map<String, String> configWithStrategy = new HashMap<>();
+    configWithStrategy.put("url", postgresConnectionUrl);
+    configWithStrategy.put("user", "postgres");
+    configWithStrategy.put("password", "postgres");
+    configWithStrategy.put("customParams.missingColumnStrategy", strategy);
+
+    Datastore datastoreWithStrategy =
+        DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(configWithStrategy));
+
+    return datastoreWithStrategy.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
   }
 
   private void queryAndAssert(Key key, ResultSetConsumer consumer) throws Exception {
