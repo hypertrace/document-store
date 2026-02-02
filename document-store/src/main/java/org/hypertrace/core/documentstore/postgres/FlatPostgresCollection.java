@@ -85,20 +85,9 @@ public class FlatPostgresCollection extends PostgresCollection {
       final PostgresClient client,
       final String collectionName,
       final PostgresLazyilyLoadedSchemaRegistry schemaRegistry) {
-    this(client, collectionName, schemaRegistry, null);
-  }
-
-  FlatPostgresCollection(
-      final PostgresClient client,
-      final String collectionName,
-      final PostgresLazyilyLoadedSchemaRegistry schemaRegistry,
-      final MissingColumnStrategy missingColumnStrategy) {
     super(client, collectionName);
     this.schemaRegistry = schemaRegistry;
-    this.missingColumnStrategy =
-        missingColumnStrategy != null
-            ? missingColumnStrategy
-            : parseMissingColumnStrategy(client.getCustomParameters());
+    this.missingColumnStrategy = parseMissingColumnStrategy(client.getCustomParameters());
   }
 
   private static MissingColumnStrategy parseMissingColumnStrategy(Map<String, String> params) {
