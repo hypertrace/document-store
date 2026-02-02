@@ -172,7 +172,9 @@ public class PostgresLazyilyLoadedSchemaRegistry implements SchemaRegistry<Postg
   }
 
   /**
-   * Returns the primary key column name for the given table.
+   * Returns the primary key column name for the given table. Currently, composite PKs are not
+   * supported. <a
+   * href="See:">https://github.com/hypertrace/document-store/pull/268#discussion_r27526</a>59524
    *
    * @param tableName the name of the table
    * @return optional of the primary key column name, or empty if no primary key is found
