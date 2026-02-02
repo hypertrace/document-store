@@ -38,4 +38,12 @@ public interface SchemaRegistry<T extends ColumnMetadata> {
    * @return optional of the col metadata.
    */
   Optional<T> getColumnOrRefresh(String tableName, String colName);
+
+  /**
+   * Returns the primary key column name for the given table.
+   *
+   * @param tableName the table name
+   * @return optional of the primary key column name
+   */
+  Optional<String> getPrimaryKeyColumn(String tableName);
 }

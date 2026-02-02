@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,35 +29,52 @@ class PostgresMetadataFetcherTest {
 
   @Mock private PostgresClient client;
   @Mock private Connection connection;
-  @Mock private PreparedStatement preparedStatement;
-  @Mock private ResultSet resultSet;
+  @Mock private PreparedStatement columnsPreparedStatement;
+  @Mock private PreparedStatement pkPreparedStatement;
+  @Mock private ResultSet columnsResultSet;
+  @Mock private ResultSet pkResultSet;
 
   private PostgresMetadataFetcher fetcher;
+
+  private static final String DISCOVERY_SQL =
+      "SELECT column_name, udt_name, is_nullable "
+          + "FROM information_schema.columns "
+          + "WHERE table_schema = 'public' AND table_name = ?";
+
+  private static final String PRIMARY_KEY_SQL =
+      "SELECT a.attname as column_name "
+          + "FROM pg_index i "
+          + "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
+          + "WHERE i.indrelid = ?::regclass AND i.indisprimary";
 
   @BeforeEach
   void setUp() throws SQLException {
     when(client.getPooledConnection()).thenReturn(connection);
-    when(connection.prepareStatement(anyString())).thenReturn(preparedStatement);
-    when(preparedStatement.executeQuery()).thenReturn(resultSet);
+    when(connection.prepareStatement(DISCOVERY_SQL)).thenReturn(columnsPreparedStatement);
+    when(connection.prepareStatement(PRIMARY_KEY_SQL)).thenReturn(pkPreparedStatement);
+    when(columnsPreparedStatement.executeQuery()).thenReturn(columnsResultSet);
+    when(pkPreparedStatement.executeQuery()).thenReturn(pkResultSet);
+    // Default: no primary keys
+    when(pkResultSet.next()).thenReturn(false);
     fetcher = new PostgresMetadataFetcher(client);
   }
 
   @Test
   void fetchReturnsEmptyMapForTableWithNoColumns() throws SQLException {
-    when(resultSet.next()).thenReturn(false);
+    when(columnsResultSet.next()).thenReturn(false);
 
     Map<String, PostgresColumnMetadata> result = fetcher.fetch(TEST_TABLE);
 
     assertTrue(result.isEmpty());
-    verify(preparedStatement).setString(1, TEST_TABLE);
+    verify(columnsPreparedStatement).setString(1, TEST_TABLE);
   }
 
   @Test
   void fetchReturnsSingleColumn() throws SQLException {
-    when(resultSet.next()).thenReturn(true, false);
-    when(resultSet.getString("column_name")).thenReturn("id");
-    when(resultSet.getString("udt_name")).thenReturn("int4");
-    when(resultSet.getString("is_nullable")).thenReturn("NO");
+    when(columnsResultSet.next()).thenReturn(true, false);
+    when(columnsResultSet.getString("column_name")).thenReturn("id");
+    when(columnsResultSet.getString("udt_name")).thenReturn("int4");
+    when(columnsResultSet.getString("is_nullable")).thenReturn("NO");
 
     Map<String, PostgresColumnMetadata> result = fetcher.fetch(TEST_TABLE);
 
@@ -73,10 +89,10 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchReturnsMultipleColumns() throws SQLException {
-    when(resultSet.next()).thenReturn(true, true, true, false);
-    when(resultSet.getString("column_name")).thenReturn("id", "name", "price");
-    when(resultSet.getString("udt_name")).thenReturn("int8", "text", "float8");
-    when(resultSet.getString("is_nullable")).thenReturn("NO", "YES", "YES");
+    when(columnsResultSet.next()).thenReturn(true, true, true, false);
+    when(columnsResultSet.getString("column_name")).thenReturn("id", "name", "price");
+    when(columnsResultSet.getString("udt_name")).thenReturn("int8", "text", "float8");
+    when(columnsResultSet.getString("is_nullable")).thenReturn("NO", "YES", "YES");
 
     Map<String, PostgresColumnMetadata> result = fetcher.fetch(TEST_TABLE);
 
@@ -291,7 +307,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchThrowsRuntimeExceptionOnSqlException() throws SQLException {
-    when(preparedStatement.executeQuery()).thenThrow(new SQLException("Connection failed"));
+    when(columnsPreparedStatement.executeQuery()).thenThrow(new SQLException("Connection failed"));
 
     RuntimeException exception =
         assertThrows(RuntimeException.class, () -> fetcher.fetch(TEST_TABLE));
@@ -366,9 +382,9 @@ class PostgresMetadataFetcherTest {
 
   private void setupSingleColumnResult(String colName, String udtName, String isNullable)
       throws SQLException {
-    when(resultSet.next()).thenReturn(true, false);
-    when(resultSet.getString("column_name")).thenReturn(colName);
-    when(resultSet.getString("udt_name")).thenReturn(udtName);
-    when(resultSet.getString("is_nullable")).thenReturn(isNullable);
+    when(columnsResultSet.next()).thenReturn(true, false);
+    when(columnsResultSet.getString("column_name")).thenReturn(colName);
+    when(columnsResultSet.getString("udt_name")).thenReturn(udtName);
+    when(columnsResultSet.getString("is_nullable")).thenReturn(isNullable);
   }
 }

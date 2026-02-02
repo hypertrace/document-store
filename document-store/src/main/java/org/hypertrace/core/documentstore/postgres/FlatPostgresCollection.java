@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -16,15 +17,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.Set;
+import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
 import org.hypertrace.core.documentstore.BulkUpdateRequest;
@@ -52,6 +47,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostg
 import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocSetOperatorParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocUpdateOperatorParser;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.query.Query;
 import org.postgresql.util.PSQLException;
 import org.postgresql.util.PSQLState;
@@ -72,6 +68,7 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final String WRITE_NOT_SUPPORTED =
       "Write operations are not supported for flat collections yet!";
   private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
+  private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
 
   private static final Map<UpdateOperator, FlatCollectionSubDocUpdateOperatorParser>
       SUB_DOC_UPDATE_PARSERS = Map.of(SET, new FlatCollectionSubDocSetOperatorParser());
@@ -96,7 +93,7 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static MissingColumnStrategy parseMissingColumnStrategy(Map<String, String> params) {
     String value = params.get(MISSING_COLUMN_STRATEGY_CONFIG);
     if (value == null || value.isEmpty()) {
-      return MissingColumnStrategy.SKIP; // default
+      return MissingColumnStrategy.defaultStrategy();
     }
     try {
       return MissingColumnStrategy.valueOf(value.toUpperCase());
@@ -104,8 +101,8 @@ public class FlatPostgresCollection extends PostgresCollection {
       LOGGER.warn(
           "Invalid missingColumnStrategy value: '{}', using default SKIP. Valid values: {}",
           value,
-          java.util.Arrays.toString(MissingColumnStrategy.values()));
-      return MissingColumnStrategy.SKIP;
+          Arrays.toString(MissingColumnStrategy.values()));
+      return MissingColumnStrategy.defaultStrategy();
     }
   }
 
@@ -215,7 +212,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public boolean createOrReplace(Key key, Document document) throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    return createOrReplaceWithRetry(key, document, false);
   }
 
   @Override
@@ -487,18 +484,18 @@ public class FlatPostgresCollection extends PostgresCollection {
     try {
       TypedDocument parsed = parseDocument(document, tableName, skippedFields);
 
+      // Add the key as the primary key column
+      String pkColumn = getPKForTable(tableName);
+      String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+      PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+      parsed.add(quotedPkColumn, key.toString(), pkType, false);
+
       // If IGNORE_DOCUMENT strategy and any fields were skipped, ignore the entire document
       if (missingColumnStrategy == MissingColumnStrategy.IGNORE_DOCUMENT
           && !skippedFields.isEmpty()) {
         LOGGER.info(
             "Document ignored due to IGNORE_DOCUMENT strategy. Skipped fields: {}", skippedFields);
         return new CreateResult(CreateStatus.IGNORED, isRetry, skippedFields);
-      }
-
-      // if there are no valid columns in the document
-      if (parsed.isEmpty()) {
-        LOGGER.warn("No valid columns found in the document for table: {}", tableName);
-        return new CreateResult(CreateStatus.FAILED, isRetry, skippedFields);
       }
 
       String sql = buildInsertSql(parsed.getColumns());
@@ -543,12 +540,18 @@ public class FlatPostgresCollection extends PostgresCollection {
         continue;
       }
 
+      if (columnMetadata.get().isPrimaryKey()) {
+        // PK is added by the caller
+        continue;
+      }
+
       PostgresDataType type = columnMetadata.get().getPostgresType();
       boolean isArray = columnMetadata.get().isArray();
 
       try {
         Object value = extractValue(fieldValue, type, isArray);
-        typedDocument.add("\"" + fieldName + "\"", value, type, isArray);
+        typedDocument.add(
+            PostgresUtils.wrapFieldNamesWithDoubleQuotes(fieldName), value, type, isArray);
       } catch (Exception e) {
         if (missingColumnStrategy == MissingColumnStrategy.THROW) {
           throw new SchemaMismatchException(
@@ -589,12 +592,132 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
+  private boolean createOrReplaceWithRetry(Key key, Document document, boolean isRetry)
+      throws IOException {
+    String tableName = tableIdentifier.getTableName();
+    List<String> skippedFields = new ArrayList<>();
+
+    try {
+      TypedDocument parsed = parseDocument(document, tableName, skippedFields);
+
+      // Add the key as the primary key column
+      String pkColumn = getPKForTable(tableName);
+      String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+      PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+      parsed.add(quotedPkColumn, key.toString(), pkType, false);
+
+      String sql = buildUpsertSql(parsed.getColumns(), quotedPkColumn);
+      LOGGER.debug("Upsert SQL: {}", sql);
+
+      return executeUpsert(sql, parsed);
+
+    } catch (PSQLException e) {
+      return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  /**
+   * Builds a PostgreSQL upsert (INSERT ... ON CONFLICT DO UPDATE) SQL statement.
+   *
+   * <p>This method constructs an atomic upsert query that:
+   *
+   * <ul>
+   *   <li>Inserts a new row if no conflict on the primary key
+   *   <li>Updates all non-PK columns if a row with the same PK already exists
+   * </ul>
+   *
+   * <p><b>Generated SQL pattern:</b>
+   *
+   * <pre>{@code
+   * INSERT INTO table (col1, col2, pk_col)
+   * VALUES (?, ?, ?)
+   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2
+   * RETURNING (xmax = 0) AS is_insert
+   * }</pre>
+   *
+   * <p><b>The EXCLUDED table:</b> In PostgreSQL's ON CONFLICT clause, {@code EXCLUDED} is a special
+   * table that references the row that would have been inserted (the "proposed" row). This allows
+   * us to update existing rows with the new values without re-specifying them.
+   *
+   * <p><b>The RETURNING clause:</b> {@code (xmax = 0) AS is_insert} is a PostgreSQL trick to
+   * determine if the operation was an INSERT or UPDATE:
+   *
+   * <ul>
+   *   <li>{@code xmax} is a system column that stores the transaction ID of the deleting/updating
+   *       transaction
+   *   <li>For a freshly inserted row, {@code xmax = 0} (no prior transaction modified it)
+   *   <li>For an updated row, {@code xmax != 0} (the UPDATE sets it to the current transaction ID)
+   *   <li>Thus, {@code is_insert = true} means INSERT, {@code is_insert = false} means UPDATE
+   * </ul>
+   *
+   * @param columns List of quoted column names to include in the upsert (including PK)
+   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @return The complete upsert SQL statement with placeholders for values
+   */
+  private String buildUpsertSql(List<String> columns, String pkColumn) {
+    String columnList = String.join(", ", columns);
+    String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
+
+    // Build SET clause for non-PK columns: col = EXCLUDED.col
+    String setClause =
+        columns.stream()
+            .filter(col -> !col.equals(pkColumn))
+            .map(col -> col + " = EXCLUDED." + col)
+            .collect(Collectors.joining(", "));
+
+    return String.format(
+        "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING (xmax = 0) AS is_insert",
+        tableIdentifier, columnList, placeholders, pkColumn, setClause);
+  }
+
+  private boolean executeUpsert(String sql, TypedDocument parsed) throws SQLException {
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      int index = 1;
+      for (String column : parsed.getColumns()) {
+        setParameter(
+            conn,
+            ps,
+            index++,
+            parsed.getValue(column),
+            parsed.getType(column),
+            parsed.isArray(column));
+      }
+      try (ResultSet rs = ps.executeQuery()) {
+        if (rs.next()) {
+          // is_insert is true if xmax = 0 (new row), false if updated. This helps us differentiate
+          // b/w creates/upserts
+          return rs.getBoolean("is_insert");
+        }
+      }
+      return false;
+    }
+  }
+
+  private boolean handlePSQLExceptionForUpsert(
+      PSQLException e, Key key, Document document, String tableName, boolean isRetry)
+      throws IOException {
+    if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
+      LOGGER.info(
+          "Schema mismatch detected during upsert (SQLState: {}), refreshing schema and retrying. key: {}",
+          e.getSQLState(),
+          key);
+      schemaRegistry.invalidate(tableName);
+      return createOrReplaceWithRetry(key, document, true);
+    }
+    LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+    throw new IOException(e);
+  }
+
   private CreateResult handlePSQLExceptionForCreate(
       PSQLException e, Key key, Document document, String tableName, boolean isRetry)
       throws IOException {
     if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
       LOGGER.info(
-          "Schema mismatch detected (SQLState: {}), refreshing schema and retrying. key: {}",
+          "Schema mismatch detected during create (SQLState: {}), refreshing schema and retrying. key: {}",
           e.getSQLState(),
           key);
       schemaRegistry.invalidate(tableName);
@@ -613,6 +736,17 @@ public class FlatPostgresCollection extends PostgresCollection {
         || PSQLState.DATATYPE_MISMATCH.getState().equals(sqlState);
   }
 
+  private String getPKForTable(String tableName) {
+    return schemaRegistry.getPrimaryKeyColumn(tableName).orElse(DEFAULT_PRIMARY_KEY_COLUMN);
+  }
+
+  private PostgresDataType getPrimaryKeyType(String tableName, String pkColumn) {
+    return schemaRegistry
+        .getColumnOrRefresh(tableName, pkColumn)
+        .map(PostgresColumnMetadata::getPostgresType)
+        .orElse(PostgresDataType.TEXT);
+  }
+
   /**
    * Typed document contains field information along with the field type. Uses LinkedHashMaps keyed
    * by column name. LinkedHashMap preserves insertion order for consistent parameter binding.
@@ -627,10 +761,6 @@ public class FlatPostgresCollection extends PostgresCollection {
       values.put(column, value);
       types.put(column, type);
       arrays.put(column, isArray);
-    }
-
-    boolean isEmpty() {
-      return values.isEmpty();
     }
 
     List<String> getColumns() {
@@ -721,8 +851,9 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
 
     if (isArray) {
-      Object[] arrayValues = (value instanceof Object[]) ? (Object[]) value : new Object[] {value};
-      java.sql.Array sqlArray = conn.createArrayOf(type.getSqlType(), arrayValues);
+      // todo: Maybe check if the value is actually an array
+      Object[] arrayValues = (Object[]) value;
+      Array sqlArray = conn.createArrayOf(type.getSqlType(), arrayValues);
       ps.setArray(index, sqlArray);
       return;
     }
