@@ -431,6 +431,27 @@ public class FlatCollectionWriteTest {
     }
 
     @Test
+    @DisplayName("Should use default SKIP strategy when missingColumnStrategy config is invalid")
+    void testInvalidMissingColumnStrategyConfigUsesDefault() throws Exception {
+      Collection collectionWithInvalidStrategy = getFlatCollectionWithStrategy("INVALID_STRATEGY");
+
+      String docId = getRandomDocId(4);
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", docId);
+      objectNode.put("item", "Test Item");
+      objectNode.put("unknown_field", "should be skipped with default SKIP strategy");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      CreateResult result = collectionWithInvalidStrategy.create(key, document);
+
+      // With default SKIP strategy, unknown fields are skipped
+      assertTrue(result.isSucceed());
+      assertTrue(result.isPartial());
+      assertTrue(result.getSkippedFields().contains("unknown_field"));
+    }
+
+    @Test
     @DisplayName("Should return failure when all fields are unknown (parsed.isEmpty)")
     void testCreateFailsWhenAllFieldsAreUnknown() throws Exception {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
