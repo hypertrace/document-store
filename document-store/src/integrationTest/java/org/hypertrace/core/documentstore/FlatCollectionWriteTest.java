@@ -834,31 +834,256 @@ public class FlatCollectionWriteTest {
   class DeleteTests {
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for delete by key")
-    void testDeleteByKey() {
-      Key keyToDelete = new SingleValueKey("default", "1");
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(keyToDelete));
+    @DisplayName("Should delete document by single key")
+    void testDeleteByKey() throws Exception {
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("id", "delete-key-test");
+      node.put("item", "ToDeleteByKey");
+      node.put("price", 50);
+      Key key = new SingleValueKey(DEFAULT_TENANT, "delete-key-test");
+      flatCollection.create(key, new JSONDocument(node));
+
+      assertTrue(flatCollection.delete(key));
+      queryAndAssert(key, rs -> assertFalse(rs.next()));
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for delete by filter")
-    void testDeleteByFilter() {
-      Filter filter = Filter.eq("item", "Soap");
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(filter));
+    @DisplayName("Should delete documents by multiple keys")
+    void testDeleteByKeys() throws Exception {
+      Key key1 = new SingleValueKey(DEFAULT_TENANT, "delete-keys-1");
+      Key key2 = new SingleValueKey(DEFAULT_TENANT, "delete-keys-2");
+      Key key3 = new SingleValueKey(DEFAULT_TENANT, "delete-keys-3");
+
+      for (int i = 1; i <= 3; i++) {
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("id", "delete-keys-" + i);
+        node.put("item", "Item" + i);
+        node.put("price", i * 10);
+        flatCollection.create(
+            new SingleValueKey(DEFAULT_TENANT, "delete-keys-" + i), new JSONDocument(node));
+      }
+
+      // Delete keys 1 and 2, keep 3
+      BulkDeleteResult result = flatCollection.delete(Set.of(key1, key2));
+      assertEquals(2, result.getDeletedCount());
+
+      queryAndAssert(key1, rs -> assertFalse(rs.next()));
+      queryAndAssert(key2, rs -> assertFalse(rs.next()));
+      queryAndAssert(key3, rs -> assertTrue(rs.next()));
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for delete by keys")
-    void testDeleteByKeys() {
-      Set<Key> keys =
-          Set.of(new SingleValueKey("default", "1"), new SingleValueKey("default", "2"));
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(keys));
+    @DisplayName("Should delete all documents")
+    void testDeleteAll() throws Exception {
+      for (int i = 1; i <= 2; i++) {
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("id", "delete-all-" + i);
+        node.put("item", "AllItem" + i);
+        flatCollection.create(
+            new SingleValueKey(DEFAULT_TENANT, "delete-all-" + i), new JSONDocument(node));
+      }
+
+      assertTrue(flatCollection.deleteAll());
+
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format("SELECT COUNT(*) FROM \"%s\"", FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(0, rs.getInt(1));
+      }
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for deleteAll")
-    void testDeleteAll() {
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.deleteAll());
+    @DisplayName("Should delete with various filter types: EQ, GT, IN, legacy Filter")
+    void testDeleteWithFilters() throws Exception {
+      // Setup: Create documents for different filter scenarios
+      // Doc 1: For EQ filter test
+      ObjectNode node1 = OBJECT_MAPPER.createObjectNode();
+      node1.put("id", "filter-eq");
+      node1.put("item", "ToBeDeleted");
+      node1.put("price", 100);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "filter-eq"), new JSONDocument(node1));
+
+      // Doc 2 & 3: For GT filter test
+      ObjectNode node2 = OBJECT_MAPPER.createObjectNode();
+      node2.put("id", "filter-gt-expensive");
+      node2.put("item", "Expensive");
+      node2.put("price", 1000);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "filter-gt-expensive"), new JSONDocument(node2));
+
+      ObjectNode node3 = OBJECT_MAPPER.createObjectNode();
+      node3.put("id", "filter-gt-cheap");
+      node3.put("item", "Cheap");
+      node3.put("price", 10);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "filter-gt-cheap"), new JSONDocument(node3));
+
+      // Doc 4, 5, 6: For IN filter test
+      for (String fruit : List.of("Apple", "Banana", "Cherry")) {
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("id", "filter-in-" + fruit.toLowerCase());
+        node.put("item", fruit);
+        node.put("price", 50);
+        flatCollection.create(
+            new SingleValueKey(DEFAULT_TENANT, "filter-in-" + fruit.toLowerCase()),
+            new JSONDocument(node));
+      }
+
+      // Doc 7: For legacy Filter test
+      ObjectNode node7 = OBJECT_MAPPER.createObjectNode();
+      node7.put("id", "filter-legacy");
+      node7.put("item", "LegacyItem");
+      node7.put("price", 75);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "filter-legacy"), new JSONDocument(node7));
+
+      // Test 1: EQ filter
+      org.hypertrace.core.documentstore.query.Filter eqFilter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of("ToBeDeleted")))
+              .build();
+      assertTrue(flatCollection.delete(eqFilter));
+      queryAndAssert(new SingleValueKey(DEFAULT_TENANT, "filter-eq"), rs -> assertFalse(rs.next()));
+
+      // Test 2: GT filter (price > 500)
+      org.hypertrace.core.documentstore.query.Filter gtFilter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("price"),
+                      RelationalOperator.GT,
+                      ConstantExpression.of(500)))
+              .build();
+      assertTrue(flatCollection.delete(gtFilter));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-gt-expensive"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-gt-cheap"), rs -> assertTrue(rs.next()));
+
+      // Test 3: IN filter
+      org.hypertrace.core.documentstore.query.Filter inFilter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      RelationalOperator.IN,
+                      ConstantExpression.ofStrings(List.of("Apple", "Banana"))))
+              .build();
+      assertTrue(flatCollection.delete(inFilter));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-in-apple"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-in-banana"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-in-cherry"), rs -> assertTrue(rs.next()));
+
+      // Test 4: Legacy Filter API
+      Filter legacyFilter = Filter.eq("item", "LegacyItem");
+      assertTrue(flatCollection.delete(legacyFilter));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-legacy"), rs -> assertFalse(rs.next()));
+    }
+
+    @Test
+    @DisplayName("Should delete with composite AND filter and nested JSONB filter")
+    void testDeleteWithCompositeAndNestedFilters() throws Exception {
+      // Setup for AND filter
+      ObjectNode node1 = OBJECT_MAPPER.createObjectNode();
+      node1.put("id", "and-match");
+      node1.put("item", "TargetItem");
+      node1.put("price", 100);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "and-match"), new JSONDocument(node1));
+
+      ObjectNode node2 = OBJECT_MAPPER.createObjectNode();
+      node2.put("id", "and-nomatch");
+      node2.put("item", "TargetItem");
+      node2.put("price", 200);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "and-nomatch"), new JSONDocument(node2));
+
+      // Setup for JSONB nested filter
+      ObjectNode node3 = OBJECT_MAPPER.createObjectNode();
+      node3.put("id", "jsonb-nike");
+      node3.put("item", "Product1");
+      ObjectNode props1 = OBJECT_MAPPER.createObjectNode();
+      props1.put("brand", "Nike");
+      node3.set("props", props1);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "jsonb-nike"), new JSONDocument(node3));
+
+      ObjectNode node4 = OBJECT_MAPPER.createObjectNode();
+      node4.put("id", "jsonb-adidas");
+      node4.put("item", "Product2");
+      ObjectNode props2 = OBJECT_MAPPER.createObjectNode();
+      props2.put("brand", "Adidas");
+      node4.set("props", props2);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "jsonb-adidas"), new JSONDocument(node4));
+
+      // Test 1: AND filter (item = 'TargetItem' AND price = 100)
+      org.hypertrace.core.documentstore.query.Filter andFilter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  org.hypertrace.core.documentstore.expression.impl.LogicalExpression.and(
+                      RelationalExpression.of(
+                          IdentifierExpression.of("item"),
+                          RelationalOperator.EQ,
+                          ConstantExpression.of("TargetItem")),
+                      RelationalExpression.of(
+                          IdentifierExpression.of("price"),
+                          RelationalOperator.EQ,
+                          ConstantExpression.of(100))))
+              .build();
+      assertTrue(flatCollection.delete(andFilter));
+      queryAndAssert(new SingleValueKey(DEFAULT_TENANT, "and-match"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "and-nomatch"), rs -> assertTrue(rs.next()));
+
+      // Test 2: Nested JSONB filter (props.brand = 'Nike')
+      org.hypertrace.core.documentstore.query.Filter jsonbFilter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  RelationalExpression.of(
+                      org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression.of(
+                          "props", "brand"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of("Nike")))
+              .build();
+      assertTrue(flatCollection.delete(jsonbFilter));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "jsonb-nike"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "jsonb-adidas"), rs -> assertTrue(rs.next()));
+    }
+
+    @Test
+    @DisplayName("Should handle edge cases: no match returns false, null filter throws exception")
+    void testDeleteEdgeCases() {
+      // Test 1: No match returns false
+      org.hypertrace.core.documentstore.query.Filter noMatchFilter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of("NonExistentItem12345")))
+              .build();
+      assertFalse(flatCollection.delete(noMatchFilter));
+
+      // Test 2: Null filter throws exception
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> flatCollection.delete((org.hypertrace.core.documentstore.query.Filter) null));
     }
   }
 

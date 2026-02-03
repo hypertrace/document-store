@@ -159,7 +159,12 @@ public interface Collection {
    * @param filter The filter to determine documents to be deleted. Only the filter clause.
    * @return True if the documents are deleted, false otherwise.
    */
+  @Deprecated
   boolean delete(Filter filter);
+
+  default boolean delete(org.hypertrace.core.documentstore.query.Filter filter) {
+    throw new IllegalArgumentException("Not implemented!");
+  }
 
   /**
    * Delete the documents for the given keys
