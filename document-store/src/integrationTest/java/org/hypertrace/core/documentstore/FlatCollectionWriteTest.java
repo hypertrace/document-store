@@ -934,14 +934,6 @@ public class FlatCollectionWriteTest {
             new JSONDocument(node));
       }
 
-      // Doc 7: For legacy Filter test
-      ObjectNode node7 = OBJECT_MAPPER.createObjectNode();
-      node7.put("id", "filter-legacy");
-      node7.put("item", "LegacyItem");
-      node7.put("price", 75);
-      flatCollection.create(
-          new SingleValueKey(DEFAULT_TENANT, "filter-legacy"), new JSONDocument(node7));
-
       // Test 1: EQ filter
       org.hypertrace.core.documentstore.query.Filter eqFilter =
           org.hypertrace.core.documentstore.query.Filter.builder()
@@ -986,11 +978,9 @@ public class FlatCollectionWriteTest {
       queryAndAssert(
           new SingleValueKey(DEFAULT_TENANT, "filter-in-cherry"), rs -> assertTrue(rs.next()));
 
-      // Test 4: Legacy Filter API
-      Filter legacyFilter = Filter.eq("item", "LegacyItem");
-      assertTrue(flatCollection.delete(legacyFilter));
-      queryAndAssert(
-          new SingleValueKey(DEFAULT_TENANT, "filter-legacy"), rs -> assertFalse(rs.next()));
+      // Test 4: Legacy Filter API throws UnsupportedOperationException
+      Filter legacyFilter = Filter.eq("item", "Cherry");
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(legacyFilter));
     }
 
     @Test
