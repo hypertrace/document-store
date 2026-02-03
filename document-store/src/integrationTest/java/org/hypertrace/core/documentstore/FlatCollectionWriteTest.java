@@ -1122,6 +1122,76 @@ public class FlatCollectionWriteTest {
     }
 
     @Test
+    @DisplayName("Should return false when document has invalid JSON (IOException)")
+    void testBulkUpsertWithInvalidJsonDocument() {
+      Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+      // Create a Document that returns invalid JSON
+      Document invalidJsonDoc =
+          new Document() {
+            @Override
+            public String toJson() {
+              return "{ invalid json without closing brace";
+            }
+          };
+
+      bulkMap.put(new SingleValueKey(DEFAULT_TENANT, "invalid-json-doc"), invalidJsonDoc);
+
+      // Should return false due to IOException during parsing
+      boolean result = flatCollection.bulkUpsert(bulkMap);
+
+      assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Should return false when batch execution fails (BatchUpdateException)")
+    void testBulkUpsertBatchUpdateException() throws Exception {
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      String addConstraintSQL =
+          String.format(
+              "ALTER TABLE \"%s\" ADD CONSTRAINT price_positive CHECK (\"price\" > 0)",
+              FLAT_COLLECTION_NAME);
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps = conn.prepareStatement(addConstraintSQL)) {
+        ps.execute();
+        LOGGER.info("Added CHECK constraint: price must be positive");
+      }
+
+      try {
+        Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "NegativePriceItem");
+        node.put("price", -100); // Violates CHECK constraint
+        bulkMap.put(
+            new SingleValueKey(DEFAULT_TENANT, "negative-price-doc"), new JSONDocument(node));
+
+        // Should return false due to BatchUpdateException
+        boolean result = flatCollection.bulkUpsert(bulkMap);
+
+        assertFalse(result);
+
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, "negative-price-doc"),
+            rs -> {
+              assertFalse(rs.next());
+            });
+
+      } finally {
+        // Clean up: remove the CHECK constraint
+        String dropConstraintSQL =
+            String.format(
+                "ALTER TABLE \"%s\" DROP CONSTRAINT price_positive", FLAT_COLLECTION_NAME);
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps = conn.prepareStatement(dropConstraintSQL)) {
+          ps.execute();
+          LOGGER.info("Removed CHECK constraint");
+        }
+      }
+    }
+
+    @Test
     @DisplayName("Should throw UnsupportedOperationException for bulkUpsertAndReturnOlderDocuments")
     void testBulkUpsertAndReturnOlderDocuments() {
       Map<Key, Document> bulkMap = new HashMap<>();
