@@ -217,18 +217,8 @@ public class FlatPostgresCollection extends PostgresCollection {
   @Override
   @Deprecated
   public boolean delete(Filter filter) {
-    if (filter == null) {
-      throw new IllegalArgumentException("Filter must be provided");
-    }
-
-    // Convert legacy Filter to query.Filter using FilterToQueryConverter
-    org.hypertrace.core.documentstore.expression.type.FilterTypeExpression expression =
-        org.hypertrace.core.documentstore.postgres.query.v1.FilterToQueryConverter.convert(filter);
-
-    org.hypertrace.core.documentstore.query.Filter queryFilter =
-        org.hypertrace.core.documentstore.query.Filter.builder().expression(expression).build();
-
-    return delete(queryFilter);
+    throw new UnsupportedOperationException(
+        "DELETE not supported for legacy Filter, use delete(org.hypertrace.core.documentstore.query.Filter filter) rather");
   }
 
   @Override
