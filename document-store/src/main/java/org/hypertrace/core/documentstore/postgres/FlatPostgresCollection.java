@@ -175,16 +175,6 @@ public class FlatPostgresCollection extends PostgresCollection {
   }
 
   @Override
-  public BulkDeleteResult delete(Set<Key> keys) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
-  }
-
-  @Override
-  public boolean deleteAll() {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
-  }
-
-  @Override
   public boolean deleteSubDoc(Key key, String subDocPath) {
     throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
   }
