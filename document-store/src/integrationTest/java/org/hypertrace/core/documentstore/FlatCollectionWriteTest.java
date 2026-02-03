@@ -1075,6 +1075,120 @@ public class FlatCollectionWriteTest {
           IllegalArgumentException.class,
           () -> flatCollection.delete((org.hypertrace.core.documentstore.query.Filter) null));
     }
+
+    @Test
+    @DisplayName("delete(Filter) should return false when SQLException occurs (dropped table)")
+    void testDeleteByFilterReturnsFalseOnSQLException() throws Exception {
+      // Create a temporary table, get collection, then drop the table to trigger SQLException
+      String tempTable = "temp_delete_filter_test";
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Create temp table
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "CREATE TABLE \"%s\" (\"id\" TEXT PRIMARY KEY, \"item\" TEXT)", tempTable))) {
+        ps.execute();
+      }
+
+      // Get collection for the temp table
+      Collection tempCollection =
+          postgresDatastore.getCollectionForType(tempTable, DocumentType.FLAT);
+
+      // Drop the table to cause SQLException on delete
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(String.format("DROP TABLE \"%s\"", tempTable))) {
+        ps.execute();
+      }
+
+      org.hypertrace.core.documentstore.query.Filter filter =
+          org.hypertrace.core.documentstore.query.Filter.builder()
+              .expression(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("item"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of("SomeValue")))
+              .build();
+
+      // SQLException should be caught and method should return false
+      assertFalse(tempCollection.delete(filter));
+    }
+
+    @Test
+    @DisplayName("delete(Set<Key>) should return BulkDeleteResult(0) when SQLException occurs")
+    void testDeleteByKeysReturnsZeroOnSQLException() throws Exception {
+      // Create a temporary table, get collection, then drop the table to trigger SQLException
+      String tempTable = "temp_delete_keys_test";
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Create temp table
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "CREATE TABLE \"%s\" (\"id\" TEXT PRIMARY KEY, \"item\" TEXT)", tempTable))) {
+        ps.execute();
+      }
+
+      // Get collection for the temp table
+      Collection tempCollection =
+          postgresDatastore.getCollectionForType(tempTable, DocumentType.FLAT);
+
+      // Insert a document to force schema caching (getPKForTable is called during create)
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("id", "temp-key");
+      node.put("item", "temp-item");
+      tempCollection.create(new SingleValueKey(DEFAULT_TENANT, "temp-key"), new JSONDocument(node));
+
+      // Drop the table to cause SQLException on delete
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(String.format("DROP TABLE \"%s\"", tempTable))) {
+        ps.execute();
+      }
+
+      Set<Key> keys =
+          Set.of(
+              new SingleValueKey(DEFAULT_TENANT, "key1"),
+              new SingleValueKey(DEFAULT_TENANT, "key2"));
+
+      // SQLException should be caught and method should return BulkDeleteResult with 0 count
+      BulkDeleteResult result = tempCollection.delete(keys);
+      assertEquals(0, result.getDeletedCount());
+    }
+
+    @Test
+    @DisplayName("deleteAll() should return false when SQLException occurs (dropped table)")
+    void testDeleteAllReturnsFalseOnSQLException() throws Exception {
+      // Create a temporary table, get collection, then drop the table to trigger SQLException
+      String tempTable = "temp_delete_all_test";
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Create temp table
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "CREATE TABLE \"%s\" (\"id\" TEXT PRIMARY KEY, \"item\" TEXT)", tempTable))) {
+        ps.execute();
+      }
+
+      // Get collection for the temp table
+      Collection tempCollection =
+          postgresDatastore.getCollectionForType(tempTable, DocumentType.FLAT);
+
+      // Drop the table to cause SQLException on delete
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(String.format("DROP TABLE \"%s\"", tempTable))) {
+        ps.execute();
+      }
+
+      // SQLException should be caught and method should return false
+      assertFalse(tempCollection.deleteAll());
+    }
   }
 
   @Nested
