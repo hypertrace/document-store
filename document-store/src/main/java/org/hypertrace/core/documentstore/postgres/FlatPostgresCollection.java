@@ -323,46 +323,56 @@ public class FlatPostgresCollection extends PostgresCollection {
     String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
     PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
 
-    String selectQuery =
-        String.format("SELECT * FROM %s WHERE %s = ANY(?)", tableIdentifier, quotedPkColumn);
-
     Connection connection = null;
     try {
       connection = client.getPooledConnection();
-      PreparedStatement preparedStatement = connection.prepareStatement(selectQuery);
 
-      String[] keyArray = documents.keySet().stream().map(Key::toString).toArray(String[]::new);
-      Array sqlArray = connection.createArrayOf(pkType.getSqlType(), keyArray);
-      preparedStatement.setArray(1, sqlArray);
+      PreparedStatement preparedStatement =
+          getPreparedStatementForQuery(documents, quotedPkColumn, connection, pkType);
 
       ResultSet resultSet = preparedStatement.executeQuery();
 
       boolean upsertResult = bulkUpsert(documents);
       if (!upsertResult) {
-        try {
-          resultSet.close();
-          preparedStatement.close();
-          connection.close();
-        } catch (SQLException closeEx) {
-          LOGGER.warn("Error closing resources after failed upsert", closeEx);
-        }
+        closeConnection(connection);
         throw new IOException("Bulk upsert failed");
       }
 
+      // note that connection will be closed after the iterator is used by the client
       return new PostgresCollection.PostgresResultIteratorWithBasicTypes(
           resultSet, connection, DocumentType.FLAT);
 
     } catch (SQLException e) {
-      LOGGER.error("SQLException in bulkUpsertAndReturnOlderDocuments. query: {}", selectQuery, e);
-      if (connection != null) {
-        try {
-          connection.close();
-        } catch (SQLException closeEx) {
-          LOGGER.warn("Error closing connection after exception", closeEx);
-        }
-      }
+      LOGGER.error("SQLException in bulkUpsertAndReturnOlderDocuments", e);
+      closeConnection(connection);
       throw new IOException("Could not bulk upsert the documents.", e);
     }
+  }
+
+  private static void closeConnection(Connection connection) {
+    if (connection != null) {
+      try {
+        connection.close();
+      } catch (SQLException closeEx) {
+        LOGGER.warn("Error closing connection after exception", closeEx);
+      }
+    }
+  }
+
+  private PreparedStatement getPreparedStatementForQuery(
+      Map<Key, Document> documents,
+      String quotedPkColumn,
+      Connection connection,
+      PostgresDataType pkType)
+      throws SQLException {
+    String selectQuery =
+        String.format("SELECT * FROM %s WHERE %s = ANY(?)", tableIdentifier, quotedPkColumn);
+    PreparedStatement preparedStatement = connection.prepareStatement(selectQuery);
+
+    String[] keyArray = documents.keySet().stream().map(Key::toString).toArray(String[]::new);
+    Array sqlArray = connection.createArrayOf(pkType.getSqlType(), keyArray);
+    preparedStatement.setArray(1, sqlArray);
+    return preparedStatement;
   }
 
   @Override
