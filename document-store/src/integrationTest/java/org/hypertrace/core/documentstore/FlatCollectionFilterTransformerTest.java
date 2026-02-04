@@ -934,6 +934,79 @@ public class FlatCollectionFilterTransformerTest {
           assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
       assertTrue(exception.getMessage().contains("Unsupported collection element type"));
     }
+
+    @Test
+    @DisplayName("Should throw exception for null field name")
+    void testNullFieldName() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, null, "value");
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Field name cannot be null or empty"));
+    }
+
+    @Test
+    @DisplayName("Should throw exception for empty field name")
+    void testEmptyFieldName() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "", "value");
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Field name cannot be null or empty"));
+    }
+
+    @Test
+    @DisplayName("Should throw exception for empty collection in IN operator")
+    void testEmptyCollectionInOperator() {
+      List<String> emptyList = List.of();
+      Filter legacyFilter = new Filter(Filter.Op.IN, "field", emptyList);
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Collection cannot be empty"));
+    }
+
+    @Test
+    @DisplayName("Should use toString fallback for unknown value type")
+    void testToStringFallbackForUnknownType() {
+      // Use a custom object that will fall through to toString
+      Object customValue =
+          new Object() {
+            @Override
+            public String toString() {
+              return "custom-value";
+            }
+          };
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "field", customValue);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      ConstantExpression rhs = (ConstantExpression) expr.getRhs();
+      assertEquals("custom-value", rhs.getValue());
+    }
+
+    @Test
+    @DisplayName("Should throw exception for unsupported value type in nested field")
+    void testUnsupportedValueTypeInNestedField() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "props.custom", new java.util.Date());
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Unsupported value type for JsonFieldType"));
+    }
+
+    @Test
+    @DisplayName("Should handle IN with empty Object[] array")
+    void testInFilterWithEmptyObjectArray() {
+      Object[] values = new Object[] {};
+      Filter legacyFilter = new Filter(Filter.Op.IN, "field", values);
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Collection cannot be empty"));
+    }
   }
 
   /** Helper method to collect all documents from a CloseableIterator. */
