@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -1192,16 +1193,235 @@ public class FlatCollectionWriteTest {
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for bulkUpsertAndReturnOlderDocuments")
-    void testBulkUpsertAndReturnOlderDocuments() {
-      Map<Key, Document> bulkMap = new HashMap<>();
-      ObjectNode node = OBJECT_MAPPER.createObjectNode();
-      node.put("_id", 101);
-      bulkMap.put(new SingleValueKey("default", "101"), new JSONDocument(node));
+    @DisplayName("Should return empty iterator for null document map")
+    void testBulkUpsertAndReturnOlderDocumentsNullMap() throws Exception {
+      CloseableIterator<Document> result = flatCollection.bulkUpsertAndReturnOlderDocuments(null);
+      assertFalse(result.hasNext());
+      result.close();
+    }
 
-      assertThrows(
-          UnsupportedOperationException.class,
-          () -> flatCollection.bulkUpsertAndReturnOlderDocuments(bulkMap));
+    @Test
+    @DisplayName("Should return empty iterator for empty document map")
+    void testBulkUpsertAndReturnOlderDocumentsEmptyMap() throws Exception {
+      CloseableIterator<Document> result =
+          flatCollection.bulkUpsertAndReturnOlderDocuments(Collections.emptyMap());
+      assertFalse(result.hasNext());
+      result.close();
+    }
+
+    @Test
+    @DisplayName("Should return empty iterator when upserting new documents (no old docs exist)")
+    void testBulkUpsertAndReturnOlderDocumentsNewDocs() throws Exception {
+      Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+      ObjectNode node1 = OBJECT_MAPPER.createObjectNode();
+      node1.put("item", "NewItem1");
+      node1.put("price", 100);
+      bulkMap.put(new SingleValueKey(DEFAULT_TENANT, "return-old-new-1"), new JSONDocument(node1));
+
+      ObjectNode node2 = OBJECT_MAPPER.createObjectNode();
+      node2.put("item", "NewItem2");
+      node2.put("price", 200);
+      bulkMap.put(new SingleValueKey(DEFAULT_TENANT, "return-old-new-2"), new JSONDocument(node2));
+
+      CloseableIterator<Document> result =
+          flatCollection.bulkUpsertAndReturnOlderDocuments(bulkMap);
+
+      // No old documents should be returned since these are new inserts
+      assertFalse(result.hasNext());
+      result.close();
+
+      // Verify documents were inserted
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "return-old-new-1"),
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("NewItem1", rs.getString("item"));
+            assertEquals(100, rs.getInt("price"));
+          });
+
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "return-old-new-2"),
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("NewItem2", rs.getString("item"));
+            assertEquals(200, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("Should return old documents when updating existing documents")
+    void testBulkUpsertAndReturnOlderDocumentsExistingDocs() throws Exception {
+      // First create some documents
+      String docId1 = "return-old-existing-1";
+      String docId2 = "return-old-existing-2";
+
+      ObjectNode initial1 = OBJECT_MAPPER.createObjectNode();
+      initial1.put("item", "OldItem1");
+      initial1.put("price", 100);
+      flatCollection.createOrReplace(
+          new SingleValueKey(DEFAULT_TENANT, docId1), new JSONDocument(initial1));
+
+      ObjectNode initial2 = OBJECT_MAPPER.createObjectNode();
+      initial2.put("item", "OldItem2");
+      initial2.put("price", 200);
+      flatCollection.createOrReplace(
+          new SingleValueKey(DEFAULT_TENANT, docId2), new JSONDocument(initial2));
+
+      // Now bulk upsert with updates
+      Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+      ObjectNode updated1 = OBJECT_MAPPER.createObjectNode();
+      updated1.put("item", "UpdatedItem1");
+      updated1.put("price", 999);
+      bulkMap.put(new SingleValueKey(DEFAULT_TENANT, docId1), new JSONDocument(updated1));
+
+      ObjectNode updated2 = OBJECT_MAPPER.createObjectNode();
+      updated2.put("item", "UpdatedItem2");
+      updated2.put("price", 888);
+      bulkMap.put(new SingleValueKey(DEFAULT_TENANT, docId2), new JSONDocument(updated2));
+
+      CloseableIterator<Document> result =
+          flatCollection.bulkUpsertAndReturnOlderDocuments(bulkMap);
+
+      // Collect old documents
+      List<Document> oldDocs = new ArrayList<>();
+      while (result.hasNext()) {
+        oldDocs.add(result.next());
+      }
+      result.close();
+
+      // Should have 2 old documents
+      assertEquals(2, oldDocs.size());
+
+      // Verify old documents contain original values
+      Map<String, JsonNode> oldDocsByItem = new HashMap<>();
+      for (Document doc : oldDocs) {
+        JsonNode json = OBJECT_MAPPER.readTree(doc.toJson());
+        oldDocsByItem.put(json.get("item").asText(), json);
+      }
+
+      assertTrue(oldDocsByItem.containsKey("OldItem1"));
+      assertEquals(100, oldDocsByItem.get("OldItem1").get("price").asInt());
+
+      assertTrue(oldDocsByItem.containsKey("OldItem2"));
+      assertEquals(200, oldDocsByItem.get("OldItem2").get("price").asInt());
+
+      // Verify documents were updated in DB
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, docId1),
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("UpdatedItem1", rs.getString("item"));
+            assertEquals(999, rs.getInt("price"));
+          });
+
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, docId2),
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("UpdatedItem2", rs.getString("item"));
+            assertEquals(888, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("Should return only existing old documents in mixed insert/update scenario")
+    void testBulkUpsertAndReturnOlderDocumentsMixed() throws Exception {
+      // Create one existing document
+      String existingId = "return-old-mixed-existing";
+
+      ObjectNode existing = OBJECT_MAPPER.createObjectNode();
+      existing.put("item", "ExistingItem");
+      existing.put("price", 500);
+      flatCollection.createOrReplace(
+          new SingleValueKey(DEFAULT_TENANT, existingId), new JSONDocument(existing));
+
+      // Bulk upsert: update existing + insert new
+      Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+      ObjectNode updatedExisting = OBJECT_MAPPER.createObjectNode();
+      updatedExisting.put("item", "UpdatedExisting");
+      updatedExisting.put("price", 555);
+      bulkMap.put(
+          new SingleValueKey(DEFAULT_TENANT, existingId), new JSONDocument(updatedExisting));
+
+      ObjectNode newDoc = OBJECT_MAPPER.createObjectNode();
+      newDoc.put("item", "NewItem");
+      newDoc.put("price", 777);
+      bulkMap.put(
+          new SingleValueKey(DEFAULT_TENANT, "return-old-mixed-new"), new JSONDocument(newDoc));
+
+      CloseableIterator<Document> result =
+          flatCollection.bulkUpsertAndReturnOlderDocuments(bulkMap);
+
+      // Should only return the one existing document (not the new one)
+      List<Document> oldDocs = new ArrayList<>();
+      while (result.hasNext()) {
+        oldDocs.add(result.next());
+      }
+      result.close();
+
+      assertEquals(1, oldDocs.size());
+
+      JsonNode oldDoc = OBJECT_MAPPER.readTree(oldDocs.get(0).toJson());
+      assertEquals("ExistingItem", oldDoc.get("item").asText());
+      assertEquals(500, oldDoc.get("price").asInt());
+
+      // Verify both documents exist in DB with new values
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, existingId),
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("UpdatedExisting", rs.getString("item"));
+            assertEquals(555, rs.getInt("price"));
+          });
+
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "return-old-mixed-new"),
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("NewItem", rs.getString("item"));
+            assertEquals(777, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("Should throw IOException when bulkUpsert fails")
+    void testBulkUpsertAndReturnOlderDocumentsUpsertFailure() throws Exception {
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Add a CHECK constraint to force upsert failure
+      String addConstraintSQL =
+          String.format(
+              "ALTER TABLE \"%s\" ADD CONSTRAINT price_positive_return CHECK (\"price\" > 0)",
+              FLAT_COLLECTION_NAME);
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps = conn.prepareStatement(addConstraintSQL)) {
+        ps.execute();
+      }
+
+      try {
+        Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "NegativePriceItem");
+        node.put("price", -100); // Violates CHECK constraint
+        bulkMap.put(new SingleValueKey(DEFAULT_TENANT, "return-old-fail"), new JSONDocument(node));
+
+        assertThrows(
+            IOException.class, () -> flatCollection.bulkUpsertAndReturnOlderDocuments(bulkMap));
+
+      } finally {
+        // Clean up: remove the CHECK constraint
+        String dropConstraintSQL =
+            String.format(
+                "ALTER TABLE \"%s\" DROP CONSTRAINT price_positive_return", FLAT_COLLECTION_NAME);
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps = conn.prepareStatement(dropConstraintSQL)) {
+          ps.execute();
+        }
+      }
     }
   }
 

@@ -314,7 +314,55 @@ public class FlatPostgresCollection extends PostgresCollection {
   @Override
   public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    if (documents == null || documents.isEmpty()) {
+      return CloseableIterator.emptyIterator();
+    }
+
+    String tableName = tableIdentifier.getTableName();
+    String pkColumn = getPKForTable(tableName);
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+    PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+
+    String selectQuery =
+        String.format("SELECT * FROM %s WHERE %s = ANY(?)", tableIdentifier, quotedPkColumn);
+
+    Connection connection = null;
+    try {
+      connection = client.getPooledConnection();
+      PreparedStatement preparedStatement = connection.prepareStatement(selectQuery);
+
+      String[] keyArray = documents.keySet().stream().map(Key::toString).toArray(String[]::new);
+      Array sqlArray = connection.createArrayOf(pkType.getSqlType(), keyArray);
+      preparedStatement.setArray(1, sqlArray);
+
+      ResultSet resultSet = preparedStatement.executeQuery();
+
+      boolean upsertResult = bulkUpsert(documents);
+      if (!upsertResult) {
+        try {
+          resultSet.close();
+          preparedStatement.close();
+          connection.close();
+        } catch (SQLException closeEx) {
+          LOGGER.warn("Error closing resources after failed upsert", closeEx);
+        }
+        throw new IOException("Bulk upsert failed");
+      }
+
+      return new PostgresCollection.PostgresResultIteratorWithBasicTypes(
+          resultSet, connection, DocumentType.FLAT);
+
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in bulkUpsertAndReturnOlderDocuments. query: {}", selectQuery, e);
+      if (connection != null) {
+        try {
+          connection.close();
+        } catch (SQLException closeEx) {
+          LOGGER.warn("Error closing connection after exception", closeEx);
+        }
+      }
+      throw new IOException("Could not bulk upsert the documents.", e);
+    }
   }
 
   @Override
