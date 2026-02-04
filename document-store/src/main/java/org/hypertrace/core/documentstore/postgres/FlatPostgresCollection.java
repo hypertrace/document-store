@@ -44,6 +44,7 @@ import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.LegacyFilterToQueryFilterTransformer;
 import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocSetOperatorParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocUpdateOperatorParser;
@@ -182,11 +183,17 @@ public class FlatPostgresCollection extends PostgresCollection {
   }
 
   @Override
-  public boolean delete(org.hypertrace.core.documentstore.query.Filter filter) {
+  public boolean delete(Filter filter) {
 
     Preconditions.checkArgument(filter != null, "Filter cannot be null");
 
-    Query query = Query.builder().setFilter(filter).build();
+    LegacyFilterToQueryFilterTransformer filterTransformer =
+        new LegacyFilterToQueryFilterTransformer(schemaRegistry, tableIdentifier.getTableName());
+
+    org.hypertrace.core.documentstore.query.Filter transformedFilter =
+        filterTransformer.transform(filter);
+
+    Query query = Query.builder().setFilter(transformedFilter).build();
 
     // Create parser with flat field transformer
     PostgresQueryParser queryParser =
@@ -212,13 +219,6 @@ public class FlatPostgresCollection extends PostgresCollection {
       LOGGER.error("SQLException deleting documents. filter: {}", filter, e);
     }
     return false;
-  }
-
-  @Override
-  @Deprecated
-  public boolean delete(Filter filter) {
-    throw new UnsupportedOperationException(
-        "DELETE not supported for legacy Filter, use delete(org.hypertrace.core.documentstore.query.Filter filter) rather");
   }
 
   @Override

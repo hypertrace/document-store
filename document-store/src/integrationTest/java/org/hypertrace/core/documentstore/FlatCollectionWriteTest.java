@@ -935,26 +935,12 @@ public class FlatCollectionWriteTest {
       }
 
       // Test 1: EQ filter
-      org.hypertrace.core.documentstore.query.Filter eqFilter =
-          org.hypertrace.core.documentstore.query.Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("item"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("ToBeDeleted")))
-              .build();
+      Filter eqFilter = Filter.eq("item", "ToBeDeleted");
       assertTrue(flatCollection.delete(eqFilter));
       queryAndAssert(new SingleValueKey(DEFAULT_TENANT, "filter-eq"), rs -> assertFalse(rs.next()));
 
       // Test 2: GT filter (price > 500)
-      org.hypertrace.core.documentstore.query.Filter gtFilter =
-          org.hypertrace.core.documentstore.query.Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("price"),
-                      RelationalOperator.GT,
-                      ConstantExpression.of(500)))
-              .build();
+      Filter gtFilter = new Filter(Filter.Op.GT, "price", 500);
       assertTrue(flatCollection.delete(gtFilter));
       queryAndAssert(
           new SingleValueKey(DEFAULT_TENANT, "filter-gt-expensive"), rs -> assertFalse(rs.next()));
@@ -962,14 +948,7 @@ public class FlatCollectionWriteTest {
           new SingleValueKey(DEFAULT_TENANT, "filter-gt-cheap"), rs -> assertTrue(rs.next()));
 
       // Test 3: IN filter
-      org.hypertrace.core.documentstore.query.Filter inFilter =
-          org.hypertrace.core.documentstore.query.Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("item"),
-                      RelationalOperator.IN,
-                      ConstantExpression.ofStrings(List.of("Apple", "Banana"))))
-              .build();
+      Filter inFilter = new Filter(Filter.Op.IN, "item", List.of("Apple", "Banana"));
       assertTrue(flatCollection.delete(inFilter));
       queryAndAssert(
           new SingleValueKey(DEFAULT_TENANT, "filter-in-apple"), rs -> assertFalse(rs.next()));
@@ -978,9 +957,11 @@ public class FlatCollectionWriteTest {
       queryAndAssert(
           new SingleValueKey(DEFAULT_TENANT, "filter-in-cherry"), rs -> assertTrue(rs.next()));
 
-      // Test 4: Legacy Filter API throws UnsupportedOperationException
-      Filter legacyFilter = Filter.eq("item", "Cherry");
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(legacyFilter));
+      // Test 4: Delete the remaining Cherry item
+      Filter cherryFilter = Filter.eq("item", "Cherry");
+      assertTrue(flatCollection.delete(cherryFilter));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-in-cherry"), rs -> assertFalse(rs.next()));
     }
 
     @Test
@@ -1021,34 +1002,14 @@ public class FlatCollectionWriteTest {
           new SingleValueKey(DEFAULT_TENANT, "jsonb-adidas"), new JSONDocument(node4));
 
       // Test 1: AND filter (item = 'TargetItem' AND price = 100)
-      org.hypertrace.core.documentstore.query.Filter andFilter =
-          org.hypertrace.core.documentstore.query.Filter.builder()
-              .expression(
-                  org.hypertrace.core.documentstore.expression.impl.LogicalExpression.and(
-                      RelationalExpression.of(
-                          IdentifierExpression.of("item"),
-                          RelationalOperator.EQ,
-                          ConstantExpression.of("TargetItem")),
-                      RelationalExpression.of(
-                          IdentifierExpression.of("price"),
-                          RelationalOperator.EQ,
-                          ConstantExpression.of(100))))
-              .build();
+      Filter andFilter = Filter.eq("item", "TargetItem").and(Filter.eq("price", 100));
       assertTrue(flatCollection.delete(andFilter));
       queryAndAssert(new SingleValueKey(DEFAULT_TENANT, "and-match"), rs -> assertFalse(rs.next()));
       queryAndAssert(
           new SingleValueKey(DEFAULT_TENANT, "and-nomatch"), rs -> assertTrue(rs.next()));
 
       // Test 2: Nested JSONB filter (props.brand = 'Nike')
-      org.hypertrace.core.documentstore.query.Filter jsonbFilter =
-          org.hypertrace.core.documentstore.query.Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression.of(
-                          "props", "brand"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("Nike")))
-              .build();
+      Filter jsonbFilter = Filter.eq("props.brand", "Nike");
       assertTrue(flatCollection.delete(jsonbFilter));
       queryAndAssert(
           new SingleValueKey(DEFAULT_TENANT, "jsonb-nike"), rs -> assertFalse(rs.next()));
@@ -1060,26 +1021,18 @@ public class FlatCollectionWriteTest {
     @DisplayName("Should handle edge cases: no match returns false, null filter throws exception")
     void testDeleteEdgeCases() {
       // Test 1: No match returns false
-      org.hypertrace.core.documentstore.query.Filter noMatchFilter =
-          org.hypertrace.core.documentstore.query.Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("item"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("NonExistentItem12345")))
-              .build();
+      Filter noMatchFilter = Filter.eq("item", "NonExistentItem12345");
       assertFalse(flatCollection.delete(noMatchFilter));
 
       // Test 2: Null filter throws exception
-      assertThrows(
-          IllegalArgumentException.class,
-          () -> flatCollection.delete((org.hypertrace.core.documentstore.query.Filter) null));
+      assertThrows(IllegalArgumentException.class, () -> flatCollection.delete((Filter) null));
     }
 
     @Test
-    @DisplayName("delete(Filter) should return false when SQLException occurs (dropped table)")
-    void testDeleteByFilterReturnsFalseOnSQLException() throws Exception {
-      // Create a temporary table, get collection, then drop the table to trigger SQLException
+    @DisplayName(
+        "delete(Filter) should throw exception when table is dropped (schema lookup fails)")
+    void testDeleteByFilterThrowsExceptionOnDroppedTable() throws Exception {
+      // Create a temporary table, get collection, then drop the table to trigger exception
       String tempTable = "temp_delete_filter_test";
       PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
 
@@ -1096,24 +1049,16 @@ public class FlatCollectionWriteTest {
       Collection tempCollection =
           postgresDatastore.getCollectionForType(tempTable, DocumentType.FLAT);
 
-      // Drop the table to cause SQLException on delete
+      // Drop the table - this will cause schema lookup to fail when delete is called
       try (Connection conn = pgDatastore.getPostgresClient();
           PreparedStatement ps =
               conn.prepareStatement(String.format("DROP TABLE \"%s\"", tempTable))) {
         ps.execute();
       }
 
-      org.hypertrace.core.documentstore.query.Filter filter =
-          org.hypertrace.core.documentstore.query.Filter.builder()
-              .expression(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("item"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("SomeValue")))
-              .build();
-
-      // SQLException should be caught and method should return false
-      assertFalse(tempCollection.delete(filter));
+      // With legacy filter transformer, schema lookup happens first and throws exception
+      Filter filter = Filter.eq("item", "SomeValue");
+      assertThrows(Exception.class, () -> tempCollection.delete(filter));
     }
 
     @Test
