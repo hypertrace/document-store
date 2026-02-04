@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -867,6 +868,71 @@ public class FlatCollectionFilterTransformerTest {
 
       assertNotNull(newFilter);
       assertInstanceOf(LogicalExpression.class, newFilter.getExpression());
+    }
+
+    @Test
+    @DisplayName("Should infer NUMBER type for nested field with numeric value")
+    void testNestedFieldWithNumberValue() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "props.count", 42);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      ConstantExpression rhs = (ConstantExpression) expr.getRhs();
+      assertEquals(42, rhs.getValue());
+    }
+
+    @Test
+    @DisplayName("Should infer BOOLEAN type for nested field with boolean value")
+    void testNestedFieldWithBooleanValue() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "props.active", true);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      ConstantExpression rhs = (ConstantExpression) expr.getRhs();
+      assertEquals(true, rhs.getValue());
+    }
+
+    @Test
+    @DisplayName("Should handle IN filter with Object[] array of strings")
+    void testInFilterWithObjectArray() {
+      Object[] values = new Object[] {"value1", "value2"};
+      Filter legacyFilter = new Filter(Filter.Op.IN, "props.tags", values);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      assertEquals(RelationalOperator.IN, expr.getOperator());
+    }
+
+    @Test
+    @DisplayName("Should handle IN filter with boolean collection")
+    void testInFilterWithBooleanCollection() {
+      List<Boolean> values = List.of(true, false);
+      Filter legacyFilter = new Filter(Filter.Op.IN, "props.flags", values);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      assertEquals(RelationalOperator.IN, expr.getOperator());
+      ConstantExpression rhs = (ConstantExpression) expr.getRhs();
+      assertNotNull(rhs.getValue());
+    }
+
+    @Test
+    @DisplayName("Should throw exception for unsupported collection element type")
+    void testUnsupportedCollectionElementType() {
+      List<Object> values = List.of(new java.util.Date());
+      Filter legacyFilter = new Filter(Filter.Op.IN, "field", values);
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Unsupported collection element type"));
     }
   }
 
