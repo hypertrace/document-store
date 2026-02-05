@@ -867,18 +867,131 @@ public class FlatCollectionWriteTest {
   class UpdateTests {
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for update with condition")
-    void testUpdateWithCondition() {
-      Key key = new SingleValueKey("default", "1");
+    @DisplayName("Should update document when condition matches (optimistic locking)")
+    void testUpdateWithConditionMatches() throws Exception {
+      // Use key "1" directly to match test data (not SingleValueKey which adds tenant prefix)
+      Key key =
+          new Key() {
+            @Override
+            public String toString() {
+              return "1";
+            }
+          };
       ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
-      updatedNode.put("_id", 1);
-      updatedNode.put("item", "Soap");
+      updatedNode.put("item", "UpdatedSoap");
+      updatedNode.put("price", 999);
       Document document = new JSONDocument(updatedNode);
-      Filter condition = Filter.eq("price", 10);
 
-      assertThrows(
-          UnsupportedOperationException.class,
-          () -> flatCollection.update(key, document, condition));
+      // Condition: price = 10 (matches the existing document)
+      Filter condition = new Filter(Filter.Op.EQ, "price", 10);
+
+      UpdateResult result = flatCollection.update(key, document, condition);
+
+      assertEquals(1, result.getUpdatedCount(), "Should update 1 document when condition matches");
+
+      // Verify the update in database using direct JDBC
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"item\", \"price\" FROM \"%s\" WHERE \"id\" = '1'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("UpdatedSoap", rs.getString("item"));
+        assertEquals(999, rs.getInt("price"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should not update document when condition does not match (optimistic locking)")
+    void testUpdateWithConditionNotMatches() throws Exception {
+      Key key =
+          new Key() {
+            @Override
+            public String toString() {
+              return "1";
+            }
+          };
+      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
+      updatedNode.put("item", "ShouldNotUpdate");
+      updatedNode.put("price", 888);
+      Document document = new JSONDocument(updatedNode);
+
+      // Condition: price = 999 (does NOT match the existing document which has price=10)
+      Filter condition = new Filter(Filter.Op.EQ, "price", 999);
+
+      UpdateResult result = flatCollection.update(key, document, condition);
+
+      assertEquals(0, result.getUpdatedCount(), "Should not update when condition doesn't match");
+
+      // Verify document is unchanged using direct JDBC
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"item\", \"price\" FROM \"%s\" WHERE \"id\" = '1'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("Soap", rs.getString("item"), "Item should remain unchanged");
+        assertEquals(10, rs.getInt("price"), "Price should remain unchanged");
+      }
+    }
+
+    @Test
+    @DisplayName("Should update document without condition")
+    void testUpdateWithoutCondition() throws Exception {
+      Key key =
+          new Key() {
+            @Override
+            public String toString() {
+              return "1";
+            }
+          };
+      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
+      updatedNode.put("item", "NoConditionUpdate");
+      updatedNode.put("price", 777);
+      Document document = new JSONDocument(updatedNode);
+
+      UpdateResult result = flatCollection.update(key, document, null);
+
+      assertEquals(1, result.getUpdatedCount(), "Should update 1 document without condition");
+
+      // Verify the update using direct JDBC
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"item\", \"price\" FROM \"%s\" WHERE \"id\" = '1'",
+                      FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals("NoConditionUpdate", rs.getString("item"));
+        assertEquals(777, rs.getInt("price"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should return 0 when updating non-existent key")
+    void testUpdateNonExistentKey() throws Exception {
+      Key key =
+          new Key() {
+            @Override
+            public String toString() {
+              return "non-existent-key";
+            }
+          };
+      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
+      updatedNode.put("item", "Ghost");
+      Document document = new JSONDocument(updatedNode);
+
+      UpdateResult result = flatCollection.update(key, document, null);
+
+      assertEquals(0, result.getUpdatedCount(), "Should return 0 for non-existent key");
     }
   }
 
