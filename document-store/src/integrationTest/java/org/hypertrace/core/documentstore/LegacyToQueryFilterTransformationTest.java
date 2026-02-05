@@ -53,10 +53,10 @@ import org.testcontainers.utility.DockerImageName;
  * <p>Both approaches should yield identical results for the same filter conditions.
  */
 @Testcontainers
-public class FlatCollectionFilterTransformerTest {
+public class LegacyToQueryFilterTransformationTest {
 
   private static final Logger LOGGER =
-      LoggerFactory.getLogger(FlatCollectionFilterTransformerTest.class);
+      LoggerFactory.getLogger(LegacyToQueryFilterTransformationTest.class);
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String FLAT_COLLECTION_NAME = "filterTestFlat";
   private static final String INSERT_STATEMENTS_FILE = "query/pg_flat_collection_insert.json";
