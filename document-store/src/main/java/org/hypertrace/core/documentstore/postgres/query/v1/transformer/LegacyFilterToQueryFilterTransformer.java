@@ -137,9 +137,15 @@ public class LegacyFilterToQueryFilterTransformer {
   }
 
   /**
-   * Finds the JSONB column that serves as the prefix for the given path.
+   * So say the identifier in the filter is props.inheritiedAttributes.color = 'red'. Now, three
+   * possibilities arise:
    *
-   * <p>Resolution strategy: progressively try shorter prefixes to find a JSONB column.
+   * <p>props is the json col and inheritiedAttributes.color is the path. props.inheritiedAttributes
+   * is the jsonb col and color is the path. props.inheritiedAttributes.color is the jsonb col. This
+   * method progressively looks for prefixes and checks its type to determine what case it is.
+   *
+   * @param path
+   * @return
    */
   private Optional<String> findJsonbColumnPrefix(String path) {
     if (!path.contains(".")) {
@@ -165,12 +171,16 @@ public class LegacyFilterToQueryFilterTransformer {
     return Optional.empty();
   }
 
-  /** Extracts the nested JSONB path from a full path given the resolved column name. */
-  private String[] getNestedPath(String fullPath, String columnName) {
-    if (fullPath.equals(columnName)) {
+  /**
+   * Extracts the JSONB path portion after removing the column name prefix. For example, if the path
+   * is "props.inheritiedAttributes.color", and the column name is "props", then the path is
+   * "inheritiedAttributes.color".
+   */
+  private String[] getNestedPath(String fullPath, String jsonbColName) {
+    if (fullPath.equals(jsonbColName)) {
       return new String[0];
     }
-    String nested = fullPath.substring(columnName.length() + 1);
+    String nested = fullPath.substring(jsonbColName.length() + 1);
     return nested.split("\\.");
   }
 
