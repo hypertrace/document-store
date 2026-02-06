@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -46,6 +47,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
+import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocAddOperatorParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocSetOperatorParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocUpdateOperatorParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
@@ -72,7 +74,10 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
 
   private static final Map<UpdateOperator, FlatCollectionSubDocUpdateOperatorParser>
-      SUB_DOC_UPDATE_PARSERS = Map.of(SET, new FlatCollectionSubDocSetOperatorParser());
+      SUB_DOC_UPDATE_PARSERS =
+          Map.of(
+              SET, new FlatCollectionSubDocSetOperatorParser(),
+              ADD, new FlatCollectionSubDocAddOperatorParser());
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
