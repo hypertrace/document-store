@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -52,10 +53,10 @@ import org.testcontainers.utility.DockerImageName;
  * <p>Both approaches should yield identical results for the same filter conditions.
  */
 @Testcontainers
-public class FlatCollectionFilterTransformerTest {
+public class LegacyToQueryFilterTransformationTest {
 
   private static final Logger LOGGER =
-      LoggerFactory.getLogger(FlatCollectionFilterTransformerTest.class);
+      LoggerFactory.getLogger(LegacyToQueryFilterTransformationTest.class);
   private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final String FLAT_COLLECTION_NAME = "filterTestFlat";
   private static final String INSERT_STATEMENTS_FILE = "query/pg_flat_collection_insert.json";
@@ -867,6 +868,144 @@ public class FlatCollectionFilterTransformerTest {
 
       assertNotNull(newFilter);
       assertInstanceOf(LogicalExpression.class, newFilter.getExpression());
+    }
+
+    @Test
+    @DisplayName("Should infer NUMBER type for nested field with numeric value")
+    void testNestedFieldWithNumberValue() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "props.count", 42);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      ConstantExpression rhs = (ConstantExpression) expr.getRhs();
+      assertEquals(42, rhs.getValue());
+    }
+
+    @Test
+    @DisplayName("Should infer BOOLEAN type for nested field with boolean value")
+    void testNestedFieldWithBooleanValue() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "props.active", true);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      ConstantExpression rhs = (ConstantExpression) expr.getRhs();
+      assertEquals(true, rhs.getValue());
+    }
+
+    @Test
+    @DisplayName("Should handle IN filter with Object[] array of strings")
+    void testInFilterWithObjectArray() {
+      Object[] values = new Object[] {"value1", "value2"};
+      Filter legacyFilter = new Filter(Filter.Op.IN, "props.tags", values);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      assertEquals(RelationalOperator.IN, expr.getOperator());
+    }
+
+    @Test
+    @DisplayName("Should handle IN filter with boolean collection")
+    void testInFilterWithBooleanCollection() {
+      List<Boolean> values = List.of(true, false);
+      Filter legacyFilter = new Filter(Filter.Op.IN, "props.flags", values);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      assertEquals(RelationalOperator.IN, expr.getOperator());
+      ConstantExpression rhs = (ConstantExpression) expr.getRhs();
+      assertNotNull(rhs.getValue());
+    }
+
+    @Test
+    @DisplayName("Should throw exception for unsupported collection element type")
+    void testUnsupportedCollectionElementType() {
+      List<Object> values = List.of(new java.util.Date());
+      Filter legacyFilter = new Filter(Filter.Op.IN, "field", values);
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Unsupported collection element type"));
+    }
+
+    @Test
+    @DisplayName("Should throw exception for null field name")
+    void testNullFieldName() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, null, "value");
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Field name cannot be null or empty"));
+    }
+
+    @Test
+    @DisplayName("Should throw exception for empty field name")
+    void testEmptyFieldName() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "", "value");
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Field name cannot be null or empty"));
+    }
+
+    @Test
+    @DisplayName("Should throw exception for empty collection in IN operator")
+    void testEmptyCollectionInOperator() {
+      List<String> emptyList = List.of();
+      Filter legacyFilter = new Filter(Filter.Op.IN, "field", emptyList);
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Collection cannot be empty"));
+    }
+
+    @Test
+    @DisplayName("Should use toString fallback for unknown value type")
+    void testToStringFallbackForUnknownType() {
+      // Use a custom object that will fall through to toString
+      Object customValue =
+          new Object() {
+            @Override
+            public String toString() {
+              return "custom-value";
+            }
+          };
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "field", customValue);
+      org.hypertrace.core.documentstore.query.Filter newFilter =
+          transformer.transform(legacyFilter);
+
+      assertNotNull(newFilter);
+      RelationalExpression expr = (RelationalExpression) newFilter.getExpression();
+      ConstantExpression rhs = (ConstantExpression) expr.getRhs();
+      assertEquals("custom-value", rhs.getValue());
+    }
+
+    @Test
+    @DisplayName("Should throw exception for unsupported value type in nested field")
+    void testUnsupportedValueTypeInNestedField() {
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "props.custom", new java.util.Date());
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Unsupported value type for JsonFieldType"));
+    }
+
+    @Test
+    @DisplayName("Should handle IN with empty Object[] array")
+    void testInFilterWithEmptyObjectArray() {
+      Object[] values = new Object[] {};
+      Filter legacyFilter = new Filter(Filter.Op.IN, "field", values);
+
+      Exception exception =
+          assertThrows(IllegalArgumentException.class, () -> transformer.transform(legacyFilter));
+      assertTrue(exception.getMessage().contains("Collection cannot be empty"));
     }
   }
 
