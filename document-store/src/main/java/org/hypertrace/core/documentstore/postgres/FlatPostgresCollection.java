@@ -33,6 +33,7 @@ import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.commons.FlatStoreConstants;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
 import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
@@ -70,9 +71,6 @@ public class FlatPostgresCollection extends PostgresCollection {
       "Write operations are not supported for flat collections yet!";
   private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
   private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
-  private static final String TIMESTAMP_FIELDS_CONFIG = "timestampFields";
-  private static final String CREATED_TS_COL_KEY = "createdTsCol";
-  private static final String LAST_UPDATED_TS_COL_KEY = "lastUpdatedTsCol";
 
   private static final Map<UpdateOperator, FlatCollectionSubDocUpdateOperatorParser>
       SUB_DOC_UPDATE_PARSERS = Map.of(SET, new FlatCollectionSubDocSetOperatorParser());
@@ -96,9 +94,11 @@ public class FlatPostgresCollection extends PostgresCollection {
     this.schemaRegistry = schemaRegistry;
     this.missingColumnStrategy = parseMissingColumnStrategy(client.getCustomParameters());
     this.createdTsColumn =
-        getTsColFromConfig(CREATED_TS_COL_KEY, client.getCustomParameters()).orElse(null);
+        getTsColFromConfig(FlatStoreConstants.CREATED_TS_COL_KEY, client.getCustomParameters())
+            .orElse(null);
     this.lastUpdatedTsColumn =
-        getTsColFromConfig(LAST_UPDATED_TS_COL_KEY, client.getCustomParameters()).orElse(null);
+        getTsColFromConfig(FlatStoreConstants.LAST_UPDATED_TS_COL_KEY, client.getCustomParameters())
+            .orElse(null);
     if (this.createdTsColumn == null || this.lastUpdatedTsColumn == null) {
       LOGGER.warn(
           "timestampFields config not set properly for collection '{}'. "
@@ -125,7 +125,7 @@ public class FlatPostgresCollection extends PostgresCollection {
   }
 
   private Optional<String> getTsColFromConfig(String key, Map<String, String> config) {
-    String jsonValue = config.get(TIMESTAMP_FIELDS_CONFIG);
+    String jsonValue = config.get(FlatStoreConstants.TIMESTAMP_FIELDS_CONFIG);
     if (jsonValue == null || jsonValue.isEmpty()) {
       return Optional.empty();
     }
