@@ -2348,5 +2348,55 @@ public class FlatCollectionWriteTest {
         assertTrue(rs.wasNull(), "lastUpdateTime should be NULL when config is missing");
       }
     }
+
+    @Test
+    @DisplayName(
+        "Should not throw exception when timestampFields config is invalid JSON - cols remain NULL")
+    void testNoExceptionWhenTimestampConfigInvalidJson() throws Exception {
+      // Create a collection with INVALID JSON in timestampFields config
+      String postgresConnectionUrl =
+          String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
+
+      Map<String, String> configWithInvalidJson = new HashMap<>();
+      configWithInvalidJson.put("url", postgresConnectionUrl);
+      configWithInvalidJson.put("user", "postgres");
+      configWithInvalidJson.put("password", "postgres");
+      // Invalid JSON - missing quotes, malformed
+      configWithInvalidJson.put("customParams.timestampFields", "not valid json {{{");
+
+      Datastore datastoreWithInvalidConfig =
+          DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(configWithInvalidJson));
+      Collection collectionWithInvalidConfig =
+          datastoreWithInvalidConfig.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Create a document - should NOT throw exception
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "ts-test-invalid-json");
+      objectNode.put("item", "InvalidJsonConfigTest");
+      objectNode.put("price", 100);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, "ts-test-invalid-json");
+
+      CreateResult result = collectionWithInvalidConfig.create(key, document);
+      assertTrue(result.isSucceed());
+
+      // Verify timestamp columns are NULL (config parsing failed gracefully)
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"createdTime\", \"lastUpdateTime\" FROM \"%s\" WHERE \"id\" = '%s'",
+                      FLAT_COLLECTION_NAME, key.toString()));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+
+        rs.getLong("createdTime");
+        assertTrue(rs.wasNull(), "createdTime should be NULL when config JSON is invalid");
+
+        rs.getTimestamp("lastUpdateTime");
+        assertTrue(rs.wasNull(), "lastUpdateTime should be NULL when config JSON is invalid");
+      }
+    }
   }
 }
