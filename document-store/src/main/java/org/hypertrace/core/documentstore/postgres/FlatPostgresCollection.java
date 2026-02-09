@@ -6,6 +6,7 @@ import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.sql.Array;
@@ -841,7 +842,8 @@ public class FlatPostgresCollection extends PostgresCollection {
     typedDocument.add(quotedCol, value, type, false);
   }
 
-  private Object convertTimestampForType(long epochMillis, PostgresDataType type) {
+  @VisibleForTesting
+  Object convertTimestampForType(long epochMillis, PostgresDataType type) {
     switch (type) {
       case BIGINT:
         return epochMillis;
