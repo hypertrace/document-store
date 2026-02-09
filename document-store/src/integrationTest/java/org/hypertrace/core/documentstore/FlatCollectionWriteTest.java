@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -94,6 +95,10 @@ public class FlatCollectionWriteTest {
     postgresConfig.put("url", postgresConnectionUrl);
     postgresConfig.put("user", "postgres");
     postgresConfig.put("password", "postgres");
+    // Configure timestamp fields for auto-managed document timestamps
+    postgresConfig.put(
+        "customParams.timestampFields",
+        "{\"docCreatedTsCol\": \"createdTime\", \"docLastUpdatedTsCol\": \"lastUpdateTime\"}");
 
     postgresDatastore =
         DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(postgresConfig));
@@ -124,7 +129,9 @@ public class FlatCollectionWriteTest {
                 + "\"big_number\" BIGINT,"
                 + "\"rating\" REAL,"
                 + "\"created_date\" DATE,"
-                + "\"weight\" DOUBLE PRECISION"
+                + "\"weight\" DOUBLE PRECISION,"
+                + "\"createdTime\" BIGINT,"
+                + "\"lastUpdateTime\" TIMESTAMP WITH TIME ZONE"
                 + ");",
             FLAT_COLLECTION_NAME);
 
@@ -2182,6 +2189,163 @@ public class FlatCollectionWriteTest {
         assertTrue(rs.next());
         assertEquals("value1", rs.getString("key1"));
         assertEquals("123", rs.getString("key2"));
+      }
+    }
+  }
+
+  @Nested
+  @DisplayName("Timestamp Auto-Population Tests")
+  class TimestampTests {
+
+    @Test
+    @DisplayName(
+        "Should auto-populate createdTime (BIGINT) and lastUpdateTime (TIMESTAMPTZ) on create")
+    void testTimestampsOnCreate() throws Exception {
+      long beforeCreate = System.currentTimeMillis();
+
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "ts-test-1");
+      objectNode.put("item", "TimestampTestItem");
+      objectNode.put("price", 100);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, "ts-test-1");
+
+      CreateResult result = flatCollection.create(key, document);
+      assertTrue(result.isSucceed());
+
+      long afterCreate = System.currentTimeMillis();
+
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"createdTime\", \"lastUpdateTime\" FROM \"%s\" WHERE \"id\" = '%s'",
+                      FLAT_COLLECTION_NAME, key.toString()));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+
+        long createdTime = rs.getLong("createdTime");
+        assertFalse(rs.wasNull(), "createdTime should not be NULL");
+        assertTrue(
+            createdTime >= beforeCreate && createdTime <= afterCreate,
+            "createdTime should be within test execution window");
+
+        Timestamp lastUpdateTime = rs.getTimestamp("lastUpdateTime");
+        assertNotNull(lastUpdateTime, "lastUpdateTime should not be NULL");
+        assertTrue(
+            lastUpdateTime.getTime() >= beforeCreate && lastUpdateTime.getTime() <= afterCreate,
+            "lastUpdateTime should be within test execution window");
+      }
+    }
+
+    @Test
+    @DisplayName("Should preserve createdTime and update lastUpdateTime on upsert")
+    void testTimestampsOnUpsert() throws Exception {
+      // First create
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "ts-test-2");
+      objectNode.put("item", "UpsertTimestampTest");
+      objectNode.put("price", 100);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, "ts-test-2");
+
+      flatCollection.create(key, document);
+
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      long originalCreatedTime;
+      long originalLastUpdateTime;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"createdTime\", \"lastUpdateTime\" FROM \"%s\" WHERE \"id\" = '%s'",
+                      FLAT_COLLECTION_NAME, key.toString()));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        originalCreatedTime = rs.getLong("createdTime");
+        originalLastUpdateTime = rs.getTimestamp("lastUpdateTime").getTime();
+      }
+
+      // Wait a bit to ensure time difference
+      Thread.sleep(50);
+
+      // Upsert (update existing)
+      long beforeUpsert = System.currentTimeMillis();
+      objectNode.put("price", 200);
+      Document updatedDoc = new JSONDocument(objectNode);
+      flatCollection.createOrReplace(key, updatedDoc);
+      long afterUpsert = System.currentTimeMillis();
+
+      // Verify createdTime preserved, lastUpdateTime updated
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"createdTime\", \"lastUpdateTime\" FROM \"%s\" WHERE \"id\" = '%s'",
+                      FLAT_COLLECTION_NAME, key.toString()));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+
+        long newCreatedTime = rs.getLong("createdTime");
+        assertEquals(
+            originalCreatedTime, newCreatedTime, "createdTime should be preserved on upsert");
+
+        long newLastUpdateTime = rs.getTimestamp("lastUpdateTime").getTime();
+        assertTrue(newLastUpdateTime > originalLastUpdateTime, "lastUpdateTime should be updated");
+        assertTrue(
+            newLastUpdateTime >= beforeUpsert && newLastUpdateTime <= afterUpsert,
+            "lastUpdateTime should be within upsert execution window");
+      }
+    }
+
+    @Test
+    @DisplayName(
+        "Should not throw exception when timestampFields config is missing - cols remain NULL")
+    void testNoExceptionWhenTimestampConfigMissing() throws Exception {
+      // Create a collection WITHOUT timestampFields config
+      String postgresConnectionUrl =
+          String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
+
+      Map<String, String> configWithoutTimestamps = new HashMap<>();
+      configWithoutTimestamps.put("url", postgresConnectionUrl);
+      configWithoutTimestamps.put("user", "postgres");
+      configWithoutTimestamps.put("password", "postgres");
+      // Note: NO customParams.timestampFields config
+
+      Datastore datastoreWithoutTimestamps =
+          DatastoreProvider.getDatastore(
+              "Postgres", ConfigFactory.parseMap(configWithoutTimestamps));
+      Collection collectionWithoutTimestamps =
+          datastoreWithoutTimestamps.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+
+      // Create a document - should NOT throw exception
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "ts-test-no-config");
+      objectNode.put("item", "NoTimestampConfigTest");
+      objectNode.put("price", 100);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, "ts-test-no-config");
+
+      CreateResult result = collectionWithoutTimestamps.create(key, document);
+      assertTrue(result.isSucceed());
+
+      // Verify timestamp columns are NULL
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"createdTime\", \"lastUpdateTime\" FROM \"%s\" WHERE \"id\" = '%s'",
+                      FLAT_COLLECTION_NAME, key.toString()));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+
+        rs.getLong("createdTime");
+        assertTrue(rs.wasNull(), "createdTime should be NULL when config is missing");
+
+        rs.getTimestamp("lastUpdateTime");
+        assertTrue(rs.wasNull(), "lastUpdateTime should be NULL when config is missing");
       }
     }
   }
