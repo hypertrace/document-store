@@ -94,17 +94,16 @@ public class FlatPostgresCollection extends PostgresCollection {
     this.schemaRegistry = schemaRegistry;
     this.missingColumnStrategy = parseMissingColumnStrategy(client.getCustomParameters());
     this.createdTsColumn =
-        getTsColFromConfig(FlatStoreConstants.DOC_CREATED_TS_COL_KEY, client.getCustomParameters())
+        getTsColFromConfig(FlatStoreConstants.CREATED_TS_COL_KEY, client.getCustomParameters())
             .orElse(null);
     this.lastUpdatedTsColumn =
-        getTsColFromConfig(
-                FlatStoreConstants.DOC_LAST_UPDATED_TS_COL_KEY, client.getCustomParameters())
+        getTsColFromConfig(FlatStoreConstants.LAST_UPDATED_TS_COL_KEY, client.getCustomParameters())
             .orElse(null);
     if (this.createdTsColumn == null || this.lastUpdatedTsColumn == null) {
       LOGGER.warn(
           "timestampFields config not set properly for collection '{}'. "
               + "Document timestamps (either createdTime, lastUpdatedTime or both) will not be auto-managed. "
-              + "Configure via: {{\"timestampFields\": {{\"docCreatedTsCol\": \"<col>\", \"docLastUpdatedTsCol\": \"<col>\"}}}}",
+              + "Configure via: {{\"timestampFields\": {{\"createdTsCol\": \"<col>\", \"lastUpdatedTsCol\": \"<col>\"}}}}",
           collectionName);
     }
   }

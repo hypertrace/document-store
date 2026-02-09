@@ -98,7 +98,7 @@ public class FlatCollectionWriteTest {
     // Configure timestamp fields for auto-managed document timestamps
     postgresConfig.put(
         "customParams.timestampFields",
-        "{\"docCreatedTsCol\": \"createdTime\", \"docLastUpdatedTsCol\": \"lastUpdateTime\"}");
+        "{\"createdTsCol\": \"createdTime\", \"lastUpdatedTsCol\": \"lastUpdateTime\"}");
 
     postgresDatastore =
         DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(postgresConfig));
