@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.sql.Array;
+import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -192,13 +193,187 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public boolean bulkUpsert(Map<Key, Document> documents) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    if (documents == null || documents.isEmpty()) {
+      return true;
+    }
+
+    String tableName = tableIdentifier.getTableName();
+    String pkColumn = getPKForTable(tableName);
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+    PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+
+    try {
+      // Parse all documents and collect the union of all columns. This is because we can have
+      // different docs with different sets of cols, so we do this to create a single upsert SQL
+      Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
+      Set<String> allColumns = new LinkedHashSet<>();
+      allColumns.add(quotedPkColumn);
+
+      List<Key> ignoredDocuments = new ArrayList<>();
+      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+        List<String> skippedFields = new ArrayList<>();
+        TypedDocument parsed = parseDocument(entry.getValue(), tableName, skippedFields);
+
+        // Handle IGNORE_DOCUMENT strategy: skip docs with unknown fields
+        if (missingColumnStrategy == MissingColumnStrategy.IGNORE_DOCUMENT
+            && !skippedFields.isEmpty()) {
+          ignoredDocuments.add(entry.getKey());
+          continue;
+        }
+
+        parsed.add(quotedPkColumn, entry.getKey().toString(), pkType, false);
+        parsedDocuments.put(entry.getKey(), parsed);
+        allColumns.addAll(parsed.getColumns());
+      }
+
+      if (!ignoredDocuments.isEmpty()) {
+        LOGGER.info(
+            "bulkUpsert: Ignored {} documents due to IGNORE_DOCUMENT strategy. Keys: {}",
+            ignoredDocuments.size(),
+            ignoredDocuments);
+      }
+
+      // If all documents were ignored, return true (nothing to do)
+      if (parsedDocuments.isEmpty()) {
+        return true;
+      }
+
+      // Build the bulk upsert SQL with all columns
+      List<String> columnList = new ArrayList<>(allColumns);
+      String sql = buildBulkUpsertSql(columnList, quotedPkColumn);
+      LOGGER.debug("Bulk upsert SQL: {}", sql);
+
+      try (Connection conn = client.getPooledConnection();
+          PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        for (Map.Entry<Key, TypedDocument> entry : parsedDocuments.entrySet()) {
+          TypedDocument parsed = entry.getValue();
+          int index = 1;
+
+          for (String column : columnList) {
+            if (parsed.getColumns().contains(column)) {
+              setParameter(
+                  conn,
+                  ps,
+                  index++,
+                  parsed.getValue(column),
+                  parsed.getType(column),
+                  parsed.isArray(column));
+            } else {
+              ps.setObject(index++, null);
+            }
+          }
+          ps.addBatch();
+        }
+
+        int[] results = ps.executeBatch();
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Bulk upsert results: {}", Arrays.toString(results));
+        }
+        return true;
+      }
+
+    } catch (BatchUpdateException e) {
+      LOGGER.error("BatchUpdateException in bulkUpsert", e);
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException in bulkUpsert. SQLState: {} Error Code: {}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+    } catch (IOException e) {
+      LOGGER.error("IOException in bulkUpsert. documents: {}", documents, e);
+    }
+
+    return false;
+  }
+
+  /**
+   * Builds a PostgreSQL bulk upsert SQL statement for batch execution.
+   *
+   * @param columns List of quoted column names (PK should be first)
+   * @param pkColumn The quoted primary key column name
+   * @return The upsert SQL statement
+   */
+  private String buildBulkUpsertSql(List<String> columns, String pkColumn) {
+    String columnList = String.join(", ", columns);
+    String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
+
+    // Build SET clause for non-PK columns: col = EXCLUDED.col (this ensures that on conflict, the
+    // new value is picked)
+    String setClause =
+        columns.stream()
+            .filter(col -> !col.equals(pkColumn))
+            .map(col -> col + " = EXCLUDED." + col)
+            .collect(Collectors.joining(", "));
+
+    return String.format(
+        "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
+        tableIdentifier, columnList, placeholders, pkColumn, setClause);
   }
 
   @Override
   public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    if (documents == null || documents.isEmpty()) {
+      return CloseableIterator.emptyIterator();
+    }
+
+    String tableName = tableIdentifier.getTableName();
+    String pkColumn = getPKForTable(tableName);
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+    PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+
+    Connection connection = null;
+    try {
+      connection = client.getPooledConnection();
+
+      PreparedStatement preparedStatement =
+          getPreparedStatementForQuery(documents, quotedPkColumn, connection, pkType);
+
+      ResultSet resultSet = preparedStatement.executeQuery();
+
+      boolean upsertResult = bulkUpsert(documents);
+      if (!upsertResult) {
+        closeConnection(connection);
+        throw new IOException("Bulk upsert failed");
+      }
+
+      // note that connection will be closed after the iterator is used by the client
+      return new PostgresCollection.PostgresResultIteratorWithBasicTypes(
+          resultSet, connection, DocumentType.FLAT);
+
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in bulkUpsertAndReturnOlderDocuments", e);
+      closeConnection(connection);
+      throw new IOException("Could not bulk upsert the documents.", e);
+    }
+  }
+
+  private static void closeConnection(Connection connection) {
+    if (connection != null) {
+      try {
+        connection.close();
+      } catch (SQLException closeEx) {
+        LOGGER.warn("Error closing connection after exception", closeEx);
+      }
+    }
+  }
+
+  private PreparedStatement getPreparedStatementForQuery(
+      Map<Key, Document> documents,
+      String quotedPkColumn,
+      Connection connection,
+      PostgresDataType pkType)
+      throws SQLException {
+    String selectQuery =
+        String.format("SELECT * FROM %s WHERE %s = ANY(?)", tableIdentifier, quotedPkColumn);
+    PreparedStatement preparedStatement = connection.prepareStatement(selectQuery);
+
+    String[] keyArray = documents.keySet().stream().map(Key::toString).toArray(String[]::new);
+    Array sqlArray = connection.createArrayOf(pkType.getSqlType(), keyArray);
+    preparedStatement.setArray(1, sqlArray);
+    return preparedStatement;
   }
 
   @Override

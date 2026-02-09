@@ -1,7 +1,7 @@
 # Each line is a file pattern followed by one or more owners.
 
 # global
-* @avinashkolluru @kotharironak @skjindal93 @suresh-prakash
+* @avinashkolluru @kotharironak @skjindal93 @suresh-prakash @suddendust @puneet-traceable
 
 # GH action
 .github/ @hypertrace/ci-owners
