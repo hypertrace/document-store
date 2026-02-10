@@ -4,6 +4,7 @@ import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -667,7 +668,8 @@ public class FlatCollectionWriteTest {
   class CreateOrReplaceTests {
 
     @Test
-    @DisplayName("Should create new document and return true")
+    @DisplayName(
+        "Should create new document and return true. Cols not specified should be set of default NULL")
     void testCreateOrReplaceNewDocument() throws Exception {
 
       String docId = getRandomDocId(4);
@@ -691,6 +693,10 @@ public class FlatCollectionWriteTest {
             assertEquals("New Upsert Item", rs.getString("item"));
             assertEquals(500, rs.getInt("price"));
             assertEquals(25, rs.getInt("quantity"));
+            // assert on some fields that they're set to null correctly
+            assertNull(rs.getObject("sales"));
+            assertNull(rs.getObject("categoryTags"));
+            assertNull(rs.getObject("date"));
           });
     }
 
@@ -714,7 +720,6 @@ public class FlatCollectionWriteTest {
       ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
       updatedNode.put("id", docId);
       updatedNode.put("item", "Updated Item");
-      updatedNode.put("price", 999);
       updatedNode.put("quantity", 50);
       Document updatedDoc = new JSONDocument(updatedNode);
 
@@ -727,7 +732,8 @@ public class FlatCollectionWriteTest {
           rs -> {
             assertTrue(rs.next());
             assertEquals("Updated Item", rs.getString("item"));
-            assertEquals(999, rs.getInt("price"));
+            // this should be the default since price is not present in the updated document
+            assertNull(rs.getObject("price"));
             assertEquals(50, rs.getInt("quantity"));
           });
     }

@@ -862,7 +862,14 @@ public class FlatPostgresCollection extends PostgresCollection {
       PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
       parsed.add(quotedPkColumn, key.toString(), pkType, false);
 
-      String sql = buildUpsertSql(parsed.getColumns(), quotedPkColumn);
+      List<String> docColumns = parsed.getColumns();
+      List<String> allColumns =
+          schemaRegistry.getSchema(tableName).values().stream()
+              .map(PostgresColumnMetadata::getName)
+              .map(PostgresUtils::wrapFieldNamesWithDoubleQuotes)
+              .collect(Collectors.toList());
+
+      String sql = buildCreateOrReplaceSql(allColumns, docColumns, quotedPkColumn);
       LOGGER.debug("Upsert SQL: {}", sql);
 
       return executeUpsert(sql, parsed);
@@ -882,15 +889,16 @@ public class FlatPostgresCollection extends PostgresCollection {
    *
    * <ul>
    *   <li>Inserts a new row if no conflict on the primary key
-   *   <li>Updates all non-PK columns if a row with the same PK already exists
+   *   <li>If the row with that PK already exists, it is replaced in entirety. Cols not present in
+   *       the latest upsert are set to their default values (as defined in the schema)
    * </ul>
    *
    * <p><b>Generated SQL pattern:</b>
    *
    * <pre>{@code
-   * INSERT INTO table (col1, col2, pk_col)
+   * INSERT INTO table (col1, col2,, col3, pk_col)
    * VALUES (?, ?, ?)
-   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2
+   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, col3 = DEFAULT
    * RETURNING (xmax = 0) AS is_insert
    * }</pre>
    *
@@ -909,19 +917,30 @@ public class FlatPostgresCollection extends PostgresCollection {
    *   <li>Thus, {@code is_insert = true} means INSERT, {@code is_insert = false} means UPDATE
    * </ul>
    *
-   * @param columns List of quoted column names to include in the upsert (including PK)
+   * @param allTableColumns all cols present in the table
+   * @param docColumns cols present in the document
    * @param pkColumn The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
-  private String buildUpsertSql(List<String> columns, String pkColumn) {
-    String columnList = String.join(", ", columns);
-    String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
+  private String buildCreateOrReplaceSql(
+      List<String> allTableColumns, List<String> docColumns, String pkColumn) {
+    String columnList = String.join(", ", docColumns);
+    String placeholders =
+        String.join(", ", docColumns.stream().map(c -> "?").toArray(String[]::new));
+    Set<String> docColumnsSet = new HashSet<>(docColumns);
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col
+    // Build SET clause for non-PK columns.
     String setClause =
-        columns.stream()
+        allTableColumns.stream()
             .filter(col -> !col.equals(pkColumn))
-            .map(col -> col + " = EXCLUDED." + col)
+            .map(
+                col -> {
+                  if (docColumnsSet.contains(col)) {
+                    return col + " = EXCLUDED." + col;
+                  } else {
+                    return col + " = DEFAULT";
+                  }
+                })
             .collect(Collectors.joining(", "));
 
     return String.format(
