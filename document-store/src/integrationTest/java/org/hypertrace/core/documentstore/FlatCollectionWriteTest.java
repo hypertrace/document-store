@@ -1430,31 +1430,305 @@ public class FlatCollectionWriteTest {
   class DeleteTests {
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for delete by key")
-    void testDeleteByKey() {
-      Key keyToDelete = new SingleValueKey("default", "1");
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(keyToDelete));
+    @DisplayName("Should delete document by single key")
+    void testDeleteByKey() throws Exception {
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("id", "delete-key-test");
+      node.put("item", "ToDeleteByKey");
+      node.put("price", 50);
+      Key key = new SingleValueKey(DEFAULT_TENANT, "delete-key-test");
+      flatCollection.create(key, new JSONDocument(node));
+
+      assertTrue(flatCollection.delete(key));
+      queryAndAssert(key, rs -> assertFalse(rs.next()));
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for delete by filter")
-    void testDeleteByFilter() {
-      Filter filter = Filter.eq("item", "Soap");
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(filter));
+    @DisplayName("Should delete documents by multiple keys")
+    void testDeleteByKeys() throws Exception {
+      Key key1 = new SingleValueKey(DEFAULT_TENANT, "delete-keys-1");
+      Key key2 = new SingleValueKey(DEFAULT_TENANT, "delete-keys-2");
+      Key key3 = new SingleValueKey(DEFAULT_TENANT, "delete-keys-3");
+
+      for (int i = 1; i <= 3; i++) {
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("id", "delete-keys-" + i);
+        node.put("item", "Item" + i);
+        node.put("price", i * 10);
+        flatCollection.create(
+            new SingleValueKey(DEFAULT_TENANT, "delete-keys-" + i), new JSONDocument(node));
+      }
+
+      // Delete keys 1 and 2, keep 3
+      BulkDeleteResult result = flatCollection.delete(Set.of(key1, key2));
+      assertEquals(2, result.getDeletedCount());
+
+      queryAndAssert(key1, rs -> assertFalse(rs.next()));
+      queryAndAssert(key2, rs -> assertFalse(rs.next()));
+      queryAndAssert(key3, rs -> assertTrue(rs.next()));
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for delete by keys")
-    void testDeleteByKeys() {
+    @DisplayName("Should delete all documents")
+    void testDeleteAll() throws Exception {
+      for (int i = 1; i <= 2; i++) {
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("id", "delete-all-" + i);
+        node.put("item", "AllItem" + i);
+        flatCollection.create(
+            new SingleValueKey(DEFAULT_TENANT, "delete-all-" + i), new JSONDocument(node));
+      }
+
+      assertTrue(flatCollection.deleteAll());
+
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format("SELECT COUNT(*) FROM \"%s\"", FLAT_COLLECTION_NAME));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(0, rs.getInt(1));
+      }
+    }
+
+    @Test
+    @DisplayName("Should delete with various filter types: EQ, GT, IN, legacy Filter")
+    void testDeleteWithFilters() throws Exception {
+      // Setup: Create documents for different filter scenarios
+      // Doc 1: For EQ filter test
+      ObjectNode node1 = OBJECT_MAPPER.createObjectNode();
+      node1.put("id", "filter-eq");
+      node1.put("item", "ToBeDeleted");
+      node1.put("price", 100);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "filter-eq"), new JSONDocument(node1));
+
+      // Doc 2 & 3: For GT filter test
+      ObjectNode node2 = OBJECT_MAPPER.createObjectNode();
+      node2.put("id", "filter-gt-expensive");
+      node2.put("item", "Expensive");
+      node2.put("price", 1000);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "filter-gt-expensive"), new JSONDocument(node2));
+
+      ObjectNode node3 = OBJECT_MAPPER.createObjectNode();
+      node3.put("id", "filter-gt-cheap");
+      node3.put("item", "Cheap");
+      node3.put("price", 10);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "filter-gt-cheap"), new JSONDocument(node3));
+
+      // Doc 4, 5, 6: For IN filter test
+      for (String fruit : List.of("Apple", "Banana", "Cherry")) {
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("id", "filter-in-" + fruit.toLowerCase());
+        node.put("item", fruit);
+        node.put("price", 50);
+        flatCollection.create(
+            new SingleValueKey(DEFAULT_TENANT, "filter-in-" + fruit.toLowerCase()),
+            new JSONDocument(node));
+      }
+
+      // Test 1: EQ filter
+      Filter eqFilter = Filter.eq("item", "ToBeDeleted");
+      assertTrue(flatCollection.delete(eqFilter));
+      queryAndAssert(new SingleValueKey(DEFAULT_TENANT, "filter-eq"), rs -> assertFalse(rs.next()));
+
+      // Test 2: GT filter (price > 500)
+      Filter gtFilter = new Filter(Filter.Op.GT, "price", 500);
+      assertTrue(flatCollection.delete(gtFilter));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-gt-expensive"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-gt-cheap"), rs -> assertTrue(rs.next()));
+
+      // Test 3: IN filter
+      Filter inFilter = new Filter(Filter.Op.IN, "item", List.of("Apple", "Banana"));
+      assertTrue(flatCollection.delete(inFilter));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-in-apple"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-in-banana"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-in-cherry"), rs -> assertTrue(rs.next()));
+
+      // Test 4: Delete the remaining Cherry item
+      Filter cherryFilter = Filter.eq("item", "Cherry");
+      assertTrue(flatCollection.delete(cherryFilter));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "filter-in-cherry"), rs -> assertFalse(rs.next()));
+    }
+
+    @Test
+    @DisplayName("Should delete with composite AND filter and nested JSONB filter")
+    void testDeleteWithCompositeAndNestedFilters() throws Exception {
+      // Setup for AND filter
+      ObjectNode node1 = OBJECT_MAPPER.createObjectNode();
+      node1.put("id", "and-match");
+      node1.put("item", "TargetItem");
+      node1.put("price", 100);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "and-match"), new JSONDocument(node1));
+
+      ObjectNode node2 = OBJECT_MAPPER.createObjectNode();
+      node2.put("id", "and-nomatch");
+      node2.put("item", "TargetItem");
+      node2.put("price", 200);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "and-nomatch"), new JSONDocument(node2));
+
+      // Setup for JSONB nested filter
+      ObjectNode node3 = OBJECT_MAPPER.createObjectNode();
+      node3.put("id", "jsonb-nike");
+      node3.put("item", "Product1");
+      ObjectNode props1 = OBJECT_MAPPER.createObjectNode();
+      props1.put("brand", "Nike");
+      node3.set("props", props1);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "jsonb-nike"), new JSONDocument(node3));
+
+      ObjectNode node4 = OBJECT_MAPPER.createObjectNode();
+      node4.put("id", "jsonb-adidas");
+      node4.put("item", "Product2");
+      ObjectNode props2 = OBJECT_MAPPER.createObjectNode();
+      props2.put("brand", "Adidas");
+      node4.set("props", props2);
+      flatCollection.create(
+          new SingleValueKey(DEFAULT_TENANT, "jsonb-adidas"), new JSONDocument(node4));
+
+      // Test 1: AND filter (item = 'TargetItem' AND price = 100)
+      Filter andFilter = Filter.eq("item", "TargetItem").and(Filter.eq("price", 100));
+      assertTrue(flatCollection.delete(andFilter));
+      queryAndAssert(new SingleValueKey(DEFAULT_TENANT, "and-match"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "and-nomatch"), rs -> assertTrue(rs.next()));
+
+      // Test 2: Nested JSONB filter (props.brand = 'Nike')
+      Filter jsonbFilter = Filter.eq("props.brand", "Nike");
+      assertTrue(flatCollection.delete(jsonbFilter));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "jsonb-nike"), rs -> assertFalse(rs.next()));
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "jsonb-adidas"), rs -> assertTrue(rs.next()));
+    }
+
+    @Test
+    @DisplayName("Should handle edge cases: no match returns false, null filter throws exception")
+    void testDeleteEdgeCases() {
+      // Test 1: No match returns false
+      Filter noMatchFilter = Filter.eq("item", "NonExistentItem12345");
+      assertFalse(flatCollection.delete(noMatchFilter));
+
+      // Test 2: Null filter throws exception
+      assertThrows(IllegalArgumentException.class, () -> flatCollection.delete((Filter) null));
+    }
+
+    @Test
+    @DisplayName(
+        "delete(Filter) should throw exception when table is dropped (schema lookup fails)")
+    void testDeleteByFilterThrowsExceptionOnDroppedTable() throws Exception {
+      // Create a temporary table, get collection, then drop the table to trigger exception
+      String tempTable = "temp_delete_filter_test";
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Create temp table
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "CREATE TABLE \"%s\" (\"id\" TEXT PRIMARY KEY, \"item\" TEXT)", tempTable))) {
+        ps.execute();
+      }
+
+      // Get collection for the temp table
+      Collection tempCollection =
+          postgresDatastore.getCollectionForType(tempTable, DocumentType.FLAT);
+
+      // Drop the table - this will cause schema lookup to fail when delete is called
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(String.format("DROP TABLE \"%s\"", tempTable))) {
+        ps.execute();
+      }
+
+      // With legacy filter transformer, schema lookup happens first and throws exception
+      Filter filter = Filter.eq("item", "SomeValue");
+      assertThrows(Exception.class, () -> tempCollection.delete(filter));
+    }
+
+    @Test
+    @DisplayName("delete(Set<Key>) should return BulkDeleteResult(0) when SQLException occurs")
+    void testDeleteByKeysReturnsZeroOnSQLException() throws Exception {
+      // Create a temporary table, get collection, then drop the table to trigger SQLException
+      String tempTable = "temp_delete_keys_test";
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Create temp table
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "CREATE TABLE \"%s\" (\"id\" TEXT PRIMARY KEY, \"item\" TEXT)", tempTable))) {
+        ps.execute();
+      }
+
+      // Get collection for the temp table
+      Collection tempCollection =
+          postgresDatastore.getCollectionForType(tempTable, DocumentType.FLAT);
+
+      // Insert a document to force schema caching (getPKForTable is called during create)
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("id", "temp-key");
+      node.put("item", "temp-item");
+      tempCollection.create(new SingleValueKey(DEFAULT_TENANT, "temp-key"), new JSONDocument(node));
+
+      // Drop the table to cause SQLException on delete
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(String.format("DROP TABLE \"%s\"", tempTable))) {
+        ps.execute();
+      }
+
       Set<Key> keys =
-          Set.of(new SingleValueKey("default", "1"), new SingleValueKey("default", "2"));
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.delete(keys));
+          Set.of(
+              new SingleValueKey(DEFAULT_TENANT, "key1"),
+              new SingleValueKey(DEFAULT_TENANT, "key2"));
+
+      // SQLException should be caught and method should return BulkDeleteResult with 0 count
+      BulkDeleteResult result = tempCollection.delete(keys);
+      assertEquals(0, result.getDeletedCount());
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for deleteAll")
-    void testDeleteAll() {
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.deleteAll());
+    @DisplayName("deleteAll() should return false when SQLException occurs (dropped table)")
+    void testDeleteAllReturnsFalseOnSQLException() throws Exception {
+      // Create a temporary table, get collection, then drop the table to trigger SQLException
+      String tempTable = "temp_delete_all_test";
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Create temp table
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "CREATE TABLE \"%s\" (\"id\" TEXT PRIMARY KEY, \"item\" TEXT)", tempTable))) {
+        ps.execute();
+      }
+
+      // Get collection for the temp table
+      Collection tempCollection =
+          postgresDatastore.getCollectionForType(tempTable, DocumentType.FLAT);
+
+      // Drop the table to cause SQLException on delete
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(String.format("DROP TABLE \"%s\"", tempTable))) {
+        ps.execute();
+      }
+
+      // SQLException should be caught and method should return false
+      assertFalse(tempCollection.deleteAll());
     }
   }
 

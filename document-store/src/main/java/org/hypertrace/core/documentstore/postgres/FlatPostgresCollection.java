@@ -45,6 +45,7 @@ import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.LegacyFilterToQueryFilterTransformer;
 import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocSetOperatorParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocUpdateOperatorParser;
@@ -167,22 +168,102 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public boolean delete(Key key) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    String pkForTable = getPKForTable(tableIdentifier.getTableName());
+    String deleteSQL =
+        String.format(
+            "DELETE FROM %s WHERE %s = ?",
+            tableIdentifier, PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkForTable));
+    try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
+      preparedStatement.setString(1, key.toString());
+      preparedStatement.executeUpdate();
+      return true;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting document. key: {}", key, e);
+    }
+    return false;
   }
 
   @Override
   public boolean delete(Filter filter) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+
+    Preconditions.checkArgument(filter != null, "Filter cannot be null");
+
+    LegacyFilterToQueryFilterTransformer filterTransformer =
+        new LegacyFilterToQueryFilterTransformer(schemaRegistry, tableIdentifier.getTableName());
+
+    org.hypertrace.core.documentstore.query.Filter transformedFilter =
+        filterTransformer.transform(filter);
+
+    Query query = Query.builder().setFilter(transformedFilter).build();
+
+    // Create parser with flat field transformer
+    PostgresQueryParser queryParser =
+        new PostgresQueryParser(tableIdentifier, query, new FlatPostgresFieldTransformer());
+
+    String filterClause = queryParser.buildFilterClause();
+
+    if (filterClause.isEmpty()) {
+      throw new IllegalArgumentException("Parsed filter is invalid");
+    }
+
+    String sql = "DELETE FROM " + tableIdentifier + " " + filterClause;
+    LOGGER.debug("Delete SQL: {}", sql);
+
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps =
+            queryExecutor.buildPreparedStatement(
+                sql, queryParser.getParamsBuilder().build(), conn)) {
+      int deletedCount = ps.executeUpdate();
+      LOGGER.debug("Deleted {} rows", deletedCount);
+      return deletedCount > 0;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting documents. filter: {}", filter, e);
+    }
+    return false;
   }
 
   @Override
   public BulkDeleteResult delete(Set<Key> keys) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    if (keys == null || keys.isEmpty()) {
+      return new BulkDeleteResult(0);
+    }
+
+    String pkColumn = getPKForTable(tableIdentifier.getTableName());
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+
+    String ids =
+        keys.stream().map(key -> "'" + key.toString() + "'").collect(Collectors.joining(", "));
+
+    String deleteSQL =
+        String.format("DELETE FROM %s WHERE %s IN (%s)", tableIdentifier, quotedPkColumn, ids);
+
+    LOGGER.debug("Bulk delete SQL: {}", deleteSQL);
+
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(deleteSQL)) {
+      int deletedCount = ps.executeUpdate();
+      LOGGER.debug("Bulk deleted {} rows", deletedCount);
+      return new BulkDeleteResult(deletedCount);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException bulk deleting documents. keys: {}", keys, e);
+    }
+    return new BulkDeleteResult(0);
   }
 
   @Override
   public boolean deleteAll() {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    String deleteSQL = String.format("DELETE FROM %s", tableIdentifier);
+    LOGGER.debug("Delete all SQL: {}", deleteSQL);
+
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(deleteSQL)) {
+      int deletedCount = ps.executeUpdate();
+      LOGGER.debug("Deleted all {} rows", deletedCount);
+      return true;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting all documents.", e);
+    }
+    return false;
   }
 
   @Override
