@@ -34,7 +34,6 @@ import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
-import org.hypertrace.core.documentstore.commons.FlatStoreConstants;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
 import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
@@ -94,17 +93,27 @@ public class FlatPostgresCollection extends PostgresCollection {
     super(client, collectionName);
     this.schemaRegistry = schemaRegistry;
     this.missingColumnStrategy = parseMissingColumnStrategy(client.getCustomParameters());
-    this.createdTsColumn =
-        getTsColFromConfig(FlatStoreConstants.CREATED_TS_COL_KEY, client.getCustomParameters())
-            .orElse(null);
-    this.lastUpdatedTsColumn =
-        getTsColFromConfig(FlatStoreConstants.LAST_UPDATED_TS_COL_KEY, client.getCustomParameters())
-            .orElse(null);
+
+    // Get timestamp configuration from collectionConfigs
+    String createdTs = null;
+    String lastUpdatedTs = null;
+
+    var collectionConfig = client.getCollectionConfig(collectionName);
+    if (collectionConfig.isPresent() && collectionConfig.get().getTimestampFields().isPresent()) {
+      var tsConfig = collectionConfig.get().getTimestampFields().get();
+      createdTs = tsConfig.getCreated().orElse(null);
+      lastUpdatedTs = tsConfig.getLastUpdated().orElse(null);
+    }
+
+    this.createdTsColumn = createdTs;
+    this.lastUpdatedTsColumn = lastUpdatedTs;
+
     if (this.createdTsColumn == null || this.lastUpdatedTsColumn == null) {
       LOGGER.warn(
           "timestampFields config not set properly for collection '{}'. "
-              + "Document timestamps (either createdTime, lastUpdatedTime or both) will not be auto-managed. "
-              + "Configure via: {{\"timestampFields\": {{\"createdTsCol\": \"<col>\", \"lastUpdatedTsCol\": \"<col>\"}}}}",
+              + "Document timestamps (either created, lastUpdated or both) will not be auto-managed. "
+              + "Configure via collectionConfigs.{}.timestampFields {{ created = \"<col>\", lastUpdated = \"<col>\" }}",
+          collectionName,
           collectionName);
     }
   }
@@ -122,24 +131,6 @@ public class FlatPostgresCollection extends PostgresCollection {
           value,
           Arrays.toString(MissingColumnStrategy.values()));
       return MissingColumnStrategy.defaultStrategy();
-    }
-  }
-
-  private Optional<String> getTsColFromConfig(String key, Map<String, String> config) {
-    String jsonValue = config.get(FlatStoreConstants.TIMESTAMP_FIELDS_CONFIG);
-    if (jsonValue == null || jsonValue.isEmpty()) {
-      return Optional.empty();
-    }
-    try {
-      JsonNode node = MAPPER.readTree(jsonValue);
-      return Optional.ofNullable(node.get(key).asText(null));
-    } catch (Exception e) {
-      LOGGER.warn(
-          "Failed to parse timestampFields config: '{}'. Expected format: "
-              + "{{\"docCreatedTsCol\": \"<col>\", \"docLastUpdatedTsCol\": \"<col>\"}}. Error: {}",
-          jsonValue,
-          e.getMessage());
-      return Optional.empty();
     }
   }
 

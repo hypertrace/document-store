@@ -35,6 +35,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
   private static final String DEFAULT_QUERY_TIMEOUT_KEY = "queryTimeout";
   private static final String DEFAULT_CONNECTION_TIMEOUT_KEY = "connectionTimeout";
   private static final String DEFAULT_CUSTOM_PARAMETERS_PREFIX = "customParams";
+  private static final String DEFAULT_COLLECTION_CONFIGS_PREFIX = "collectionConfigs";
 
   @NonNull Config config;
   DatastoreConfigBuilder datastoreConfigBuilder;
@@ -82,7 +83,8 @@ public class TypesafeConfigDatastoreConfigExtractor {
         .dataFreshnessKey(DEFAULT_DATA_FRESHNESS_KEY)
         .queryTimeoutKey(DEFAULT_QUERY_TIMEOUT_KEY)
         .connectionTimeoutKey(DEFAULT_CONNECTION_TIMEOUT_KEY)
-        .customParametersKey(DEFAULT_CUSTOM_PARAMETERS_PREFIX);
+        .customParametersKey(DEFAULT_CUSTOM_PARAMETERS_PREFIX)
+        .collectionConfigsKey(dataStoreType + "." + DEFAULT_COLLECTION_CONFIGS_PREFIX);
   }
 
   public static TypesafeConfigDatastoreConfigExtractor from(
@@ -253,6 +255,54 @@ public class TypesafeConfigDatastoreConfigExtractor {
     return this;
   }
 
+  public TypesafeConfigDatastoreConfigExtractor collectionConfigsKey(@NonNull final String key) {
+    if (!config.hasPath(key)) {
+      return this;
+    }
+
+    try {
+      Config collectionsConfig = config.getConfig(key);
+      collectionsConfig
+          .root()
+          .keySet()
+          .forEach(
+              collectionName -> {
+                Config collectionConfig = collectionsConfig.getConfig(collectionName);
+                org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig
+                        .CollectionConfigBuilder
+                    builder =
+                        org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig
+                            .builder();
+
+                // Parse timestampFields if present
+                if (collectionConfig.hasPath("timestampFields")) {
+                  Config timestampConfig = collectionConfig.getConfig("timestampFields");
+                  org.hypertrace.core.documentstore.model.config.postgres.TimestampFieldsConfig
+                          .TimestampFieldsConfigBuilder
+                      tsBuilder =
+                          org.hypertrace.core.documentstore.model.config.postgres
+                              .TimestampFieldsConfig.builder();
+
+                  if (timestampConfig.hasPath("created")) {
+                    tsBuilder.created(timestampConfig.getString("created"));
+                  }
+                  if (timestampConfig.hasPath("lastUpdated")) {
+                    tsBuilder.lastUpdated(timestampConfig.getString("lastUpdated"));
+                  }
+
+                  builder.timestampFields(tsBuilder.build());
+                }
+
+                connectionConfigBuilder.collectionConfig(collectionName, builder.build());
+              });
+    } catch (Exception e) {
+      LOGGER.warn(
+          "Collection configs key '{}' exists but could not be parsed: {}", key, e.getMessage());
+    }
+
+    return this;
+  }
+
   public DatastoreConfig extract() {
     if (connectionConfigBuilder.endpoints().isEmpty()
         && !Endpoint.builder().build().equals(endpointBuilder.build())) {
@@ -265,6 +315,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
                 .connectionPoolConfig(connectionPoolConfigBuilder.build())
                 .credentials(connectionCredentialsBuilder.build())
                 .customParameters(connectionConfigBuilder.customParameters())
+                .collectionConfigs(connectionConfigBuilder.collectionConfigs())
                 .build())
         .build();
   }
