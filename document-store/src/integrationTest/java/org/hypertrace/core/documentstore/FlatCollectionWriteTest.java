@@ -2173,6 +2173,98 @@ public class FlatCollectionWriteTest {
       }
 
       @Test
+      @DisplayName("Should throw IllegalArgumentException for multi-valued primitive value")
+      void testAddMultiValuedPrimitiveValue() {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // ADD with an array of numbers should fail
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new Integer[] {1, 2, 3}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        assertThrows(
+            IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
+      }
+
+      @Test
+      @DisplayName("Should throw IllegalArgumentException for nested document value")
+      void testAddNestedDocumentValue() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // ADD with a nested document should fail
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new JSONDocument("{\"nested\": 123}")))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        assertThrows(
+            IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
+      }
+
+      @Test
+      @DisplayName("Should throw IllegalArgumentException for multi-valued nested document value")
+      void testAddMultiValuedNestedDocumentValue() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // ADD with an array of documents should fail
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new Document[] {
+                              new JSONDocument("{\"a\": 1}"), new JSONDocument("{\"b\": 2}")
+                            }))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        assertThrows(
+            IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
+      }
+
+      @Test
       @DisplayName("Should ADD to BIGINT column with correct type cast")
       void testAddBigintColumn() throws Exception {
         // Create a document with big_number set
