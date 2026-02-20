@@ -2171,6 +2171,97 @@ public class FlatCollectionWriteTest {
         assertThrows(
             IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
       }
+
+      @Test
+      @DisplayName("Should ADD to BIGINT column with correct type cast")
+      void testAddBigintColumn() throws Exception {
+        // Create a document with big_number set
+        String docId = "add-bigint-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "BigintItem");
+        node.put("big_number", 1000000000000L);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // ADD 500 to big_number
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("big_number")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(500L))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(1000000000500L, resultJson.get("big_number").asLong());
+      }
+
+      @Test
+      @DisplayName("Should ADD to REAL column with correct type cast")
+      void testAddRealColumn() throws Exception {
+        // Create a document with rating set
+        String docId = "add-real-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "RealItem");
+        node.put("rating", 3.5);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // ADD 1.0 to rating (3.5 + 1.0 = 4.5)
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("rating")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(1.0))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+
+        // Verify in database directly
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"rating\" FROM \"%s\" WHERE \"id\" = '%s'",
+                        FLAT_COLLECTION_NAME, key));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals(4.5f, rs.getFloat("rating"), 0.01f);
+        }
+      }
     }
 
     @Test
