@@ -204,16 +204,154 @@ public class FlatCollectionWriteTest {
   class UpsertTests {
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for upsert")
-    void testUpsertNewDocument() {
+    @DisplayName("Should create new document when key doesn't exist and return true")
+    void testUpsertNewDocument() throws Exception {
+      String docId = getRandomDocId(4);
+
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("_id", 100);
+      objectNode.put("id", docId);
       objectNode.put("item", "NewItem");
       objectNode.put("price", 99);
       Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "100");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
 
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.upsert(key, document));
+      boolean isNew = flatCollection.upsert(key, document);
+
+      assertTrue(isNew, "Should return true for new document");
+
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("NewItem", rs.getString("item"));
+            assertEquals(99, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("Should merge with existing document preserving unspecified fields")
+    void testUpsertMergesWithExistingDocument() throws Exception {
+      String docId = getRandomDocId(4);
+
+      // First, create a document with multiple fields
+      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
+      initialNode.put("id", docId);
+      initialNode.put("item", "Original Item");
+      initialNode.put("price", 100);
+      initialNode.put("quantity", 50);
+      initialNode.put("in_stock", true);
+      Document initialDoc = new JSONDocument(initialNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      boolean firstResult = flatCollection.upsert(key, initialDoc);
+      assertTrue(firstResult, "First upsert should create new document");
+
+      // Now upsert with only some fields - others should be PRESERVED (merge behavior)
+      ObjectNode mergeNode = OBJECT_MAPPER.createObjectNode();
+      mergeNode.put("id", docId);
+      mergeNode.put("item", "Updated Item");
+      // price and quantity are NOT specified - they should retain their original values
+      Document mergeDoc = new JSONDocument(mergeNode);
+
+      boolean secondResult = flatCollection.upsert(key, mergeDoc);
+      assertFalse(secondResult, "Second upsert should update existing document");
+
+      // Verify merge behavior: item updated, price/quantity/in_stock preserved
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Updated Item", rs.getString("item"));
+            // These should be PRESERVED from the original document (merge semantics)
+            assertEquals(100, rs.getInt("price"));
+            assertEquals(50, rs.getInt("quantity"));
+            assertTrue(rs.getBoolean("in_stock"));
+          });
+    }
+
+    @Test
+    @DisplayName("Upsert vs CreateOrReplace: upsert preserves, createOrReplace resets to default")
+    void testUpsertVsCreateOrReplaceBehavior() throws Exception {
+      String docId1 = getRandomDocId(4);
+      String docId2 = getRandomDocId(4);
+
+      // Setup: Create two identical documents
+      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
+      initialNode.put("item", "Original Item");
+      initialNode.put("price", 100);
+      initialNode.put("quantity", 50);
+
+      ObjectNode doc1 = initialNode.deepCopy();
+      doc1.put("id", docId1);
+      ObjectNode doc2 = initialNode.deepCopy();
+      doc2.put("id", docId2);
+
+      Key key1 = new SingleValueKey(DEFAULT_TENANT, docId1);
+      Key key2 = new SingleValueKey(DEFAULT_TENANT, docId2);
+
+      flatCollection.upsert(key1, new JSONDocument(doc1));
+      flatCollection.upsert(key2, new JSONDocument(doc2));
+
+      // Now update both with partial documents (only item field)
+      ObjectNode partialUpdate = OBJECT_MAPPER.createObjectNode();
+      partialUpdate.put("item", "Updated Item");
+
+      ObjectNode partial1 = partialUpdate.deepCopy();
+      partial1.put("id", docId1);
+      ObjectNode partial2 = partialUpdate.deepCopy();
+      partial2.put("id", docId2);
+
+      // Use upsert for doc1 - should PRESERVE price and quantity
+      flatCollection.upsert(key1, new JSONDocument(partial1));
+
+      // Use createOrReplace for doc2 - should RESET price and quantity to NULL (default)
+      flatCollection.createOrReplace(key2, new JSONDocument(partial2));
+
+      // Verify upsert preserved original values
+      queryAndAssert(
+          key1,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Updated Item", rs.getString("item"));
+            assertEquals(100, rs.getInt("price")); // PRESERVED
+            assertEquals(50, rs.getInt("quantity")); // PRESERVED
+          });
+
+      // Verify createOrReplace reset to defaults
+      queryAndAssert(
+          key2,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Updated Item", rs.getString("item"));
+            assertNull(rs.getObject("price")); // RESET to NULL
+            assertNull(rs.getObject("quantity")); // RESET to NULL
+          });
+    }
+
+    @Test
+    @DisplayName("Should skip unknown fields in upsert (default SKIP strategy)")
+    void testUpsertSkipsUnknownFields() throws Exception {
+      String docId = getRandomDocId(4);
+
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", docId);
+      objectNode.put("item", "Item with unknown");
+      objectNode.put("price", 200);
+      objectNode.put("unknown_field", "should be skipped");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      boolean isNew = flatCollection.upsert(key, document);
+      assertTrue(isNew);
+
+      // Verify only known fields were inserted
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Item with unknown", rs.getString("item"));
+            assertEquals(200, rs.getInt("price"));
+          });
     }
 
     @Test
