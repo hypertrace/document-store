@@ -76,9 +76,9 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   private static final Map<UpdateOperator, FlatCollectionSubDocUpdateOperatorParser>
       SUB_DOC_UPDATE_PARSERS =
-          Map.of(
-              SET, new FlatCollectionSubDocSetOperatorParser(),
-              ADD, new FlatCollectionSubDocAddOperatorParser());
+      Map.of(
+          SET, new FlatCollectionSubDocSetOperatorParser(),
+          ADD, new FlatCollectionSubDocAddOperatorParser());
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
@@ -376,7 +376,7 @@ public class FlatPostgresCollection extends PostgresCollection {
   /**
    * Builds a PostgreSQL bulk upsert SQL statement for batch execution.
    *
-   * @param columns List of quoted column names (PK should be first)
+   * @param columns  List of quoted column names (PK should be first)
    * @param pkColumn The quoted primary key column name
    * @return The upsert SQL statement
    */
@@ -548,7 +548,7 @@ public class FlatPostgresCollection extends PostgresCollection {
    * Validates all updates and resolves column names.
    *
    * @return Map of path -> columnName for all resolved columns. For example: customAttributes.props
-   *     -> customAttributes (since customAttributes is the top-level JSONB col)
+   * -> customAttributes (since customAttributes is the top-level JSONB col)
    */
   private Map<String, String> resolvePathsToColumns(
       Collection<SubDocumentUpdate> updates, String tableName) {
@@ -621,7 +621,9 @@ public class FlatPostgresCollection extends PostgresCollection {
     return Optional.empty();
   }
 
-  /** Extracts the nested JSONB path from a full path given the resolved column name. */
+  /**
+   * Extracts the nested JSONB path from a full path given the resolved column name.
+   */
   private String[] getNestedPath(String fullPath, String columnName) {
     if (fullPath.equals(columnName)) {
       return new String[0];
@@ -732,7 +734,53 @@ public class FlatPostgresCollection extends PostgresCollection {
       java.util.Collection<SubDocumentUpdate> updates,
       UpdateOptions updateOptions)
       throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+
+    Preconditions.checkArgument(
+        updateOptions != null && !updates.isEmpty(), "Updates collection cannot be NULL or empty");
+
+    String tableName = tableIdentifier.getTableName();
+    CloseableIterator<Document> beforeIterator = null;
+
+    try {
+      ReturnDocumentType returnType = updateOptions.getReturnDocumentType();
+
+      Map<String, String> resolvedColumns = resolvePathsToColumns(updates, tableName);
+
+      if (returnType == BEFORE_UPDATE) {
+        beforeIterator = find(query);
+      }
+
+      try (Connection connection = client.getPooledConnection()) {
+        executeUpdate(connection, query, updates, tableName, resolvedColumns);
+      }
+
+      switch (returnType) {
+        case AFTER_UPDATE:
+          return find(query);
+
+        case BEFORE_UPDATE:
+          return beforeIterator;
+
+        case NONE:
+          return CloseableIterator.emptyIterator();
+
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported return document type: " + returnType);
+      }
+
+    } catch (SQLException e) {
+      if (beforeIterator != null) {
+        beforeIterator.close();
+      }
+      LOGGER.error("SQLException during bulkUpdate operation", e);
+      throw new IOException(e);
+    } catch (Exception e) {
+      if (beforeIterator != null) {
+        beforeIterator.close();
+      }
+      throw new IOException(e);
+    }
   }
 
   /*isRetry: Whether this is a retry attempt*/
@@ -923,8 +971,8 @@ public class FlatPostgresCollection extends PostgresCollection {
    * </ul>
    *
    * @param allTableColumns all cols present in the table
-   * @param docColumns cols present in the document
-   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @param docColumns      cols present in the document
+   * @param pkColumn        The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
   private String buildCreateOrReplaceSql(
