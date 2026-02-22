@@ -2033,6 +2033,467 @@ public class FlatCollectionWriteTest {
       }
     }
 
+    @Nested
+    @DisplayName("ADD Operator Tests")
+    class AddSubdocOperatorTests {
+
+      @Test
+      @DisplayName("Should increment top-level numeric column with ADD operator")
+      void testAddTopLevelColumn() throws Exception {
+        // Row 1 has price = 10
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // ADD 5 to price (10 + 5 = 15)
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(5))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(15, resultJson.get("price").asInt());
+
+        // Verify in database
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"price\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals(15, rs.getInt("price"));
+        }
+      }
+
+      @Test
+      @DisplayName("Should handle ADD on NULL column (treat as 0)")
+      void testAddOnNullColumn() throws Exception {
+        // Create a document with NULL price
+        String docId = "add-null-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "NullPriceItem");
+        // price is not set, will be NULL
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // ADD 100 to NULL price (COALESCE(NULL, 0) + 100 = 100)
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(100))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(100, resultJson.get("price").asInt());
+      }
+
+      @Test
+      @DisplayName("Should ADD with negative value (decrement)")
+      void testAddNegativeValue() throws Exception {
+        // Row 2 has price = 20
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("2")))
+                .build();
+
+        // ADD -5 to price (20 - 5 = 15)
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(-5))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(15, resultJson.get("price").asInt());
+      }
+
+      @Test
+      @DisplayName("Should ADD with floating point value")
+      void testAddFloatingPointValue() throws Exception {
+        // Row 3 has price = 30
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("3")))
+                .build();
+
+        // ADD 0.5 to price (30 + 0.5 = 30.5, but price is INTEGER so it might truncate)
+        // Testing with a column that supports decimals - weight is DOUBLE PRECISION
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("weight")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(2.5))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        // Initial weight is NULL, so COALESCE(NULL, 0) + 2.5 = 2.5
+        assertEquals(2.5, resultJson.get("weight").asDouble(), 0.01);
+      }
+
+      @Test
+      @DisplayName("Should ADD to nested JSONB numeric field")
+      void testAddNestedJsonbField() throws Exception {
+        // First, set up a document with a JSONB field containing a numeric value
+        String docId = "add-jsonb-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "JsonbItem");
+        ObjectNode sales = OBJECT_MAPPER.createObjectNode();
+        sales.put("total", 100);
+        sales.put("count", 5);
+        node.set("sales", sales);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // ADD 50 to sales.total (100 + 50 = 150)
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("sales.total")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(50))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(150, resultJson.get("sales").get("total").asInt());
+        // Verify count wasn't affected
+        assertEquals(5, resultJson.get("sales").get("count").asInt());
+      }
+
+      @Test
+      @DisplayName("Should ADD to nested JSONB field that doesn't exist (creates with value)")
+      void testAddNestedJsonbFieldNotExists() throws Exception {
+        // Document with empty JSONB or no such nested key
+        String docId = "add-jsonb-new-key";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "NewKeyItem");
+        ObjectNode sales = OBJECT_MAPPER.createObjectNode();
+        sales.put("region", "US");
+        // No 'total' key
+        node.set("sales", sales);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // ADD 75 to sales.total (non-existent, should become 0 + 75 = 75)
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("sales.total")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(75))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(75.0, resultJson.get("sales").get("total").asDouble(), 0.01);
+        // Verify existing key wasn't affected
+        assertEquals("US", resultJson.get("sales").get("region").asText());
+      }
+
+      @Test
+      @DisplayName("Should throw IllegalArgumentException for non-numeric value")
+      void testAddNonNumericValue() {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // ADD with a string value should fail
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            "not-a-number"))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        assertThrows(
+            IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
+      }
+
+      @Test
+      @DisplayName("Should throw IllegalArgumentException for multi-valued primitive value")
+      void testAddMultiValuedPrimitiveValue() {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // ADD with an array of numbers should fail
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new Integer[] {1, 2, 3}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        assertThrows(
+            IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
+      }
+
+      @Test
+      @DisplayName("Should throw IllegalArgumentException for nested document value")
+      void testAddNestedDocumentValue() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // ADD with a nested document should fail
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new JSONDocument("{\"nested\": 123}")))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        assertThrows(
+            IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
+      }
+
+      @Test
+      @DisplayName("Should throw IllegalArgumentException for multi-valued nested document value")
+      void testAddMultiValuedNestedDocumentValue() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // ADD with an array of documents should fail
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new Document[] {
+                              new JSONDocument("{\"a\": 1}"), new JSONDocument("{\"b\": 2}")
+                            }))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        assertThrows(
+            IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
+      }
+
+      @Test
+      @DisplayName("Should ADD to BIGINT column with correct type cast")
+      void testAddBigintColumn() throws Exception {
+        // Create a document with big_number set
+        String docId = "add-bigint-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "BigintItem");
+        node.put("big_number", 1000000000000L);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // ADD 500 to big_number
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("big_number")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(500L))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(1000000000500L, resultJson.get("big_number").asLong());
+      }
+
+      @Test
+      @DisplayName("Should ADD to REAL column with correct type cast")
+      void testAddRealColumn() throws Exception {
+        // Create a document with rating set
+        String docId = "add-real-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "RealItem");
+        node.put("rating", 3.5);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // ADD 1.0 to rating (3.5 + 1.0 = 4.5)
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("rating")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(1.0))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+
+        // Verify in database directly
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"rating\" FROM \"%s\" WHERE \"id\" = '%s'",
+                        FLAT_COLLECTION_NAME, key));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals(4.5f, rs.getFloat("rating"), 0.01f);
+        }
+      }
+    }
+
     @Test
     @DisplayName("Should return empty when no document matches query")
     void testUpdateNoMatch() throws Exception {
