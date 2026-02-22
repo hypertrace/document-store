@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -47,6 +48,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.LegacyFilterToQueryFilterTransformer;
 import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
+import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocAddOperatorParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocSetOperatorParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocUpdateOperatorParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
@@ -73,7 +75,10 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
 
   private static final Map<UpdateOperator, FlatCollectionSubDocUpdateOperatorParser>
-      SUB_DOC_UPDATE_PARSERS = Map.of(SET, new FlatCollectionSubDocSetOperatorParser());
+      SUB_DOC_UPDATE_PARSERS =
+          Map.of(
+              SET, new FlatCollectionSubDocSetOperatorParser(),
+              ADD, new FlatCollectionSubDocAddOperatorParser());
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
@@ -168,22 +173,102 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public boolean delete(Key key) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    String pkForTable = getPKForTable(tableIdentifier.getTableName());
+    String deleteSQL =
+        String.format(
+            "DELETE FROM %s WHERE %s = ?",
+            tableIdentifier, PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkForTable));
+    try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
+      preparedStatement.setString(1, key.toString());
+      preparedStatement.executeUpdate();
+      return true;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting document. key: {}", key, e);
+    }
+    return false;
   }
 
   @Override
   public boolean delete(Filter filter) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+
+    Preconditions.checkArgument(filter != null, "Filter cannot be null");
+
+    LegacyFilterToQueryFilterTransformer filterTransformer =
+        new LegacyFilterToQueryFilterTransformer(schemaRegistry, tableIdentifier.getTableName());
+
+    org.hypertrace.core.documentstore.query.Filter transformedFilter =
+        filterTransformer.transform(filter);
+
+    Query query = Query.builder().setFilter(transformedFilter).build();
+
+    // Create parser with flat field transformer
+    PostgresQueryParser queryParser =
+        new PostgresQueryParser(tableIdentifier, query, new FlatPostgresFieldTransformer());
+
+    String filterClause = queryParser.buildFilterClause();
+
+    if (filterClause.isEmpty()) {
+      throw new IllegalArgumentException("Parsed filter is invalid");
+    }
+
+    String sql = "DELETE FROM " + tableIdentifier + " " + filterClause;
+    LOGGER.debug("Delete SQL: {}", sql);
+
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps =
+            queryExecutor.buildPreparedStatement(
+                sql, queryParser.getParamsBuilder().build(), conn)) {
+      int deletedCount = ps.executeUpdate();
+      LOGGER.debug("Deleted {} rows", deletedCount);
+      return deletedCount > 0;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting documents. filter: {}", filter, e);
+    }
+    return false;
   }
 
   @Override
   public BulkDeleteResult delete(Set<Key> keys) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    if (keys == null || keys.isEmpty()) {
+      return new BulkDeleteResult(0);
+    }
+
+    String pkColumn = getPKForTable(tableIdentifier.getTableName());
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+
+    String ids =
+        keys.stream().map(key -> "'" + key.toString() + "'").collect(Collectors.joining(", "));
+
+    String deleteSQL =
+        String.format("DELETE FROM %s WHERE %s IN (%s)", tableIdentifier, quotedPkColumn, ids);
+
+    LOGGER.debug("Bulk delete SQL: {}", deleteSQL);
+
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(deleteSQL)) {
+      int deletedCount = ps.executeUpdate();
+      LOGGER.debug("Bulk deleted {} rows", deletedCount);
+      return new BulkDeleteResult(deletedCount);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException bulk deleting documents. keys: {}", keys, e);
+    }
+    return new BulkDeleteResult(0);
   }
 
   @Override
   public boolean deleteAll() {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    String deleteSQL = String.format("DELETE FROM %s", tableIdentifier);
+    LOGGER.debug("Delete all SQL: {}", deleteSQL);
+
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(deleteSQL)) {
+      int deletedCount = ps.executeUpdate();
+      LOGGER.debug("Deleted all {} rows", deletedCount);
+      return true;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting all documents.", e);
+    }
+    return false;
   }
 
   @Override
@@ -927,7 +1012,14 @@ public class FlatPostgresCollection extends PostgresCollection {
       PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
       parsed.add(quotedPkColumn, key.toString(), pkType, false);
 
-      String sql = buildUpsertSql(parsed.getColumns(), quotedPkColumn);
+      List<String> docColumns = parsed.getColumns();
+      List<String> allColumns =
+          schemaRegistry.getSchema(tableName).values().stream()
+              .map(PostgresColumnMetadata::getName)
+              .map(PostgresUtils::wrapFieldNamesWithDoubleQuotes)
+              .collect(Collectors.toList());
+
+      String sql = buildCreateOrReplaceSql(allColumns, docColumns, quotedPkColumn);
       LOGGER.debug("Upsert SQL: {}", sql);
 
       return executeUpsert(sql, parsed);
@@ -947,15 +1039,16 @@ public class FlatPostgresCollection extends PostgresCollection {
    *
    * <ul>
    *   <li>Inserts a new row if no conflict on the primary key
-   *   <li>Updates all non-PK columns if a row with the same PK already exists
+   *   <li>If the row with that PK already exists, it is replaced in entirety. Cols not present in
+   *       the latest upsert are set to their default values (as defined in the schema)
    * </ul>
    *
    * <p><b>Generated SQL pattern:</b>
    *
    * <pre>{@code
-   * INSERT INTO table (col1, col2, pk_col)
+   * INSERT INTO table (col1, col2,, col3, pk_col)
    * VALUES (?, ?, ?)
-   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2
+   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, col3 = DEFAULT
    * RETURNING (xmax = 0) AS is_insert
    * }</pre>
    *
@@ -974,19 +1067,30 @@ public class FlatPostgresCollection extends PostgresCollection {
    *   <li>Thus, {@code is_insert = true} means INSERT, {@code is_insert = false} means UPDATE
    * </ul>
    *
-   * @param columns List of quoted column names to include in the upsert (including PK)
+   * @param allTableColumns all cols present in the table
+   * @param docColumns cols present in the document
    * @param pkColumn The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
-  private String buildUpsertSql(List<String> columns, String pkColumn) {
-    String columnList = String.join(", ", columns);
-    String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
+  private String buildCreateOrReplaceSql(
+      List<String> allTableColumns, List<String> docColumns, String pkColumn) {
+    String columnList = String.join(", ", docColumns);
+    String placeholders =
+        String.join(", ", docColumns.stream().map(c -> "?").toArray(String[]::new));
+    Set<String> docColumnsSet = new HashSet<>(docColumns);
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col
+    // Build SET clause for non-PK columns.
     String setClause =
-        columns.stream()
+        allTableColumns.stream()
             .filter(col -> !col.equals(pkColumn))
-            .map(col -> col + " = EXCLUDED." + col)
+            .map(
+                col -> {
+                  if (docColumnsSet.contains(col)) {
+                    return col + " = EXCLUDED." + col;
+                  } else {
+                    return col + " = DEFAULT";
+                  }
+                })
             .collect(Collectors.joining(", "));
 
     return String.format(
