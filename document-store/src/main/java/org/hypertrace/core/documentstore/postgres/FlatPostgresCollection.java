@@ -35,6 +35,7 @@ import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
 import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
@@ -104,7 +105,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     String createdTs = null;
     String lastUpdatedTs = null;
 
-    var collectionConfig = client.getCollectionConfig(collectionName);
+    Optional<CollectionConfig> collectionConfig = client.getCollectionConfig(collectionName);
     if (collectionConfig.isPresent() && collectionConfig.get().getTimestampFields().isPresent()) {
       var tsConfig = collectionConfig.get().getTimestampFields().get();
       createdTs = tsConfig.getCreated().orElse(null);
