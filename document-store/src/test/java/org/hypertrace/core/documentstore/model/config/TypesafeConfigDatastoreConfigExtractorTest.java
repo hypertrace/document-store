@@ -4,19 +4,23 @@ import static java.util.Map.entry;
 import static org.hypertrace.core.documentstore.model.config.AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE;
 import static org.hypertrace.core.documentstore.model.options.DataFreshness.NEAR_REALTIME_FRESHNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.DataFreshness;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class TypesafeConfigDatastoreConfigExtractorTest {
+
   private static final String TYPE_KEY = "database_type";
   private static final String HOST_KEY = "hostname";
   private static final String PORT_KEY = "port_number";
@@ -387,6 +391,21 @@ class TypesafeConfigDatastoreConfigExtractorTest {
     assertEquals(false, nonExistentConfig.isPresent());
   }
 
+  @Test
+  void testBuildPostgresWithCollectionConfigWithoutTimestampFields() {
+    final ConnectionConfig config =
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildConfigMapWithCollectionConfigWithoutTimestampFields(), TYPE_KEY)
+            .extract()
+            .connectionConfig();
+
+    final PostgresConnectionConfig postgresConfig = (PostgresConnectionConfig) config;
+
+    var collectionWithoutTs = postgresConfig.getCollectionConfig("collection_without_ts");
+    assertTrue(collectionWithoutTs.isPresent());
+    assertFalse(collectionWithoutTs.get().getTimestampFields().isPresent());
+  }
+
   private Config buildConfigMap() {
     return ConfigFactory.parseMap(
         Map.ofEntries(
@@ -515,5 +534,22 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             entry(
                 "postgres.collectionConfigs.entities_domain.timestampFields.lastUpdated",
                 "update_ts")));
+  }
+
+  private Config buildConfigMapWithCollectionConfigWithoutTimestampFields() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(TYPE_KEY, "postgres"),
+            entry("postgres.host", host),
+            entry("postgres.port", port),
+            entry("postgres.database", database),
+            entry("postgres.user", user),
+            entry("postgres.password", password),
+            entry("appName", appName),
+            entry("maxPoolSize", maxConnections),
+            entry("connectionAccessTimeout", accessTimeout),
+            entry("connectionIdleTime", surrenderTimeout),
+            // Collection config exists but has no timestampFields - uses a dummy key
+            entry("postgres.collectionConfigs.collection_without_ts.someOtherConfig", "value")));
   }
 }
