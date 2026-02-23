@@ -367,8 +367,8 @@ class TypesafeConfigDatastoreConfigExtractorTest {
 
     final org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig
         postgresConfig =
-            (org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig)
-                config;
+        (org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig)
+            config;
 
     // Verify collection config for entities_api
     var entitiesApiConfig = postgresConfig.getCollectionConfig("entities_api");
@@ -404,6 +404,23 @@ class TypesafeConfigDatastoreConfigExtractorTest {
     var collectionWithoutTs = postgresConfig.getCollectionConfig("collection_without_ts");
     assertTrue(collectionWithoutTs.isPresent());
     assertFalse(collectionWithoutTs.get().getTimestampFields().isPresent());
+  }
+
+  @Test
+  void testBuildPostgresWithEmptyTimestampFields() {
+    final ConnectionConfig config =
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildConfigMapWithEmptyTimestampFields(), TYPE_KEY)
+            .extract()
+            .connectionConfig();
+
+    final PostgresConnectionConfig postgresConfig = (PostgresConnectionConfig) config;
+
+    var collectionConfig = postgresConfig.getCollectionConfig("collection_empty_ts");
+    assertTrue(collectionConfig.isPresent());
+    assertTrue(collectionConfig.get().getTimestampFields().isPresent());
+    assertFalse(collectionConfig.get().getTimestampFields().get().getCreated().isPresent());
+    assertFalse(collectionConfig.get().getTimestampFields().get().getLastUpdated().isPresent());
   }
 
   private Config buildConfigMap() {
@@ -551,5 +568,24 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             entry("connectionIdleTime", surrenderTimeout),
             // Collection config exists but has no timestampFields - uses a dummy key
             entry("postgres.collectionConfigs.collection_without_ts.someOtherConfig", "value")));
+  }
+
+  private Config buildConfigMapWithEmptyTimestampFields() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(TYPE_KEY, "postgres"),
+            entry("postgres.host", host),
+            entry("postgres.port", port),
+            entry("postgres.database", database),
+            entry("postgres.user", user),
+            entry("postgres.password", password),
+            entry("appName", appName),
+            entry("maxPoolSize", maxConnections),
+            entry("connectionAccessTimeout", accessTimeout),
+            entry("connectionIdleTime", surrenderTimeout),
+            // timestampFields exists but has neither created nor lastUpdated
+            entry(
+                "postgres.collectionConfigs.collection_empty_ts.timestampFields.unknownKey",
+                "value")));
   }
 }
