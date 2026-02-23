@@ -4,6 +4,7 @@ import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -95,10 +96,12 @@ public class FlatCollectionWriteTest {
     postgresConfig.put("url", postgresConnectionUrl);
     postgresConfig.put("user", "postgres");
     postgresConfig.put("password", "postgres");
-    // Configure timestamp fields for auto-managed document timestamps
     postgresConfig.put(
-        "customParams.timestampFields",
-        "{\"createdTsCol\": \"createdTime\", \"lastUpdatedTsCol\": \"lastUpdateTime\"}");
+        "postgres.collectionConfigs." + FLAT_COLLECTION_NAME + ".timestampFields.created",
+        "createdTime");
+    postgresConfig.put(
+        "postgres.collectionConfigs." + FLAT_COLLECTION_NAME + ".timestampFields.lastUpdated",
+        "lastUpdateTime");
 
     postgresDatastore =
         DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(postgresConfig));
@@ -2495,7 +2498,7 @@ public class FlatCollectionWriteTest {
               conn.prepareStatement(
                   String.format(
                       "SELECT \"createdTime\", \"lastUpdateTime\" FROM \"%s\" WHERE \"id\" = '%s'",
-                      FLAT_COLLECTION_NAME, key.toString()));
+                      FLAT_COLLECTION_NAME, key));
           ResultSet rs = ps.executeQuery()) {
         assertTrue(rs.next());
 
@@ -2551,7 +2554,6 @@ public class FlatCollectionWriteTest {
       flatCollection.createOrReplace(key, updatedDoc);
       long afterUpsert = System.currentTimeMillis();
 
-      // Verify createdTime preserved, lastUpdateTime updated
       try (Connection conn = pgDatastore.getPostgresClient();
           PreparedStatement ps =
               conn.prepareStatement(
@@ -2611,15 +2613,14 @@ public class FlatCollectionWriteTest {
               conn.prepareStatement(
                   String.format(
                       "SELECT \"createdTime\", \"lastUpdateTime\" FROM \"%s\" WHERE \"id\" = '%s'",
-                      FLAT_COLLECTION_NAME, key.toString()));
+                      FLAT_COLLECTION_NAME, key));
           ResultSet rs = ps.executeQuery()) {
         assertTrue(rs.next());
 
-        rs.getLong("createdTime");
-        assertTrue(rs.wasNull(), "createdTime should be NULL when config is missing");
-
-        rs.getTimestamp("lastUpdateTime");
-        assertTrue(rs.wasNull(), "lastUpdateTime should be NULL when config is missing");
+        assertNull(
+            rs.getObject("createdTime"), "createdTime should be NULL when config is missing");
+        assertNull(
+            rs.getObject("lastUpdateTime"), "lastUpdateTime should be NULL when config is missing");
       }
     }
 

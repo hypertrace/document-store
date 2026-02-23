@@ -33,7 +33,7 @@ class FlatPostgresCollectionTest {
 
   @Nested
   @DisplayName("convertTimestampForType Tests")
-  class ConvertTimestampForTypeTests {
+  class TimestampCoversionTests {
 
     private static final long TEST_EPOCH_MILLIS = 1707465494818L; // 2024-02-09T06:58:14.818Z
 

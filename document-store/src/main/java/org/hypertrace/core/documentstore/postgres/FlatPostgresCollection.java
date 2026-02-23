@@ -109,10 +109,19 @@ public class FlatPostgresCollection extends PostgresCollection {
     this.createdTsColumn = createdTs;
     this.lastUpdatedTsColumn = lastUpdatedTs;
 
-    if (this.createdTsColumn == null || this.lastUpdatedTsColumn == null) {
+    if (this.createdTsColumn == null) {
       LOGGER.warn(
           "timestampFields config not set properly for collection '{}'. "
-              + "Document timestamps (either created, lastUpdated or both) will not be auto-managed. "
+              + "Row created timestamp will not be auto-managed. "
+              + "Configure via collectionConfigs.{}.timestampFields {{ created = \"<col>\", lastUpdated = \"<col>\" }}",
+          collectionName,
+          collectionName);
+    }
+
+    if (this.lastUpdatedTsColumn == null) {
+      LOGGER.warn(
+          "timestampFields config not set properly for collection '{}'. "
+              + "Row lastUpdated timestamp will not be auto-managed. "
               + "Configure via collectionConfigs.{}.timestampFields {{ created = \"<col>\", lastUpdated = \"<col>\" }}",
           collectionName,
           collectionName);
