@@ -162,12 +162,6 @@ public class PostgresConnectionConfig extends ConnectionConfig {
         .orElse(DEFAULT_SCHEMA_REFRESH_COOLDOWN);
   }
 
-  /**
-   * Gets the collection-specific configuration for the given collection name.
-   *
-   * @param collectionName the name of the collection
-   * @return Optional containing the CollectionConfig, or empty if not configured
-   */
   public Optional<CollectionConfig> getCollectionConfig(String collectionName) {
     return Optional.ofNullable(collectionConfigs.get(collectionName));
   }
