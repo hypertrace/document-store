@@ -1066,7 +1066,6 @@ public class FlatPostgresCollection extends PostgresCollection {
                     return col + " = DEFAULT";
                   }
                 })
-            .map(col -> col + " = EXCLUDED." + col)
             .collect(Collectors.joining(", "));
 
     return String.format(
