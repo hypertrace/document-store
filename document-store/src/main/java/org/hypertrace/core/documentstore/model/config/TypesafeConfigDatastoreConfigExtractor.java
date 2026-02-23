@@ -10,12 +10,14 @@ import org.hypertrace.core.documentstore.model.config.ConnectionCredentials.Conn
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.ConnectionPoolConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig.DatastoreConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.Endpoint.EndpointBuilder;
+import org.hypertrace.core.documentstore.model.config.postgres.TimestampFieldsConfig;
 import org.hypertrace.core.documentstore.model.options.DataFreshness;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Value
 public class TypesafeConfigDatastoreConfigExtractor {
+
   private static final Logger LOGGER =
       LoggerFactory.getLogger(TypesafeConfigDatastoreConfigExtractor.class);
   private static final String DEFAULT_HOST_KEY = "host";
@@ -36,6 +38,9 @@ public class TypesafeConfigDatastoreConfigExtractor {
   private static final String DEFAULT_CONNECTION_TIMEOUT_KEY = "connectionTimeout";
   private static final String DEFAULT_CUSTOM_PARAMETERS_PREFIX = "customParams";
   private static final String DEFAULT_COLLECTION_CONFIGS_PREFIX = "collectionConfigs";
+  private static final String TIMESTAMP_FIELDS_KEY = "timestampFields";
+  private static final String TIMESTAMP_CREATED_KEY = "created";
+  private static final String TIMESTAMP_LAST_UPDATED_KEY = "lastUpdated";
 
   @NonNull Config config;
   DatastoreConfigBuilder datastoreConfigBuilder;
@@ -274,23 +279,9 @@ public class TypesafeConfigDatastoreConfigExtractor {
                         org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig
                             .builder();
 
-                // Parse timestampFields if present
-                if (collectionConfig.hasPath("timestampFields")) {
-                  Config timestampConfig = collectionConfig.getConfig("timestampFields");
-                  org.hypertrace.core.documentstore.model.config.postgres.TimestampFieldsConfig
-                          .TimestampFieldsConfigBuilder
-                      tsBuilder =
-                          org.hypertrace.core.documentstore.model.config.postgres
-                              .TimestampFieldsConfig.builder();
-
-                  if (timestampConfig.hasPath("created")) {
-                    tsBuilder.created(timestampConfig.getString("created"));
-                  }
-                  if (timestampConfig.hasPath("lastUpdated")) {
-                    tsBuilder.lastUpdated(timestampConfig.getString("lastUpdated"));
-                  }
-
-                  builder.timestampFields(tsBuilder.build());
+                if (collectionConfig.hasPath(TIMESTAMP_FIELDS_KEY)) {
+                  builder.timestampFields(
+                      parseTimestampFieldsConfig(collectionConfig.getConfig(TIMESTAMP_FIELDS_KEY)));
                 }
 
                 connectionConfigBuilder.collectionConfig(collectionName, builder.build());
@@ -301,6 +292,19 @@ public class TypesafeConfigDatastoreConfigExtractor {
     }
 
     return this;
+  }
+
+  private TimestampFieldsConfig parseTimestampFieldsConfig(Config timestampConfig) {
+    TimestampFieldsConfig.TimestampFieldsConfigBuilder tsBuilder = TimestampFieldsConfig.builder();
+
+    if (timestampConfig.hasPath(TIMESTAMP_CREATED_KEY)) {
+      tsBuilder.created(timestampConfig.getString(TIMESTAMP_CREATED_KEY));
+    }
+    if (timestampConfig.hasPath(TIMESTAMP_LAST_UPDATED_KEY)) {
+      tsBuilder.lastUpdated(timestampConfig.getString(TIMESTAMP_LAST_UPDATED_KEY));
+    }
+
+    return tsBuilder.build();
   }
 
   public DatastoreConfig extract() {
