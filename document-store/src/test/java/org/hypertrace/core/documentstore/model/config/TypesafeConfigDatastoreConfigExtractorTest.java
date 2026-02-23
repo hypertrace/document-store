@@ -367,8 +367,8 @@ class TypesafeConfigDatastoreConfigExtractorTest {
 
     final org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig
         postgresConfig =
-        (org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig)
-            config;
+            (org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig)
+                config;
 
     // Verify collection config for entities_api
     var entitiesApiConfig = postgresConfig.getCollectionConfig("entities_api");
