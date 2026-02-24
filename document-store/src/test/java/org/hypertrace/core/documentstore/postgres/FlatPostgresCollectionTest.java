@@ -23,6 +23,7 @@ import java.util.Optional;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
+import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.expression.impl.DataType;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
@@ -96,14 +97,12 @@ class FlatPostgresCollectionTest {
   }
 
   private void setupCommonMocks(Map<String, PostgresColumnMetadata> schema) throws SQLException {
-    // Mock getColumnOrRefresh for each field in the document
     when(mockSchemaRegistry.getColumnOrRefresh(anyString(), anyString()))
         .thenAnswer(
             invocation -> {
               String columnName = invocation.getArgument(1);
               return Optional.ofNullable(schema.get(columnName));
             });
-    // Mock getPrimaryKeyColumn
     when(mockSchemaRegistry.getPrimaryKeyColumn(COLLECTION_NAME)).thenReturn(Optional.of("id"));
     when(mockClient.getPooledConnection()).thenReturn(mockConnection);
     when(mockConnection.prepareStatement(anyString())).thenReturn(mockPreparedStatement);
@@ -128,7 +127,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCreateOrReplaceMocks(schema);
 
-      // First call throws UNDEFINED_COLUMN, second call succeeds
       PSQLException psqlException = createPSQLException(PSQLState.UNDEFINED_COLUMN);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException).thenReturn(mockResultSet);
       when(mockResultSet.next()).thenReturn(true);
@@ -152,7 +150,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCreateOrReplaceMocks(schema);
 
-      // First call throws DATATYPE_MISMATCH, second call succeeds
       PSQLException psqlException = createPSQLException(PSQLState.DATATYPE_MISMATCH);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException).thenReturn(mockResultSet);
       when(mockResultSet.next()).thenReturn(true);
@@ -176,7 +173,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCreateOrReplaceMocks(schema);
 
-      // Throw a non-retryable PSQLException (e.g., UNIQUE_VIOLATION)
       PSQLException psqlException = createPSQLException(PSQLState.UNIQUE_VIOLATION);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException);
 
@@ -197,7 +193,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCreateOrReplaceMocks(schema);
 
-      // Throw a generic SQLException (not PSQLException)
       SQLException sqlException = new SQLException("Connection lost");
       when(mockPreparedStatement.executeQuery()).thenThrow(sqlException);
 
@@ -218,7 +213,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCreateOrReplaceMocks(schema);
 
-      // Both calls throw UNDEFINED_COLUMN - first triggers retry, second should throw
       PSQLException psqlException = createPSQLException(PSQLState.UNDEFINED_COLUMN);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException);
 
@@ -247,7 +241,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCommonMocks(schema);
 
-      // First call throws UNDEFINED_COLUMN, second call succeeds
       PSQLException psqlException = createPSQLException(PSQLState.UNDEFINED_COLUMN);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException).thenReturn(mockResultSet);
       when(mockResultSet.next()).thenReturn(true);
@@ -271,7 +264,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCommonMocks(schema);
 
-      // First call throws DATATYPE_MISMATCH, second call succeeds
       PSQLException psqlException = createPSQLException(PSQLState.DATATYPE_MISMATCH);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException).thenReturn(mockResultSet);
       when(mockResultSet.next()).thenReturn(true);
@@ -295,7 +287,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCommonMocks(schema);
 
-      // Throw a non-retryable PSQLException
       PSQLException psqlException = createPSQLException(PSQLState.UNIQUE_VIOLATION);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException);
 
@@ -315,7 +306,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCommonMocks(schema);
 
-      // Throw a generic SQLException (not PSQLException)
       SQLException sqlException = new SQLException("Connection lost");
       when(mockPreparedStatement.executeQuery()).thenThrow(sqlException);
 
@@ -335,7 +325,6 @@ class FlatPostgresCollectionTest {
       Map<String, PostgresColumnMetadata> schema = createBasicSchema();
       setupCommonMocks(schema);
 
-      // Both calls throw UNDEFINED_COLUMN - first triggers retry, second should throw
       PSQLException psqlException = createPSQLException(PSQLState.UNDEFINED_COLUMN);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException);
 
@@ -347,6 +336,130 @@ class FlatPostgresCollectionTest {
       assertEquals(psqlException, thrown.getCause());
       verify(mockSchemaRegistry, times(1)).invalidate(COLLECTION_NAME);
       verify(mockPreparedStatement, times(2)).executeQuery();
+    }
+  }
+
+  @Nested
+  @DisplayName("update Exception Handling Tests")
+  class UpdateExceptionTests {
+
+    @Test
+    @DisplayName("Should return UpdateResult(0) when all fields are unknown/skipped (L511-512)")
+    void testUpdateReturnsZeroWhenAllFieldsSkipped() throws Exception {
+      Key key = Key.from("test-key");
+      Document document =
+          new JSONDocument("{\"unknown_field1\": \"value\", \"unknown_field2\": 123}");
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      when(mockSchemaRegistry.getColumnOrRefresh(anyString(), anyString()))
+          .thenReturn(Optional.empty());
+
+      UpdateResult result = flatPostgresCollection.update(key, document, null);
+
+      assertEquals(0, result.getUpdatedCount());
+      verify(mockClient, never()).getPooledConnection();
+    }
+
+    @Test
+    @DisplayName("Should retry on UNDEFINED_COLUMN PSQLException and succeed")
+    void testUpdateRetriesOnUndefinedColumn() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCommonMocks(schema);
+
+      PSQLException psqlException = createPSQLException(PSQLState.UNDEFINED_COLUMN);
+      when(mockPreparedStatement.executeUpdate()).thenThrow(psqlException).thenReturn(1);
+
+      doNothing().when(mockSchemaRegistry).invalidate(COLLECTION_NAME);
+
+      UpdateResult result = flatPostgresCollection.update(key, document, null);
+
+      assertEquals(1, result.getUpdatedCount());
+      verify(mockSchemaRegistry, times(1)).invalidate(COLLECTION_NAME);
+      verify(mockPreparedStatement, times(2)).executeUpdate();
+    }
+
+    @Test
+    @DisplayName("Should retry on DATATYPE_MISMATCH PSQLException and succeed")
+    void testUpdateRetriesOnDatatypeMismatch() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCommonMocks(schema);
+
+      PSQLException psqlException = createPSQLException(PSQLState.DATATYPE_MISMATCH);
+      when(mockPreparedStatement.executeUpdate()).thenThrow(psqlException).thenReturn(1);
+
+      doNothing().when(mockSchemaRegistry).invalidate(COLLECTION_NAME);
+
+      UpdateResult result = flatPostgresCollection.update(key, document, null);
+
+      assertEquals(1, result.getUpdatedCount());
+      verify(mockSchemaRegistry, times(1)).invalidate(COLLECTION_NAME);
+      verify(mockPreparedStatement, times(2)).executeUpdate();
+    }
+
+    @Test
+    @DisplayName("Should throw IOException on non-retryable PSQLException")
+    void testUpdateThrowsOnNonRetryablePSQLException() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCommonMocks(schema);
+
+      PSQLException psqlException = createPSQLException(PSQLState.UNIQUE_VIOLATION);
+      when(mockPreparedStatement.executeUpdate()).thenThrow(psqlException);
+
+      IOException thrown =
+          assertThrows(IOException.class, () -> flatPostgresCollection.update(key, document, null));
+
+      assertEquals(psqlException, thrown.getCause());
+      verify(mockSchemaRegistry, never()).invalidate(anyString());
+    }
+
+    @Test
+    @DisplayName("Should throw IOException on generic SQLException (L535-537)")
+    void testUpdateThrowsOnSQLException() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCommonMocks(schema);
+
+      SQLException sqlException = new SQLException("Connection lost");
+      when(mockPreparedStatement.executeUpdate()).thenThrow(sqlException);
+
+      IOException thrown =
+          assertThrows(IOException.class, () -> flatPostgresCollection.update(key, document, null));
+
+      assertEquals(sqlException, thrown.getCause());
+      verify(mockSchemaRegistry, never()).invalidate(anyString());
+    }
+
+    @Test
+    @DisplayName("Should throw IOException when retry also fails (L533-534)")
+    void testUpdateThrowsWhenRetryFails() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCommonMocks(schema);
+
+      PSQLException psqlException = createPSQLException(PSQLState.UNDEFINED_COLUMN);
+      when(mockPreparedStatement.executeUpdate()).thenThrow(psqlException);
+
+      doNothing().when(mockSchemaRegistry).invalidate(COLLECTION_NAME);
+
+      IOException thrown =
+          assertThrows(IOException.class, () -> flatPostgresCollection.update(key, document, null));
+
+      assertEquals(psqlException, thrown.getCause());
+      verify(mockSchemaRegistry, times(1)).invalidate(COLLECTION_NAME);
+      verify(mockPreparedStatement, times(2)).executeUpdate();
     }
   }
 }
