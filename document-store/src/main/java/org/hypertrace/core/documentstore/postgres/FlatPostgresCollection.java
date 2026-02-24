@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres;
 
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -47,6 +48,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.LegacyFilterToQueryFilterTransformer;
 import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
+import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocAddOperatorParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocSetOperatorParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocUpdateOperatorParser;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
@@ -73,7 +75,10 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
 
   private static final Map<UpdateOperator, FlatCollectionSubDocUpdateOperatorParser>
-      SUB_DOC_UPDATE_PARSERS = Map.of(SET, new FlatCollectionSubDocSetOperatorParser());
+      SUB_DOC_UPDATE_PARSERS =
+          Map.of(
+              SET, new FlatCollectionSubDocSetOperatorParser(),
+              ADD, new FlatCollectionSubDocAddOperatorParser());
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
@@ -143,7 +148,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public boolean upsert(Key key, Document document) throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    return upsertWithRetry(key, document, false);
   }
 
   @Override
@@ -168,22 +173,102 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public boolean delete(Key key) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    String pkForTable = getPKForTable(tableIdentifier.getTableName());
+    String deleteSQL =
+        String.format(
+            "DELETE FROM %s WHERE %s = ?",
+            tableIdentifier, PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkForTable));
+    try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
+      preparedStatement.setString(1, key.toString());
+      preparedStatement.executeUpdate();
+      return true;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting document. key: {}", key, e);
+    }
+    return false;
   }
 
   @Override
   public boolean delete(Filter filter) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+
+    Preconditions.checkArgument(filter != null, "Filter cannot be null");
+
+    LegacyFilterToQueryFilterTransformer filterTransformer =
+        new LegacyFilterToQueryFilterTransformer(schemaRegistry, tableIdentifier.getTableName());
+
+    org.hypertrace.core.documentstore.query.Filter transformedFilter =
+        filterTransformer.transform(filter);
+
+    Query query = Query.builder().setFilter(transformedFilter).build();
+
+    // Create parser with flat field transformer
+    PostgresQueryParser queryParser =
+        new PostgresQueryParser(tableIdentifier, query, new FlatPostgresFieldTransformer());
+
+    String filterClause = queryParser.buildFilterClause();
+
+    if (filterClause.isEmpty()) {
+      throw new IllegalArgumentException("Parsed filter is invalid");
+    }
+
+    String sql = "DELETE FROM " + tableIdentifier + " " + filterClause;
+    LOGGER.debug("Delete SQL: {}", sql);
+
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps =
+            queryExecutor.buildPreparedStatement(
+                sql, queryParser.getParamsBuilder().build(), conn)) {
+      int deletedCount = ps.executeUpdate();
+      LOGGER.debug("Deleted {} rows", deletedCount);
+      return deletedCount > 0;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting documents. filter: {}", filter, e);
+    }
+    return false;
   }
 
   @Override
   public BulkDeleteResult delete(Set<Key> keys) {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    if (keys == null || keys.isEmpty()) {
+      return new BulkDeleteResult(0);
+    }
+
+    String pkColumn = getPKForTable(tableIdentifier.getTableName());
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+
+    String ids =
+        keys.stream().map(key -> "'" + key.toString() + "'").collect(Collectors.joining(", "));
+
+    String deleteSQL =
+        String.format("DELETE FROM %s WHERE %s IN (%s)", tableIdentifier, quotedPkColumn, ids);
+
+    LOGGER.debug("Bulk delete SQL: {}", deleteSQL);
+
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(deleteSQL)) {
+      int deletedCount = ps.executeUpdate();
+      LOGGER.debug("Bulk deleted {} rows", deletedCount);
+      return new BulkDeleteResult(deletedCount);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException bulk deleting documents. keys: {}", keys, e);
+    }
+    return new BulkDeleteResult(0);
   }
 
   @Override
   public boolean deleteAll() {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    String deleteSQL = String.format("DELETE FROM %s", tableIdentifier);
+    LOGGER.debug("Delete all SQL: {}", deleteSQL);
+
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(deleteSQL)) {
+      int deletedCount = ps.executeUpdate();
+      LOGGER.debug("Deleted all {} rows", deletedCount);
+      return true;
+    } catch (SQLException e) {
+      LOGGER.error("SQLException deleting all documents.", e);
+    }
+    return false;
   }
 
   @Override
@@ -240,7 +325,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
       // Build the bulk upsert SQL with all columns
       List<String> columnList = new ArrayList<>(allColumns);
-      String sql = buildBulkUpsertSql(columnList, quotedPkColumn);
+      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false);
       LOGGER.debug("Bulk upsert SQL: {}", sql);
 
       try (Connection conn = client.getPooledConnection();
@@ -289,27 +374,34 @@ public class FlatPostgresCollection extends PostgresCollection {
   }
 
   /**
-   * Builds a PostgreSQL bulk upsert SQL statement for batch execution.
+   * Builds a PostgreSQL upsert SQL statement with merge semantics.
    *
-   * @param columns List of quoted column names (PK should be first)
+   * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
+   * columns in the provided list are updated on conflict (merge behavior).
+   *
+   * @param columns List of quoted column names to include
    * @param pkColumn The quoted primary key column name
+   * @param includeReturning If true, adds RETURNING clause to detect insert vs update
    * @return The upsert SQL statement
    */
-  private String buildBulkUpsertSql(List<String> columns, String pkColumn) {
+  private String buildMergeUpsertSql(
+      List<String> columns, String pkColumn, boolean includeReturning) {
     String columnList = String.join(", ", columns);
     String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col (this ensures that on conflict, the
-    // new value is picked)
+    // Build SET clause for non-PK columns: col = EXCLUDED.col
     String setClause =
         columns.stream()
             .filter(col -> !col.equals(pkColumn))
             .map(col -> col + " = EXCLUDED." + col)
             .collect(Collectors.joining(", "));
 
-    return String.format(
-        "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
-        tableIdentifier, columnList, placeholders, pkColumn, setClause);
+    String sql =
+        String.format(
+            "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s",
+            tableIdentifier, columnList, placeholders, pkColumn, setClause);
+
+    return includeReturning ? sql + " RETURNING (xmax = 0) AS is_insert" : sql;
   }
 
   @Override
@@ -927,17 +1019,92 @@ public class FlatPostgresCollection extends PostgresCollection {
       PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
       parsed.add(quotedPkColumn, key.toString(), pkType, false);
 
-      String sql = buildUpsertSql(parsed.getColumns(), quotedPkColumn);
+      List<String> docColumns = parsed.getColumns();
+      List<String> allColumns =
+          schemaRegistry.getSchema(tableName).values().stream()
+              .map(PostgresColumnMetadata::getName)
+              .map(PostgresUtils::wrapFieldNamesWithDoubleQuotes)
+              .collect(Collectors.toList());
+
+      String sql = buildCreateOrReplaceSql(allColumns, docColumns, quotedPkColumn);
       LOGGER.debug("Upsert SQL: {}", sql);
+
+      return executeUpsert(sql, parsed);
+
+    } catch (PSQLException e) {
+      return handlePSQLExceptionForCreateOrReplace(e, key, document, tableName, isRetry);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  /**
+   * Upserts a document with merge semantics - only updates columns present in the document,
+   * preserving existing values for columns not in the document.
+   *
+   * <p>Unlike {@link #createOrReplaceWithRetry}, this method does NOT reset missing columns to
+   * their default values.
+   *
+   * @param key The document key
+   * @param document The document to upsert
+   * @param isRetry Whether this is a retry attempt after schema refresh
+   * @return true if a new document was created, false if an existing document was updated
+   */
+  private boolean upsertWithRetry(Key key, Document document, boolean isRetry) throws IOException {
+    String tableName = tableIdentifier.getTableName();
+    List<String> skippedFields = new ArrayList<>();
+
+    try {
+      TypedDocument parsed = parseDocument(document, tableName, skippedFields);
+
+      // Add the key as the primary key column
+      String pkColumn = getPKForTable(tableName);
+      String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+      PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+      parsed.add(quotedPkColumn, key.toString(), pkType, false);
+
+      List<String> docColumns = parsed.getColumns();
+
+      String sql = buildUpsertSql(docColumns, quotedPkColumn);
+      LOGGER.debug("Upsert (merge) SQL: {}", sql);
 
       return executeUpsert(sql, parsed);
 
     } catch (PSQLException e) {
       return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
     } catch (SQLException e) {
-      LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+      LOGGER.error("SQLException in upsert. key: {} content: {}", key, document, e);
       throw new IOException(e);
     }
+  }
+
+  /**
+   * Builds a PostgreSQL upsert SQL statement with merge semantics.
+   *
+   * <p>This method constructs an atomic upsert query that:
+   *
+   * <ul>
+   *   <li>Inserts a new row if no conflict on the primary key
+   *   <li>If the row with that PK already exists, only updates columns present in the document
+   *   <li>Columns NOT in the document retain their existing values (merge behavior)
+   * </ul>
+   *
+   * <p><b>Generated SQL pattern:</b>
+   *
+   * <pre>{@code
+   * INSERT INTO table (col1, col2, pk_col)
+   * VALUES (?, ?, ?)
+   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2
+   * RETURNING (xmax = 0) AS is_insert
+   * }</pre>
+   *
+   * @param docColumns columns present in the document
+   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @return The complete upsert SQL statement with placeholders for values
+   */
+  private String buildUpsertSql(List<String> docColumns, String pkColumn) {
+    return buildMergeUpsertSql(docColumns, pkColumn, true);
   }
 
   /**
@@ -947,15 +1114,16 @@ public class FlatPostgresCollection extends PostgresCollection {
    *
    * <ul>
    *   <li>Inserts a new row if no conflict on the primary key
-   *   <li>Updates all non-PK columns if a row with the same PK already exists
+   *   <li>If the row with that PK already exists, it is replaced in entirety. Cols not present in
+   *       the latest upsert are set to their default values (as defined in the schema)
    * </ul>
    *
    * <p><b>Generated SQL pattern:</b>
    *
    * <pre>{@code
-   * INSERT INTO table (col1, col2, pk_col)
+   * INSERT INTO table (col1, col2,, col3, pk_col)
    * VALUES (?, ?, ?)
-   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2
+   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, col3 = DEFAULT
    * RETURNING (xmax = 0) AS is_insert
    * }</pre>
    *
@@ -974,19 +1142,30 @@ public class FlatPostgresCollection extends PostgresCollection {
    *   <li>Thus, {@code is_insert = true} means INSERT, {@code is_insert = false} means UPDATE
    * </ul>
    *
-   * @param columns List of quoted column names to include in the upsert (including PK)
+   * @param allTableColumns all cols present in the table
+   * @param docColumns cols present in the document
    * @param pkColumn The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
-  private String buildUpsertSql(List<String> columns, String pkColumn) {
-    String columnList = String.join(", ", columns);
-    String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
+  private String buildCreateOrReplaceSql(
+      List<String> allTableColumns, List<String> docColumns, String pkColumn) {
+    String columnList = String.join(", ", docColumns);
+    String placeholders =
+        String.join(", ", docColumns.stream().map(c -> "?").toArray(String[]::new));
+    Set<String> docColumnsSet = new HashSet<>(docColumns);
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col
+    // Build SET clause for non-PK columns.
     String setClause =
-        columns.stream()
+        allTableColumns.stream()
             .filter(col -> !col.equals(pkColumn))
-            .map(col -> col + " = EXCLUDED." + col)
+            .map(
+                col -> {
+                  if (docColumnsSet.contains(col)) {
+                    return col + " = EXCLUDED." + col;
+                  } else {
+                    return col + " = DEFAULT";
+                  }
+                })
             .collect(Collectors.joining(", "));
 
     return String.format(
@@ -1018,6 +1197,21 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
+  private boolean handlePSQLExceptionForCreateOrReplace(
+      PSQLException e, Key key, Document document, String tableName, boolean isRetry)
+      throws IOException {
+    if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
+      LOGGER.info(
+          "Schema mismatch detected during createOrReplace (SQLState: {}), refreshing schema and retrying. key: {}",
+          e.getSQLState(),
+          key);
+      schemaRegistry.invalidate(tableName);
+      return createOrReplaceWithRetry(key, document, true);
+    }
+    LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+    throw new IOException(e);
+  }
+
   private boolean handlePSQLExceptionForUpsert(
       PSQLException e, Key key, Document document, String tableName, boolean isRetry)
       throws IOException {
@@ -1027,9 +1221,9 @@ public class FlatPostgresCollection extends PostgresCollection {
           e.getSQLState(),
           key);
       schemaRegistry.invalidate(tableName);
-      return createOrReplaceWithRetry(key, document, true);
+      return upsertWithRetry(key, document, true);
     }
-    LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
+    LOGGER.error("SQLException in upsert. key: {} content: {}", key, document, e);
     throw new IOException(e);
   }
 
