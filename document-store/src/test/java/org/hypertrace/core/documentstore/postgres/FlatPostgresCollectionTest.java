@@ -4,9 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
@@ -426,6 +431,37 @@ class FlatPostgresCollectionTest {
               IOException.class, () -> flatPostgresCollection.bulkUpdate(query, updates, options));
 
       assertEquals(sqlException, thrown.getCause());
+    }
+
+    @Test
+    @DisplayName("Should close beforeIterator on exception when BEFORE_UPDATE")
+    @SuppressWarnings("unchecked")
+    void testBulkUpdateClosesIteratorOnException() throws Exception {
+      // Create spy to mock find() while testing rest of bulkUpdate
+      FlatPostgresCollection spyCollection = spy(flatPostgresCollection);
+
+      CloseableIterator<Document> mockIterator = mock(CloseableIterator.class);
+      doReturn(mockIterator).when(spyCollection).find(any(Query.class));
+
+      Query query = Query.builder().build();
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 100));
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.BEFORE_UPDATE).build();
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      when(mockSchemaRegistry.getColumnOrRefresh(anyString(), anyString()))
+          .thenAnswer(
+              invocation -> {
+                String columnName = invocation.getArgument(1);
+                return Optional.ofNullable(schema.get(columnName));
+              });
+
+      RuntimeException runtimeException = new RuntimeException("Connection pool exhausted");
+      when(mockClient.getPooledConnection()).thenThrow(runtimeException);
+
+      assertThrows(IOException.class, () -> spyCollection.bulkUpdate(query, updates, options));
+
+      verify(mockIterator).close();
     }
   }
 }
