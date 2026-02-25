@@ -366,7 +366,8 @@ class FlatPostgresCollectionTest {
       List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 100));
 
       assertThrows(
-          IOException.class, () -> flatPostgresCollection.bulkUpdate(query, updates, null));
+          IllegalArgumentException.class,
+          () -> flatPostgresCollection.bulkUpdate(query, updates, null));
     }
 
     @Test
@@ -383,7 +384,7 @@ class FlatPostgresCollectionTest {
     }
 
     @Test
-    @DisplayName("Should throw IllegalArgumentException for unsupported operator")
+    @DisplayName("Should throw IOException for unsupported operator")
     void testBulkUpdateThrowsOnUnsupportedOperator() {
       Query query = Query.builder().build();
       // UNSET is not supported
@@ -396,14 +397,7 @@ class FlatPostgresCollectionTest {
       UpdateOptions options =
           UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
-      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
-      when(mockSchemaRegistry.getColumnOrRefresh(anyString(), anyString()))
-          .thenAnswer(
-              invocation -> {
-                String columnName = invocation.getArgument(1);
-                return Optional.ofNullable(schema.get(columnName));
-              });
-
+      // No stubbing needed - operator check happens before schema lookup
       assertThrows(
           IOException.class, () -> flatPostgresCollection.bulkUpdate(query, updates, options));
     }
