@@ -2494,6 +2494,470 @@ public class FlatCollectionWriteTest {
       }
     }
 
+    @Nested
+    @DisplayName("UNSET Operator Tests")
+    class UnsetOperatorTests {
+
+      @Test
+      @DisplayName("Should UNSET top-level column (set to NULL)")
+      void testUnsetTopLevelColumn() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("item")
+                    .operator(UpdateOperator.UNSET)
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+
+        JsonNode itemNode = resultJson.get("item");
+        assertTrue(
+            itemNode == null || itemNode.isNull(), "item should be NULL or missing after UNSET");
+
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"item\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertNull(rs.getString("item"));
+        }
+      }
+
+      @Test
+      @DisplayName("Should UNSET nested JSONB field (remove key)")
+      void testUnsetNestedJsonbField() throws Exception {
+        String docId = "unset-jsonb-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "JsonbItem");
+        ObjectNode props = OBJECT_MAPPER.createObjectNode();
+        props.put("brand", "TestBrand");
+        props.put("color", "Red");
+        node.set("props", props);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // UNSET props.brand
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.brand")
+                    .operator(UpdateOperator.UNSET)
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertFalse(resultJson.get("props").has("brand"), "brand should be removed from props");
+        assertEquals("Red", resultJson.get("props").get("color").asText(), "color should remain");
+      }
+    }
+
+    @Nested
+    @DisplayName("APPEND_TO_LIST Operator Tests")
+    class AppendToListOperatorTests {
+
+      @Test
+      @DisplayName("Should append values to top-level array column")
+      void testAppendToTopLevelArray() throws Exception {
+        // Create a document with known tags for predictable testing
+        String docId = "append-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("tag1").add("tag2");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Append new tags
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.APPEND_TO_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"newTag1", "newTag2"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(4, tagsNode.size()); // original 2 + new 2
+      }
+
+      @Test
+      @DisplayName("Should append values to nested JSONB array")
+      void testAppendToNestedJsonbArray() throws Exception {
+        // Set up a document with JSONB containing an array
+        String docId = "append-jsonb-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "JsonbArrayItem");
+        ObjectNode props = OBJECT_MAPPER.createObjectNode();
+        props.putArray("colors").add("red").add("blue");
+        node.set("props", props);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Append to props.colors
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.colors")
+                    .operator(UpdateOperator.APPEND_TO_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"green", "yellow"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode colorsNode = resultJson.get("props").get("colors");
+        assertTrue(colorsNode.isArray());
+        assertEquals(4, colorsNode.size()); // original 2 + new 2
+      }
+    }
+
+    @Nested
+    @DisplayName("ADD_TO_LIST_IF_ABSENT Operator Tests")
+    class AddToListIfAbsentOperatorTests {
+
+      @Test
+      @DisplayName("Should add unique values to top-level array column")
+      void testAddToListIfAbsentTopLevel() throws Exception {
+        // Create a document with known tags for predictable testing
+        String docId = "addtolist-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("existing1").add("existing2");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Add tags - 'existing1' already exists, 'newTag' is new
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"existing1", "newTag"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(3, tagsNode.size()); // original 2 + 1 new unique
+
+        // Verify 'newTag' was added
+        boolean hasNewTag = false;
+        for (JsonNode tag : tagsNode) {
+          if ("newTag".equals(tag.asText())) {
+            hasNewTag = true;
+            break;
+          }
+        }
+        assertTrue(hasNewTag, "newTag should be in the array");
+      }
+
+      @Test
+      @DisplayName("Should add unique values to nested JSONB array")
+      void testAddToListIfAbsentNestedJsonb() throws Exception {
+        // Set up a document with JSONB containing an array
+        String docId = "addtolist-jsonb-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "JsonbArrayItem");
+        ObjectNode props = OBJECT_MAPPER.createObjectNode();
+        props.putArray("colors").add("red").add("blue");
+        node.set("props", props);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Add colors - 'red' already exists, 'green' is new
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.colors")
+                    .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"red", "green"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode colorsNode = resultJson.get("props").get("colors");
+        assertTrue(colorsNode.isArray());
+        assertEquals(3, colorsNode.size()); // original 2 + 1 new unique
+      }
+
+      @Test
+      @DisplayName("Should not add duplicates when all values already exist")
+      void testAddToListIfAbsentNoDuplicates() throws Exception {
+        // Create a document with known tags for predictable testing
+        String docId = "addtolist-nodup-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("tag1").add("tag2");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Add tags that already exist
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"tag1", "tag2"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(2, tagsNode.size()); // No change, both already exist
+      }
+    }
+
+    @Nested
+    @DisplayName("REMOVE_ALL_FROM_LIST Operator Tests")
+    class RemoveAllFromListOperatorTests {
+
+      @Test
+      @DisplayName("Should remove values from top-level array column")
+      void testRemoveAllFromTopLevelArray() throws Exception {
+        // Create a document with known tags for predictable testing
+        String docId = "remove-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("tag1").add("tag2").add("tag3");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Remove 'tag1' from tags
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"tag1"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(2, tagsNode.size()); // 'tag2' and 'tag3' remain
+      }
+
+      @Test
+      @DisplayName("Should remove values from nested JSONB array")
+      void testRemoveAllFromNestedJsonbArray() throws Exception {
+        // Set up a document with JSONB containing an array
+        String docId = "remove-jsonb-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "JsonbArrayItem");
+        ObjectNode props = OBJECT_MAPPER.createObjectNode();
+        props.putArray("colors").add("red").add("blue").add("green");
+        node.set("props", props);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Remove 'red' and 'blue' from props.colors
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.colors")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"red", "blue"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode colorsNode = resultJson.get("props").get("colors");
+        assertTrue(colorsNode.isArray());
+        assertEquals(1, colorsNode.size()); // Only 'green' remains
+      }
+
+      @Test
+      @DisplayName("Should handle removing non-existent values (no-op)")
+      void testRemoveNonExistentValues() throws Exception {
+        // Create a document with known tags for predictable testing
+        String docId = "remove-noop-test";
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("tag1").add("tag2");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Try to remove values that don't exist
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"nonexistent1", "nonexistent2"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(2, tagsNode.size()); // No change
+      }
+    }
+
     @Test
     @DisplayName("Should return empty when no document matches query")
     void testUpdateNoMatch() throws Exception {
@@ -2556,33 +3020,6 @@ public class FlatCollectionWriteTest {
           UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
       assertThrows(IOException.class, () -> flatCollection.update(query, updates, options));
-    }
-
-    @Test
-    @DisplayName("Should throw IOException for unsupported operator")
-    void testUpdateUnsupportedOperator() {
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("_id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of(1)))
-              .build();
-
-      // UNSET is not supported yet
-      List<SubDocumentUpdate> updates =
-          List.of(
-              SubDocumentUpdate.builder()
-                  .subDocument("price")
-                  .operator(UpdateOperator.UNSET)
-                  .build());
-
-      UpdateOptions options =
-          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-      assertThrows(
-          IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
     }
 
     @Test

@@ -1,9 +1,26 @@
 package org.hypertrace.core.documentstore.postgres.update.parser;
 
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
+import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentArrayGetter;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
 
 public class PostgresAppendToListParser implements PostgresUpdateOperationParser {
+
+  @Override
+  public String parseTopLevelField(final UpdateParserInput input) {
+    final SubDocumentValue value = input.getUpdate().getSubDocumentValue();
+
+    // Extract array values directly for top-level array columns
+    final PostgresSubDocumentArrayGetter arrayGetter = new PostgresSubDocumentArrayGetter();
+    Object[] arrayValues = value.accept(arrayGetter).values();
+    input.getParamsBuilder().addObjectParam(arrayValues);
+
+    // For top-level array columns: "column" = COALESCE("column", '{}') || ?::arrayType
+    String arrayType = input.getColumnType() != null ? input.getColumnType().getArraySqlType() : "text[]";
+    return String.format(
+        "\"%s\" = COALESCE(\"%s\", '{}') || ?::%s",
+        input.getBaseField(), input.getBaseField(), arrayType);
+  }
 
   @Override
   public String parseInternal(final UpdateParserInput input) {

@@ -6,6 +6,12 @@ import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.for
 public class PostgresUnsetPathParser implements PostgresUpdateOperationParser {
 
   @Override
+  public String parseTopLevelField(final UpdateParserInput input) {
+    // For top-level columns, UNSET means setting to NULL
+    return String.format("\"%s\" = NULL", input.getBaseField());
+  }
+
+  @Override
   public String parseInternal(final UpdateParserInput input) {
     return parse(input);
   }

@@ -15,6 +15,23 @@ import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentArra
 public class PostgresRemoveAllFromListParser implements PostgresUpdateOperationParser {
 
   @Override
+  public String parseTopLevelField(final UpdateParserInput input) {
+    final PostgresSubDocumentArrayGetter subDocArrayGetter = new PostgresSubDocumentArrayGetter();
+    final SubDocumentArray array =
+        input.getUpdate().getSubDocumentValue().accept(subDocArrayGetter);
+    final Object[] values = array.values();
+
+    // Add array as single param (not individual values)
+    input.getParamsBuilder().addObjectParam(values);
+
+    // For top-level array columns: remove values using array_agg with filter
+    String arrayType = input.getColumnType() != null ? input.getColumnType().getArraySqlType() : "text[]";
+    return String.format(
+        "\"%s\" = (SELECT array_agg(elem) FROM unnest(\"%s\") AS elem WHERE NOT (elem = ANY(?::%s)))",
+        input.getBaseField(), input.getBaseField(), arrayType);
+  }
+
+  @Override
   public String parseInternal(final UpdateParserInput input) {
     final String baseField = input.getBaseField();
     final String[] path = input.getPath();
