@@ -2926,8 +2926,7 @@ public class FlatCollectionWriteTest {
           UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
       assertThrows(
-          IllegalArgumentException.class,
-          () -> collectionWithThrowStrategy.bulkUpdate(query, updates, options));
+          IOException.class, () -> collectionWithThrowStrategy.bulkUpdate(query, updates, options));
     }
   }
 
