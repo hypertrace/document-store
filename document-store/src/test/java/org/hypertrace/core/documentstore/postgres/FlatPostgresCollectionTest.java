@@ -401,5 +401,31 @@ class FlatPostgresCollectionTest {
       assertThrows(
           IOException.class, () -> flatPostgresCollection.bulkUpdate(query, updates, options));
     }
+
+    @Test
+    @DisplayName("Should throw IOException on SQLException and log SQLState and ErrorCode")
+    void testBulkUpdateThrowsOnSQLException() throws Exception {
+      Query query = Query.builder().build();
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 100));
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      when(mockSchemaRegistry.getColumnOrRefresh(anyString(), anyString()))
+          .thenAnswer(
+              invocation -> {
+                String columnName = invocation.getArgument(1);
+                return Optional.ofNullable(schema.get(columnName));
+              });
+
+      SQLException sqlException = new SQLException("Connection failed", "08001", 1001);
+      when(mockClient.getPooledConnection()).thenThrow(sqlException);
+
+      IOException thrown =
+          assertThrows(
+              IOException.class, () -> flatPostgresCollection.bulkUpdate(query, updates, options));
+
+      assertEquals(sqlException, thrown.getCause());
+    }
   }
 }
