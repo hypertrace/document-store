@@ -4,9 +4,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -18,14 +22,20 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.DataType;
+import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
+import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -347,6 +357,111 @@ class FlatPostgresCollectionTest {
       assertEquals(psqlException, thrown.getCause());
       verify(mockSchemaRegistry, times(1)).invalidate(COLLECTION_NAME);
       verify(mockPreparedStatement, times(2)).executeQuery();
+    }
+  }
+
+  @Nested
+  @DisplayName("bulkUpdate Tests")
+  class BulkUpdateTests {
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException for null options")
+    void testBulkUpdateThrowsOnNullOptions() {
+      Query query = Query.builder().build();
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 100));
+
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> flatPostgresCollection.bulkUpdate(query, updates, null));
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException for empty updates")
+    void testBulkUpdateThrowsOnEmptyUpdates() {
+      Query query = Query.builder().build();
+      List<SubDocumentUpdate> emptyUpdates = Collections.emptyList();
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> flatPostgresCollection.bulkUpdate(query, emptyUpdates, options));
+    }
+
+    @Test
+    @DisplayName("Should throw IOException for unsupported operator")
+    void testBulkUpdateThrowsOnUnsupportedOperator() {
+      Query query = Query.builder().build();
+      // UNSET is not supported
+      List<SubDocumentUpdate> updates =
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("price")
+                  .operator(org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET)
+                  .build());
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      // No stubbing needed - operator check happens before schema lookup
+      assertThrows(
+          IOException.class, () -> flatPostgresCollection.bulkUpdate(query, updates, options));
+    }
+
+    @Test
+    @DisplayName("Should throw IOException on SQLException and log SQLState and ErrorCode")
+    void testBulkUpdateThrowsOnSQLException() throws Exception {
+      Query query = Query.builder().build();
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 100));
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      when(mockSchemaRegistry.getColumnOrRefresh(anyString(), anyString()))
+          .thenAnswer(
+              invocation -> {
+                String columnName = invocation.getArgument(1);
+                return Optional.ofNullable(schema.get(columnName));
+              });
+
+      SQLException sqlException = new SQLException("Connection failed", "08001", 1001);
+      when(mockClient.getPooledConnection()).thenThrow(sqlException);
+
+      IOException thrown =
+          assertThrows(
+              IOException.class, () -> flatPostgresCollection.bulkUpdate(query, updates, options));
+
+      assertEquals(sqlException, thrown.getCause());
+    }
+
+    @Test
+    @DisplayName("Should close beforeIterator on exception when BEFORE_UPDATE")
+    @SuppressWarnings("unchecked")
+    void testBulkUpdateClosesIteratorOnException() throws Exception {
+      // Create spy to mock find() while testing rest of bulkUpdate
+      FlatPostgresCollection spyCollection = spy(flatPostgresCollection);
+
+      CloseableIterator<Document> mockIterator = mock(CloseableIterator.class);
+      doReturn(mockIterator).when(spyCollection).find(any(Query.class));
+
+      Query query = Query.builder().build();
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 100));
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.BEFORE_UPDATE).build();
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      when(mockSchemaRegistry.getColumnOrRefresh(anyString(), anyString()))
+          .thenAnswer(
+              invocation -> {
+                String columnName = invocation.getArgument(1);
+                return Optional.ofNullable(schema.get(columnName));
+              });
+
+      RuntimeException runtimeException = new RuntimeException("Connection pool exhausted");
+      when(mockClient.getPooledConnection()).thenThrow(runtimeException);
+
+      assertThrows(IOException.class, () -> spyCollection.bulkUpdate(query, updates, options));
+
+      verify(mockIterator).close();
     }
   }
 }

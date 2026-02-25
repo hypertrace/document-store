@@ -551,6 +551,65 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
+  @Override
+  public CloseableIterator<Document> bulkUpdate(
+      org.hypertrace.core.documentstore.query.Query query,
+      Collection<SubDocumentUpdate> updates,
+      UpdateOptions updateOptions)
+      throws IOException {
+
+    Preconditions.checkArgument(
+        updateOptions != null && !updates.isEmpty(), "Updates cannot be NULL or empty");
+
+    String tableName = tableIdentifier.getTableName();
+    CloseableIterator<Document> beforeIterator = null;
+
+    try {
+      ReturnDocumentType returnType = updateOptions.getReturnDocumentType();
+
+      Map<String, String> resolvedColumns = resolvePathsToColumns(updates, tableName);
+
+      if (returnType == BEFORE_UPDATE) {
+        beforeIterator = find(query);
+      }
+
+      try (Connection connection = client.getPooledConnection()) {
+        executeUpdate(connection, query, updates, tableName, resolvedColumns);
+      }
+
+      switch (returnType) {
+        case AFTER_UPDATE:
+          return find(query);
+
+        case BEFORE_UPDATE:
+          return beforeIterator;
+
+        case NONE:
+          return CloseableIterator.emptyIterator();
+
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported return document type: " + returnType);
+      }
+
+    } catch (SQLException e) {
+      if (beforeIterator != null) {
+        beforeIterator.close();
+      }
+      LOGGER.error(
+          "SQLException during bulkUpdate operation. SQLState: {}, ErrorCode: {}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+      throw new IOException(e);
+    } catch (Exception e) {
+      if (beforeIterator != null) {
+        beforeIterator.close();
+      }
+      throw new IOException(e);
+    }
+  }
+
   /**
    * Validates all updates and resolves column names.
    *
@@ -731,15 +790,6 @@ public class FlatPostgresCollection extends PostgresCollection {
       LOGGER.error("Failed to execute update. SQL: {}, SQLState: {}", sql, e.getSQLState(), e);
       throw e;
     }
-  }
-
-  @Override
-  public CloseableIterator<Document> bulkUpdate(
-      org.hypertrace.core.documentstore.query.Query query,
-      java.util.Collection<SubDocumentUpdate> updates,
-      UpdateOptions updateOptions)
-      throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
   }
 
   /*isRetry: Whether this is a retry attempt*/
