@@ -18,14 +18,19 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.DataType;
+import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
+import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
+import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -347,6 +352,60 @@ class FlatPostgresCollectionTest {
       assertEquals(psqlException, thrown.getCause());
       verify(mockSchemaRegistry, times(1)).invalidate(COLLECTION_NAME);
       verify(mockPreparedStatement, times(2)).executeQuery();
+    }
+  }
+
+  @Nested
+  @DisplayName("bulkUpdate Tests")
+  class BulkUpdateTests {
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException for null options")
+    void testBulkUpdateThrowsOnNullOptions() {
+      Query query = Query.builder().build();
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 100));
+
+      assertThrows(
+          IOException.class, () -> flatPostgresCollection.bulkUpdate(query, updates, null));
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException for empty updates")
+    void testBulkUpdateThrowsOnEmptyUpdates() {
+      Query query = Query.builder().build();
+      List<SubDocumentUpdate> emptyUpdates = Collections.emptyList();
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      assertThrows(
+          IllegalArgumentException.class,
+          () -> flatPostgresCollection.bulkUpdate(query, emptyUpdates, options));
+    }
+
+    @Test
+    @DisplayName("Should throw IllegalArgumentException for unsupported operator")
+    void testBulkUpdateThrowsOnUnsupportedOperator() {
+      Query query = Query.builder().build();
+      // UNSET is not supported
+      List<SubDocumentUpdate> updates =
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("price")
+                  .operator(org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET)
+                  .build());
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      when(mockSchemaRegistry.getColumnOrRefresh(anyString(), anyString()))
+          .thenAnswer(
+              invocation -> {
+                String columnName = invocation.getArgument(1);
+                return Optional.ofNullable(schema.get(columnName));
+              });
+
+      assertThrows(
+          IOException.class, () -> flatPostgresCollection.bulkUpdate(query, updates, options));
     }
   }
 }
