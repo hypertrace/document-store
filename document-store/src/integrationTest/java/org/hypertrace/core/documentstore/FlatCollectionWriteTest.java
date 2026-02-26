@@ -2396,7 +2396,7 @@ public class FlatCollectionWriteTest {
       @Test
       @DisplayName("Should UNSET nested JSONB field (remove key)")
       void testUnsetNestedJsonbField() throws Exception {
-        String docId = "unset-jsonb-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "JsonbItem");
@@ -2487,7 +2487,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should handle ADD on NULL column (treat as 0)")
       void testAddOnNullColumn() throws Exception {
         // Create a document with NULL price
-        String docId = "add-null-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "NullPriceItem");
@@ -2595,7 +2595,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should ADD to nested JSONB numeric field")
       void testAddNestedJsonbField() throws Exception {
         // First, set up a document with a JSONB field containing a numeric value
-        String docId = "add-jsonb-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "JsonbItem");
@@ -2640,7 +2640,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should ADD to nested JSONB field that doesn't exist (creates with value)")
       void testAddNestedJsonbFieldNotExists() throws Exception {
         // Document with empty JSONB or no such nested key
-        String docId = "add-jsonb-new-key";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "NewKeyItem");
@@ -2807,7 +2807,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should ADD to BIGINT column with correct type cast")
       void testAddBigintColumn() throws Exception {
         // Create a document with big_number set
-        String docId = "add-bigint-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "BigintItem");
@@ -2847,7 +2847,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should ADD to REAL column with correct type cast")
       void testAddRealColumn() throws Exception {
         // Create a document with rating set
-        String docId = "add-real-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "RealItem");
@@ -2903,7 +2903,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should append values to top-level array column")
       void testAppendToTopLevelArray() throws Exception {
         // Create a document with known tags for predictable testing
-        String docId = "append-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "TestItem");
@@ -2948,7 +2948,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should append values to nested JSONB array")
       void testAppendToNestedJsonbArray() throws Exception {
         // Set up a document with JSONB containing an array
-        String docId = "append-jsonb-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "JsonbArrayItem");
@@ -2993,7 +2993,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should create list when appending to non-existent JSONB array")
       void testAppendToNonExistentJsonbArray() throws Exception {
         // Create a document with props but NO colors array
-        String docId = "append-nonexistent-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "ItemWithoutColors");
@@ -3240,7 +3240,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should remove values from nested JSONB array")
       void testRemoveAllFromNestedJsonbArray() throws Exception {
         // Set up a document with JSONB containing an array
-        String docId = "remove-jsonb-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "JsonbArrayItem");
@@ -3284,7 +3284,7 @@ public class FlatCollectionWriteTest {
       @Test
       @DisplayName("Should handle removing non-existent values (no-op)")
       void testRemoveNonExistentValues() throws Exception {
-        String docId = "remove-noop-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "TestItem");
