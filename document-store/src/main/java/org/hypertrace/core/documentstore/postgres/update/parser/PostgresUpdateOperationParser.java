@@ -16,9 +16,8 @@ public interface PostgresUpdateOperationParser {
    * @param input the update parser input containing column info and value
    * @return SQL fragment for the SET clause
    */
-  default String parseTopLevelField(final UpdateParserInput input) {
-    throw new UnsupportedOperationException(
-        "parseTopLevelField not implemented for this operator");
+  default String parseNonJsonbField(final UpdateParserInput input) {
+    throw new UnsupportedOperationException("parseNonJsonbField not implemented for this operator");
   }
 
   String parseInternal(final UpdateParserInput input);
@@ -28,12 +27,12 @@ public interface PostgresUpdateOperationParser {
   @Value
   @Builder
   class UpdateParserInput {
+
     String baseField;
     String[] path;
     SubDocumentUpdate update;
     Params.Builder paramsBuilder;
-
-    /** The PostgreSQL data type of the column (used for flat collections with typed columns) */
+    // only for flat collections
     PostgresDataType columnType;
   }
 }

@@ -16,7 +16,9 @@ import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValu
 
 public class PostgresAddValueParser implements PostgresUpdateOperationParser {
 
-  /** Visitor to validate and extract numeric values from SubDocumentValue. */
+  /**
+   * Visitor to validate and extract numeric values from SubDocumentValue.
+   */
   private static final SubDocumentValueVisitor<Number> NUMERIC_VALUE_VALIDATOR =
       new SubDocumentValueVisitor<>() {
         @Override
@@ -53,7 +55,7 @@ public class PostgresAddValueParser implements PostgresUpdateOperationParser {
       };
 
   @Override
-  public String parseTopLevelField(UpdateParserInput input) {
+  public String parseNonJsonbField(UpdateParserInput input) {
     // Validate that the value is numeric
     SubDocumentValue value = input.getUpdate().getSubDocumentValue();
     value.accept(NUMERIC_VALUE_VALIDATOR);
@@ -68,11 +70,12 @@ public class PostgresAddValueParser implements PostgresUpdateOperationParser {
     // Generate: "column" = COALESCE("column", 0) + ?::type
     String typeCast = getPostgresTypeCast(input.getColumnType());
     return String.format(
-        "\"%s\" = COALESCE(\"%s\", 0) + ?%s",
-        input.getBaseField(), input.getBaseField(), typeCast);
+        "\"%s\" = COALESCE(\"%s\", 0) + ?%s", input.getBaseField(), input.getBaseField(), typeCast);
   }
 
-  /** Returns the PostgreSQL type cast for the column type. */
+  /**
+   * Returns the PostgreSQL type cast for the column type.
+   */
   private String getPostgresTypeCast(PostgresDataType columnType) {
     if (columnType == null) {
       return "";

@@ -21,7 +21,7 @@ public class PostgresSetValueParser implements PostgresUpdateOperationParser {
   }
 
   @Override
-  public String parseTopLevelField(final UpdateParserInput input) {
+  public String parseNonJsonbField(final UpdateParserInput input) {
     final Params.Builder paramsBuilder = input.getParamsBuilder();
     final PostgresSubDocumentValueParser valueParser =
         new PostgresSubDocumentValueParser(paramsBuilder);

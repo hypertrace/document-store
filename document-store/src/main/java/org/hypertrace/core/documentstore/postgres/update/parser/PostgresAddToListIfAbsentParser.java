@@ -8,7 +8,7 @@ import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValu
 public class PostgresAddToListIfAbsentParser implements PostgresUpdateOperationParser {
 
   @Override
-  public String parseTopLevelField(final UpdateParserInput input) {
+  public String parseNonJsonbField(final UpdateParserInput input) {
     final SubDocumentValue value = input.getUpdate().getSubDocumentValue();
 
     // Extract array values directly for top-level array columns
@@ -17,7 +17,8 @@ public class PostgresAddToListIfAbsentParser implements PostgresUpdateOperationP
     input.getParamsBuilder().addObjectParam(arrayValues);
 
     // For top-level array columns: add unique values using ARRAY(SELECT DISTINCT unnest(...))
-    String arrayType = input.getColumnType() != null ? input.getColumnType().getArraySqlType() : "text[]";
+    String arrayType =
+        input.getColumnType() != null ? input.getColumnType().getArraySqlType() : "text[]";
     return String.format(
         "\"%s\" = ARRAY(SELECT DISTINCT unnest(COALESCE(\"%s\", '{}') || ?::%s))",
         input.getBaseField(), input.getBaseField(), arrayType);

@@ -7,7 +7,7 @@ import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValu
 public class PostgresAppendToListParser implements PostgresUpdateOperationParser {
 
   @Override
-  public String parseTopLevelField(final UpdateParserInput input) {
+  public String parseNonJsonbField(final UpdateParserInput input) {
     final SubDocumentValue value = input.getUpdate().getSubDocumentValue();
 
     // Extract array values directly for top-level array columns
@@ -16,7 +16,8 @@ public class PostgresAppendToListParser implements PostgresUpdateOperationParser
     input.getParamsBuilder().addObjectParam(arrayValues);
 
     // For top-level array columns: "column" = COALESCE("column", '{}') || ?::arrayType
-    String arrayType = input.getColumnType() != null ? input.getColumnType().getArraySqlType() : "text[]";
+    String arrayType =
+        input.getColumnType() != null ? input.getColumnType().getArraySqlType() : "text[]";
     return String.format(
         "\"%s\" = COALESCE(\"%s\", '{}') || ?::%s",
         input.getBaseField(), input.getBaseField(), arrayType);
