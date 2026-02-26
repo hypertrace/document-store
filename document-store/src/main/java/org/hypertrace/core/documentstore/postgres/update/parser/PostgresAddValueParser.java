@@ -66,28 +66,10 @@ public class PostgresAddValueParser implements PostgresUpdateOperationParser {
     value.accept(valueParser);
 
     // Generate: "column" = COALESCE("column", 0) + ?::type
-    String typeCast = getPostgresTypeCast(input.getColumnType());
+    PostgresDataType columnType = input.getColumnType();
+    String typeCast = (columnType != null) ? columnType.getTypeCast() : "";
     return String.format(
         "\"%s\" = COALESCE(\"%s\", 0) + ?%s", input.getBaseField(), input.getBaseField(), typeCast);
-  }
-
-  /** Returns the PostgreSQL type cast for the column type. */
-  private String getPostgresTypeCast(PostgresDataType columnType) {
-    if (columnType == null) {
-      return "";
-    }
-    switch (columnType) {
-      case INTEGER:
-        return "::integer";
-      case BIGINT:
-        return "::bigint";
-      case REAL:
-        return "::real";
-      case DOUBLE_PRECISION:
-        return "::double precision";
-      default:
-        return "";
-    }
   }
 
   @Override
