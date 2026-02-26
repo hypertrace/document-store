@@ -27,7 +27,6 @@ public interface PostgresUpdateOperationParser {
   @Value
   @Builder
   class UpdateParserInput {
-
     String baseField;
     String[] path;
     SubDocumentUpdate update;
