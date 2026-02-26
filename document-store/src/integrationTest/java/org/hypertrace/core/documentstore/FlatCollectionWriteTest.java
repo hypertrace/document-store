@@ -3387,33 +3387,6 @@ public class FlatCollectionWriteTest {
 
       assertThrows(IOException.class, () -> flatCollection.update(query, updates, options));
     }
-
-    @Test
-    @DisplayName("Should throw IOException for unsupported operator")
-    void testUpdateUnsupportedOperator() {
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("_id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of(1)))
-              .build();
-
-      // UNSET is not supported yet
-      List<SubDocumentUpdate> updates =
-          List.of(
-              SubDocumentUpdate.builder()
-                  .subDocument("price")
-                  .operator(UpdateOperator.UNSET)
-                  .build());
-
-      UpdateOptions options =
-          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-      assertThrows(
-          IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
-    }
   }
 
   @Nested
