@@ -195,32 +195,6 @@ public class MongoFlatPgConsistencyTest {
         .build();
   }
 
-  private void insertTestDocument(String docId) throws IOException {
-    Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-    String keyStr = key.toString();
-
-    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-    objectNode.put("id", keyStr);
-    objectNode.put("item", "Test Item");
-    objectNode.put("price", 100);
-    objectNode.put("quantity", 10);
-
-    ObjectNode propsNode = OBJECT_MAPPER.createObjectNode();
-    propsNode.put("brand", "TestBrand");
-    ObjectNode salesNode = OBJECT_MAPPER.createObjectNode();
-    salesNode.put("total", 100);
-    salesNode.put("count", 5);
-    propsNode.set("sales", salesNode);
-    objectNode.set("props", propsNode);
-
-    Document document = new JSONDocument(objectNode);
-
-    // Insert into both collections using upsert
-    for (Collection collection : collectionMap.values()) {
-      collection.upsert(key, document);
-    }
-  }
-
   private void insertMinimalTestDocument(String docId) throws IOException {
     Key key = new SingleValueKey(DEFAULT_TENANT, docId);
     String keyStr = key.toString();
@@ -359,7 +333,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"red", "blue"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"red", "blue"}))
                     .build());
 
         UpdateOptions options =
@@ -395,7 +369,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("props.tags")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1", "tag2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag1", "tag2"}))
                     .build());
 
         UpdateOptions options =
@@ -431,7 +405,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"red"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"red"}))
                     .build());
 
         UpdateOptions options =
@@ -445,6 +419,115 @@ public class MongoFlatPgConsistencyTest {
 
         // Document should still exist
         assertEquals("Minimal Item", resultJson.get("item").asText());
+      }
+
+      @ParameterizedTest(name = "{0}: SET on deep nested path should create intermediate objects")
+      @ArgumentsSource(AllStoresProvider.class)
+      void testSetDeepNested(String storeName) throws Exception {
+        String docId = generateDocId("set-deep");
+        insertMinimalTestDocument(docId);
+
+        Collection collection = getCollection(storeName);
+        Query query = buildQueryById(docId);
+
+        // SET props.brand.category.name - all intermediate objects don't exist
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.brand.category.name")
+                    .operator(UpdateOperator.SET)
+                    .subDocumentValue(SubDocumentValue.of("Electronics"))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = collection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+
+        // Verify deep nested structure was created
+        JsonNode propsNode = resultJson.get("props");
+        assertNotNull(propsNode, storeName + ": props should be created");
+        JsonNode brandNode = propsNode.get("brand");
+        assertNotNull(brandNode, storeName + ": props.brand should be created");
+        JsonNode categoryNode = brandNode.get("category");
+        assertNotNull(categoryNode, storeName + ": props.brand.category should be created");
+        assertEquals("Electronics", categoryNode.get("name").asText());
+      }
+
+      @ParameterizedTest(name = "{0}: ADD on deep nested path should create intermediate objects")
+      @ArgumentsSource(AllStoresProvider.class)
+      void testAddDeepNested(String storeName) throws Exception {
+        String docId = generateDocId("add-deep");
+        insertMinimalTestDocument(docId);
+
+        Collection collection = getCollection(storeName);
+        Query query = buildQueryById(docId);
+
+        // ADD to props.stats.sales.count - all intermediate objects don't exist
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.stats.sales.count")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(SubDocumentValue.of(5))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = collection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+
+        JsonNode propsNode = resultJson.get("props");
+        assertNotNull(propsNode, storeName + ": props should be created");
+        JsonNode statsNode = propsNode.get("stats");
+        assertNotNull(statsNode, storeName + ": props.stats should be created");
+        JsonNode salesNode = statsNode.get("sales");
+        assertNotNull(salesNode, storeName + ": props.stats.sales should be created");
+        assertEquals(5, salesNode.get("count").asInt());
+      }
+
+      @ParameterizedTest(name = "{0}: APPEND_TO_LIST on deep nested path should create intermediate objects")
+      @ArgumentsSource(AllStoresProvider.class)
+      void testAppendToListDeepNested(String storeName) throws Exception {
+        String docId = generateDocId("append-deep");
+        insertMinimalTestDocument(docId);
+
+        Collection collection = getCollection(storeName);
+        Query query = buildQueryById(docId);
+
+        // APPEND_TO_LIST to props.metadata.tags.items - all intermediate objects don't exist
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.metadata.tags.items")
+                    .operator(UpdateOperator.APPEND_TO_LIST)
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag1", "tag2"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = collection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+
+        JsonNode propsNode = resultJson.get("props");
+        assertNotNull(propsNode);
+        JsonNode metadataNode = propsNode.get("metadata");
+        assertNotNull(metadataNode);
+        JsonNode tagsNode = metadataNode.get("tags");
+        assertNotNull(tagsNode);
+        JsonNode itemsNode = tagsNode.get("items");
+        assertNotNull(itemsNode);
+        assertTrue(itemsNode.isArray());
+        assertEquals(2, itemsNode.size());
       }
     }
 
@@ -571,7 +654,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("unknownList")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"item1", "item2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"item1", "item2"}))
                     .build());
 
         UpdateOptions options =
@@ -609,7 +692,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("unknownSet")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"val1", "val2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"val1", "val2"}))
                     .build());
 
         UpdateOptions options =
@@ -647,7 +730,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("unknownList")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"item1"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"item1"}))
                     .build());
 
         UpdateOptions options =
