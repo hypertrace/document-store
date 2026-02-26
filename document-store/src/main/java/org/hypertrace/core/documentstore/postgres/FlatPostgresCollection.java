@@ -431,7 +431,8 @@ public class FlatPostgresCollection extends PostgresCollection {
             ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
             : null;
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col. Exclude createdTsColumn from updates to preserve original creation time
+    // Build SET clause for non-PK columns: col = EXCLUDED.col. Exclude createdTsColumn from updates
+    // to preserve original creation time
     String setClause =
         columns.stream()
             .filter(col -> !col.equals(pkColumn))
