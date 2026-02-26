@@ -333,7 +333,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"red", "blue"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"red", "blue"}))
                     .build());
 
         UpdateOptions options =
@@ -369,7 +369,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("props.tags")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag1", "tag2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1", "tag2"}))
                     .build());
 
         UpdateOptions options =
@@ -405,7 +405,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"red"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"red"}))
                     .build());
 
         UpdateOptions options =
@@ -492,7 +492,8 @@ public class MongoFlatPgConsistencyTest {
         assertEquals(5, salesNode.get("count").asInt());
       }
 
-      @ParameterizedTest(name = "{0}: APPEND_TO_LIST on deep nested path should create intermediate objects")
+      @ParameterizedTest(
+          name = "{0}: APPEND_TO_LIST on deep nested path should create intermediate objects")
       @ArgumentsSource(AllStoresProvider.class)
       void testAppendToListDeepNested(String storeName) throws Exception {
         String docId = generateDocId("append-deep");
@@ -507,7 +508,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("props.metadata.tags.items")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag1", "tag2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1", "tag2"}))
                     .build());
 
         UpdateOptions options =
@@ -654,7 +655,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("unknownList")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"item1", "item2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"item1", "item2"}))
                     .build());
 
         UpdateOptions options =
@@ -692,7 +693,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("unknownSet")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"val1", "val2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"val1", "val2"}))
                     .build());
 
         UpdateOptions options =
@@ -730,7 +731,7 @@ public class MongoFlatPgConsistencyTest {
                 SubDocumentUpdate.builder()
                     .subDocument("unknownList")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"item1"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"item1"}))
                     .build());
 
         UpdateOptions options =
