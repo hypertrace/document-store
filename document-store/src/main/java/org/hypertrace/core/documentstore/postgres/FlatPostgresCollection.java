@@ -1,5 +1,6 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static java.util.Map.entry;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
@@ -82,15 +83,14 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
   private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
 
-  /** Unified parsers that support both nested and flat collections via parseNonJsonbField() */
-  private static final Map<UpdateOperator, PostgresUpdateOperationParser> SUBDOC_UPDATE_PARSERS =
-      Map.of(
-          SET, new PostgresSetValueParser(),
-          ADD, new PostgresAddValueParser(),
-          UNSET, new PostgresUnsetPathParser(),
-          APPEND_TO_LIST, new PostgresAppendToListParser(),
-          ADD_TO_LIST_IF_ABSENT, new PostgresAddToListIfAbsentParser(),
-          REMOVE_ALL_FROM_LIST, new PostgresRemoveAllFromListParser());
+  private static final Map<UpdateOperator, PostgresUpdateOperationParser> UPDATE_PARSER_MAP =
+      Map.ofEntries(
+          entry(SET, new PostgresSetValueParser()),
+          entry(UNSET, new PostgresUnsetPathParser()),
+          entry(ADD, new PostgresAddValueParser()),
+          entry(REMOVE_ALL_FROM_LIST, new PostgresRemoveAllFromListParser()),
+          entry(ADD_TO_LIST_IF_ABSENT, new PostgresAddToListIfAbsentParser()),
+          entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
@@ -391,8 +391,8 @@ public class FlatPostgresCollection extends PostgresCollection {
    * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
    * columns in the provided list are updated on conflict (merge behavior).
    *
-   * @param columns List of quoted column names to include
-   * @param pkColumn The quoted primary key column name
+   * @param columns          List of quoted column names to include
+   * @param pkColumn         The quoted primary key column name
    * @param includeReturning If true, adds RETURNING clause to detect insert vs update
    * @return The upsert SQL statement
    */
@@ -626,7 +626,7 @@ public class FlatPostgresCollection extends PostgresCollection {
    * Validates all updates and resolves column names.
    *
    * @return Map of path -> columnName for all resolved columns. For example: customAttributes.props
-   *     -> customAttributes (since customAttributes is the top-level JSONB col)
+   * -> customAttributes (since customAttributes is the top-level JSONB col)
    */
   private Map<String, String> resolvePathsToColumns(
       Collection<SubDocumentUpdate> updates, String tableName) {
@@ -636,7 +636,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       UpdateOperator operator = update.getOperator();
 
       Preconditions.checkArgument(
-          SUBDOC_UPDATE_PARSERS.containsKey(operator), "Unsupported UPDATE operator: " + operator);
+          UPDATE_PARSER_MAP.containsKey(operator), "Unsupported UPDATE operator: " + operator);
 
       String path = update.getSubDocument().getPath();
       Optional<String> columnName = resolveColumnName(path, tableName);
@@ -699,7 +699,9 @@ public class FlatPostgresCollection extends PostgresCollection {
     return Optional.empty();
   }
 
-  /** Extracts the nested JSONB path from a full path given the resolved column name. */
+  /**
+   * Extracts the nested JSONB path from a full path given the resolved column name.
+   */
   private String[] getNestedPath(String fullPath, String columnName) {
     if (fullPath.equals(columnName)) {
       return new String[0];
@@ -757,13 +759,14 @@ public class FlatPostgresCollection extends PostgresCollection {
           schemaRegistry.getColumnOrRefresh(tableName, columnName).orElseThrow();
 
       String[] nestedPath = getNestedPath(path, columnName);
-      boolean isTopLevel = nestedPath == null || nestedPath.length == 0;
+      boolean isTopLevel = nestedPath.length == 0;
       UpdateOperator operator = update.getOperator();
 
       Params.Builder paramsBuilder = Params.newBuilder();
-      PostgresUpdateOperationParser unifiedParser = SUBDOC_UPDATE_PARSERS.get(operator);
+      PostgresUpdateOperationParser unifiedParser = UPDATE_PARSER_MAP.get(operator);
 
       String fragment;
+
       if (isTopLevel) {
         UpdateParserInput input =
             UpdateParserInput.builder()
@@ -983,9 +986,9 @@ public class FlatPostgresCollection extends PostgresCollection {
    * <p>Unlike {@link #createOrReplaceWithRetry}, this method does NOT reset missing columns to
    * their default values.
    *
-   * @param key The document key
+   * @param key      The document key
    * @param document The document to upsert
-   * @param isRetry Whether this is a retry attempt after schema refresh
+   * @param isRetry  Whether this is a retry attempt after schema refresh
    * @return true if a new document was created, false if an existing document was updated
    */
   private boolean upsertWithRetry(Key key, Document document, boolean isRetry) throws IOException {
@@ -1037,7 +1040,7 @@ public class FlatPostgresCollection extends PostgresCollection {
    * }</pre>
    *
    * @param docColumns columns present in the document
-   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @param pkColumn   The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
   private String buildUpsertSql(List<String> docColumns, String pkColumn) {
@@ -1080,8 +1083,8 @@ public class FlatPostgresCollection extends PostgresCollection {
    * </ul>
    *
    * @param allTableColumns all cols present in the table
-   * @param docColumns cols present in the document
-   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @param docColumns      cols present in the document
+   * @param pkColumn        The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
   private String buildCreateOrReplaceSql(
