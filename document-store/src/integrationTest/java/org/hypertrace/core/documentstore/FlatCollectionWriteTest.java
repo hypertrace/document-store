@@ -3412,17 +3412,6 @@ public class FlatCollectionWriteTest {
   }
 
   @Nested
-  @DisplayName("Drop Operations")
-  class DropTests {
-
-    @Test
-    @DisplayName("Should throw UnsupportedOperationException for drop")
-    void testDrop() {
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.drop());
-    }
-  }
-
-  @Nested
   @DisplayName("Bulk Array Value Operations")
   class BulkArrayValueOperationTests {
 
@@ -3506,6 +3495,17 @@ public class FlatCollectionWriteTest {
         assertTrue(rs.next());
         assertEquals("Item after schema refresh", rs.getString("item"));
       }
+    }
+  }
+
+  @Nested
+  @DisplayName("Drop Operations")
+  class DropTests {
+
+    @Test
+    @DisplayName("Should throw UnsupportedOperationException for drop")
+    void testDrop() {
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.drop());
     }
   }
 }
