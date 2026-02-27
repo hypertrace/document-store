@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field;
 
 import org.hypertrace.core.documentstore.expression.impl.DataType;
+import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 
 /**
  * PostgreSQL-specific data types with their SQL type strings.
@@ -40,6 +41,31 @@ public enum PostgresDataType {
     return sqlType + "[]";
   }
 
+  public String getTypeCast() {
+    return sqlType == null ? "" : "::" + sqlType;
+  }
+
+  public String getArrayTypeCast() {
+    return sqlType == null ? "" : "::" + sqlType + "[]";
+  }
+
+  public static PostgresDataType fromJavaValue(Object value) {
+    if (value instanceof String) {
+      return TEXT;
+    } else if (value instanceof Integer) {
+      return INTEGER;
+    } else if (value instanceof Long) {
+      return BIGINT;
+    } else if (value instanceof Float) {
+      return REAL;
+    } else if (value instanceof Double) {
+      return DOUBLE_PRECISION;
+    } else if (value instanceof Boolean) {
+      return BOOLEAN;
+    }
+    return UNKNOWN;
+  }
+
   /**
    * Maps a generic DataType to its PostgreSQL equivalent.
    *
@@ -68,6 +94,29 @@ public enum PostgresDataType {
         return DATE;
       default:
         throw new IllegalArgumentException("Unknown DataType: " + dataType);
+    }
+  }
+
+  /**
+   * Returns the PostgreSQL type cast string for JSONB array element types.
+   *
+   * @param fieldType the JSON field type (must be an array type)
+   * @return Type cast string (e.g., "::text", "::numeric", "::boolean", "::jsonb")
+   * @throws IllegalArgumentException if fieldType is not a supported array type
+   */
+  public static String getJsonArrayElementTypeCast(JsonFieldType fieldType) {
+    switch (fieldType) {
+      case STRING_ARRAY:
+        return "::text";
+      case NUMBER_ARRAY:
+        return "::numeric";
+      case BOOLEAN_ARRAY:
+        return "::boolean";
+      case OBJECT_ARRAY:
+        return "::jsonb";
+      default:
+        throw new IllegalArgumentException(
+            "Unsupported array type: " + fieldType + ". Expected *_ARRAY types.");
     }
   }
 }

@@ -6,6 +6,11 @@ import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.for
 public class PostgresUnsetPathParser implements PostgresUpdateOperationParser {
 
   @Override
+  public String parseNonJsonbField(final UpdateParserInput input) {
+    return String.format("\"%s\" = NULL", input.getBaseField());
+  }
+
+  @Override
   public String parseInternal(final UpdateParserInput input) {
     return parse(input);
   }

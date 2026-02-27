@@ -1,9 +1,14 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static java.util.Map.entry;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD_TO_LIST_IF_ABSENT;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.APPEND_TO_LIST;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMOVE_ALL_FROM_LIST;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
+import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,10 +54,14 @@ import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.LegacyFilterToQueryFilterTransformer;
-import org.hypertrace.core.documentstore.postgres.update.FlatUpdateContext;
-import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocAddOperatorParser;
-import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocSetOperatorParser;
-import org.hypertrace.core.documentstore.postgres.update.parser.FlatCollectionSubDocUpdateOperatorParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddToListIfAbsentParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddValueParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAppendToListParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresRemoveAllFromListParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresSetValueParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUnsetPathParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUpdateOperationParser;
+import org.hypertrace.core.documentstore.postgres.update.parser.PostgresUpdateOperationParser.UpdateParserInput;
 import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 import org.hypertrace.core.documentstore.query.Query;
 import org.postgresql.util.PSQLException;
@@ -76,11 +85,14 @@ public class FlatPostgresCollection extends PostgresCollection {
   private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
   private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
 
-  private static final Map<UpdateOperator, FlatCollectionSubDocUpdateOperatorParser>
-      SUB_DOC_UPDATE_PARSERS =
-          Map.of(
-              SET, new FlatCollectionSubDocSetOperatorParser(),
-              ADD, new FlatCollectionSubDocAddOperatorParser());
+  private static final Map<UpdateOperator, PostgresUpdateOperationParser> UPDATE_PARSER_MAP =
+      Map.ofEntries(
+          entry(SET, new PostgresSetValueParser()),
+          entry(UNSET, new PostgresUnsetPathParser()),
+          entry(ADD, new PostgresAddValueParser()),
+          entry(REMOVE_ALL_FROM_LIST, new PostgresRemoveAllFromListParser()),
+          entry(ADD_TO_LIST_IF_ABSENT, new PostgresAddToListIfAbsentParser()),
+          entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
 
@@ -668,7 +680,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       UpdateOperator operator = update.getOperator();
 
       Preconditions.checkArgument(
-          SUB_DOC_UPDATE_PARSERS.containsKey(operator), "Unsupported UPDATE operator: " + operator);
+          UPDATE_PARSER_MAP.containsKey(operator), "Unsupported UPDATE operator: " + operator);
 
       String path = update.getSubDocument().getPath();
       Optional<String> columnName = resolveColumnName(path, tableName);
@@ -788,20 +800,40 @@ public class FlatPostgresCollection extends PostgresCollection {
       PostgresColumnMetadata colMeta =
           schemaRegistry.getColumnOrRefresh(tableName, columnName).orElseThrow();
 
-      FlatUpdateContext context =
-          FlatUpdateContext.builder()
-              .columnName(columnName)
-              // get the nested path. So for example, if colName is `customAttr` and full path is
-              // `customAttr.props`, then the nested path is `props`.
-              .nestedPath(getNestedPath(path, columnName))
-              .columnType(colMeta.getPostgresType())
-              .value(update.getSubDocumentValue())
-              .params(params)
-              .build();
+      String[] nestedPath = getNestedPath(path, columnName);
+      boolean isTopLevel = nestedPath.length == 0;
+      UpdateOperator operator = update.getOperator();
 
-      FlatCollectionSubDocUpdateOperatorParser operatorParser =
-          SUB_DOC_UPDATE_PARSERS.get(update.getOperator());
-      String fragment = operatorParser.parse(context);
+      Params.Builder paramsBuilder = Params.newBuilder();
+      PostgresUpdateOperationParser unifiedParser = UPDATE_PARSER_MAP.get(operator);
+
+      String fragment;
+
+      if (isTopLevel) {
+        UpdateParserInput input =
+            UpdateParserInput.builder()
+                .baseField(columnName)
+                .path(new String[0])
+                .update(update)
+                .paramsBuilder(paramsBuilder)
+                .columnType(colMeta.getPostgresType())
+                .build();
+        fragment = unifiedParser.parseNonJsonbField(input);
+      } else {
+        // parseInternal() returns just the value expression
+        UpdateParserInput jsonbInput =
+            UpdateParserInput.builder()
+                .baseField(String.format("\"%s\"", columnName))
+                .path(nestedPath)
+                .update(update)
+                .paramsBuilder(paramsBuilder)
+                .columnType(colMeta.getPostgresType())
+                .build();
+        String valueExpr = unifiedParser.parseInternal(jsonbInput);
+        fragment = String.format("\"%s\" = %s", columnName, valueExpr);
+      }
+      // Transfer params from builder to our list
+      params.addAll(paramsBuilder.build().getObjectParams().values());
       setFragments.add(fragment);
     }
 

@@ -21,6 +21,17 @@ public class PostgresSetValueParser implements PostgresUpdateOperationParser {
   }
 
   @Override
+  public String parseNonJsonbField(final UpdateParserInput input) {
+    final Params.Builder paramsBuilder = input.getParamsBuilder();
+    final PostgresSubDocumentValueParser valueParser =
+        new PostgresSubDocumentValueParser(paramsBuilder);
+
+    // For top-level columns, just set the value directly: "column" = ?
+    input.getUpdate().getSubDocumentValue().accept(valueParser);
+    return String.format("\"%s\" = ?", input.getBaseField());
+  }
+
+  @Override
   public String parseInternal(final UpdateParserInput input) {
     final String baseField = input.getBaseField();
     final String[] path = input.getPath();
