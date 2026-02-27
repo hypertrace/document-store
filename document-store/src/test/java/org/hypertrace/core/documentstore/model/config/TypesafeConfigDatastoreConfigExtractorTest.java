@@ -4,19 +4,23 @@ import static java.util.Map.entry;
 import static org.hypertrace.core.documentstore.model.config.AggregatePipelineMode.SORT_OPTIMIZED_IF_POSSIBLE;
 import static org.hypertrace.core.documentstore.model.options.DataFreshness.NEAR_REALTIME_FRESHNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.DataFreshness;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class TypesafeConfigDatastoreConfigExtractorTest {
+
   private static final String TYPE_KEY = "database_type";
   private static final String HOST_KEY = "hostname";
   private static final String PORT_KEY = "port_number";
@@ -353,6 +357,72 @@ class TypesafeConfigDatastoreConfigExtractorTest {
     assertEquals(expected, config);
   }
 
+  @Test
+  void testBuildPostgresWithCollectionConfigs() {
+    final ConnectionConfig config =
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildConfigMapWithCollectionConfigsForPostgres(), TYPE_KEY)
+            .extract()
+            .connectionConfig();
+
+    final org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig
+        postgresConfig =
+            (org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig)
+                config;
+
+    // Verify collection config for entities_api
+    var entitiesApiConfig = postgresConfig.getCollectionConfig("entities_api");
+    assertEquals(true, entitiesApiConfig.isPresent());
+    var timestampFields = entitiesApiConfig.get().getTimestampFields();
+    assertEquals(true, timestampFields.isPresent());
+    assertEquals("created_time", timestampFields.get().getCreated().get());
+    assertEquals("last_updated_time", timestampFields.get().getLastUpdated().get());
+
+    // Verify collection config for entities_domain
+    var entitiesDomainConfig = postgresConfig.getCollectionConfig("entities_domain");
+    assertEquals(true, entitiesDomainConfig.isPresent());
+    var domainTimestampFields = entitiesDomainConfig.get().getTimestampFields();
+    assertEquals(true, domainTimestampFields.isPresent());
+    assertEquals("create_ts", domainTimestampFields.get().getCreated().get());
+    assertEquals("update_ts", domainTimestampFields.get().getLastUpdated().get());
+
+    // Verify non-existent collection config returns empty
+    var nonExistentConfig = postgresConfig.getCollectionConfig("non_existent");
+    assertEquals(false, nonExistentConfig.isPresent());
+  }
+
+  @Test
+  void testBuildPostgresWithCollectionConfigWithoutTimestampFields() {
+    final ConnectionConfig config =
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildConfigMapWithCollectionConfigWithoutTimestampFields(), TYPE_KEY)
+            .extract()
+            .connectionConfig();
+
+    final PostgresConnectionConfig postgresConfig = (PostgresConnectionConfig) config;
+
+    var collectionWithoutTs = postgresConfig.getCollectionConfig("collection_without_ts");
+    assertTrue(collectionWithoutTs.isPresent());
+    assertFalse(collectionWithoutTs.get().getTimestampFields().isPresent());
+  }
+
+  @Test
+  void testBuildPostgresWithEmptyTimestampFields() {
+    final ConnectionConfig config =
+        TypesafeConfigDatastoreConfigExtractor.from(
+                buildConfigMapWithEmptyTimestampFields(), TYPE_KEY)
+            .extract()
+            .connectionConfig();
+
+    final PostgresConnectionConfig postgresConfig = (PostgresConnectionConfig) config;
+
+    var collectionConfig = postgresConfig.getCollectionConfig("collection_empty_ts");
+    assertTrue(collectionConfig.isPresent());
+    assertTrue(collectionConfig.get().getTimestampFields().isPresent());
+    assertFalse(collectionConfig.get().getTimestampFields().get().getCreated().isPresent());
+    assertFalse(collectionConfig.get().getTimestampFields().get().getLastUpdated().isPresent());
+  }
+
   private Config buildConfigMap() {
     return ConfigFactory.parseMap(
         Map.ofEntries(
@@ -456,5 +526,66 @@ class TypesafeConfigDatastoreConfigExtractorTest {
             entry(MAX_CONNECTIONS_KEY, maxConnections),
             entry(CONNECTION_ACCESS_TIMEOUT_KEY, accessTimeout),
             entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout)));
+  }
+
+  private Config buildConfigMapWithCollectionConfigsForPostgres() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(TYPE_KEY, "postgres"),
+            entry("postgres.host", host),
+            entry("postgres.port", port),
+            entry("postgres.database", database),
+            entry("postgres.user", user),
+            entry("postgres.password", password),
+            entry("appName", appName),
+            entry("maxPoolSize", maxConnections),
+            entry("connectionAccessTimeout", accessTimeout),
+            entry("connectionIdleTime", surrenderTimeout),
+            entry(
+                "postgres.collectionConfigs.entities_api.timestampFields.created", "created_time"),
+            entry(
+                "postgres.collectionConfigs.entities_api.timestampFields.lastUpdated",
+                "last_updated_time"),
+            entry(
+                "postgres.collectionConfigs.entities_domain.timestampFields.created", "create_ts"),
+            entry(
+                "postgres.collectionConfigs.entities_domain.timestampFields.lastUpdated",
+                "update_ts")));
+  }
+
+  private Config buildConfigMapWithCollectionConfigWithoutTimestampFields() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(TYPE_KEY, "postgres"),
+            entry("postgres.host", host),
+            entry("postgres.port", port),
+            entry("postgres.database", database),
+            entry("postgres.user", user),
+            entry("postgres.password", password),
+            entry("appName", appName),
+            entry("maxPoolSize", maxConnections),
+            entry("connectionAccessTimeout", accessTimeout),
+            entry("connectionIdleTime", surrenderTimeout),
+            // Collection config exists but has no timestampFields - uses a dummy key
+            entry("postgres.collectionConfigs.collection_without_ts.someOtherConfig", "value")));
+  }
+
+  private Config buildConfigMapWithEmptyTimestampFields() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(TYPE_KEY, "postgres"),
+            entry("postgres.host", host),
+            entry("postgres.port", port),
+            entry("postgres.database", database),
+            entry("postgres.user", user),
+            entry("postgres.password", password),
+            entry("appName", appName),
+            entry("maxPoolSize", maxConnections),
+            entry("connectionAccessTimeout", accessTimeout),
+            entry("connectionIdleTime", surrenderTimeout),
+            // timestampFields exists but has neither created nor lastUpdated
+            entry(
+                "postgres.collectionConfigs.collection_empty_ts.timestampFields.unknownKey",
+                "value")));
   }
 }

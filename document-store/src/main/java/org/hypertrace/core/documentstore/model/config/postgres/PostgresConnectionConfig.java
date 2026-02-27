@@ -5,6 +5,7 @@ import static java.util.function.Predicate.not;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +47,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
   @NonNull Duration queryTimeout;
   @NonNull Duration schemaCacheExpiry;
   @NonNull Duration schemaRefreshCooldown;
+  @NonNull Map<String, CollectionConfig> collectionConfigs;
 
   public static ConnectionConfigBuilder builder() {
     return ConnectionConfig.builder().type(DatabaseType.POSTGRES);
@@ -58,7 +60,8 @@ public class PostgresConnectionConfig extends ConnectionConfig {
       @NonNull final String applicationName,
       @Nullable final ConnectionPoolConfig connectionPoolConfig,
       @NonNull final Duration queryTimeout,
-      @NonNull final Map<String, String> customParameters) {
+      @NonNull final Map<String, String> customParameters,
+      @Nullable final Map<String, CollectionConfig> collectionConfigs) {
     super(
         ensureSingleEndpoint(endpoints),
         getDatabaseOrDefault(database),
@@ -69,6 +72,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     this.queryTimeout = queryTimeout;
     this.schemaCacheExpiry = extractSchemaCacheExpiry(customParameters);
     this.schemaRefreshCooldown = extractSchemaRefreshCooldown(customParameters);
+    this.collectionConfigs = collectionConfigs != null ? collectionConfigs : Collections.emptyMap();
   }
 
   public String toConnectionString() {
@@ -156,5 +160,9 @@ public class PostgresConnectionConfig extends ConnectionConfig {
         .map(Long::parseLong)
         .map(Duration::ofMillis)
         .orElse(DEFAULT_SCHEMA_REFRESH_COOLDOWN);
+  }
+
+  public Optional<CollectionConfig> getCollectionConfig(String collectionName) {
+    return Optional.ofNullable(collectionConfigs.get(collectionName));
   }
 }

@@ -10,12 +10,14 @@ import org.hypertrace.core.documentstore.model.config.ConnectionCredentials.Conn
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig.ConnectionPoolConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.DatastoreConfig.DatastoreConfigBuilder;
 import org.hypertrace.core.documentstore.model.config.Endpoint.EndpointBuilder;
+import org.hypertrace.core.documentstore.model.config.postgres.TimestampFieldsConfig;
 import org.hypertrace.core.documentstore.model.options.DataFreshness;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Value
 public class TypesafeConfigDatastoreConfigExtractor {
+
   private static final Logger LOGGER =
       LoggerFactory.getLogger(TypesafeConfigDatastoreConfigExtractor.class);
   private static final String DEFAULT_HOST_KEY = "host";
@@ -35,6 +37,10 @@ public class TypesafeConfigDatastoreConfigExtractor {
   private static final String DEFAULT_QUERY_TIMEOUT_KEY = "queryTimeout";
   private static final String DEFAULT_CONNECTION_TIMEOUT_KEY = "connectionTimeout";
   private static final String DEFAULT_CUSTOM_PARAMETERS_PREFIX = "customParams";
+  private static final String DEFAULT_COLLECTION_CONFIGS_PREFIX = "collectionConfigs";
+  private static final String TIMESTAMP_FIELDS_KEY = "timestampFields";
+  private static final String TIMESTAMP_CREATED_KEY = "created";
+  private static final String TIMESTAMP_LAST_UPDATED_KEY = "lastUpdated";
 
   @NonNull Config config;
   DatastoreConfigBuilder datastoreConfigBuilder;
@@ -82,7 +88,8 @@ public class TypesafeConfigDatastoreConfigExtractor {
         .dataFreshnessKey(DEFAULT_DATA_FRESHNESS_KEY)
         .queryTimeoutKey(DEFAULT_QUERY_TIMEOUT_KEY)
         .connectionTimeoutKey(DEFAULT_CONNECTION_TIMEOUT_KEY)
-        .customParametersKey(DEFAULT_CUSTOM_PARAMETERS_PREFIX);
+        .customParametersKey(DEFAULT_CUSTOM_PARAMETERS_PREFIX)
+        .collectionConfigsKey(dataStoreType + "." + DEFAULT_COLLECTION_CONFIGS_PREFIX);
   }
 
   public static TypesafeConfigDatastoreConfigExtractor from(
@@ -253,6 +260,53 @@ public class TypesafeConfigDatastoreConfigExtractor {
     return this;
   }
 
+  public TypesafeConfigDatastoreConfigExtractor collectionConfigsKey(@NonNull final String key) {
+    if (!config.hasPath(key)) {
+      return this;
+    }
+
+    try {
+      Config collectionsConfig = config.getConfig(key);
+      collectionsConfig
+          .root()
+          .keySet()
+          .forEach(
+              collectionName -> {
+                Config collectionConfig = collectionsConfig.getConfig(collectionName);
+                org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig
+                        .CollectionConfigBuilder
+                    builder =
+                        org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig
+                            .builder();
+
+                if (collectionConfig.hasPath(TIMESTAMP_FIELDS_KEY)) {
+                  builder.timestampFields(
+                      parseTimestampFieldsConfig(collectionConfig.getConfig(TIMESTAMP_FIELDS_KEY)));
+                }
+
+                connectionConfigBuilder.collectionConfig(collectionName, builder.build());
+              });
+    } catch (Exception e) {
+      LOGGER.warn(
+          "Collection configs key '{}' exists but could not be parsed: {}", key, e.getMessage());
+    }
+
+    return this;
+  }
+
+  private TimestampFieldsConfig parseTimestampFieldsConfig(Config timestampConfig) {
+    TimestampFieldsConfig.TimestampFieldsConfigBuilder tsBuilder = TimestampFieldsConfig.builder();
+
+    if (timestampConfig.hasPath(TIMESTAMP_CREATED_KEY)) {
+      tsBuilder.created(timestampConfig.getString(TIMESTAMP_CREATED_KEY));
+    }
+    if (timestampConfig.hasPath(TIMESTAMP_LAST_UPDATED_KEY)) {
+      tsBuilder.lastUpdated(timestampConfig.getString(TIMESTAMP_LAST_UPDATED_KEY));
+    }
+
+    return tsBuilder.build();
+  }
+
   public DatastoreConfig extract() {
     if (connectionConfigBuilder.endpoints().isEmpty()
         && !Endpoint.builder().build().equals(endpointBuilder.build())) {
@@ -265,6 +319,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
                 .connectionPoolConfig(connectionPoolConfigBuilder.build())
                 .credentials(connectionCredentialsBuilder.build())
                 .customParameters(connectionConfigBuilder.customParameters())
+                .collectionConfigs(connectionConfigBuilder.collectionConfigs())
                 .build())
         .build();
   }

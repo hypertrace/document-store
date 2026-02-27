@@ -75,9 +75,18 @@ public class ConnectionConfig {
     String applicationName = DEFAULT_APP_NAME;
     String replicaSet;
     Map<String, String> customParameters = new HashMap<>();
+    Map<String, org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig>
+        collectionConfigs = new HashMap<>();
 
     public ConnectionConfigBuilder customParameter(String key, String value) {
       this.customParameters.put(key, value);
+      return this;
+    }
+
+    public ConnectionConfigBuilder collectionConfig(
+        String collectionName,
+        org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig config) {
+      this.collectionConfigs.put(collectionName, config);
       return this;
     }
 
@@ -127,7 +136,8 @@ public class ConnectionConfig {
               applicationName,
               connectionPoolConfig,
               queryTimeout,
-              customParameters);
+              customParameters,
+              collectionConfigs);
       }
 
       throw new IllegalArgumentException("Unsupported database type: " + type);

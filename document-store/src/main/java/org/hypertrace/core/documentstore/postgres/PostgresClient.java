@@ -7,7 +7,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.postgres.PostgresDefaults;
 import org.slf4j.Logger;
@@ -67,6 +69,10 @@ class PostgresClient {
 
   public Map<String, String> getCustomParameters() {
     return connectionConfig.customParameters();
+  }
+
+  public Optional<CollectionConfig> getCollectionConfig(String collectionName) {
+    return connectionConfig.getCollectionConfig(collectionName);
   }
 
   public int getQueryTimeoutSeconds() {
