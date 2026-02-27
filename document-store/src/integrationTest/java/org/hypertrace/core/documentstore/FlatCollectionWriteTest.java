@@ -36,6 +36,7 @@ import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
+import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Query;
@@ -1905,45 +1906,8 @@ public class FlatCollectionWriteTest {
     class SetOperatorTests {
 
       @Test
-      @DisplayName("Should update top-level column with SET operator")
-      void testUpdateTopLevelColumn() throws Exception {
-        // Update the price of item with id = 1
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
-                .build();
-
-        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 999));
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(999, resultJson.get("price").asInt());
-
-        // Verify in database
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"price\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals(999, rs.getInt("price"));
-        }
-      }
-
-      @Test
       @DisplayName("Should update multiple top-level columns in single update")
-      void testUpdateMultipleColumns() throws Exception {
+      void testSetMultipleColumns() throws Exception {
         Query query =
             Query.builder()
                 .setFilter(
@@ -1965,6 +1929,20 @@ public class FlatCollectionWriteTest {
         JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
         assertEquals(555, resultJson.get("price").asInt());
         assertEquals(100, resultJson.get("quantity").asInt());
+
+        // Verify in database
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"price\", \"quantity\" FROM \"%s\" WHERE \"id\" = '2'",
+                        FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals(555, rs.getInt("price"));
+          assertEquals(100, rs.getInt("quantity"));
+        }
       }
 
       @Test
@@ -1992,6 +1970,19 @@ public class FlatCollectionWriteTest {
         JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
         assertNotNull(resultJson.get("props"));
         assertEquals("UpdatedBrand", resultJson.get("props").get("brand").asText());
+
+        // Verify in database
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"props\"->>'brand' as brand FROM \"%s\" WHERE \"id\" = '3'",
+                        FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals("UpdatedBrand", rs.getString("brand"));
+        }
       }
 
       @Test
@@ -2031,6 +2022,417 @@ public class FlatCollectionWriteTest {
           assertEquals(777, rs.getInt("price"));
         }
       }
+
+      @Test
+      @DisplayName("Case 1: SET on field not in schema should skip (default SKIP strategy)")
+      void testSetFieldNotInSchema() throws Exception {
+        // Update a field that doesn't exist in the schema
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        SubDocumentUpdate update =
+            SubDocumentUpdate.builder()
+                .subDocument("nonexistent_column.some_key")
+                .operator(UpdateOperator.SET)
+                .subDocumentValue(
+                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of("new_value"))
+                .build();
+
+        // With default SKIP strategy, this should not throw but skip the update
+        Optional<Document> result =
+            flatCollection.update(
+                query,
+                List.of(update),
+                UpdateOptions.builder()
+                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
+                    .build());
+
+        // Document should still be returned (unchanged since update was skipped)
+        assertTrue(result.isPresent());
+
+        // Verify the document wasn't modified (item should still be "Soap")
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"item\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals("Soap", rs.getString("item"));
+        }
+      }
+
+      @Test
+      @DisplayName("Case 2: SET on JSONB column that is NULL should create the structure")
+      void testSetJsonbColumnIsNull() throws Exception {
+        // Row 2 has props = NULL
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("2")))
+                .build();
+
+        SubDocumentUpdate update =
+            SubDocumentUpdate.builder()
+                .subDocument("props.newKey")
+                .operator(UpdateOperator.SET)
+                .subDocumentValue(
+                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of("newValue"))
+                .build();
+
+        Optional<Document> result =
+            flatCollection.update(
+                query,
+                List.of(update),
+                UpdateOptions.builder()
+                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
+                    .build());
+
+        assertTrue(result.isPresent());
+
+        // Verify props now has the new key
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"props\"->>'newKey' as newKey FROM \"%s\" WHERE \"id\" = '2'",
+                        FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals("newValue", rs.getString("newKey"));
+        }
+      }
+
+      @Test
+      @DisplayName("Case 3: SET on JSONB path that exists should update the value")
+      void testSetJsonbPathExists() throws Exception {
+        // Row 1 has props.brand = "Dettol"
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        SubDocumentUpdate update =
+            SubDocumentUpdate.builder()
+                .subDocument("props.brand")
+                .operator(UpdateOperator.SET)
+                .subDocumentValue(
+                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                        "UpdatedBrand"))
+                .build();
+
+        Optional<Document> result =
+            flatCollection.update(
+                query,
+                List.of(update),
+                UpdateOptions.builder()
+                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
+                    .build());
+
+        assertTrue(result.isPresent());
+
+        // Verify props.brand was updated
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"props\"->>'brand' as brand FROM \"%s\" WHERE \"id\" = '1'",
+                        FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals("UpdatedBrand", rs.getString("brand"));
+        }
+      }
+
+      @Test
+      @DisplayName("Case 4: SET on JSONB path that doesn't exist should create the key")
+      void testSetJsonbPathDoesNotExist() throws Exception {
+        // Row 1 has props but no "newAttribute" key
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        SubDocumentUpdate update =
+            SubDocumentUpdate.builder()
+                .subDocument("props.newAttribute")
+                .operator(UpdateOperator.SET)
+                .subDocumentValue(
+                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                        "brandNewValue"))
+                .build();
+
+        Optional<Document> result =
+            flatCollection.update(
+                query,
+                List.of(update),
+                UpdateOptions.builder()
+                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
+                    .build());
+
+        assertTrue(result.isPresent());
+
+        // Verify props.newAttribute was created
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"props\"->>'newAttribute' as newAttr, \"props\"->>'brand' as brand FROM \"%s\" WHERE \"id\" = '1'",
+                        FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals("brandNewValue", rs.getString("newAttr"));
+          // Verify existing data wasn't lost
+          assertEquals("Dettol", rs.getString("brand"));
+        }
+      }
+
+      @Test
+      @DisplayName("SET on top-level column should update the value directly")
+      void testSetTopLevelColumn() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        SubDocumentUpdate update =
+            SubDocumentUpdate.builder()
+                .subDocument("item")
+                .operator(UpdateOperator.SET)
+                .subDocumentValue(
+                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                        "UpdatedSoap"))
+                .build();
+
+        Optional<Document> result =
+            flatCollection.update(
+                query,
+                List.of(update),
+                UpdateOptions.builder()
+                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
+                    .build());
+
+        assertTrue(result.isPresent());
+
+        // Verify item was updated
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"item\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals("UpdatedSoap", rs.getString("item"));
+        }
+      }
+
+      @Test
+      @DisplayName("SET with empty object value")
+      void testSetWithEmptyObjectValue() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // SET a JSON object containing an empty object
+        SubDocumentUpdate update =
+            SubDocumentUpdate.builder()
+                .subDocument("props.newProperty")
+                .operator(UpdateOperator.SET)
+                .subDocumentValue(
+                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                        new JSONDocument(
+                            Map.of("hello", "world", "emptyObject", Collections.emptyMap()))))
+                .build();
+
+        Optional<Document> result =
+            flatCollection.update(
+                query,
+                List.of(update),
+                UpdateOptions.builder()
+                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
+                    .build());
+
+        assertTrue(result.isPresent());
+
+        // Verify the JSON object was set correctly
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"props\"->'newProperty' as newProp FROM \"%s\" WHERE \"id\" = '1'",
+                        FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          String jsonStr = rs.getString("newProp");
+          assertNotNull(jsonStr);
+          assertTrue(jsonStr.contains("hello"));
+          assertTrue(jsonStr.contains("emptyObject"));
+        }
+      }
+
+      @Test
+      @DisplayName("SET with JSON document as value")
+      void testSetWithJsonDocumentValue() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        SubDocumentUpdate update =
+            SubDocumentUpdate.builder()
+                .subDocument("props.nested")
+                .operator(UpdateOperator.SET)
+                .subDocumentValue(
+                    SubDocumentValue.of(new JSONDocument(Map.of("key1", "value1", "key2", 123))))
+                .build();
+
+        Optional<Document> result =
+            flatCollection.update(
+                query,
+                List.of(update),
+                UpdateOptions.builder()
+                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
+                    .build());
+
+        assertTrue(result.isPresent());
+
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"props\"->'nested'->>'key1' as key1, \"props\"->'nested'->>'key2' as key2 FROM \"%s\" WHERE \"id\" = '1'",
+                        FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals("value1", rs.getString("key1"));
+          assertEquals("123", rs.getString("key2"));
+        }
+      }
+    }
+
+    @Nested
+    @DisplayName("UNSET Operator Tests")
+    class UnsetOperatorTests {
+
+      @Test
+      @DisplayName("Should UNSET top-level column (set to NULL)")
+      void testUnsetTopLevelColumn() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("item")
+                    .operator(UpdateOperator.UNSET)
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+
+        JsonNode itemNode = resultJson.get("item");
+        assertTrue(itemNode == null || itemNode.isNull());
+
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"item\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertNull(rs.getString("item"));
+        }
+      }
+
+      @Test
+      @DisplayName("Should UNSET nested JSONB field (remove key)")
+      void testUnsetNestedJsonbField() throws Exception {
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "JsonbItem");
+        ObjectNode props = OBJECT_MAPPER.createObjectNode();
+        props.put("brand", "TestBrand");
+        props.put("color", "Red");
+        node.set("props", props);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // UNSET props.brand
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.brand")
+                    .operator(UpdateOperator.UNSET)
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertFalse(resultJson.get("props").has("brand"));
+        assertEquals("Red", resultJson.get("props").get("color").asText());
+      }
     }
 
     @Nested
@@ -2069,7 +2471,6 @@ public class FlatCollectionWriteTest {
         JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
         assertEquals(15, resultJson.get("price").asInt());
 
-        // Verify in database
         PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
         try (Connection conn = pgDatastore.getPostgresClient();
             PreparedStatement ps =
@@ -2086,7 +2487,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should handle ADD on NULL column (treat as 0)")
       void testAddOnNullColumn() throws Exception {
         // Create a document with NULL price
-        String docId = "add-null-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "NullPriceItem");
@@ -2194,7 +2595,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should ADD to nested JSONB numeric field")
       void testAddNestedJsonbField() throws Exception {
         // First, set up a document with a JSONB field containing a numeric value
-        String docId = "add-jsonb-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "JsonbItem");
@@ -2239,7 +2640,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should ADD to nested JSONB field that doesn't exist (creates with value)")
       void testAddNestedJsonbFieldNotExists() throws Exception {
         // Document with empty JSONB or no such nested key
-        String docId = "add-jsonb-new-key";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "NewKeyItem");
@@ -2406,7 +2807,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should ADD to BIGINT column with correct type cast")
       void testAddBigintColumn() throws Exception {
         // Create a document with big_number set
-        String docId = "add-bigint-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "BigintItem");
@@ -2446,7 +2847,7 @@ public class FlatCollectionWriteTest {
       @DisplayName("Should ADD to REAL column with correct type cast")
       void testAddRealColumn() throws Exception {
         // Create a document with rating set
-        String docId = "add-real-test";
+        String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "RealItem");
@@ -2491,6 +2892,435 @@ public class FlatCollectionWriteTest {
           assertTrue(rs.next());
           assertEquals(4.5f, rs.getFloat("rating"), 0.01f);
         }
+      }
+    }
+
+    @Nested
+    @DisplayName("APPEND_TO_LIST Operator Tests")
+    class AppendToListOperatorTests {
+
+      @Test
+      @DisplayName("Should append values to top-level array column")
+      void testAppendToTopLevelArray() throws Exception {
+        // Create a document with known tags for predictable testing
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("tag1").add("tag2");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Append new tags
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.APPEND_TO_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"newTag1", "newTag2"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(4, tagsNode.size());
+        assertEquals("newTag1", tagsNode.get(2).asText());
+        assertEquals("newTag2", tagsNode.get(3).asText());
+      }
+
+      @Test
+      @DisplayName("Should append values to nested JSONB array")
+      void testAppendToNestedJsonbArray() throws Exception {
+        // Set up a document with JSONB containing an array
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "JsonbArrayItem");
+        ObjectNode props = OBJECT_MAPPER.createObjectNode();
+        props.putArray("colors").add("red").add("blue");
+        node.set("props", props);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Append to props.colors
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.colors")
+                    .operator(UpdateOperator.APPEND_TO_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"green", "yellow"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode colorsNode = resultJson.get("props").get("colors");
+        assertTrue(colorsNode.isArray());
+        assertEquals(4, colorsNode.size());
+      }
+
+      @Test
+      @DisplayName("Should create list when appending to non-existent JSONB array")
+      void testAppendToNonExistentJsonbArray() throws Exception {
+        // Create a document with props but NO colors array
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "ItemWithoutColors");
+        ObjectNode props = OBJECT_MAPPER.createObjectNode();
+        props.put("brand", "TestBrand");
+        // Note: no colors array in props
+        node.set("props", props);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Append to props.colors which doesn't exist
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.colors")
+                    .operator(UpdateOperator.APPEND_TO_LIST)
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"green", "yellow"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+
+        // Should create the array with the appended values
+        JsonNode colorsNode = resultJson.get("props").get("colors");
+        assertNotNull(colorsNode, "colors array should be created");
+        assertTrue(colorsNode.isArray());
+        assertEquals(2, colorsNode.size());
+        assertEquals("green", colorsNode.get(0).asText());
+        assertEquals("yellow", colorsNode.get(1).asText());
+
+        assertEquals("TestBrand", resultJson.get("props").get("brand").asText());
+      }
+    }
+
+    @Nested
+    @DisplayName("ADD_TO_LIST_IF_ABSENT Operator Tests")
+    class AddToListIfAbsentOperatorTests {
+
+      @Test
+      @DisplayName("Should add unique values to top-level array column")
+      void testAddToListIfAbsentTopLevel() throws Exception {
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("existing1").add("existing2");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Add tags - 'existing1' already exists, 'newTag' is new
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"existing1", "newTag"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(3, tagsNode.size()); // original 2 + 1 new unique
+
+        // Verify 'newTag' was added
+        boolean hasNewTag = false;
+        for (JsonNode tag : tagsNode) {
+          if ("newTag".equals(tag.asText())) {
+            hasNewTag = true;
+            break;
+          }
+        }
+        assertTrue(hasNewTag);
+      }
+
+      @Test
+      @DisplayName("Should add unique values to nested JSONB array")
+      void testAddToListIfAbsentNestedJsonb() throws Exception {
+        // Set up a document with JSONB containing an array
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "JsonbArrayItem");
+        ObjectNode props = OBJECT_MAPPER.createObjectNode();
+        props.putArray("colors").add("red").add("blue");
+        node.set("props", props);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Add colors - 'red' already exists, 'green' is new
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.colors")
+                    .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"red", "green"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode colorsNode = resultJson.get("props").get("colors");
+        assertTrue(colorsNode.isArray());
+        assertEquals(3, colorsNode.size());
+        assertEquals("red", colorsNode.get(0).asText());
+        assertEquals("blue", colorsNode.get(1).asText());
+        assertEquals("green", colorsNode.get(2).asText());
+      }
+
+      @Test
+      @DisplayName("Should not add duplicates when all values already exist")
+      void testAddToListIfAbsentNoDuplicates() throws Exception {
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("tag1").add("tag2");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Add tags that already exist
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"tag1", "tag2"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(2, tagsNode.size());
+        assertEquals("tag1", tagsNode.get(0).asText());
+        assertEquals("tag2", tagsNode.get(1).asText());
+      }
+    }
+
+    @Nested
+    @DisplayName("REMOVE_ALL_FROM_LIST Operator Tests")
+    class RemoveAllFromListOperatorTests {
+
+      @Test
+      @DisplayName("Should remove values from top-level array column")
+      void testRemoveAllFromTopLevelArray() throws Exception {
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("tag1").add("tag2").add("tag3");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Remove 'tag1' from tags
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"tag1"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(2, tagsNode.size()); // 'tag2' and 'tag3' remain
+      }
+
+      @Test
+      @DisplayName("Should remove values from nested JSONB array")
+      void testRemoveAllFromNestedJsonbArray() throws Exception {
+        // Set up a document with JSONB containing an array
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "JsonbArrayItem");
+        ObjectNode props = OBJECT_MAPPER.createObjectNode();
+        props.putArray("colors").add("red").add("blue").add("green");
+        node.set("props", props);
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Remove 'red' and 'blue' from props.colors
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.colors")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"red", "blue"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode colorsNode = resultJson.get("props").get("colors");
+        assertTrue(colorsNode.isArray());
+        assertEquals(1, colorsNode.size()); // Only 'green' remains
+      }
+
+      @Test
+      @DisplayName("Should handle removing non-existent values (no-op)")
+      void testRemoveNonExistentValues() throws Exception {
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "TestItem");
+        node.putArray("tags").add("tag1").add("tag2");
+        flatCollection.create(key, new JSONDocument(node));
+
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build();
+
+        // Try to remove values that don't exist
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(
+                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
+                            new String[] {"nonexistent1", "nonexistent2"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(2, tagsNode.size()); // No change
       }
     }
 
@@ -2556,33 +3386,6 @@ public class FlatCollectionWriteTest {
           UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
       assertThrows(IOException.class, () -> flatCollection.update(query, updates, options));
-    }
-
-    @Test
-    @DisplayName("Should throw IOException for unsupported operator")
-    void testUpdateUnsupportedOperator() {
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("_id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of(1)))
-              .build();
-
-      // UNSET is not supported yet
-      List<SubDocumentUpdate> updates =
-          List.of(
-              SubDocumentUpdate.builder()
-                  .subDocument("price")
-                  .operator(UpdateOperator.UNSET)
-                  .build());
-
-      UpdateOptions options =
-          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-      assertThrows(
-          IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
     }
   }
 
@@ -2931,60 +3734,6 @@ public class FlatCollectionWriteTest {
   }
 
   @Nested
-  @DisplayName("Drop Operations")
-  class DropTests {
-
-    @Test
-    @DisplayName("Should throw UnsupportedOperationException for drop")
-    void testDrop() {
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.drop());
-    }
-  }
-
-  @Nested
-  @DisplayName("Sub-Document Operations")
-  class SubDocumentTests {
-
-    @Test
-    @DisplayName("Should throw UnsupportedOperationException for updateSubDoc")
-    void testSubDocumentUpdate() {
-      Key docKey = new SingleValueKey("default", "1");
-      ObjectNode subDoc = OBJECT_MAPPER.createObjectNode();
-      subDoc.put("newField", "newValue");
-      Document subDocument = new JSONDocument(subDoc);
-
-      assertThrows(
-          UnsupportedOperationException.class,
-          () -> flatCollection.updateSubDoc(docKey, "props.nested", subDocument));
-    }
-
-    @Test
-    @DisplayName("Should throw UnsupportedOperationException for deleteSubDoc")
-    void testSubDocumentDelete() {
-      Key docKey = new SingleValueKey("default", "1");
-
-      assertThrows(
-          UnsupportedOperationException.class,
-          () -> flatCollection.deleteSubDoc(docKey, "props.brand"));
-    }
-
-    @Test
-    @DisplayName("Should throw UnsupportedOperationException for bulkUpdateSubDocs")
-    void testBulkUpdateSubDocs() {
-      Map<Key, Map<String, Document>> documents = new HashMap<>();
-      Key key1 = new SingleValueKey("default", "1");
-      Map<String, Document> subDocs1 = new HashMap<>();
-      ObjectNode subDoc1 = OBJECT_MAPPER.createObjectNode();
-      subDoc1.put("updated", true);
-      subDocs1.put("props.status", new JSONDocument(subDoc1));
-      documents.put(key1, subDocs1);
-
-      assertThrows(
-          UnsupportedOperationException.class, () -> flatCollection.bulkUpdateSubDocs(documents));
-    }
-  }
-
-  @Nested
   @DisplayName("Bulk Array Value Operations")
   class BulkArrayValueOperationTests {
 
@@ -3072,318 +3821,13 @@ public class FlatCollectionWriteTest {
   }
 
   @Nested
-  @DisplayName("Update SET Operator Tests")
-  class UpdateSetOperatorTests {
+  @DisplayName("Drop Operations")
+  class DropTests {
 
     @Test
-    @DisplayName("Case 1: SET on field not in schema should skip (default SKIP strategy)")
-    void testSetFieldNotInSchema() throws Exception {
-      // Update a field that doesn't exist in the schema
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("1")))
-              .build();
-
-      SubDocumentUpdate update =
-          SubDocumentUpdate.builder()
-              .subDocument("nonexistent_column.some_key")
-              .operator(UpdateOperator.SET)
-              .subDocumentValue(
-                  org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of("new_value"))
-              .build();
-
-      // With default SKIP strategy, this should not throw but skip the update
-      Optional<Document> result =
-          flatCollection.update(
-              query,
-              List.of(update),
-              UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build());
-
-      // Document should still be returned (unchanged since update was skipped)
-      assertTrue(result.isPresent());
-
-      // Verify the document wasn't modified (item should still be "Soap")
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT \"item\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("Soap", rs.getString("item"));
-      }
-    }
-
-    @Test
-    @DisplayName("Case 2: SET on JSONB column that is NULL should create the structure")
-    void testSetJsonbColumnIsNull() throws Exception {
-      // Row 2 has props = NULL
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("2")))
-              .build();
-
-      SubDocumentUpdate update =
-          SubDocumentUpdate.builder()
-              .subDocument("props.newKey")
-              .operator(UpdateOperator.SET)
-              .subDocumentValue(
-                  org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of("newValue"))
-              .build();
-
-      Optional<Document> result =
-          flatCollection.update(
-              query,
-              List.of(update),
-              UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build());
-
-      assertTrue(result.isPresent());
-
-      // Verify props now has the new key
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT \"props\"->>'newKey' as newKey FROM \"%s\" WHERE \"id\" = '2'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("newValue", rs.getString("newKey"));
-      }
-    }
-
-    @Test
-    @DisplayName("Case 3: SET on JSONB path that exists should update the value")
-    void testSetJsonbPathExists() throws Exception {
-      // Row 1 has props.brand = "Dettol"
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("1")))
-              .build();
-
-      SubDocumentUpdate update =
-          SubDocumentUpdate.builder()
-              .subDocument("props.brand")
-              .operator(UpdateOperator.SET)
-              .subDocumentValue(
-                  org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                      "UpdatedBrand"))
-              .build();
-
-      Optional<Document> result =
-          flatCollection.update(
-              query,
-              List.of(update),
-              UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build());
-
-      assertTrue(result.isPresent());
-
-      // Verify props.brand was updated
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT \"props\"->>'brand' as brand FROM \"%s\" WHERE \"id\" = '1'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("UpdatedBrand", rs.getString("brand"));
-      }
-    }
-
-    @Test
-    @DisplayName("Case 4: SET on JSONB path that doesn't exist should create the key")
-    void testSetJsonbPathDoesNotExist() throws Exception {
-      // Row 1 has props but no "newAttribute" key
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("1")))
-              .build();
-
-      SubDocumentUpdate update =
-          SubDocumentUpdate.builder()
-              .subDocument("props.newAttribute")
-              .operator(UpdateOperator.SET)
-              .subDocumentValue(
-                  org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                      "brandNewValue"))
-              .build();
-
-      Optional<Document> result =
-          flatCollection.update(
-              query,
-              List.of(update),
-              UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build());
-
-      assertTrue(result.isPresent());
-
-      // Verify props.newAttribute was created
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT \"props\"->>'newAttribute' as newAttr, \"props\"->>'brand' as brand FROM \"%s\" WHERE \"id\" = '1'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("brandNewValue", rs.getString("newAttr"));
-        // Verify existing data wasn't lost
-        assertEquals("Dettol", rs.getString("brand"));
-      }
-    }
-
-    @Test
-    @DisplayName("SET on top-level column should update the value directly")
-    void testSetTopLevelColumn() throws Exception {
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("1")))
-              .build();
-
-      SubDocumentUpdate update =
-          SubDocumentUpdate.builder()
-              .subDocument("item")
-              .operator(UpdateOperator.SET)
-              .subDocumentValue(
-                  org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of("UpdatedSoap"))
-              .build();
-
-      Optional<Document> result =
-          flatCollection.update(
-              query,
-              List.of(update),
-              UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build());
-
-      assertTrue(result.isPresent());
-
-      // Verify item was updated
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT \"item\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("UpdatedSoap", rs.getString("item"));
-      }
-    }
-
-    @Test
-    @DisplayName("SET with empty object value")
-    void testSetWithEmptyObjectValue() throws Exception {
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("1")))
-              .build();
-
-      // SET a JSON object containing an empty object
-      SubDocumentUpdate update =
-          SubDocumentUpdate.builder()
-              .subDocument("props.newProperty")
-              .operator(UpdateOperator.SET)
-              .subDocumentValue(
-                  org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                      new JSONDocument(
-                          Map.of("hello", "world", "emptyObject", Collections.emptyMap()))))
-              .build();
-
-      Optional<Document> result =
-          flatCollection.update(
-              query,
-              List.of(update),
-              UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build());
-
-      assertTrue(result.isPresent());
-
-      // Verify the JSON object was set correctly
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT \"props\"->'newProperty' as newProp FROM \"%s\" WHERE \"id\" = '1'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        String jsonStr = rs.getString("newProp");
-        assertNotNull(jsonStr);
-        assertTrue(jsonStr.contains("hello"));
-        assertTrue(jsonStr.contains("emptyObject"));
-      }
-    }
-
-    @Test
-    @DisplayName("SET with JSON document as value")
-    void testSetWithJsonDocumentValue() throws Exception {
-      Query query =
-          Query.builder()
-              .setFilter(
-                  RelationalExpression.of(
-                      IdentifierExpression.of("id"),
-                      RelationalOperator.EQ,
-                      ConstantExpression.of("1")))
-              .build();
-
-      // SET a JSON document as value
-      SubDocumentUpdate update =
-          SubDocumentUpdate.builder()
-              .subDocument("props.nested")
-              .operator(UpdateOperator.SET)
-              .subDocumentValue(
-                  org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                      new JSONDocument(Map.of("key1", "value1", "key2", 123))))
-              .build();
-
-      Optional<Document> result =
-          flatCollection.update(
-              query,
-              List.of(update),
-              UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build());
-
-      assertTrue(result.isPresent());
-
-      // Verify the JSON document was set correctly
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT \"props\"->'nested'->>'key1' as key1, \"props\"->'nested'->>'key2' as key2 FROM \"%s\" WHERE \"id\" = '1'",
-                      FLAT_COLLECTION_NAME));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals("value1", rs.getString("key1"));
-        assertEquals("123", rs.getString("key2"));
-      }
+    @DisplayName("Should throw UnsupportedOperationException for drop")
+    void testDrop() {
+      assertThrows(UnsupportedOperationException.class, () -> flatCollection.drop());
     }
   }
 }
