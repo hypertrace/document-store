@@ -12,6 +12,7 @@ import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSE
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
 import java.sql.Array;
@@ -39,6 +40,7 @@ import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
 import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
@@ -100,6 +102,9 @@ public class FlatPostgresCollection extends PostgresCollection {
    */
   private final MissingColumnStrategy missingColumnStrategy;
 
+  private final String createdTsColumn;
+  private final String lastUpdatedTsColumn;
+
   FlatPostgresCollection(
       final PostgresClient client,
       final String collectionName,
@@ -107,6 +112,38 @@ public class FlatPostgresCollection extends PostgresCollection {
     super(client, collectionName);
     this.schemaRegistry = schemaRegistry;
     this.missingColumnStrategy = parseMissingColumnStrategy(client.getCustomParameters());
+
+    // Get timestamp configuration from collectionConfigs
+    String createdTs = null;
+    String lastUpdatedTs = null;
+
+    Optional<CollectionConfig> collectionConfig = client.getCollectionConfig(collectionName);
+    if (collectionConfig.isPresent() && collectionConfig.get().getTimestampFields().isPresent()) {
+      var tsConfig = collectionConfig.get().getTimestampFields().get();
+      createdTs = tsConfig.getCreated().orElse(null);
+      lastUpdatedTs = tsConfig.getLastUpdated().orElse(null);
+    }
+
+    this.createdTsColumn = createdTs;
+    this.lastUpdatedTsColumn = lastUpdatedTs;
+
+    if (this.createdTsColumn == null) {
+      LOGGER.warn(
+          "timestampFields config not set properly for collection '{}'. "
+              + "Row created timestamp will not be auto-managed. "
+              + "Configure via collectionConfigs.{}.timestampFields {{ created = \"<col>\", lastUpdated = \"<col>\" }}",
+          collectionName,
+          collectionName);
+    }
+
+    if (this.lastUpdatedTsColumn == null) {
+      LOGGER.warn(
+          "timestampFields config not set properly for collection '{}'. "
+              + "Row lastUpdated timestamp will not be auto-managed. "
+              + "Configure via collectionConfigs.{}.timestampFields {{ created = \"<col>\", lastUpdated = \"<col>\" }}",
+          collectionName,
+          collectionName);
+    }
   }
 
   private static MissingColumnStrategy parseMissingColumnStrategy(Map<String, String> params) {
@@ -401,10 +438,17 @@ public class FlatPostgresCollection extends PostgresCollection {
     String columnList = String.join(", ", columns);
     String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col
+    String quotedCreatedTs =
+        createdTsColumn != null
+            ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
+            : null;
+
+    // Build SET clause for non-PK columns: col = EXCLUDED.col. Exclude createdTsColumn from updates
+    // to preserve original creation time
     String setClause =
         columns.stream()
             .filter(col -> !col.equals(pkColumn))
+            .filter(col -> !col.equals(quotedCreatedTs))
             .map(col -> col + " = EXCLUDED." + col)
             .collect(Collectors.joining(", "));
 
@@ -922,7 +966,78 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
     }
 
+    addTimestampFields(typedDocument, tableName);
+
     return typedDocument;
+  }
+
+  /**
+   * Adds timestamp fields if configured and columns exist in the schema. The column type is looked
+   * up from the schema to determine the appropriate value format:
+   *
+   * <ul>
+   *   <li>BIGINT: epoch milliseconds (long)
+   *   <li>TIMESTAMPTZ: java.sql.Timestamp
+   *   <li>DATE: java.sql.Date
+   *   <li>TEXT: ISO-8601 string
+   * </ul>
+   */
+  private void addTimestampFields(TypedDocument typedDocument, String tableName) {
+    long now = System.currentTimeMillis();
+
+    if (createdTsColumn != null) {
+      addTimestampField(typedDocument, tableName, createdTsColumn, now, false);
+    }
+
+    if (lastUpdatedTsColumn != null) {
+      addTimestampField(typedDocument, tableName, lastUpdatedTsColumn, now, true);
+    }
+  }
+
+  private void addTimestampField(
+      TypedDocument typedDocument,
+      String tableName,
+      String columnName,
+      long epochMillis,
+      boolean overwrite) {
+    if (!overwrite && typedDocument.hasColumn(columnName)) {
+      return;
+    }
+
+    Optional<PostgresColumnMetadata> colMeta =
+        schemaRegistry.getColumnOrRefresh(tableName, columnName);
+    if (colMeta.isEmpty()) {
+      LOGGER.debug(
+          "Timestamp column '{}' configured but not found in schema for table '{}'",
+          columnName,
+          tableName);
+      return;
+    }
+
+    PostgresDataType type = colMeta.get().getPostgresType();
+    String quotedCol = PostgresUtils.wrapFieldNamesWithDoubleQuotes(columnName);
+    Object value = convertTimestampForType(epochMillis, type);
+    typedDocument.add(quotedCol, value, type, false);
+  }
+
+  @VisibleForTesting
+  Object convertTimestampForType(long epochMillis, PostgresDataType type) {
+    switch (type) {
+      case BIGINT:
+        return epochMillis;
+      case INTEGER:
+        return (int) (epochMillis / 1000);
+      case TIMESTAMPTZ:
+        return Timestamp.from(Instant.ofEpochMilli(epochMillis));
+      case DATE:
+        return new Date(epochMillis);
+      case TEXT:
+        return Instant.ofEpochMilli(epochMillis).toString(); // ISO-8601
+      default:
+        LOGGER.warn(
+            "Unexpected type '{}' for timestamp column, using epoch millis as string", type);
+        return String.valueOf(epochMillis);
+    }
   }
 
   private int executeUpdate(String sql, TypedDocument parsed) throws SQLException {
@@ -969,7 +1084,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       return executeUpsert(sql, parsed);
 
     } catch (PSQLException e) {
-      return handlePSQLExceptionForCreateOrReplace(e, key, document, tableName, isRetry);
+      return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
     } catch (SQLException e) {
       LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
       throw new IOException(e);
@@ -1091,10 +1206,17 @@ public class FlatPostgresCollection extends PostgresCollection {
         String.join(", ", docColumns.stream().map(c -> "?").toArray(String[]::new));
     Set<String> docColumnsSet = new HashSet<>(docColumns);
 
+    // Build SET clause for non-PK columns: col = EXCLUDED.col
+    // Exclude createdTsColumn from updates to preserve original creation time
+    String quotedCreatedTs =
+        createdTsColumn != null
+            ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
+            : null;
     // Build SET clause for non-PK columns.
     String setClause =
         allTableColumns.stream()
             .filter(col -> !col.equals(pkColumn))
+            .filter(col -> !col.equals(quotedCreatedTs))
             .map(
                 col -> {
                   if (docColumnsSet.contains(col)) {
@@ -1229,6 +1351,11 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     boolean isArray(String column) {
       return arrays.getOrDefault(column, false);
+    }
+
+    boolean hasColumn(String columnName) {
+      String quotedCol = PostgresUtils.wrapFieldNamesWithDoubleQuotes(columnName);
+      return values.containsKey(quotedCol) || values.containsKey(columnName);
     }
   }
 

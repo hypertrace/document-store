@@ -94,7 +94,8 @@ interface TypesafeDatastoreConfigAdapter {
               connectionConfig.applicationName(),
               connectionConfig.connectionPoolConfig(),
               connectionConfig.queryTimeout(),
-              connectionConfig.customParameters()) {
+              connectionConfig.customParameters(),
+              connectionConfig.collectionConfigs()) {
             @Override
             public String toConnectionString() {
               return config.hasPath("url")
