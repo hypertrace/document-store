@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,6 +31,7 @@ import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -54,7 +56,6 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
   private static Map<String, Collection> collectionMap;
 
   private static GenericContainer<?> mongo;
-  private static GenericContainer<?> postgres;
 
   @BeforeAll
   public static void init() throws IOException {
@@ -76,25 +77,8 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
     Datastore mongoDatastore = DatastoreProvider.getDatastore("Mongo", mongoCfg);
     datastoreMap.put(MONGO_STORE, mongoDatastore);
 
-    // Start PostgreSQL
-    postgres =
-        new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
-            .withEnv("POSTGRES_PASSWORD", "postgres")
-            .withEnv("POSTGRES_USER", "postgres")
-            .withExposedPorts(5432)
-            .waitingFor(Wait.forListeningPort());
-    postgres.start();
-
-    String postgresConnectionUrl =
-        String.format("jdbc:postgresql://localhost:%s/", postgres.getMappedPort(5432));
-
-    Map<String, String> postgresConfig = new HashMap<>();
-    postgresConfig.put("url", postgresConnectionUrl);
-    postgresConfig.put("user", "postgres");
-    postgresConfig.put("password", "postgres");
-
-    Datastore postgresDatastore =
-        DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(postgresConfig));
+    // Start PostgreSQL using BaseWriteTest setup
+    initPostgres();
     datastoreMap.put(POSTGRES_FLAT_STORE, postgresDatastore);
 
     // Create Postgres flat collection schema
@@ -131,9 +115,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
     if (mongo != null) {
       mongo.stop();
     }
-    if (postgres != null) {
-      postgres.stop();
-    }
+    shutdownPostgres();
   }
 
   private static class AllStoresProvider implements ArgumentsProvider {
@@ -398,6 +380,99 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
           assertEquals(999, json.get("unknown_field_2").asInt());
         }
       }
+    }
+  }
+
+  @Nested
+  @DisplayName("CreateOrReplace Consistency Tests")
+  class CreateOrReplaceConsistencyTests {
+
+    @ParameterizedTest(name = "{0}: createOrReplace new document")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testCreateOrReplaceNewDoc(String storeName) throws Exception {
+      String docId = generateDocId("cor-new");
+      Key key = createKey(docId);
+
+      Collection collection = getCollection(storeName);
+
+      Document document = createTestDocument(docId);
+      boolean isNew = collection.createOrReplace(key, document);
+      assertTrue(isNew);
+
+      Query query = buildQueryById(docId);
+      try (CloseableIterator<Document> iterator = collection.find(query)) {
+        assertTrue(iterator.hasNext());
+        Document retrievedDoc = iterator.next();
+        JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
+
+        assertEquals("TestItem", json.get("item").asText(), storeName);
+        assertEquals(100, json.get("price").asInt(), storeName);
+        assertEquals(50, json.get("quantity").asInt(), storeName);
+      }
+    }
+
+    @ParameterizedTest(name = "{0}: createOrReplace replaces entire document")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testCreateOrReplaceExistingDoc(String storeName) throws Exception {
+      String docId = generateDocId("cor-replace");
+      Key key = createKey(docId);
+
+      Collection collection = getCollection(storeName);
+
+      // First create with all fields
+      Document initialDoc = createTestDocument(docId);
+      collection.createOrReplace(key, initialDoc);
+
+      // Replace with partial document - unlike upsert, this should REPLACE entirely
+      ObjectNode replacementNode = OBJECT_MAPPER.createObjectNode();
+      replacementNode.put("id", getKeyString(docId));
+      replacementNode.put("item", "ReplacedItem");
+      replacementNode.put("price", 777);
+      // Note: quantity, in_stock, tags, props, sales are NOT specified
+      Document replacementDoc = new JSONDocument(replacementNode);
+
+      boolean isNew = collection.createOrReplace(key, replacementDoc);
+      assertFalse(isNew);
+
+      Query query = buildQueryById(docId);
+      try (CloseableIterator<Document> iterator = collection.find(query)) {
+        assertTrue(iterator.hasNext());
+        Document retrievedDoc = iterator.next();
+        JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
+
+        // Replaced fields should have new values
+        assertEquals("ReplacedItem", json.get("item").asText(), storeName);
+        assertEquals(777, json.get("price").asInt(), storeName);
+
+        // Note that PG should return null for non-specified fields. However, the iterator
+        // specifically excludes null fields
+        // from the result set, so we expect these to be missing.
+        assertNull(json.get("quantity"));
+        assertNull(json.get("in_stock"));
+        assertNull(json.get("tags"));
+        assertNull(json.get("props"));
+        assertNull(json.get("sales"));
+      }
+    }
+
+    @ParameterizedTest(name = "{0}: createOrReplaceAndReturn")
+    @ArgumentsSource(AllStoresProvider.class)
+    @Disabled("Not implemented for PG")
+    void testCreateOrReplaceAndReturn(String storeName) throws Exception {
+      String docId = generateDocId("cor-return");
+      Key key = createKey(docId);
+
+      Collection collection = getCollection(storeName);
+
+      Document document = createTestDocument(docId);
+      Document returned = collection.createOrReplaceAndReturn(key, document);
+
+      assertNotNull(returned);
+      JsonNode json = OBJECT_MAPPER.readTree(returned.toJson());
+
+      assertEquals("TestItem", json.get("item").asText(), storeName);
+      assertEquals(100, json.get("price").asInt(), storeName);
+      assertEquals(50, json.get("quantity").asInt(), storeName);
     }
   }
 
