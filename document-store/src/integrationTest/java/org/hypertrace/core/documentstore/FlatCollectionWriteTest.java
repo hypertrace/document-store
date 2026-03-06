@@ -54,13 +54,6 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-/**
- * Integration tests for write operations on flat PostgreSQL collections.
- *
- * <p>Flat collections are PostgreSQL tables with explicit column schemas (not JSONB-based nested
- * documents). This test class verifies that Collection interface write operations work correctly on
- * such collections.
- */
 @Testcontainers
 public class FlatCollectionWriteTest extends BaseWriteTest {
 
