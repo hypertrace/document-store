@@ -9,6 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.typesafe.config.Config;
+import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -37,7 +39,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 /*Validates write consistency b/w Mongo and Postgres*/
 @Testcontainers
@@ -50,16 +55,30 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
   private static Map<String, Datastore> datastoreMap;
   private static Map<String, Collection> collectionMap;
 
+  private static GenericContainer<?> mongo;
+
   @BeforeAll
   public static void init() throws IOException {
     datastoreMap = new HashMap<>();
     collectionMap = new HashMap<>();
 
-    // Start MongoDB and PostgreSQL using BaseWriteTest setup
-    initMongo();
-    initPostgres();
+    // Start MongoDB
+    mongo =
+        new GenericContainer<>(DockerImageName.parse("mongo:8.0.1"))
+            .withExposedPorts(27017)
+            .waitingFor(Wait.forListeningPort());
+    mongo.start();
 
+    Map<String, String> mongoConfig = new HashMap<>();
+    mongoConfig.put("host", "localhost");
+    mongoConfig.put("port", mongo.getMappedPort(27017).toString());
+    Config mongoCfg = ConfigFactory.parseMap(mongoConfig);
+
+    Datastore mongoDatastore = DatastoreProvider.getDatastore("Mongo", mongoCfg);
     datastoreMap.put(MONGO_STORE, mongoDatastore);
+
+    // Start PostgreSQL using BaseWriteTest setup
+    initPostgres();
     datastoreMap.put(POSTGRES_FLAT_STORE, postgresDatastore);
 
     // Create Postgres flat collection schema
@@ -93,7 +112,9 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
 
   @AfterAll
   public static void shutdown() {
-    shutdownMongo();
+    if (mongo != null) {
+      mongo.stop();
+    }
     shutdownPostgres();
   }
 
