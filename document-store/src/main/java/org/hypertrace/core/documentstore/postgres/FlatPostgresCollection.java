@@ -761,7 +761,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       UpdateOperator operator = update.getOperator();
 
       Params.Builder paramsBuilder = Params.newBuilder();
-      PostgresUpdateOperationParser unifiedParser = UPDATE_PARSER_MAP.get(operator);
+      PostgresUpdateOperationParser parser = UPDATE_PARSER_MAP.get(operator);
 
       String fragment;
 
@@ -775,9 +775,9 @@ public class FlatPostgresCollection extends PostgresCollection {
                 .columnType(colMeta.getPostgresType())
                 .isArray(colMeta.isArray())
                 .build();
-        fragment = unifiedParser.parseNonJsonbField(input);
+        fragment = parser.parseNonJsonbField(input);
       } else {
-        // parseInternal() returns just the value expression
+        // this handles nested jsonb fields
         UpdateParserInput jsonbInput =
             UpdateParserInput.builder()
                 .baseField(String.format("\"%s\"", columnName))
@@ -786,7 +786,7 @@ public class FlatPostgresCollection extends PostgresCollection {
                 .paramsBuilder(paramsBuilder)
                 .columnType(colMeta.getPostgresType())
                 .build();
-        String valueExpr = unifiedParser.parseInternal(jsonbInput);
+        String valueExpr = parser.parseInternal(jsonbInput);
         fragment = String.format("\"%s\" = %s", columnName, valueExpr);
       }
       for (Object paramValue : paramsBuilder.build().getObjectParams().values()) {

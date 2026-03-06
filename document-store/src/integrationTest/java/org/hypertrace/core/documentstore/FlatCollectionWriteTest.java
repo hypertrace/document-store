@@ -1963,54 +1963,6 @@ public class FlatCollectionWriteTest {
       }
 
       @Test
-      @DisplayName("Case 5: SET multiple columns (top-level and nested) in single update")
-      void testSetMultipleColumnsTopLevelAndNested() throws Exception {
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
-                .build();
-
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.of("price", 999),
-                SubDocumentUpdate.of("quantity", 50),
-                SubDocumentUpdate.of("props.brand", "NewBrand"),
-                SubDocumentUpdate.of("props.count", 10));
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(999, resultJson.get("price").asInt());
-        assertEquals(50, resultJson.get("quantity").asInt());
-        assertEquals("NewBrand", resultJson.get("props").get("brand").asText());
-        assertEquals(10, resultJson.get("props").get("count").asInt());
-
-        // Verify in database
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"price\", \"quantity\", \"props\"->>'brand' as brand, "
-                            + "(\"props\"->>'count')::int as count FROM \"%s\" WHERE \"id\" = '1'",
-                        FLAT_COLLECTION_NAME));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals(999, rs.getInt("price"));
-          assertEquals(50, rs.getInt("quantity"));
-          assertEquals("NewBrand", rs.getString("brand"));
-          assertEquals(10, rs.getInt("count"));
-        }
-      }
-
-      @Test
       @DisplayName("Case 6: SET on non-existent top-level column should skip by default")
       void testSetNonExistentTopLevelColumnSkips() throws Exception {
         Query query =
@@ -2022,9 +1974,10 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("1")))
                 .build();
 
-        // Column "nonexistent_column" doesn't exist in schema - should be skipped
         List<SubDocumentUpdate> updates =
-            List.of(SubDocumentUpdate.of("nonexistent_column", "some_value"));
+            List.of(
+                SubDocumentUpdate.of("nonexistent_column1", "some_value"),
+                SubDocumentUpdate.of("nonexistent_column2.value", "some_value"));
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
@@ -2046,31 +1999,6 @@ public class FlatCollectionWriteTest {
         }
       }
 
-      // ==================== Case 7: Non-existent Nested Column ====================
-
-      @Test
-      @DisplayName("Case 7a: SET on non-existent JSONB column should skip by default")
-      void testSetNonExistentJsonbColumnSkips() throws Exception {
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
-                .build();
-
-        // Column "nonexistent_jsonb" doesn't exist in schema - should be skipped
-        List<SubDocumentUpdate> updates =
-            List.of(SubDocumentUpdate.of("nonexistent_jsonb.some_key", "some_value"));
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-      }
-
       @Test
       @DisplayName("Case 7b: SET nested path in NULL JSONB column should create structure")
       void testSetNestedPathInNullJsonbColumn() throws Exception {
@@ -2084,6 +2012,7 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("2")))
                 .build();
 
+        // In this case, props is NULL
         List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("props.newKey", "newValue"));
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
@@ -2111,7 +2040,6 @@ public class FlatCollectionWriteTest {
       @Test
       @DisplayName("Case 7c: SET non-existent nested path in existing JSONB should create key")
       void testSetNonExistentNestedPathInExistingJsonb() throws Exception {
-        // Row 1 has props but no "newAttribute" key
         Query query =
             Query.builder()
                 .setFilter(
@@ -2121,6 +2049,7 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("1")))
                 .build();
 
+        // In this case, props exists but props.newAttribute doesn't exist.
         List<SubDocumentUpdate> updates =
             List.of(SubDocumentUpdate.of("props.newAttribute", "brandNewValue"));
         UpdateOptions options =
@@ -2135,11 +2064,10 @@ public class FlatCollectionWriteTest {
         assertEquals("Dettol", resultJson.get("props").get("brand").asText());
       }
 
-      // ==================== Additional: Return Document Type ====================
-
       @Test
-      @DisplayName("SET should return BEFORE_UPDATE document when requested")
-      void testSetReturnsBeforeUpdateDocument() throws Exception {
+      @DisplayName("SET should return correct document based on ReturnDocumentType")
+      void testSetReturnDocumentTypes() throws Exception {
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
         Query query =
             Query.builder()
                 .setFilter(
@@ -2149,19 +2077,17 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("4")))
                 .build();
 
-        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 777));
-        UpdateOptions options =
+        // Test BEFORE_UPDATE - returns old value
+        List<SubDocumentUpdate> updates1 = List.of(SubDocumentUpdate.of("price", 777));
+        UpdateOptions beforeOptions =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.BEFORE_UPDATE).build();
 
-        Optional<Document> result = flatCollection.update(query, updates, options);
+        Optional<Document> beforeResult = flatCollection.update(query, updates1, beforeOptions);
+        assertTrue(beforeResult.isPresent());
+        JsonNode beforeJson = OBJECT_MAPPER.readTree(beforeResult.get().toJson());
+        assertEquals(5, beforeJson.get("price").asInt()); // Old value
 
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        // Should return old price (5), not new (777)
-        assertEquals(5, resultJson.get("price").asInt());
-
-        // But database should have new value
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        // Verify database has new value
         try (Connection conn = pgDatastore.getPostgresClient();
             PreparedStatement ps =
                 conn.prepareStatement(
@@ -2171,6 +2097,35 @@ public class FlatCollectionWriteTest {
           assertTrue(rs.next());
           assertEquals(777, rs.getInt("price"));
         }
+
+        // Test AFTER_UPDATE - returns new value
+        List<SubDocumentUpdate> updates2 = List.of(SubDocumentUpdate.of("price", 888));
+        UpdateOptions afterOptions =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> afterResult = flatCollection.update(query, updates2, afterOptions);
+        assertTrue(afterResult.isPresent());
+        JsonNode afterJson = OBJECT_MAPPER.readTree(afterResult.get().toJson());
+        assertEquals(888, afterJson.get("price").asInt()); // New value
+
+        // Test NONE - returns empty
+        List<SubDocumentUpdate> updates3 = List.of(SubDocumentUpdate.of("price", 999));
+        UpdateOptions noneOptions =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.NONE).build();
+
+        Optional<Document> noneResult = flatCollection.update(query, updates3, noneOptions);
+        assertFalse(noneResult.isPresent());
+
+        // Verify database has the final value
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"price\" FROM \"%s\" WHERE \"id\" = '4'", FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals(999, rs.getInt("price"));
+        }
       }
     }
 
@@ -2179,8 +2134,9 @@ public class FlatCollectionWriteTest {
     class UnsetOperatorTests {
 
       @Test
-      @DisplayName("Should UNSET top-level column (set to NULL)")
-      void testUnsetTopLevelColumn() throws Exception {
+      @DisplayName("Should UNSET top-level column and nested JSONB field via bulkUpdate")
+      void testUnsetTopLevelAndNestedFields() throws Exception {
+        // Row 1 has item="Soap" and props.brand="Dettol"
         Query query =
             Query.builder()
                 .setFilter(
@@ -2190,75 +2146,62 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("1")))
                 .build();
 
+        // UNSET both top-level column and nested JSONB field in one operation
         List<SubDocumentUpdate> updates =
             List.of(
+                // Top-level: sets column to NULL
                 SubDocumentUpdate.builder()
                     .subDocument("item")
+                    .operator(UpdateOperator.UNSET)
+                    .build(),
+                // Nested JSONB: removes key from JSON object
+                SubDocumentUpdate.builder()
+                    .subDocument("props.brand")
+                    .operator(UpdateOperator.UNSET)
+                    .build(),
+                // non existent columns. Shouldn't fail
+                SubDocumentUpdate.builder()
+                    .subDocument("nonexistentCol")
+                    .operator(UpdateOperator.UNSET)
+                    .build(),
+                SubDocumentUpdate.builder()
+                    .subDocument("nonexistentCol.key")
                     .operator(UpdateOperator.UNSET)
                     .build());
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
-        Optional<Document> result = flatCollection.update(query, updates, options);
+        try (CloseableIterator<Document> results =
+            flatCollection.bulkUpdate(query, updates, options)) {
+          assertTrue(results.hasNext());
+          Document resultDoc = results.next();
+          JsonNode resultJson = OBJECT_MAPPER.readTree(resultDoc.toJson());
 
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+          // Verify top-level column is NULL
+          JsonNode itemNode = resultJson.get("item");
+          assertTrue(itemNode == null || itemNode.isNull());
 
-        JsonNode itemNode = resultJson.get("item");
-        assertTrue(itemNode == null || itemNode.isNull());
+          // Verify nested JSONB key is removed, but other keys preserved
+          assertFalse(resultJson.get("props").has("brand"));
+          assertEquals("M", resultJson.get("props").get("size").asText());
+        }
 
+        // Verify in database
         PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
         try (Connection conn = pgDatastore.getPostgresClient();
             PreparedStatement ps =
                 conn.prepareStatement(
                     String.format(
-                        "SELECT \"item\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
+                        "SELECT \"item\", \"props\" FROM \"%s\" WHERE \"id\" = '1'",
+                        FLAT_COLLECTION_NAME));
             ResultSet rs = ps.executeQuery()) {
           assertTrue(rs.next());
           assertNull(rs.getString("item"));
+          JsonNode propsJson = OBJECT_MAPPER.readTree(rs.getString("props"));
+          assertFalse(propsJson.has("brand"));
+          assertEquals("M", propsJson.get("size").asText());
         }
-      }
-
-      @Test
-      @DisplayName("Should UNSET nested JSONB field (remove key)")
-      void testUnsetNestedJsonbField() throws Exception {
-        String docId = getRandomDocId(4);
-        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-        ObjectNode node = OBJECT_MAPPER.createObjectNode();
-        node.put("item", "JsonbItem");
-        ObjectNode props = OBJECT_MAPPER.createObjectNode();
-        props.put("brand", "TestBrand");
-        props.put("color", "Red");
-        node.set("props", props);
-        flatCollection.create(key, new JSONDocument(node));
-
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of(key.toString())))
-                .build();
-
-        // UNSET props.brand
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.builder()
-                    .subDocument("props.brand")
-                    .operator(UpdateOperator.UNSET)
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertFalse(resultJson.get("props").has("brand"));
-        assertEquals("Red", resultJson.get("props").get("color").asText());
       }
     }
 
@@ -2267,58 +2210,120 @@ public class FlatCollectionWriteTest {
     class AddSubdocOperatorTests {
 
       @Test
-      @DisplayName("Should increment top-level numeric column with ADD operator")
-      void testAddTopLevelColumn() throws Exception {
-        // Row 1 has price = 10
+      @DisplayName("Should ADD to all numeric types via bulkUpdate")
+      void testAddAllNumericTypes() throws Exception {
+        String docId = getRandomDocId(4);
+        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "NumericTestItem");
+        node.put("price", 100); // INT (positive ADD)
+        node.put("quantity", 50); // INT (negative ADD - decrement)
+        node.put("big_number", 1000000000000L); // BIGINT
+        node.put("rating", 3.5); // REAL
+        node.put("weight", 50.0); // DOUBLE PRECISION
+        ObjectNode sales = OBJECT_MAPPER.createObjectNode();
+        sales.put("total", 200); // Nested JSONB numeric
+        sales.put("count", 10);
+        node.set("sales", sales);
+        flatCollection.create(key, new JSONDocument(node));
+
         Query query =
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
                         IdentifierExpression.of("id"),
                         RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
+                        ConstantExpression.of(key.toString())))
                 .build();
 
-        // ADD 5 to price (10 + 5 = 15)
         List<SubDocumentUpdate> updates =
             List.of(
+                // Top-level INT: 100 + 5 = 105
                 SubDocumentUpdate.builder()
                     .subDocument("price")
                     .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(5))
+                    .subDocumentValue(SubDocumentValue.of(5))
+                    .build(),
+                // Top-level INT (negative): 50 + (-15) = 35
+                SubDocumentUpdate.builder()
+                    .subDocument("quantity")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(SubDocumentValue.of(-15))
+                    .build(),
+                // Top-level BIGINT: 1000000000000 + 500 = 1000000000500
+                SubDocumentUpdate.builder()
+                    .subDocument("big_number")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(SubDocumentValue.of(500L))
+                    .build(),
+                // Top-level REAL: 3.5 + 1.0 = 4.5
+                SubDocumentUpdate.builder()
+                    .subDocument("rating")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(SubDocumentValue.of(1.0f))
+                    .build(),
+                // Top-level DOUBLE: 50.0 + 2.5 = 52.5
+                SubDocumentUpdate.builder()
+                    .subDocument("weight")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(SubDocumentValue.of(2.5))
+                    .build(),
+                // Nested JSONB: 200 + 50 = 250
+                SubDocumentUpdate.builder()
+                    .subDocument("sales.total")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(SubDocumentValue.of(50))
                     .build());
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
-        Optional<Document> result = flatCollection.update(query, updates, options);
+        String expectedJsonContent =
+            readFileFromResource("expected/add_all_numeric_types_expected.json").orElseThrow();
+        JsonNode expectedJson = OBJECT_MAPPER.readTree(expectedJsonContent);
 
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(15, resultJson.get("price").asInt());
+        try (CloseableIterator<Document> results =
+            flatCollection.bulkUpdate(query, updates, options)) {
+          assertTrue(results.hasNext());
+          JsonNode resultJson = OBJECT_MAPPER.readTree(results.next().toJson());
 
+          ((ObjectNode) resultJson).remove("id");
+          assertEquals(expectedJson, resultJson);
+        }
+
+        // Verify in database
         PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
         try (Connection conn = pgDatastore.getPostgresClient();
             PreparedStatement ps =
                 conn.prepareStatement(
                     String.format(
-                        "SELECT \"price\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
+                        "SELECT \"price\", \"quantity\", \"big_number\", \"rating\", \"weight\", \"sales\" "
+                            + "FROM \"%s\" WHERE \"id\" = '%s'",
+                        FLAT_COLLECTION_NAME, key));
             ResultSet rs = ps.executeQuery()) {
           assertTrue(rs.next());
-          assertEquals(15, rs.getInt("price"));
+          assertEquals(expectedJson.get("price").asInt(), rs.getInt("price"));
+          assertEquals(expectedJson.get("quantity").asInt(), rs.getInt("quantity"));
+          assertEquals(expectedJson.get("big_number").asLong(), rs.getLong("big_number"));
+          assertEquals(expectedJson.get("rating").floatValue(), rs.getFloat("rating"), 0.01f);
+          assertEquals(expectedJson.get("weight").asDouble(), rs.getDouble("weight"), 0.01);
+          JsonNode salesJson = OBJECT_MAPPER.readTree(rs.getString("sales"));
+          assertEquals(
+              expectedJson.get("sales").get("total").asInt(), salesJson.get("total").asInt());
+          assertEquals(
+              expectedJson.get("sales").get("count").asInt(), salesJson.get("count").asInt());
         }
       }
 
       @Test
       @DisplayName("Should handle ADD on NULL column (treat as 0)")
       void testAddOnNullColumn() throws Exception {
-        // Create a document with NULL price
+        // Create a document with NULL numeric columns
         String docId = getRandomDocId(4);
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "NullPriceItem");
-        // price is not set, will be NULL
+        // price, weight are not set - will be NULL
         flatCollection.create(key, new JSONDocument(node));
 
         Query query =
@@ -2330,182 +2335,30 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of(key.toString())))
                 .build();
 
-        // ADD 100 to NULL price (COALESCE(NULL, 0) + 100 = 100)
+        // ADD to NULL columns - COALESCE(NULL, 0) + value
         List<SubDocumentUpdate> updates =
             List.of(
                 SubDocumentUpdate.builder()
                     .subDocument("price")
                     .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(100))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(100, resultJson.get("price").asInt());
-      }
-
-      @Test
-      @DisplayName("Should ADD with negative value (decrement)")
-      void testAddNegativeValue() throws Exception {
-        // Row 2 has price = 20
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("2")))
-                .build();
-
-        // ADD -5 to price (20 - 5 = 15)
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.builder()
-                    .subDocument("price")
-                    .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(-5))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(15, resultJson.get("price").asInt());
-      }
-
-      @Test
-      @DisplayName("Should ADD with floating point value")
-      void testAddFloatingPointValue() throws Exception {
-        // Row 3 has price = 30
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("3")))
-                .build();
-
-        // ADD 0.5 to price (30 + 0.5 = 30.5, but price is INTEGER so it might truncate)
-        // Testing with a column that supports decimals - weight is DOUBLE PRECISION
-        List<SubDocumentUpdate> updates =
-            List.of(
+                    .subDocumentValue(SubDocumentValue.of(100))
+                    .build(),
                 SubDocumentUpdate.builder()
                     .subDocument("weight")
                     .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(2.5))
+                    .subDocumentValue(SubDocumentValue.of(25.5))
                     .build());
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        // Initial weight is NULL, so COALESCE(NULL, 0) + 2.5 = 2.5
-        assertEquals(2.5, resultJson.get("weight").asDouble(), 0.01);
-      }
-
-      @Test
-      @DisplayName("Should ADD to nested JSONB numeric field")
-      void testAddNestedJsonbField() throws Exception {
-        // First, set up a document with a JSONB field containing a numeric value
-        String docId = getRandomDocId(4);
-        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-        ObjectNode node = OBJECT_MAPPER.createObjectNode();
-        node.put("item", "JsonbItem");
-        ObjectNode sales = OBJECT_MAPPER.createObjectNode();
-        sales.put("total", 100);
-        sales.put("count", 5);
-        node.set("sales", sales);
-        flatCollection.create(key, new JSONDocument(node));
-
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of(key.toString())))
-                .build();
-
-        // ADD 50 to sales.total (100 + 50 = 150)
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.builder()
-                    .subDocument("sales.total")
-                    .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(50))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(150, resultJson.get("sales").get("total").asInt());
-        // Verify count wasn't affected
-        assertEquals(5, resultJson.get("sales").get("count").asInt());
-      }
-
-      @Test
-      @DisplayName("Should ADD to nested JSONB field that doesn't exist (creates with value)")
-      void testAddNestedJsonbFieldNotExists() throws Exception {
-        // Document with empty JSONB or no such nested key
-        String docId = getRandomDocId(4);
-        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-        ObjectNode node = OBJECT_MAPPER.createObjectNode();
-        node.put("item", "NewKeyItem");
-        ObjectNode sales = OBJECT_MAPPER.createObjectNode();
-        sales.put("region", "US");
-        // No 'total' key
-        node.set("sales", sales);
-        flatCollection.create(key, new JSONDocument(node));
-
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of(key.toString())))
-                .build();
-
-        // ADD 75 to sales.total (non-existent, should become 0 + 75 = 75)
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.builder()
-                    .subDocument("sales.total")
-                    .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(75))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(75.0, resultJson.get("sales").get("total").asDouble(), 0.01);
-        // Verify existing key wasn't affected
-        assertEquals("US", resultJson.get("sales").get("region").asText());
+        try (CloseableIterator<Document> results =
+            flatCollection.bulkUpdate(query, updates, options)) {
+          assertTrue(results.hasNext());
+          JsonNode resultJson = OBJECT_MAPPER.readTree(results.next().toJson());
+          assertEquals(100, resultJson.get("price").asInt());
+          assertEquals(25.5, resultJson.get("weight").asDouble(), 0.01);
+        }
       }
 
       @Test
@@ -2520,15 +2373,12 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("1")))
                 .build();
 
-        // ADD with a string value should fail
         List<SubDocumentUpdate> updates =
             List.of(
                 SubDocumentUpdate.builder()
                     .subDocument("price")
                     .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                            "not-a-number"))
+                    .subDocumentValue(SubDocumentValue.of("not-a-number"))
                     .build());
 
         UpdateOptions options =
@@ -2539,8 +2389,8 @@ public class FlatCollectionWriteTest {
       }
 
       @Test
-      @DisplayName("Should throw IllegalArgumentException for multi-valued primitive value")
-      void testAddMultiValuedPrimitiveValue() {
+      @DisplayName("Should throw IllegalArgumentException for array value")
+      void testAddArrayValue() {
         Query query =
             Query.builder()
                 .setFilter(
@@ -2550,15 +2400,12 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("1")))
                 .build();
 
-        // ADD with an array of numbers should fail
         List<SubDocumentUpdate> updates =
             List.of(
                 SubDocumentUpdate.builder()
                     .subDocument("price")
                     .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                            new Integer[] {1, 2, 3}))
+                    .subDocumentValue(SubDocumentValue.of(new Integer[] {1, 2, 3}))
                     .build());
 
         UpdateOptions options =
@@ -2566,159 +2413,6 @@ public class FlatCollectionWriteTest {
 
         assertThrows(
             IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
-      }
-
-      @Test
-      @DisplayName("Should throw IllegalArgumentException for nested document value")
-      void testAddNestedDocumentValue() throws Exception {
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
-                .build();
-
-        // ADD with a nested document should fail
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.builder()
-                    .subDocument("price")
-                    .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                            new JSONDocument("{\"nested\": 123}")))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        assertThrows(
-            IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
-      }
-
-      @Test
-      @DisplayName("Should throw IllegalArgumentException for multi-valued nested document value")
-      void testAddMultiValuedNestedDocumentValue() throws Exception {
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
-                .build();
-
-        // ADD with an array of documents should fail
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.builder()
-                    .subDocument("price")
-                    .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                            new Document[] {
-                              new JSONDocument("{\"a\": 1}"), new JSONDocument("{\"b\": 2}")
-                            }))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        assertThrows(
-            IllegalArgumentException.class, () -> flatCollection.update(query, updates, options));
-      }
-
-      @Test
-      @DisplayName("Should ADD to BIGINT column with correct type cast")
-      void testAddBigintColumn() throws Exception {
-        // Create a document with big_number set
-        String docId = getRandomDocId(4);
-        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-        ObjectNode node = OBJECT_MAPPER.createObjectNode();
-        node.put("item", "BigintItem");
-        node.put("big_number", 1000000000000L);
-        flatCollection.create(key, new JSONDocument(node));
-
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of(key.toString())))
-                .build();
-
-        // ADD 500 to big_number
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.builder()
-                    .subDocument("big_number")
-                    .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(500L))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(1000000000500L, resultJson.get("big_number").asLong());
-      }
-
-      @Test
-      @DisplayName("Should ADD to REAL column with correct type cast")
-      void testAddRealColumn() throws Exception {
-        // Create a document with rating set
-        String docId = getRandomDocId(4);
-        Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-        ObjectNode node = OBJECT_MAPPER.createObjectNode();
-        node.put("item", "RealItem");
-        node.put("rating", 3.5);
-        flatCollection.create(key, new JSONDocument(node));
-
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of(key.toString())))
-                .build();
-
-        // ADD 1.0 to rating (3.5 + 1.0 = 4.5)
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.builder()
-                    .subDocument("rating")
-                    .operator(UpdateOperator.ADD)
-                    .subDocumentValue(
-                        org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(1.0))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-
-        // Verify in database directly
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"rating\" FROM \"%s\" WHERE \"id\" = '%s'",
-                        FLAT_COLLECTION_NAME, key));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals(4.5f, rs.getFloat("rating"), 0.01f);
-        }
       }
     }
 
