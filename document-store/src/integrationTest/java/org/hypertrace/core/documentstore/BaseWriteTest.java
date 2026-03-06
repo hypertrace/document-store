@@ -26,6 +26,10 @@ public abstract class BaseWriteTest {
   protected static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   protected static final String DEFAULT_TENANT = "default";
 
+  // MongoDB container and datastore - shared by all subclasses
+  protected static GenericContainer<?> mongoContainer;
+  protected static Datastore mongoDatastore;
+
   // PostgreSQL container and datastore - shared by all subclasses
   protected static GenericContainer<?> postgresContainer;
   protected static Datastore postgresDatastore;
@@ -50,6 +54,27 @@ public abstract class BaseWriteTest {
           + "\"created_date\" DATE,"
           + "\"weight\" DOUBLE PRECISION"
           + ");";
+
+  protected static void initMongo() {
+    mongoContainer =
+        new GenericContainer<>(DockerImageName.parse("mongo:8.0.1"))
+            .withExposedPorts(27017)
+            .waitingFor(Wait.forListeningPort());
+    mongoContainer.start();
+
+    Map<String, String> mongoConfig = new HashMap<>();
+    mongoConfig.put("host", "localhost");
+    mongoConfig.put("port", mongoContainer.getMappedPort(27017).toString());
+
+    mongoDatastore = DatastoreProvider.getDatastore("Mongo", ConfigFactory.parseMap(mongoConfig));
+    LOGGER.info("Mongo datastore initialized");
+  }
+
+  protected static void shutdownMongo() {
+    if (mongoContainer != null) {
+      mongoContainer.stop();
+    }
+  }
 
   protected static void initPostgres() {
     postgresContainer =
