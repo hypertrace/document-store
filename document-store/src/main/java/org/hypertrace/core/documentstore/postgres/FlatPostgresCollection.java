@@ -773,6 +773,7 @@ public class FlatPostgresCollection extends PostgresCollection {
                 .update(update)
                 .paramsBuilder(paramsBuilder)
                 .columnType(colMeta.getPostgresType())
+                .isArray(colMeta.isArray())
                 .build();
         fragment = unifiedParser.parseNonJsonbField(input);
       } else {
@@ -788,8 +789,16 @@ public class FlatPostgresCollection extends PostgresCollection {
         String valueExpr = unifiedParser.parseInternal(jsonbInput);
         fragment = String.format("\"%s\" = %s", columnName, valueExpr);
       }
-      // Transfer params from builder to our list
-      params.addAll(paramsBuilder.build().getObjectParams().values());
+      for (Object paramValue : paramsBuilder.build().getObjectParams().values()) {
+        if (isTopLevel && colMeta.isArray() && paramValue != null) {
+          Object[] arrayValues = (Object[]) paramValue;
+          Array sqlArray =
+              connection.createArrayOf(colMeta.getPostgresType().getSqlType(), arrayValues);
+          params.add(sqlArray);
+        } else {
+          params.add(paramValue);
+        }
+      }
       setFragments.add(fragment);
     }
 
@@ -808,11 +817,9 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     try (PreparedStatement ps = connection.prepareStatement(sql)) {
       int idx = 1;
-      // Add SET clause params
       for (Object param : params) {
         ps.setObject(idx++, param);
       }
-      // Add WHERE clause params
       for (Object param : filterParams.getObjectParams().values()) {
         ps.setObject(idx++, param);
       }

@@ -33,5 +33,6 @@ public interface PostgresUpdateOperationParser {
     Params.Builder paramsBuilder;
     // only for flat collections
     PostgresDataType columnType;
+    boolean isArray;
   }
 }

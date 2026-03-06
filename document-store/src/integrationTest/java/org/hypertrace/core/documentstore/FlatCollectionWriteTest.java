@@ -1906,127 +1906,8 @@ public class FlatCollectionWriteTest {
     class SetOperatorTests {
 
       @Test
-      @DisplayName("Should update multiple top-level columns in single update")
-      void testSetMultipleColumns() throws Exception {
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("2")))
-                .build();
-
-        List<SubDocumentUpdate> updates =
-            List.of(SubDocumentUpdate.of("price", 555), SubDocumentUpdate.of("quantity", 100));
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(555, resultJson.get("price").asInt());
-        assertEquals(100, resultJson.get("quantity").asInt());
-
-        // Verify in database
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"price\", \"quantity\" FROM \"%s\" WHERE \"id\" = '2'",
-                        FLAT_COLLECTION_NAME));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals(555, rs.getInt("price"));
-          assertEquals(100, rs.getInt("quantity"));
-        }
-      }
-
-      @Test
-      @DisplayName("Should update nested path in JSONB column")
-      void testUpdateNestedJsonbPath() throws Exception {
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("3")))
-                .build();
-
-        // Update props.brand nested path
-        List<SubDocumentUpdate> updates =
-            List.of(SubDocumentUpdate.of("props.brand", "UpdatedBrand"));
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertNotNull(resultJson.get("props"));
-        assertEquals("UpdatedBrand", resultJson.get("props").get("brand").asText());
-
-        // Verify in database
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"props\"->>'brand' as brand FROM \"%s\" WHERE \"id\" = '3'",
-                        FLAT_COLLECTION_NAME));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals("UpdatedBrand", rs.getString("brand"));
-        }
-      }
-
-      @Test
-      @DisplayName("Should return BEFORE_UPDATE document")
-      void testUpdateReturnsBeforeDocument() throws Exception {
-        // First get the current price
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("4")))
-                .build();
-
-        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 777));
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.BEFORE_UPDATE).build();
-
-        Optional<Document> result = flatCollection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        // Should return the old price (5 from initial data), not the new one (777)
-        assertEquals(5, resultJson.get("price").asInt());
-
-        // But database should have the new value
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"price\" FROM \"%s\" WHERE \"id\" = '4'", FLAT_COLLECTION_NAME));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals(777, rs.getInt("price"));
-        }
-      }
-
-      @Test
-      @DisplayName("Case 1: SET on field not in schema should skip (default SKIP strategy)")
-      void testSetFieldNotInSchema() throws Exception {
-        // Update a field that doesn't exist in the schema
+      @DisplayName("Cases 1-4: SET all field types via bulkUpdate")
+      void testSetAllFieldTypes() throws Exception {
         Query query =
             Query.builder()
                 .setFilter(
@@ -2036,27 +1917,123 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("1")))
                 .build();
 
-        SubDocumentUpdate update =
-            SubDocumentUpdate.builder()
-                .subDocument("nonexistent_column.some_key")
-                .operator(UpdateOperator.SET)
-                .subDocumentValue(
-                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of("new_value"))
+        // Apply all updates at once: primitives, arrays, and one nested path per JSONB column
+        // Note: PostgreSQL doesn't allow multiple assignments to same column in one UPDATE,
+        // so we can only update one nested path per JSONB column in a single operation
+        // Note: PG will throw an error if there are multiple assignments to same column in one
+        // UPDATE. So we cannot set props.brand and props.colour if props is a jsonb type, for
+        // example
+        List<SubDocumentUpdate> updates =
+            List.of(
+                // Case 1: Top-level primitives
+                SubDocumentUpdate.of("item", "UpdatedItem"),
+                SubDocumentUpdate.of("price", 999),
+                SubDocumentUpdate.of("quantity", 50),
+                SubDocumentUpdate.of("in_stock", false),
+                SubDocumentUpdate.of("big_number", 9999999999L),
+                SubDocumentUpdate.of("rating", 4.5f),
+                SubDocumentUpdate.of("weight", 123.456),
+                // Case 2: Top-level arrays
+                SubDocumentUpdate.of("tags", new String[] {"tag4", "tag5", "tag6"}),
+                SubDocumentUpdate.of("numbers", new Integer[] {10, 20, 30}),
+                SubDocumentUpdate.of("scores", new Double[] {1.1, 2.2, 3.3}),
+                SubDocumentUpdate.of("flags", new Boolean[] {true, false, true}),
+                // Case 3 & 4: One nested path in JSONB (props) - tests nested primitive
+                SubDocumentUpdate.of("props.brand", "NewBrand"),
+                // Use 'sales' JSONB column for nested array test
+                SubDocumentUpdate.of(
+                    "sales.regions", SubDocumentValue.of(new String[] {"US", "EU", "APAC"})));
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        // Read expected values from JSON file
+        String expectedJsonContent =
+            readFileFromResource("expected/set_all_field_types_expected.json").orElseThrow();
+        JsonNode expectedJson = OBJECT_MAPPER.readTree(expectedJsonContent);
+
+        try (CloseableIterator<Document> results =
+            flatCollection.bulkUpdate(query, updates, options)) {
+          assertTrue(results.hasNext());
+          Document resultDoc = results.next();
+          JsonNode resultJson = OBJECT_MAPPER.readTree(resultDoc.toJson());
+
+          assertEquals(expectedJson, resultJson);
+        }
+      }
+
+      @Test
+      @DisplayName("Case 5: SET multiple columns (top-level and nested) in single update")
+      void testSetMultipleColumnsTopLevelAndNested() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
                 .build();
 
-        // With default SKIP strategy, this should not throw but skip the update
-        Optional<Document> result =
-            flatCollection.update(
-                query,
-                List.of(update),
-                UpdateOptions.builder()
-                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
-                    .build());
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.of("price", 999),
+                SubDocumentUpdate.of("quantity", 50),
+                SubDocumentUpdate.of("props.brand", "NewBrand"),
+                SubDocumentUpdate.of("props.count", 10));
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
-        // Document should still be returned (unchanged since update was skipped)
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals(999, resultJson.get("price").asInt());
+        assertEquals(50, resultJson.get("quantity").asInt());
+        assertEquals("NewBrand", resultJson.get("props").get("brand").asText());
+        assertEquals(10, resultJson.get("props").get("count").asInt());
+
+        // Verify in database
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT \"price\", \"quantity\", \"props\"->>'brand' as brand, "
+                            + "(\"props\"->>'count')::int as count FROM \"%s\" WHERE \"id\" = '1'",
+                        FLAT_COLLECTION_NAME));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals(999, rs.getInt("price"));
+          assertEquals(50, rs.getInt("quantity"));
+          assertEquals("NewBrand", rs.getString("brand"));
+          assertEquals(10, rs.getInt("count"));
+        }
+      }
+
+      @Test
+      @DisplayName("Case 6: SET on non-existent top-level column should skip by default")
+      void testSetNonExistentTopLevelColumnSkips() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // Column "nonexistent_column" doesn't exist in schema - should be skipped
+        List<SubDocumentUpdate> updates =
+            List.of(SubDocumentUpdate.of("nonexistent_column", "some_value"));
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        // Document returned (unchanged since update was skipped)
         assertTrue(result.isPresent());
 
-        // Verify the document wasn't modified (item should still be "Soap")
+        // Verify original data is intact
         PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
         try (Connection conn = pgDatastore.getPostgresClient();
             PreparedStatement ps =
@@ -2069,9 +2046,34 @@ public class FlatCollectionWriteTest {
         }
       }
 
+      // ==================== Case 7: Non-existent Nested Column ====================
+
       @Test
-      @DisplayName("Case 2: SET on JSONB column that is NULL should create the structure")
-      void testSetJsonbColumnIsNull() throws Exception {
+      @DisplayName("Case 7a: SET on non-existent JSONB column should skip by default")
+      void testSetNonExistentJsonbColumnSkips() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // Column "nonexistent_jsonb" doesn't exist in schema - should be skipped
+        List<SubDocumentUpdate> updates =
+            List.of(SubDocumentUpdate.of("nonexistent_jsonb.some_key", "some_value"));
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+      }
+
+      @Test
+      @DisplayName("Case 7b: SET nested path in NULL JSONB column should create structure")
+      void testSetNestedPathInNullJsonbColumn() throws Exception {
         // Row 2 has props = NULL
         Query query =
             Query.builder()
@@ -2082,25 +2084,17 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("2")))
                 .build();
 
-        SubDocumentUpdate update =
-            SubDocumentUpdate.builder()
-                .subDocument("props.newKey")
-                .operator(UpdateOperator.SET)
-                .subDocumentValue(
-                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of("newValue"))
-                .build();
+        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("props.newKey", "newValue"));
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
-        Optional<Document> result =
-            flatCollection.update(
-                query,
-                List.of(update),
-                UpdateOptions.builder()
-                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
-                    .build());
+        Optional<Document> result = flatCollection.update(query, updates, options);
 
         assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals("newValue", resultJson.get("props").get("newKey").asText());
 
-        // Verify props now has the new key
+        // Verify in database
         PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
         try (Connection conn = pgDatastore.getPostgresClient();
             PreparedStatement ps =
@@ -2115,54 +2109,8 @@ public class FlatCollectionWriteTest {
       }
 
       @Test
-      @DisplayName("Case 3: SET on JSONB path that exists should update the value")
-      void testSetJsonbPathExists() throws Exception {
-        // Row 1 has props.brand = "Dettol"
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
-                .build();
-
-        SubDocumentUpdate update =
-            SubDocumentUpdate.builder()
-                .subDocument("props.brand")
-                .operator(UpdateOperator.SET)
-                .subDocumentValue(
-                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                        "UpdatedBrand"))
-                .build();
-
-        Optional<Document> result =
-            flatCollection.update(
-                query,
-                List.of(update),
-                UpdateOptions.builder()
-                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
-                    .build());
-
-        assertTrue(result.isPresent());
-
-        // Verify props.brand was updated
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"props\"->>'brand' as brand FROM \"%s\" WHERE \"id\" = '1'",
-                        FLAT_COLLECTION_NAME));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals("UpdatedBrand", rs.getString("brand"));
-        }
-      }
-
-      @Test
-      @DisplayName("Case 4: SET on JSONB path that doesn't exist should create the key")
-      void testSetJsonbPathDoesNotExist() throws Exception {
+      @DisplayName("Case 7c: SET non-existent nested path in existing JSONB should create key")
+      void testSetNonExistentNestedPathInExistingJsonb() throws Exception {
         // Row 1 has props but no "newAttribute" key
         Query query =
             Query.builder()
@@ -2173,176 +2121,55 @@ public class FlatCollectionWriteTest {
                         ConstantExpression.of("1")))
                 .build();
 
-        SubDocumentUpdate update =
-            SubDocumentUpdate.builder()
-                .subDocument("props.newAttribute")
-                .operator(UpdateOperator.SET)
-                .subDocumentValue(
-                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                        "brandNewValue"))
-                .build();
+        List<SubDocumentUpdate> updates =
+            List.of(SubDocumentUpdate.of("props.newAttribute", "brandNewValue"));
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
-        Optional<Document> result =
-            flatCollection.update(
-                query,
-                List.of(update),
-                UpdateOptions.builder()
-                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
-                    .build());
+        Optional<Document> result = flatCollection.update(query, updates, options);
 
         assertTrue(result.isPresent());
-
-        // Verify props.newAttribute was created
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"props\"->>'newAttribute' as newAttr, \"props\"->>'brand' as brand FROM \"%s\" WHERE \"id\" = '1'",
-                        FLAT_COLLECTION_NAME));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals("brandNewValue", rs.getString("newAttr"));
-          // Verify existing data wasn't lost
-          assertEquals("Dettol", rs.getString("brand"));
-        }
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        assertEquals("brandNewValue", resultJson.get("props").get("newAttribute").asText());
+        // Existing data should be preserved
+        assertEquals("Dettol", resultJson.get("props").get("brand").asText());
       }
 
+      // ==================== Additional: Return Document Type ====================
+
       @Test
-      @DisplayName("SET on top-level column should update the value directly")
-      void testSetTopLevelColumn() throws Exception {
+      @DisplayName("SET should return BEFORE_UPDATE document when requested")
+      void testSetReturnsBeforeUpdateDocument() throws Exception {
         Query query =
             Query.builder()
                 .setFilter(
                     RelationalExpression.of(
                         IdentifierExpression.of("id"),
                         RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
+                        ConstantExpression.of("4")))
                 .build();
 
-        SubDocumentUpdate update =
-            SubDocumentUpdate.builder()
-                .subDocument("item")
-                .operator(UpdateOperator.SET)
-                .subDocumentValue(
-                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                        "UpdatedSoap"))
-                .build();
+        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 777));
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.BEFORE_UPDATE).build();
 
-        Optional<Document> result =
-            flatCollection.update(
-                query,
-                List.of(update),
-                UpdateOptions.builder()
-                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
-                    .build());
+        Optional<Document> result = flatCollection.update(query, updates, options);
 
         assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        // Should return old price (5), not new (777)
+        assertEquals(5, resultJson.get("price").asInt());
 
-        // Verify item was updated
+        // But database should have new value
         PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
         try (Connection conn = pgDatastore.getPostgresClient();
             PreparedStatement ps =
                 conn.prepareStatement(
                     String.format(
-                        "SELECT \"item\" FROM \"%s\" WHERE \"id\" = '1'", FLAT_COLLECTION_NAME));
+                        "SELECT \"price\" FROM \"%s\" WHERE \"id\" = '4'", FLAT_COLLECTION_NAME));
             ResultSet rs = ps.executeQuery()) {
           assertTrue(rs.next());
-          assertEquals("UpdatedSoap", rs.getString("item"));
-        }
-      }
-
-      @Test
-      @DisplayName("SET with empty object value")
-      void testSetWithEmptyObjectValue() throws Exception {
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
-                .build();
-
-        // SET a JSON object containing an empty object
-        SubDocumentUpdate update =
-            SubDocumentUpdate.builder()
-                .subDocument("props.newProperty")
-                .operator(UpdateOperator.SET)
-                .subDocumentValue(
-                    org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue.of(
-                        new JSONDocument(
-                            Map.of("hello", "world", "emptyObject", Collections.emptyMap()))))
-                .build();
-
-        Optional<Document> result =
-            flatCollection.update(
-                query,
-                List.of(update),
-                UpdateOptions.builder()
-                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
-                    .build());
-
-        assertTrue(result.isPresent());
-
-        // Verify the JSON object was set correctly
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"props\"->'newProperty' as newProp FROM \"%s\" WHERE \"id\" = '1'",
-                        FLAT_COLLECTION_NAME));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          String jsonStr = rs.getString("newProp");
-          assertNotNull(jsonStr);
-          assertTrue(jsonStr.contains("hello"));
-          assertTrue(jsonStr.contains("emptyObject"));
-        }
-      }
-
-      @Test
-      @DisplayName("SET with JSON document as value")
-      void testSetWithJsonDocumentValue() throws Exception {
-        Query query =
-            Query.builder()
-                .setFilter(
-                    RelationalExpression.of(
-                        IdentifierExpression.of("id"),
-                        RelationalOperator.EQ,
-                        ConstantExpression.of("1")))
-                .build();
-
-        SubDocumentUpdate update =
-            SubDocumentUpdate.builder()
-                .subDocument("props.nested")
-                .operator(UpdateOperator.SET)
-                .subDocumentValue(
-                    SubDocumentValue.of(new JSONDocument(Map.of("key1", "value1", "key2", 123))))
-                .build();
-
-        Optional<Document> result =
-            flatCollection.update(
-                query,
-                List.of(update),
-                UpdateOptions.builder()
-                    .returnDocumentType(ReturnDocumentType.AFTER_UPDATE)
-                    .build());
-
-        assertTrue(result.isPresent());
-
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT \"props\"->'nested'->>'key1' as key1, \"props\"->'nested'->>'key2' as key2 FROM \"%s\" WHERE \"id\" = '1'",
-                        FLAT_COLLECTION_NAME));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals("value1", rs.getString("key1"));
-          assertEquals("123", rs.getString("key2"));
+          assertEquals(777, rs.getInt("price"));
         }
       }
     }
