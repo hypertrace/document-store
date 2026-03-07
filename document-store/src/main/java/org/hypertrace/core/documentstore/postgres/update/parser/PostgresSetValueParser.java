@@ -39,7 +39,7 @@ public class PostgresSetValueParser implements PostgresUpdateOperationParser {
           .getSubDocumentValue()
           .accept(new PostgresSubDocumentValueParser(input.getParamsBuilder()));
     }
-    return String.format("%s = ?", input.getBaseField());
+    return String.format("\"%s\" = ?", input.getBaseField());
   }
 
   @Override
