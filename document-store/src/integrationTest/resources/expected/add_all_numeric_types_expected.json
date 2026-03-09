@@ -1,0 +1,12 @@
+{
+  "item": "NumericTestItem",
+  "price": 105,
+  "quantity": 35,
+  "big_number": 1000000000500,
+  "rating": 4.5,
+  "weight": 52.5,
+  "sales": {
+    "total": 250,
+    "count": 10
+  }
+}
