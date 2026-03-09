@@ -1086,9 +1086,9 @@ public class FlatPostgresCollection extends PostgresCollection {
               .collect(Collectors.toList());
 
       String sql = buildCreateOrReplaceSql(allColumns, docColumns, quotedPkColumn);
-      LOGGER.debug("Upsert SQL: {}", sql);
+      LOGGER.debug("CreateOrReplace SQL: {}", sql);
 
-      return executeUpsert(sql, parsed);
+      return executeUpsertReturningIsInsert(sql, parsed);
 
     } catch (PSQLException e) {
       return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
@@ -1253,9 +1253,28 @@ public class FlatPostgresCollection extends PostgresCollection {
             parsed.isArray(column));
       }
       try (ResultSet rs = ps.executeQuery()) {
+        return rs.next();
+      }
+    }
+  }
+
+  /** Returns true if INSERT, false if UPDATE. */
+  private boolean executeUpsertReturningIsInsert(String sql, TypedDocument parsed)
+      throws SQLException {
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      int index = 1;
+      for (String column : parsed.getColumns()) {
+        setParameter(
+            conn,
+            ps,
+            index++,
+            parsed.getValue(column),
+            parsed.getType(column),
+            parsed.isArray(column));
+      }
+      try (ResultSet rs = ps.executeQuery()) {
         if (rs.next()) {
-          // is_insert is true if xmax = 0 (new row), false if updated. This helps us differentiate
-          // b/w creates/upserts
           return rs.getBoolean("is_insert");
         }
       }

@@ -170,7 +170,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       Document mergeDoc = new JSONDocument(mergeNode);
 
       boolean secondResult = flatCollection.upsert(key, mergeDoc);
-      assertFalse(secondResult, "Second upsert should update existing document");
+      assertTrue(secondResult, "Second upsert should update existing document");
 
       // Verify merge behavior: item updated, price/quantity/in_stock preserved
       queryAndAssert(

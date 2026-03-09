@@ -112,10 +112,9 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
       boolean isNew = collection.upsert(key, document);
       assertTrue(isNew);
 
-      // Verify by upserting again (returns false)
-      // todo: Mongo returns true for second upsert while PG return false. Validate this
-      // boolean secondUpsert = collection.upsert(key, document);
-      // assertFalse(secondUpsert);
+      // Verify by upserting again (returns true again if the operation succeeds)
+      boolean secondUpsert = collection.upsert(key, document);
+      assertTrue(secondUpsert);
 
       // Query the collection to get the document back
       Query query = buildQueryById(docId);
