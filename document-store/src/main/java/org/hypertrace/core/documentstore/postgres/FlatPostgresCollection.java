@@ -861,11 +861,9 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     try (PreparedStatement ps = connection.prepareStatement(sql)) {
       int idx = 1;
-      // Add SET clause params
       for (Object param : params) {
         ps.setObject(idx++, param);
       }
-      // Add WHERE clause params
       for (Object param : filterParams.getObjectParams().values()) {
         ps.setObject(idx++, param);
       }
