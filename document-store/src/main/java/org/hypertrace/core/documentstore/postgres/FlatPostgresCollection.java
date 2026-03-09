@@ -1091,7 +1091,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       return executeUpsertReturningIsInsert(sql, parsed);
 
     } catch (PSQLException e) {
-      return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
+      return handlePSQLExceptionForCreateOrReplace(e, key, document, tableName, isRetry);
     } catch (SQLException e) {
       LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
       throw new IOException(e);
