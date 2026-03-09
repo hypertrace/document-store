@@ -971,7 +971,6 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
       }
     }
 
-
     @Nested
     class AllOperatorTests {
 
@@ -1052,7 +1051,8 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                     .subDocumentValue(SubDocumentValue.of("NewBrand2"))
                     .build());
 
-        assertThrows(Exception.class, () -> collection.update(query, nestedPrimitiveUpdates, options));
+        assertThrows(
+            Exception.class, () -> collection.update(query, nestedPrimitiveUpdates, options));
       }
     }
   }
