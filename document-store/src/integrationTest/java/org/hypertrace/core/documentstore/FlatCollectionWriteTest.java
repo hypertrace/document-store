@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Stream;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
@@ -47,10 +46,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -105,20 +101,8 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
   @BeforeEach
   public void setupData() {
     // Clear and repopulate with initial data before each test
-    clearTable();
+    clearTable(FLAT_COLLECTION_NAME);
     executeInsertStatements();
-  }
-
-  private static void clearTable() {
-    PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-    String deleteSQL = String.format("DELETE FROM \"%s\"", FLAT_COLLECTION_NAME);
-    try (Connection connection = pgDatastore.getPostgresClient();
-        PreparedStatement statement = connection.prepareStatement(deleteSQL)) {
-      statement.executeUpdate();
-      LOGGER.info("Cleared table: {}", FLAT_COLLECTION_NAME);
-    } catch (Exception e) {
-      LOGGER.error("Failed to clear table: {}", e.getMessage(), e);
-    }
   }
 
   @AfterEach
@@ -138,7 +122,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     @Test
     @DisplayName("Should create new document when key doesn't exist and return true")
     void testUpsertNewDocument() throws Exception {
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
 
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("id", docId);
@@ -163,7 +147,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     @Test
     @DisplayName("Should merge with existing document preserving unspecified fields")
     void testUpsertMergesWithExistingDocument() throws Exception {
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
 
       // First, create a document with multiple fields
       ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
@@ -204,8 +188,8 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     @Test
     @DisplayName("Upsert vs CreateOrReplace: upsert preserves, createOrReplace resets to default")
     void testUpsertVsCreateOrReplaceBehavior() throws Exception {
-      String docId1 = getRandomDocId(4);
-      String docId2 = getRandomDocId(4);
+      String docId1 = generateDocId("test");
+      String docId2 = generateDocId("test");
 
       // Setup: Create two identical documents
       ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
@@ -263,7 +247,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     @Test
     @DisplayName("Should skip unknown fields in upsert (default SKIP strategy)")
     void testUpsertSkipsUnknownFields() throws Exception {
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
 
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("id", docId);
@@ -308,7 +292,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     @DisplayName("Should create document with all supported data types")
     void testCreateWithAllDataTypes() throws Exception {
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
 
       objectNode.put("id", docId);
       objectNode.put("item", "Comprehensive Test Item");
@@ -411,7 +395,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     @DisplayName("Should throw DuplicateDocumentException when creating with existing key")
     void testCreateDuplicateDocument() throws Exception {
 
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("id", "dup-doc-200");
       objectNode.put("item", "First Item");
@@ -438,7 +422,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     void testUnknownFieldsAsPerMissingColumnStrategy(MissingColumnStrategy missingColumnStrategy)
         throws Exception {
 
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
 
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("id", docId);
@@ -487,7 +471,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       Collection collectionWithEmptyStrategy = getFlatCollectionWithStrategy("");
 
       // Test that it uses default SKIP strategy (unknown fields are skipped, not thrown)
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("id", docId);
       objectNode.put("item", "Test Item");
@@ -508,7 +492,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     void testInvalidMissingColumnStrategyConfigUsesDefault() throws Exception {
       Collection collectionWithInvalidStrategy = getFlatCollectionWithStrategy("INVALID_STRATEGY");
 
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("id", docId);
       objectNode.put("item", "Test Item");
@@ -627,7 +611,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     void testUnparsableValuesAsPerMissingColStrategy(MissingColumnStrategy missingColumnStrategy)
         throws Exception {
 
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
 
       // Try to insert a string value into an integer column with wrong type
       // The unparseable column should be skipped, not throw an exception
@@ -681,11 +665,6 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     }
   }
 
-  private String getRandomDocId(int len) {
-    return org.testcontainers.shaded.org.apache.commons.lang3.RandomStringUtils.random(
-        len, true, false);
-  }
-
   private static Collection getFlatCollectionWithStrategy(String strategy) {
     String postgresConnectionUrl =
         String.format("jdbc:postgresql://localhost:%s/", postgresContainer.getMappedPort(5432));
@@ -720,19 +699,6 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     void accept(ResultSet rs) throws Exception;
   }
 
-  static class MissingColumnStrategyProvider implements ArgumentsProvider {
-
-    @Override
-    public Stream<? extends Arguments> provideArguments(ExtensionContext context) {
-      return Stream.of(MissingColumnStrategy.values())
-          .filter(
-              strategy ->
-                  (strategy == MissingColumnStrategy.THROW)
-                      || (strategy == MissingColumnStrategy.SKIP))
-          .map(Arguments::of);
-    }
-  }
-
   @Nested
   @DisplayName("CreateOrReplace Operations")
   class CreateOrReplaceTests {
@@ -742,7 +708,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         "Should create new document and return true. Cols not specified should be set of default NULL")
     void testCreateOrReplaceNewDocument() throws Exception {
 
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
 
       ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
       objectNode.put("id", "upsert-new-doc-100");
@@ -773,7 +739,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     @Test
     @DisplayName("Should replace existing document and return false")
     void testCreateOrReplaceExistingDocument() throws Exception {
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
       ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
       initialNode.put("id", docId);
       initialNode.put("item", "Original Item");
@@ -835,7 +801,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     @Test
     @DisplayName("Should handle JSONB fields in createOrReplace")
     void testCreateOrReplaceWithJsonbField() throws Exception {
-      String docId = getRandomDocId(4);
+      String docId = generateDocId("test");
       ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
       initialNode.put("id", docId);
       initialNode.put("item", "Item with props");
@@ -2207,7 +2173,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       @Test
       @DisplayName("Should ADD to all numeric types via bulkUpdate")
       void testAddAllNumericTypes() throws Exception {
-        String docId = getRandomDocId(4);
+        String docId = generateDocId("test");
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "NumericTestItem");
@@ -2314,7 +2280,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       @DisplayName("Should handle ADD on NULL column (treat as 0)")
       void testAddOnNullColumn() throws Exception {
         // Create a document with NULL numeric columns
-        String docId = getRandomDocId(4);
+        String docId = generateDocId("test");
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "NullPriceItem");
@@ -2418,7 +2384,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       @Test
       @DisplayName("Should APPEND_TO_LIST for top-level and nested arrays via bulkUpdate")
       void testAppendToListAllCases() throws Exception {
-        String docId = getRandomDocId(4);
+        String docId = generateDocId("test");
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "AppendTestItem");
@@ -2512,7 +2478,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       @Test
       @DisplayName("Should ADD_TO_LIST_IF_ABSENT for top-level and nested arrays via bulkUpdate")
       void testAddToListIfAbsentAllCases() throws Exception {
-        String docId = getRandomDocId(4);
+        String docId = generateDocId("test");
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "AddIfAbsentTestItem");
@@ -2585,7 +2551,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       @Test
       @DisplayName("Should REMOVE_ALL_FROM_LIST for top-level and nested arrays via bulkUpdate")
       void testRemoveAllFromListAllCases() throws Exception {
-        String docId = getRandomDocId(4);
+        String docId = generateDocId("test");
         Key key = new SingleValueKey(DEFAULT_TENANT, docId);
         ObjectNode node = OBJECT_MAPPER.createObjectNode();
         node.put("item", "RemoveTestItem");

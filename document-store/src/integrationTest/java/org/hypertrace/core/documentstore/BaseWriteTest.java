@@ -3,23 +3,33 @@ package org.hypertrace.core.documentstore;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.typesafe.config.ConfigFactory;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
+import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Query;
+import org.junit.jupiter.api.extension.ExtensionContext;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
+/** Base class for write tests */
 public abstract class BaseWriteTest {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(BaseWriteTest.class);
@@ -34,26 +44,32 @@ public abstract class BaseWriteTest {
   protected static GenericContainer<?> postgresContainer;
   protected static Datastore postgresDatastore;
 
-  protected static final String FLAT_COLLECTION_SCHEMA_SQL =
-      "CREATE TABLE \"%s\" ("
-          + "\"id\" TEXT PRIMARY KEY,"
-          + "\"item\" TEXT,"
-          + "\"price\" INTEGER,"
-          + "\"quantity\" INTEGER,"
-          + "\"date\" TIMESTAMPTZ,"
-          + "\"in_stock\" BOOLEAN,"
-          + "\"tags\" TEXT[],"
-          + "\"categoryTags\" TEXT[],"
-          + "\"props\" JSONB,"
-          + "\"sales\" JSONB,"
-          + "\"numbers\" INTEGER[],"
-          + "\"scores\" DOUBLE PRECISION[],"
-          + "\"flags\" BOOLEAN[],"
-          + "\"big_number\" BIGINT,"
-          + "\"rating\" REAL,"
-          + "\"created_date\" DATE,"
-          + "\"weight\" DOUBLE PRECISION"
-          + ");";
+  // Maps for multi-store tests
+  protected static Map<String, Datastore> datastoreMap = new HashMap<>();
+  protected static Map<String, Collection> collectionMap = new HashMap<>();
+
+  protected Collection getCollection(String storeName) {
+    return collectionMap.get(storeName);
+  }
+
+  private static final String FLAT_COLLECTION_SCHEMA_PATH =
+      "schema/flat_collection_test_schema.sql";
+
+  protected static String loadFlatCollectionSchema() {
+    try (InputStream is =
+            BaseWriteTest.class.getClassLoader().getResourceAsStream(FLAT_COLLECTION_SCHEMA_PATH);
+        BufferedReader reader =
+            new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+      StringBuilder sb = new StringBuilder();
+      String line;
+      while ((line = reader.readLine()) != null) {
+        sb.append(line).append(" ");
+      }
+      return sb.toString().trim();
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to load schema from " + FLAT_COLLECTION_SCHEMA_PATH, e);
+    }
+  }
 
   protected static void initMongo() {
     mongoContainer =
@@ -106,7 +122,7 @@ public abstract class BaseWriteTest {
 
   protected static void createFlatCollectionSchema(
       PostgresDatastore pgDatastore, String tableName) {
-    String createTableSQL = String.format(FLAT_COLLECTION_SCHEMA_SQL, tableName);
+    String createTableSQL = String.format(loadFlatCollectionSchema(), tableName);
 
     try (Connection connection = pgDatastore.getPostgresClient();
         PreparedStatement statement = connection.prepareStatement(createTableSQL)) {
@@ -115,17 +131,6 @@ public abstract class BaseWriteTest {
     } catch (Exception e) {
       LOGGER.error("Failed to create flat collection schema: {}", e.getMessage(), e);
       throw new RuntimeException("Failed to create flat collection schema", e);
-    }
-  }
-
-  protected static void clearTable(String tableName) {
-    PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-    String deleteSQL = String.format("DELETE FROM \"%s\"", tableName);
-    try (Connection connection = pgDatastore.getPostgresClient();
-        PreparedStatement statement = connection.prepareStatement(deleteSQL)) {
-      statement.executeUpdate();
-    } catch (Exception e) {
-      LOGGER.error("Failed to clear table {}: {}", tableName, e.getMessage(), e);
     }
   }
 
@@ -147,7 +152,7 @@ public abstract class BaseWriteTest {
         .build();
   }
 
-  protected Document createTestDocument(String docId) throws IOException {
+  protected Document createTestDocument(String docId) {
     Key key = new SingleValueKey(DEFAULT_TENANT, docId);
     String keyStr = key.toString();
 
@@ -178,5 +183,33 @@ public abstract class BaseWriteTest {
 
   protected Key createKey(String docId) {
     return new SingleValueKey(DEFAULT_TENANT, docId);
+  }
+
+  protected static void clearTable(String tableName) {
+    PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+    String deleteSQL = String.format("DELETE FROM \"%s\"", tableName);
+    try (Connection connection = pgDatastore.getPostgresClient();
+        PreparedStatement statement = connection.prepareStatement(deleteSQL)) {
+      statement.executeUpdate();
+    } catch (Exception e) {
+      LOGGER.error("Failed to clear table {}: {}", tableName, e.getMessage(), e);
+    }
+  }
+
+  protected void insertTestDocument(String docId, Collection collection) throws IOException {
+    Key key = createKey(docId);
+    Document document = createTestDocument(docId);
+    collection.upsert(key, document);
+  }
+
+  /** Provides all MissingColumnStrategy values for parameterized tests */
+  protected static class MissingColumnStrategyProvider implements ArgumentsProvider {
+    @Override
+    public Stream<? extends Arguments> provideArguments(ExtensionContext context) {
+      return Stream.of(
+          Arguments.of(MissingColumnStrategy.SKIP),
+          Arguments.of(MissingColumnStrategy.THROW),
+          Arguments.of(MissingColumnStrategy.IGNORE_DOCUMENT));
+    }
   }
 }

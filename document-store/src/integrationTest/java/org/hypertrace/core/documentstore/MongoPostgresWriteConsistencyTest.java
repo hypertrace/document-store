@@ -10,8 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,14 +45,8 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
   private static final String MONGO_STORE = "Mongo";
   private static final String POSTGRES_FLAT_STORE = "PostgresFlat";
 
-  private static Map<String, Datastore> datastoreMap;
-  private static Map<String, Collection> collectionMap;
-
   @BeforeAll
   public static void init() throws IOException {
-    datastoreMap = new HashMap<>();
-    collectionMap = new HashMap<>();
-
     // Start MongoDB and PostgreSQL using BaseWriteTest setup
     initMongo();
     initPostgres();
@@ -78,17 +70,8 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
 
   @BeforeEach
   public void clearCollections() {
-    Collection mongoCollection = collectionMap.get(MONGO_STORE);
-    mongoCollection.deleteAll();
-
-    PostgresDatastore pgDatastore = (PostgresDatastore) datastoreMap.get(POSTGRES_FLAT_STORE);
-    String deleteSQL = String.format("DELETE FROM \"%s\"", COLLECTION_NAME);
-    try (Connection connection = pgDatastore.getPostgresClient();
-        PreparedStatement statement = connection.prepareStatement(deleteSQL)) {
-      statement.executeUpdate();
-    } catch (Exception e) {
-      LOGGER.error("Failed to clear Postgres table: {}", e.getMessage(), e);
-    }
+    collectionMap.get(MONGO_STORE).deleteAll();
+    clearTable(COLLECTION_NAME);
   }
 
   @AfterAll
@@ -105,55 +88,10 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
     }
   }
 
-  private Collection getCollection(String storeName) {
-    return collectionMap.get(storeName);
-  }
-
+  /** Inserts a test document into all collections (Mongo and PG) */
   private void insertTestDocument(String docId) throws IOException {
-    Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-    String keyStr = key.toString();
-
-    ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-    objectNode.put("id", keyStr);
-    objectNode.put("item", "TestItem");
-    objectNode.put("price", 100);
-    objectNode.put("quantity", 50);
-    objectNode.put("in_stock", true);
-    objectNode.put("big_number", 1000000000000L);
-    objectNode.put("rating", 3.5);
-    objectNode.put("weight", 50.0);
-    objectNode.putArray("tags").add("tag1").add("tag2");
-    objectNode.putArray("numbers").add(1).add(2).add(3);
-    ObjectNode props = OBJECT_MAPPER.createObjectNode();
-    props.put("brand", "TestBrand");
-    props.put("size", "M");
-    props.put("count", 10);
-    props.putArray("colors").add("red").add("blue");
-    objectNode.set("props", props);
-    ObjectNode sales = OBJECT_MAPPER.createObjectNode();
-    sales.put("total", 200);
-    sales.put("count", 10);
-    objectNode.set("sales", sales);
-
-    Document document = new JSONDocument(objectNode);
-    for (Map.Entry<String, Collection> entry : collectionMap.entrySet()) {
-      String storeName = entry.getKey();
-      Collection collection = entry.getValue();
-      collection.upsert(key, document);
-      // Validate document exists after upsert using a no-op SET that returns the document
-      Query query = buildQueryById(docId);
-      List<SubDocumentUpdate> noOpUpdate = List.of(SubDocumentUpdate.of("item", "TestItem"));
-      UpdateOptions verifyOptions =
-          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-      Optional<Document> retrieved = collection.update(query, noOpUpdate, verifyOptions);
-      assertTrue(
-          retrieved.isPresent(),
-          storeName + ": Precondition failure: Could not find the test document in the DB!");
-      JsonNode retrievedJson = OBJECT_MAPPER.readTree(retrieved.get().toJson());
-      assertEquals(
-          keyStr,
-          retrievedJson.get("id").asText(),
-          storeName + ": Precondition failure: Document Id does not match in the test document");
+    for (Collection collection : collectionMap.values()) {
+      insertTestDocument(docId, collection);
     }
   }
 
@@ -955,6 +893,86 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
     }
 
     @Nested
+    @DisplayName("REMOVE_ALL_FROM_LIST Operator Tests")
+    class RemoveAllFromListOperatorTests {
+
+      @ParameterizedTest(name = "{0}: REMOVE_ALL_FROM_LIST for top-level and nested arrays")
+      @ArgumentsSource(AllStoresProvider.class)
+      void testRemoveAllFromListAllCases(String storeName) throws Exception {
+        String docId = generateDocId("remove");
+        insertTestDocument(docId);
+
+        Collection collection = getCollection(storeName);
+        Query query = buildQueryById(docId);
+
+        List<SubDocumentUpdate> updates =
+            List.of(
+                // Top-level: remove 'tag1' → leaves tag2
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1"}))
+                    .build(),
+                // Nested JSONB: remove 'red' → leaves blue
+                SubDocumentUpdate.builder()
+                    .subDocument("props.colors")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"red"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = collection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+
+        // Verify top-level: tag1 removed, tag2 remains
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(1, tagsNode.size(), storeName + ": tag1 removed, tag2 remains");
+        assertEquals("tag2", tagsNode.get(0).asText());
+
+        // Verify nested JSONB: red removed, blue remains
+        JsonNode colorsNode = resultJson.get("props").get("colors");
+        assertTrue(colorsNode.isArray());
+        assertEquals(1, colorsNode.size(), storeName + ": red removed, blue remains");
+        assertEquals("blue", colorsNode.get(0).asText());
+
+        // Verify numbers unchanged (no-op since we didn't update it)
+        JsonNode numbersNode = resultJson.get("numbers");
+        assertTrue(numbersNode.isArray());
+        assertEquals(3, numbersNode.size());
+      }
+
+      @ParameterizedTest(name = "{0}: REMOVE_ALL_FROM_LIST on non-array field (TEXT column)")
+      @ArgumentsSource(AllStoresProvider.class)
+      void testRemoveAllFromListOnNonArrayField(String storeName) throws Exception {
+        String docId = generateDocId("remove-non-array");
+        insertTestDocument(docId);
+
+        Collection collection = getCollection(storeName);
+        Query query = buildQueryById(docId);
+
+        // Try to REMOVE_ALL_FROM_LIST from 'item' which is a TEXT field
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("item")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"value1"}))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        assertThrows(Exception.class, () -> collection.update(query, updates, options));
+      }
+    }
+
+
+    @Nested
     class AllOperatorTests {
 
       @ParameterizedTest
@@ -1034,86 +1052,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                     .subDocumentValue(SubDocumentValue.of("NewBrand2"))
                     .build());
 
-        assertThrows(Exception.class, () -> collection.update(query, nestedArrayUpdates, options));
-      }
-    }
-
-    @Nested
-    @DisplayName("REMOVE_ALL_FROM_LIST Operator Tests")
-    class RemoveAllFromListOperatorTests {
-
-      @ParameterizedTest(name = "{0}: REMOVE_ALL_FROM_LIST for top-level and nested arrays")
-      @ArgumentsSource(AllStoresProvider.class)
-      void testRemoveAllFromListAllCases(String storeName) throws Exception {
-        String docId = generateDocId("remove");
-        insertTestDocument(docId);
-
-        Collection collection = getCollection(storeName);
-        Query query = buildQueryById(docId);
-
-        List<SubDocumentUpdate> updates =
-            List.of(
-                // Top-level: remove 'tag1' → leaves tag2
-                SubDocumentUpdate.builder()
-                    .subDocument("tags")
-                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1"}))
-                    .build(),
-                // Nested JSONB: remove 'red' → leaves blue
-                SubDocumentUpdate.builder()
-                    .subDocument("props.colors")
-                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"red"}))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        Optional<Document> result = collection.update(query, updates, options);
-
-        assertTrue(result.isPresent());
-        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-
-        // Verify top-level: tag1 removed, tag2 remains
-        JsonNode tagsNode = resultJson.get("tags");
-        assertTrue(tagsNode.isArray());
-        assertEquals(1, tagsNode.size(), storeName + ": tag1 removed, tag2 remains");
-        assertEquals("tag2", tagsNode.get(0).asText());
-
-        // Verify nested JSONB: red removed, blue remains
-        JsonNode colorsNode = resultJson.get("props").get("colors");
-        assertTrue(colorsNode.isArray());
-        assertEquals(1, colorsNode.size(), storeName + ": red removed, blue remains");
-        assertEquals("blue", colorsNode.get(0).asText());
-
-        // Verify numbers unchanged (no-op since we didn't update it)
-        JsonNode numbersNode = resultJson.get("numbers");
-        assertTrue(numbersNode.isArray());
-        assertEquals(3, numbersNode.size());
-      }
-
-      @ParameterizedTest(name = "{0}: REMOVE_ALL_FROM_LIST on non-array field (TEXT column)")
-      @ArgumentsSource(AllStoresProvider.class)
-      void testRemoveAllFromListOnNonArrayField(String storeName) throws Exception {
-        String docId = generateDocId("remove-non-array");
-        insertTestDocument(docId);
-
-        Collection collection = getCollection(storeName);
-        Query query = buildQueryById(docId);
-
-        // Try to REMOVE_ALL_FROM_LIST from 'item' which is a TEXT field
-        List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.builder()
-                    .subDocument("item")
-                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"value1"}))
-                    .build());
-
-        UpdateOptions options =
-            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
-
-        assertThrows(Exception.class, () -> collection.update(query, updates, options));
+        assertThrows(Exception.class, () -> collection.update(query, nestedPrimitiveUpdates, options));
       }
     }
   }
