@@ -1905,13 +1905,18 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         // Read expected values from JSON file
         String expectedJsonContent =
             readFileFromResource("expected/set_all_field_types_expected.json").orElseThrow();
-        JsonNode expectedJson = OBJECT_MAPPER.readTree(expectedJsonContent);
+        ObjectNode expectedJson = (ObjectNode) OBJECT_MAPPER.readTree(expectedJsonContent);
 
         try (CloseableIterator<Document> results =
             flatCollection.bulkUpdate(query, updates, options)) {
           assertTrue(results.hasNext());
           Document resultDoc = results.next();
-          JsonNode resultJson = OBJECT_MAPPER.readTree(resultDoc.toJson());
+          ObjectNode resultJson = (ObjectNode) OBJECT_MAPPER.readTree(resultDoc.toJson());
+
+          // Remove 'date' field from comparison - it's timezone-dependent and not updated in this
+          // test
+          expectedJson.remove("date");
+          resultJson.remove("date");
 
           assertEquals(expectedJson, resultJson);
         }
