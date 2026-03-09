@@ -30,6 +30,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.parser.builder.Postgr
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.builder.PostgresSelectExpressionParserBuilderImpl;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParser.PostgresRelationalFilterContext;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.PostgresRelationalFilterParserFactoryImpl;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 
 public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpressionVisitor {
 
@@ -260,26 +261,20 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     if (filter instanceof RelationalExpression) {
       RelationalExpression relExpr = (RelationalExpression) filter;
 
-      // The visitor returns a string representation, but we need the actual value
       // Try to get the constant value directly if it's a ConstantExpression
       if (relExpr.getRhs() instanceof ConstantExpression) {
         ConstantExpression constExpr = (ConstantExpression) relExpr.getRhs();
         Object value = constExpr.getValue();
 
-        if (value instanceof String) {
-          return "::text[]";
-        } else if (value instanceof Integer || value instanceof Long) {
-          return "::bigint[]";
-        } else if (value instanceof Double || value instanceof Float) {
-          return "::double precision[]";
-        } else if (value instanceof Boolean) {
-          return "::boolean[]";
+        PostgresDataType pgType = PostgresDataType.fromJavaValue(value);
+        if (pgType != PostgresDataType.UNKNOWN) {
+          return pgType.getArrayTypeCast();
         }
       }
     }
 
     // Default to text[] if we can't infer the type
-    return "::text[]";
+    return PostgresDataType.TEXT.getArrayTypeCast();
   }
 
   private String getFilterStringForAnyOperator(final DocumentArrayFilterExpression expression) {

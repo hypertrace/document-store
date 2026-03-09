@@ -6,6 +6,7 @@ import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.postgres.Params;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 
 /**
  * Optimized parser for IN operations on JSON array fields with type-specific casting.
@@ -119,7 +120,7 @@ public class PostgresInRelationalFilterParserJsonArray
       final Params.Builder paramsBuilder) {
 
     // Determine the appropriate type cast for jsonb_build_array elements
-    String typeCast = getTypeCastForArray(fieldType);
+    String typeCast = PostgresDataType.getJsonArrayElementTypeCast(fieldType);
 
     // For JSON arrays, we use the @> containment operator
     // Check if ANY of the RHS values is contained in the LHS array
@@ -136,27 +137,5 @@ public class PostgresInRelationalFilterParserJsonArray
     return StreamSupport.stream(parsedRhs.spliterator(), false).count() > 1
         ? String.format("(%s)", orConditions)
         : orConditions;
-  }
-
-  /**
-   * Returns the PostgreSQL type cast string for jsonb_build_array elements based on array type.
-   *
-   * @param fieldType The JSON field type (must not be null)
-   * @return Type cast string (e.g., "::text", "::numeric")
-   */
-  private String getTypeCastForArray(JsonFieldType fieldType) {
-    switch (fieldType) {
-      case STRING_ARRAY:
-        return "::text";
-      case NUMBER_ARRAY:
-        return "::numeric";
-      case BOOLEAN_ARRAY:
-        return "::boolean";
-      case OBJECT_ARRAY:
-        return "::jsonb";
-      default:
-        throw new IllegalArgumentException(
-            "Unsupported array type: " + fieldType + ". Expected *_ARRAY types.");
-    }
   }
 }

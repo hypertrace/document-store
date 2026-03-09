@@ -13,6 +13,7 @@ import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValu
 
 @AllArgsConstructor
 public class PostgresSetValueParser implements PostgresUpdateOperationParser {
+
   private final PostgresUpdateOperationParser leafParser;
   private final int leafNodePathSize;
 
