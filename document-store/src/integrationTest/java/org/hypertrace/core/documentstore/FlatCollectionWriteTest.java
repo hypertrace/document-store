@@ -1878,12 +1878,6 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                         ConstantExpression.of("1")))
                 .build();
 
-        // Apply all updates at once: primitives, arrays, and one nested path per JSONB column
-        // Note: PostgreSQL doesn't allow multiple assignments to same column in one UPDATE,
-        // so we can only update one nested path per JSONB column in a single operation
-        // Note: PG will throw an error if there are multiple assignments to same column in one
-        // UPDATE. So we cannot set props.brand and props.colour if props is a jsonb type, for
-        // example
         List<SubDocumentUpdate> updates =
             List.of(
                 // Case 1: Top-level primitives
