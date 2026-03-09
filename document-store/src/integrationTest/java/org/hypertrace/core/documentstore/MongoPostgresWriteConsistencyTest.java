@@ -456,7 +456,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
   }
 
   @Nested
-  class SubDocCompatibilityTest {
+  class SubdocUpdateConsistencyTests {
 
     @Nested
     @DisplayName("SET Operator Tests")
@@ -521,6 +521,29 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         assertEquals("tag4", tagsNode.get(0).asText());
         assertEquals("tag5", tagsNode.get(1).asText());
         assertEquals("tag6", tagsNode.get(2).asText());
+      }
+
+      @ParameterizedTest(name = "{0}: SET top-level array")
+      @ArgumentsSource(AllStoresProvider.class)
+      void testSetTopLevelEmptyArray(String storeName) throws Exception {
+        String docId = generateDocId("set-array");
+        insertTestDocument(docId);
+
+        Collection collection = getCollection(storeName);
+        Query query = buildQueryById(docId);
+
+        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("tags", new String[] {}));
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = collection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode tagsNode = resultJson.get("tags");
+        assertTrue(tagsNode.isArray());
+        assertEquals(0, tagsNode.size(), storeName);
       }
 
       @ParameterizedTest(name = "{0}: SET nested JSONB primitive")
@@ -928,6 +951,90 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
 
         assertThrows(Exception.class, () -> collection.update(query, updates, options));
+      }
+    }
+
+    @Nested
+    class AllOperatorTests {
+
+      @ParameterizedTest
+      @ArgumentsSource(AllStoresProvider.class)
+      void testMultipleUpdatesOnSameFieldThrowsException(String storeName) throws IOException {
+        String docId = generateDocId("multiple-updates-on-same-field");
+        insertTestDocument(docId);
+
+        Collection collection = getCollection(storeName);
+        Query query = buildQueryById(docId);
+
+        // top-level primitives
+        List<SubDocumentUpdate> topLevelPrimitiveUpdates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(SubDocumentValue.of(5))
+                    .build(),
+                SubDocumentUpdate.builder()
+                    .subDocument("price")
+                    .operator(UpdateOperator.ADD)
+                    .subDocumentValue(SubDocumentValue.of(-15))
+                    .build());
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        // Since there are multiple updates on the same field, it should throw an exception
+        assertThrows(
+            Exception.class, () -> collection.update(query, topLevelPrimitiveUpdates, options));
+
+        // top-level arrays
+        List<SubDocumentUpdate> topLevelArrayUpdates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.APPEND_TO_LIST)
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1", "tag2"}))
+                    .build(),
+                SubDocumentUpdate.builder()
+                    .subDocument("tags")
+                    .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag2"}))
+                    .build());
+
+        assertThrows(
+            Exception.class, () -> collection.update(query, topLevelArrayUpdates, options));
+
+        // nested array updates
+        List<SubDocumentUpdate> nestedArrayUpdates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("sales.regions")
+                    .operator(UpdateOperator.SET)
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"US", "EU", "APAC"}))
+                    .build(),
+                SubDocumentUpdate.builder()
+                    .subDocument("sales.regions")
+                    .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"EMEA"}))
+                    .build());
+
+        assertThrows(Exception.class, () -> collection.update(query, nestedArrayUpdates, options));
+
+        // nested primitives
+        List<SubDocumentUpdate> nestedPrimitiveUpdates =
+            List.of(
+                SubDocumentUpdate.builder()
+                    .subDocument("props.brand")
+                    .operator(UpdateOperator.SET)
+                    .subDocumentValue(SubDocumentValue.of("NewBrand"))
+                    .build(),
+                SubDocumentUpdate.builder()
+                    .subDocument("props.brand")
+                    .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                    .subDocumentValue(SubDocumentValue.of("NewBrand2"))
+                    .build());
+
+        assertThrows(Exception.class, () -> collection.update(query, nestedArrayUpdates, options));
       }
     }
 

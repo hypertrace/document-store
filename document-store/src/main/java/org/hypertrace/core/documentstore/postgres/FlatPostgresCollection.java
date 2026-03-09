@@ -680,7 +680,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       UpdateOperator operator = update.getOperator();
 
       Preconditions.checkArgument(
-          SUB_DOC_UPDATE_PARSERS.containsKey(operator), "Unsupported UPDATE operator: " + operator);
+          UPDATE_PARSER_MAP.containsKey(operator), "Unsupported UPDATE operator: " + operator);
 
       String path = update.getSubDocument().getPath();
       Optional<String> columnName = resolveColumnName(path, tableName);
