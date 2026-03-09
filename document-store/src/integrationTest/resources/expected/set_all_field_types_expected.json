@@ -1,0 +1,62 @@
+{
+  "id": "1",
+  "item": "UpdatedItem",
+  "price": 999,
+  "quantity": 50,
+  "date": "2014-03-01 13:30:00.0",
+  "in_stock": false,
+  "tags": [
+    "tag4",
+    "tag5",
+    "tag6"
+  ],
+  "categoryTags": [
+    "Hygiene",
+    "PersonalCare"
+  ],
+  "props": {
+    "size": "M",
+    "brand": "NewBrand",
+    "colors": [
+      "Blue",
+      "Green"
+    ],
+    "seller": {
+      "name": "Metro Chemicals Pvt. Ltd.",
+      "address": {
+        "city": "Mumbai",
+        "pincode": 400004
+      }
+    },
+    "source-loc": [
+      "warehouse-A",
+      "store-1"
+    ],
+    "product-code": "SOAP-DET-001"
+  },
+  "sales": {
+    "regions": [
+      "US",
+      "EU",
+      "APAC"
+    ]
+  },
+  "numbers": [
+    10,
+    20,
+    30
+  ],
+  "scores": [
+    1.1,
+    2.2,
+    3.3
+  ],
+  "flags": [
+    true,
+    false,
+    true
+  ],
+  "big_number": 9999999999,
+  "rating": 4.5,
+  "weight": 123.456
+}
