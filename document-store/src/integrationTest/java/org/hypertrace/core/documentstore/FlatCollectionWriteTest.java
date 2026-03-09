@@ -133,7 +133,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
 
       boolean isNew = flatCollection.upsert(key, document);
 
-      assertTrue(isNew, "Should return true for new document");
+      assertTrue(isNew);
 
       queryAndAssert(
           key,
@@ -160,7 +160,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       Key key = new SingleValueKey(DEFAULT_TENANT, docId);
 
       boolean firstResult = flatCollection.upsert(key, initialDoc);
-      assertTrue(firstResult, "First upsert should create new document");
+      assertTrue(firstResult);
 
       // Now upsert with only some fields - others should be PRESERVED (merge behavior)
       ObjectNode mergeNode = OBJECT_MAPPER.createObjectNode();
@@ -170,7 +170,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       Document mergeDoc = new JSONDocument(mergeNode);
 
       boolean secondResult = flatCollection.upsert(key, mergeDoc);
-      assertTrue(secondResult, "Second upsert should update existing document");
+      assertTrue(secondResult);
 
       // Verify merge behavior: item updated, price/quantity/in_stock preserved
       queryAndAssert(
@@ -445,7 +445,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                         FLAT_COLLECTION_NAME, key));
             ResultSet rs = ps.executeQuery()) {
           assertTrue(rs.next());
-          assertEquals(0, rs.getInt(1), "Document should not exist in DB after exception");
+          assertEquals(0, rs.getInt(1));
         }
       } else {
         CreateResult result = flatCollection.create(key, document);
@@ -2650,11 +2650,11 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       }
       resultIterator.close();
 
-      assertTrue(results.size() > 1, "Should return multiple updated documents");
+      assertTrue(results.size() > 1);
 
       for (Document doc : results) {
         JsonNode json = OBJECT_MAPPER.readTree(doc.toJson());
-        assertEquals(999, json.get("quantity").asInt(), "All docs should have updated quantity");
+        assertEquals(999, json.get("quantity").asInt());
       }
 
       PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
@@ -2666,7 +2666,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                       FLAT_COLLECTION_NAME));
           ResultSet rs = ps.executeQuery()) {
         assertTrue(rs.next());
-        assertEquals(results.size(), rs.getInt(1), "DB should have same number of updated rows");
+        assertEquals(results.size(), rs.getInt(1));
       }
     }
 
@@ -2718,11 +2718,8 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         String id = json.get("id").asText();
         int returnedQuantity = json.get("quantity").asInt();
 
-        assertTrue(originalQuantities.containsKey(id), "Returned doc ID should be in original set");
-        assertEquals(
-            originalQuantities.get(id).intValue(),
-            returnedQuantity,
-            "Returned quantity should be the ORIGINAL value");
+        assertTrue(originalQuantities.containsKey(id));
+        assertEquals(originalQuantities.get(id).intValue(), returnedQuantity);
       }
 
       // But database should have the NEW value
@@ -2734,7 +2731,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                       FLAT_COLLECTION_NAME));
           ResultSet rs = ps.executeQuery()) {
         while (rs.next()) {
-          assertEquals(888, rs.getInt("quantity"), "DB should have the updated value");
+          assertEquals(888, rs.getInt("quantity"));
         }
       }
     }
@@ -2760,7 +2757,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
           flatCollection.bulkUpdate(query, updates, options);
 
       // Should return empty iterator
-      assertFalse(resultIterator.hasNext(), "Should return empty iterator for NONE return type");
+      assertFalse(resultIterator.hasNext());
       resultIterator.close();
 
       // But database should still be updated
@@ -2796,7 +2793,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       CloseableIterator<Document> resultIterator =
           flatCollection.bulkUpdate(query, updates, options);
 
-      assertFalse(resultIterator.hasNext(), "Should return empty iterator when no docs match");
+      assertFalse(resultIterator.hasNext());
       resultIterator.close();
     }
 
@@ -2829,7 +2826,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       }
       resultIterator.close();
 
-      assertEquals(3, results.size(), "Should return 3 Soap items");
+      assertEquals(3, results.size());
 
       for (Document doc : results) {
         JsonNode json = OBJECT_MAPPER.readTree(doc.toJson());
@@ -2933,8 +2930,8 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
 
       assertEquals(1, results.size());
       JsonNode json = OBJECT_MAPPER.readTree(results.get(0).toJson());
-      assertEquals(111, json.get("price").asInt(), "Valid column should be updated");
-      assertFalse(json.has("nonExistentColumn"), "Non-existent column should not appear");
+      assertEquals(111, json.get("price").asInt());
+      assertFalse(json.has("nonExistentColumn"));
     }
 
     @Test

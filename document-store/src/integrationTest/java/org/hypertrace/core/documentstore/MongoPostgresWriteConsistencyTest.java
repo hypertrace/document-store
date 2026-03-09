@@ -124,42 +124,42 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         JsonNode resultJson = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
 
         // Verify primitives
-        assertEquals("TestItem", resultJson.get("item").asText(), storeName);
-        assertEquals(100, resultJson.get("price").asInt(), storeName);
-        assertEquals(50, resultJson.get("quantity").asInt(), storeName);
-        assertTrue(resultJson.get("in_stock").asBoolean(), storeName);
-        assertEquals(1000000000000L, resultJson.get("big_number").asLong(), storeName);
-        assertEquals(3.5, resultJson.get("rating").asDouble(), 0.01, storeName);
-        assertEquals(50.0, resultJson.get("weight").asDouble(), 0.01, storeName);
+        assertEquals("TestItem", resultJson.get("item").asText());
+        assertEquals(100, resultJson.get("price").asInt());
+        assertEquals(50, resultJson.get("quantity").asInt());
+        assertTrue(resultJson.get("in_stock").asBoolean());
+        assertEquals(1000000000000L, resultJson.get("big_number").asLong());
+        assertEquals(3.5, resultJson.get("rating").asDouble(), 0.01);
+        assertEquals(50.0, resultJson.get("weight").asDouble(), 0.01);
 
         // Verify arrays
         JsonNode tagsNode = resultJson.get("tags");
         assertNotNull(tagsNode);
-        assertTrue(tagsNode.isArray(), storeName);
-        assertEquals(2, tagsNode.size(), storeName);
-        assertEquals("tag1", tagsNode.get(0).asText(), storeName);
-        assertEquals("tag2", tagsNode.get(1).asText(), storeName);
+        assertTrue(tagsNode.isArray());
+        assertEquals(2, tagsNode.size());
+        assertEquals("tag1", tagsNode.get(0).asText());
+        assertEquals("tag2", tagsNode.get(1).asText());
 
         JsonNode numbersNode = resultJson.get("numbers");
         assertNotNull(numbersNode);
-        assertTrue(numbersNode.isArray(), storeName);
-        assertEquals(3, numbersNode.size(), storeName);
+        assertTrue(numbersNode.isArray());
+        assertEquals(3, numbersNode.size());
 
         // Verify JSONB - props
         JsonNode propsNode = resultJson.get("props");
         assertNotNull(propsNode);
-        assertEquals("TestBrand", propsNode.get("brand").asText(), storeName);
-        assertEquals("M", propsNode.get("size").asText(), storeName);
-        assertEquals(10, propsNode.get("count").asInt(), storeName);
+        assertEquals("TestBrand", propsNode.get("brand").asText());
+        assertEquals("M", propsNode.get("size").asText());
+        assertEquals(10, propsNode.get("count").asInt());
         JsonNode colorsNode = propsNode.get("colors");
-        assertTrue(colorsNode.isArray(), storeName);
-        assertEquals(2, colorsNode.size(), storeName);
+        assertTrue(colorsNode.isArray());
+        assertEquals(2, colorsNode.size());
 
         // Verify JSONB - sales
         JsonNode salesNode = resultJson.get("sales");
         assertNotNull(salesNode);
-        assertEquals(200, salesNode.get("total").asInt(), storeName);
-        assertEquals(10, salesNode.get("count").asInt(), storeName);
+        assertEquals(200, salesNode.get("total").asInt());
+        assertEquals(10, salesNode.get("count").asInt());
       }
     }
 
@@ -189,36 +189,26 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         JsonNode resultJson = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
 
         // Updated fields
-        assertEquals(
-            "UpdatedItem", resultJson.get("item").asText(), storeName + ": item should be updated");
-        assertEquals(999, resultJson.get("price").asInt(), storeName + ": price should be updated");
+        assertEquals("UpdatedItem", resultJson.get("item").asText());
+        assertEquals(999, resultJson.get("price").asInt());
 
         // Non-updated fields
-        assertEquals(
-            50, resultJson.get("quantity").asInt(), storeName + ": quantity should be preserved");
-        assertTrue(
-            resultJson.get("in_stock").asBoolean(), storeName + ": in_stock should be preserved");
-        assertEquals(
-            1000000000000L,
-            resultJson.get("big_number").asLong(),
-            storeName + ": big_number should be preserved");
-        assertEquals(
-            3.5,
-            resultJson.get("rating").asDouble(),
-            0.01,
-            storeName + ": rating should be preserved");
+        assertEquals(50, resultJson.get("quantity").asInt());
+        assertTrue(resultJson.get("in_stock").asBoolean());
+        assertEquals(1000000000000L, resultJson.get("big_number").asLong());
+        assertEquals(3.5, resultJson.get("rating").asDouble(), 0.01);
 
         JsonNode tagsNode = resultJson.get("tags");
-        assertNotNull(tagsNode, storeName + ": tags should be preserved");
-        assertEquals(2, tagsNode.size(), storeName);
+        assertNotNull(tagsNode);
+        assertEquals(2, tagsNode.size());
 
         JsonNode propsNode = resultJson.get("props");
-        assertNotNull(propsNode, storeName + ": props should be preserved");
-        assertEquals("TestBrand", propsNode.get("brand").asText(), storeName);
+        assertNotNull(propsNode);
+        assertEquals("TestBrand", propsNode.get("brand").asText());
 
         JsonNode salesNode = resultJson.get("sales");
-        assertNotNull(salesNode, storeName + ": sales should be preserved");
-        assertEquals(200, salesNode.get("total").asInt(), storeName);
+        assertNotNull(salesNode);
+        assertEquals(200, salesNode.get("total").asInt());
       }
     }
 
@@ -244,14 +234,14 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
           Document doc = iterator.next();
           JsonNode json = OBJECT_MAPPER.readTree(doc.toJson());
 
-          assertEquals("TestItem", json.get("item").asText(), storeName);
-          assertEquals(100, json.get("price").asInt(), storeName);
-          assertEquals(50, json.get("quantity").asInt(), storeName);
-          assertTrue(json.get("in_stock").asBoolean(), storeName);
+          assertEquals("TestItem", json.get("item").asText());
+          assertEquals(100, json.get("price").asInt());
+          assertEquals(50, json.get("quantity").asInt());
+          assertTrue(json.get("in_stock").asBoolean());
 
           JsonNode tagsNode = json.get("tags");
-          assertNotNull(tagsNode, storeName);
-          assertEquals(2, tagsNode.size(), storeName);
+          assertNotNull(tagsNode);
+          assertEquals(2, tagsNode.size());
         }
       }
     }
@@ -285,8 +275,8 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
 
         // Known fields should exist
-        assertEquals("TestItem", json.get("item").asText(), storeName);
-        assertEquals(100, json.get("price").asInt(), storeName);
+        assertEquals("TestItem", json.get("item").asText());
+        assertEquals(100, json.get("price").asInt());
 
         // For Mongo, unknown fields will be stored; for PG with SKIP strategy, they won't
         if (storeName.equals("Mongo")) {
@@ -321,9 +311,9 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         Document retrievedDoc = iterator.next();
         JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
 
-        assertEquals("TestItem", json.get("item").asText(), storeName);
-        assertEquals(100, json.get("price").asInt(), storeName);
-        assertEquals(50, json.get("quantity").asInt(), storeName);
+        assertEquals("TestItem", json.get("item").asText());
+        assertEquals(100, json.get("price").asInt());
+        assertEquals(50, json.get("quantity").asInt());
       }
     }
 
@@ -357,8 +347,8 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
 
         // Replaced fields should have new values
-        assertEquals("ReplacedItem", json.get("item").asText(), storeName);
-        assertEquals(777, json.get("price").asInt(), storeName);
+        assertEquals("ReplacedItem", json.get("item").asText());
+        assertEquals(777, json.get("price").asInt());
 
         // Note that PG should return null for non-specified fields. However, the iterator
         // specifically excludes null fields
@@ -386,9 +376,9 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
       assertNotNull(returned);
       JsonNode json = OBJECT_MAPPER.readTree(returned.toJson());
 
-      assertEquals("TestItem", json.get("item").asText(), storeName);
-      assertEquals(100, json.get("price").asInt(), storeName);
-      assertEquals(50, json.get("quantity").asInt(), storeName);
+      assertEquals("TestItem", json.get("item").asText());
+      assertEquals(100, json.get("price").asInt());
+      assertEquals(50, json.get("quantity").asInt());
     }
   }
 
@@ -425,12 +415,12 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
 
         assertTrue(result.isPresent());
         JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals("UpdatedItem", resultJson.get("item").asText(), storeName);
-        assertEquals(999, resultJson.get("price").asInt(), storeName);
-        assertFalse(resultJson.get("in_stock").asBoolean(), storeName);
-        assertEquals(9999999999L, resultJson.get("big_number").asLong(), storeName);
-        assertEquals(4.5, resultJson.get("rating").asDouble(), 0.01, storeName);
-        assertEquals(123.456, resultJson.get("weight").asDouble(), 0.01, storeName);
+        assertEquals("UpdatedItem", resultJson.get("item").asText());
+        assertEquals(999, resultJson.get("price").asInt());
+        assertFalse(resultJson.get("in_stock").asBoolean());
+        assertEquals(9999999999L, resultJson.get("big_number").asLong());
+        assertEquals(4.5, resultJson.get("rating").asDouble(), 0.01);
+        assertEquals(123.456, resultJson.get("weight").asDouble(), 0.01);
       }
 
       @ParameterizedTest(name = "{0}: SET top-level array")
@@ -454,7 +444,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
         JsonNode tagsNode = resultJson.get("tags");
         assertTrue(tagsNode.isArray());
-        assertEquals(3, tagsNode.size(), storeName);
+        assertEquals(3, tagsNode.size());
         assertEquals("tag4", tagsNode.get(0).asText());
         assertEquals("tag5", tagsNode.get(1).asText());
         assertEquals("tag6", tagsNode.get(2).asText());
@@ -480,7 +470,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
         JsonNode tagsNode = resultJson.get("tags");
         assertTrue(tagsNode.isArray());
-        assertEquals(0, tagsNode.size(), storeName);
+        assertEquals(0, tagsNode.size());
       }
 
       @ParameterizedTest(name = "{0}: SET nested JSONB primitive")
@@ -507,10 +497,10 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
 
         assertTrue(result.isPresent());
         JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals("NewBrand", resultJson.get("props").get("brand").asText(), storeName);
+        assertEquals("NewBrand", resultJson.get("props").get("brand").asText());
         // Other props fields preserved
-        assertEquals("M", resultJson.get("props").get("size").asText(), storeName);
-        assertEquals(10, resultJson.get("props").get("count").asInt(), storeName);
+        assertEquals("M", resultJson.get("props").get("size").asText());
+        assertEquals(10, resultJson.get("props").get("count").asInt());
       }
 
       @ParameterizedTest(name = "{0}: SET nested JSONB array")
@@ -539,9 +529,9 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
         JsonNode regionsNode = resultJson.get("sales").get("regions");
         assertTrue(regionsNode.isArray());
-        assertEquals(3, regionsNode.size(), storeName);
+        assertEquals(3, regionsNode.size());
         // Other sales fields preserved
-        assertEquals(200, resultJson.get("sales").get("total").asInt(), storeName);
+        assertEquals(200, resultJson.get("sales").get("total").asInt());
       }
     }
 
@@ -581,12 +571,11 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
 
         // Verify top-level column is NULL/missing
         JsonNode itemNode = resultJson.get("item");
-        assertTrue(itemNode == null || itemNode.isNull(), storeName + ": item should be unset");
+        assertTrue(itemNode == null || itemNode.isNull());
 
         // Verify nested JSONB key is removed, but other keys preserved
-        assertFalse(
-            resultJson.get("props").has("brand"), storeName + ": props.brand should be unset");
-        assertEquals("M", resultJson.get("props").get("size").asText(), storeName);
+        assertFalse(resultJson.get("props").has("brand"));
+        assertEquals("M", resultJson.get("props").get("size").asText());
       }
     }
 
@@ -649,17 +638,14 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
 
         assertTrue(result.isPresent());
         JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
-        assertEquals(105, resultJson.get("price").asInt(), storeName + ": 100 + 5 = 105");
-        assertEquals(35, resultJson.get("quantity").asInt(), storeName + ": 50 + (-15) = 35");
-        assertEquals(1000000000500L, resultJson.get("big_number").asLong(), storeName);
-        assertEquals(
-            4.5, resultJson.get("rating").asDouble(), 0.01, storeName + ": 3.5 + 1.0 = 4.5");
-        assertEquals(
-            52.5, resultJson.get("weight").asDouble(), 0.01, storeName + ": 50.0 + 2.5 = 52.5");
-        assertEquals(
-            250, resultJson.get("sales").get("total").asInt(), storeName + ": 200 + 50 = 250");
+        assertEquals(105, resultJson.get("price").asInt());
+        assertEquals(35, resultJson.get("quantity").asInt());
+        assertEquals(1000000000500L, resultJson.get("big_number").asLong());
+        assertEquals(4.5, resultJson.get("rating").asDouble(), 0.01);
+        assertEquals(52.5, resultJson.get("weight").asDouble(), 0.01);
+        assertEquals(250, resultJson.get("sales").get("total").asInt());
         // Other fields preserved
-        assertEquals(10, resultJson.get("sales").get("count").asInt(), storeName);
+        assertEquals(10, resultJson.get("sales").get("count").asInt());
       }
 
       @ParameterizedTest(name = "{0}: ADD on non-numeric field (TEXT column)")
@@ -732,7 +718,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         // Verify top-level array append
         JsonNode tagsNode = resultJson.get("tags");
         assertTrue(tagsNode.isArray());
-        assertEquals(4, tagsNode.size(), storeName + ": 2 + 2 = 4 tags");
+        assertEquals(4, tagsNode.size());
         assertEquals("tag1", tagsNode.get(0).asText());
         assertEquals("tag2", tagsNode.get(1).asText());
         assertEquals("newTag1", tagsNode.get(2).asText());
@@ -741,7 +727,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         // Verify nested JSONB array append
         JsonNode colorsNode = resultJson.get("props").get("colors");
         assertTrue(colorsNode.isArray());
-        assertEquals(4, colorsNode.size(), storeName + ": 2 + 2 = 4 colors");
+        assertEquals(4, colorsNode.size());
         assertEquals("red", colorsNode.get(0).asText());
         assertEquals("blue", colorsNode.get(1).asText());
         assertEquals("green", colorsNode.get(2).asText());
@@ -749,7 +735,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
 
         // Verify non-existent array was created
         JsonNode regionsNode = resultJson.get("sales").get("regions");
-        assertNotNull(regionsNode, storeName + ": regions should be created");
+        assertNotNull(regionsNode);
         assertTrue(regionsNode.isArray());
         assertEquals(2, regionsNode.size());
         assertEquals("US", regionsNode.get(0).asText());
@@ -848,7 +834,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         // Verify top-level: original 2 + 1 new unique = 3 (order not guaranteed)
         JsonNode tagsNode = resultJson.get("tags");
         assertTrue(tagsNode.isArray());
-        assertEquals(3, tagsNode.size(), storeName + ": only newTag added, tag1 already exists");
+        assertEquals(3, tagsNode.size());
         Set<String> tagValues = new HashSet<>();
         tagsNode.forEach(n -> tagValues.add(n.asText()));
         assertTrue(tagValues.contains("tag1"));
@@ -858,7 +844,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         // Verify nested JSONB: original 2 + 1 new unique = 3 (order not guaranteed)
         JsonNode colorsNode = resultJson.get("props").get("colors");
         assertTrue(colorsNode.isArray());
-        assertEquals(3, colorsNode.size(), storeName + ": only green added, red already exists");
+        assertEquals(3, colorsNode.size());
         Set<String> colorValues = new HashSet<>();
         colorsNode.forEach(n -> colorValues.add(n.asText()));
         assertTrue(colorValues.contains("red"));
@@ -930,13 +916,13 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         // Verify top-level: tag1 removed, tag2 remains
         JsonNode tagsNode = resultJson.get("tags");
         assertTrue(tagsNode.isArray());
-        assertEquals(1, tagsNode.size(), storeName + ": tag1 removed, tag2 remains");
+        assertEquals(1, tagsNode.size());
         assertEquals("tag2", tagsNode.get(0).asText());
 
         // Verify nested JSONB: red removed, blue remains
         JsonNode colorsNode = resultJson.get("props").get("colors");
         assertTrue(colorsNode.isArray());
-        assertEquals(1, colorsNode.size(), storeName + ": red removed, blue remains");
+        assertEquals(1, colorsNode.size());
         assertEquals("blue", colorsNode.get(0).asText());
 
         // Verify numbers unchanged (no-op since we didn't update it)
