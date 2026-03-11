@@ -1466,8 +1466,10 @@ public abstract class PostgresCollection implements Collection {
           if (jsonString != null) {
             try {
               JsonNode jsonValue = MAPPER.readTree(jsonString);
-              // Handle like MetaData iterator - check for encoded nested fields
-              if (PostgresUtils.isEncodedNestedField(columnName)) {
+              // For FLAT documents, column names with dots are actual column names, not encoded
+              // nested paths. Only apply nesting logic for non-FLAT document types.
+              if (documentType != DocumentType.FLAT
+                  && PostgresUtils.isEncodedNestedField(columnName)) {
                 handleNestedField(
                     PostgresUtils.decodeAliasForNestedField(columnName), jsonNode, jsonValue);
               } else {
