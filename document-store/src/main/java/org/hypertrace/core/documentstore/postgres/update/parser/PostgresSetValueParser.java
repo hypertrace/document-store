@@ -8,6 +8,7 @@ import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentArrayGetter;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
 
@@ -33,14 +34,21 @@ public class PostgresSetValueParser implements PostgresUpdateOperationParser {
               .accept(new PostgresSubDocumentArrayGetter())
               .values();
       input.getParamsBuilder().addObjectParam(values);
+      return String.format("\"%s\" = ?", input.getBaseField());
     } else {
-      // For scalar columns, use standard value parser (ignore returned JSONB expression)
-      input
-          .getUpdate()
-          .getSubDocumentValue()
-          .accept(new PostgresSubDocumentValueParser(input.getParamsBuilder()));
+      // For scalar columns, use value parser which returns proper expression with type cast
+      String valueExpr =
+          input
+              .getUpdate()
+              .getSubDocumentValue()
+              .accept(new PostgresSubDocumentValueParser(input.getParamsBuilder()));
+      // For JSONB columns, use the returned expression (e.g., "?::jsonb" for nested documents)
+      // For other columns, use plain "?"
+      if (input.getColumnType() == PostgresDataType.JSONB) {
+        return String.format("\"%s\" = %s", input.getBaseField(), valueExpr);
+      }
+      return String.format("\"%s\" = ?", input.getBaseField());
     }
-    return String.format("\"%s\" = ?", input.getBaseField());
   }
 
   @Override

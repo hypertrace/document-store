@@ -533,6 +533,52 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         // Other sales fields preserved
         assertEquals(200, resultJson.get("sales").get("total").asInt());
       }
+
+      @ParameterizedTest(name = "{0}: SET entire JSONB column")
+      @ArgumentsSource(AllStoresProvider.class)
+      void testSetEntireJsonbColumn(String storeName) throws Exception {
+        String docId = generateDocId("set-jsonb-column");
+        insertTestDocument(docId);
+
+        Collection collection = getCollection(storeName);
+        Query query = buildQueryById(docId);
+
+        // Create a completely new object to replace the entire JSONB column
+        ObjectNode newProps = OBJECT_MAPPER.createObjectNode();
+        newProps.put("manufacturer", "NewManufacturer");
+        newProps.put("model", "Model-X");
+        newProps.put("year", 2024);
+        newProps.putArray("features").add("feature1").add("feature2");
+
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.of("props", SubDocumentValue.of(new JSONDocument(newProps))));
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = collection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode propsNode = resultJson.get("props");
+        assertNotNull(propsNode);
+
+        // Verify new fields are present
+        assertEquals("NewManufacturer", propsNode.get("manufacturer").asText());
+        assertEquals("Model-X", propsNode.get("model").asText());
+        assertEquals(2024, propsNode.get("year").asInt());
+        assertTrue(propsNode.get("features").isArray());
+        assertEquals(2, propsNode.get("features").size());
+        assertEquals("feature1", propsNode.get("features").get(0).asText());
+        assertEquals("feature2", propsNode.get("features").get(1).asText());
+
+        // Verify old fields are NOT present (entire column replaced)
+        assertFalse(propsNode.has("brand"));
+        assertFalse(propsNode.has("size"));
+        assertFalse(propsNode.has("count"));
+        assertFalse(propsNode.has("colors"));
+      }
     }
 
     @Nested
