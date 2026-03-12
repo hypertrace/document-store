@@ -8,10 +8,13 @@ import lombok.AllArgsConstructor;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.Params.Builder;
+import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
+import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentArrayGetter;
 import org.hypertrace.core.documentstore.postgres.subdoc.PostgresSubDocumentValueParser;
 
 @AllArgsConstructor
 public class PostgresSetValueParser implements PostgresUpdateOperationParser {
+
   private final PostgresUpdateOperationParser leafParser;
   private final int leafNodePathSize;
 
@@ -22,13 +25,30 @@ public class PostgresSetValueParser implements PostgresUpdateOperationParser {
 
   @Override
   public String parseNonJsonbField(final UpdateParserInput input) {
-    final Params.Builder paramsBuilder = input.getParamsBuilder();
-    final PostgresSubDocumentValueParser valueParser =
-        new PostgresSubDocumentValueParser(paramsBuilder);
-
-    // For top-level columns, just set the value directly: "column" = ?
-    input.getUpdate().getSubDocumentValue().accept(valueParser);
-    return String.format("\"%s\" = ?", input.getBaseField());
+    if (input.isArray()) {
+      // For array columns, extract as Object[] and add as single param
+      Object[] values =
+          input
+              .getUpdate()
+              .getSubDocumentValue()
+              .accept(new PostgresSubDocumentArrayGetter())
+              .values();
+      input.getParamsBuilder().addObjectParam(values);
+      return String.format("\"%s\" = ?", input.getBaseField());
+    } else {
+      // For scalar columns, use value parser which returns proper expression with type cast
+      String valueExpr =
+          input
+              .getUpdate()
+              .getSubDocumentValue()
+              .accept(new PostgresSubDocumentValueParser(input.getParamsBuilder()));
+      // For JSONB columns, use the returned expression (e.g., "?::jsonb" for nested documents)
+      // For other columns, use plain "?"
+      if (input.getColumnType() == PostgresDataType.JSONB) {
+        return String.format("\"%s\" = %s", input.getBaseField(), valueExpr);
+      }
+      return String.format("\"%s\" = ?", input.getBaseField());
+    }
   }
 
   @Override

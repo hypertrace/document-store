@@ -16,6 +16,14 @@ public class PostgresRemoveAllFromListParser implements PostgresUpdateOperationP
 
   @Override
   public String parseNonJsonbField(final UpdateParserInput input) {
+    if (!input.isArray()) {
+      throw new IllegalArgumentException(
+          String.format(
+              "REMOVE_ALL_FROM_LIST operator can only be applied to array columns. "
+                  + "Column '%s' is not an array type.",
+              input.getBaseField()));
+    }
+
     final PostgresSubDocumentArrayGetter subDocArrayGetter = new PostgresSubDocumentArrayGetter();
     final SubDocumentArray array =
         input.getUpdate().getSubDocumentValue().accept(subDocArrayGetter);

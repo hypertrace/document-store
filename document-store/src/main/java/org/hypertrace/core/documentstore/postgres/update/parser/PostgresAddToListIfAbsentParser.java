@@ -9,6 +9,14 @@ public class PostgresAddToListIfAbsentParser implements PostgresUpdateOperationP
 
   @Override
   public String parseNonJsonbField(final UpdateParserInput input) {
+    if (!input.isArray()) {
+      throw new IllegalArgumentException(
+          String.format(
+              "ADD_TO_LIST_IF_ABSENT operator can only be applied to array columns. "
+                  + "Column '%s' is not an array type.",
+              input.getBaseField()));
+    }
+
     final SubDocumentValue value = input.getUpdate().getSubDocumentValue();
 
     // Extract array values directly for top-level array columns

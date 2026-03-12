@@ -805,7 +805,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       UpdateOperator operator = update.getOperator();
 
       Params.Builder paramsBuilder = Params.newBuilder();
-      PostgresUpdateOperationParser unifiedParser = UPDATE_PARSER_MAP.get(operator);
+      PostgresUpdateOperationParser parser = UPDATE_PARSER_MAP.get(operator);
 
       String fragment;
 
@@ -817,10 +817,11 @@ public class FlatPostgresCollection extends PostgresCollection {
                 .update(update)
                 .paramsBuilder(paramsBuilder)
                 .columnType(colMeta.getPostgresType())
+                .isArray(colMeta.isArray())
                 .build();
-        fragment = unifiedParser.parseNonJsonbField(input);
+        fragment = parser.parseNonJsonbField(input);
       } else {
-        // parseInternal() returns just the value expression
+        // this handles nested jsonb fields
         UpdateParserInput jsonbInput =
             UpdateParserInput.builder()
                 .baseField(String.format("\"%s\"", columnName))
@@ -829,11 +830,19 @@ public class FlatPostgresCollection extends PostgresCollection {
                 .paramsBuilder(paramsBuilder)
                 .columnType(colMeta.getPostgresType())
                 .build();
-        String valueExpr = unifiedParser.parseInternal(jsonbInput);
+        String valueExpr = parser.parseInternal(jsonbInput);
         fragment = String.format("\"%s\" = %s", columnName, valueExpr);
       }
-      // Transfer params from builder to our list
-      params.addAll(paramsBuilder.build().getObjectParams().values());
+      for (Object paramValue : paramsBuilder.build().getObjectParams().values()) {
+        if (isTopLevel && colMeta.isArray() && paramValue != null) {
+          Object[] arrayValues = (Object[]) paramValue;
+          Array sqlArray =
+              connection.createArrayOf(colMeta.getPostgresType().getSqlType(), arrayValues);
+          params.add(sqlArray);
+        } else {
+          params.add(paramValue);
+        }
+      }
       setFragments.add(fragment);
     }
 
@@ -852,11 +861,9 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     try (PreparedStatement ps = connection.prepareStatement(sql)) {
       int idx = 1;
-      // Add SET clause params
       for (Object param : params) {
         ps.setObject(idx++, param);
       }
-      // Add WHERE clause params
       for (Object param : filterParams.getObjectParams().values()) {
         ps.setObject(idx++, param);
       }
@@ -1079,12 +1086,12 @@ public class FlatPostgresCollection extends PostgresCollection {
               .collect(Collectors.toList());
 
       String sql = buildCreateOrReplaceSql(allColumns, docColumns, quotedPkColumn);
-      LOGGER.debug("Upsert SQL: {}", sql);
+      LOGGER.debug("CreateOrReplace SQL: {}", sql);
 
-      return executeUpsert(sql, parsed);
+      return executeUpsertReturningIsInsert(sql, parsed);
 
     } catch (PSQLException e) {
-      return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
+      return handlePSQLExceptionForCreateOrReplace(e, key, document, tableName, isRetry);
     } catch (SQLException e) {
       LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
       throw new IOException(e);
@@ -1246,9 +1253,28 @@ public class FlatPostgresCollection extends PostgresCollection {
             parsed.isArray(column));
       }
       try (ResultSet rs = ps.executeQuery()) {
+        return rs.next();
+      }
+    }
+  }
+
+  /** Returns true if INSERT, false if UPDATE. */
+  private boolean executeUpsertReturningIsInsert(String sql, TypedDocument parsed)
+      throws SQLException {
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      int index = 1;
+      for (String column : parsed.getColumns()) {
+        setParameter(
+            conn,
+            ps,
+            index++,
+            parsed.getValue(column),
+            parsed.getType(column),
+            parsed.isArray(column));
+      }
+      try (ResultSet rs = ps.executeQuery()) {
         if (rs.next()) {
-          // is_insert is true if xmax = 0 (new row), false if updated. This helps us differentiate
-          // b/w creates/upserts
           return rs.getBoolean("is_insert");
         }
       }

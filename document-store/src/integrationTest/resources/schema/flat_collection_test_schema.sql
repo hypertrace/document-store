@@ -1,0 +1,19 @@
+CREATE TABLE "%s" (
+    "id" TEXT PRIMARY KEY,
+    "item" TEXT,
+    "price" INTEGER,
+    "quantity" INTEGER,
+    "date" TIMESTAMPTZ,
+    "in_stock" BOOLEAN,
+    "tags" TEXT[],
+    "categoryTags" TEXT[],
+    "props" JSONB,
+    "sales" JSONB,
+    "numbers" INTEGER[],
+    "scores" DOUBLE PRECISION[],
+    "flags" BOOLEAN[],
+    "big_number" BIGINT,
+    "rating" REAL,
+    "created_date" DATE,
+    "weight" DOUBLE PRECISION
+);
