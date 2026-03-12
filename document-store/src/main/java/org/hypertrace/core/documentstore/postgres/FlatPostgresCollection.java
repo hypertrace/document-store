@@ -784,66 +784,85 @@ public class FlatPostgresCollection extends PostgresCollection {
     String filterClause = filterParser.buildFilterClause();
     Params filterParams = filterParser.getParamsBuilder().build();
 
-    // Build SET clause fragments
-    List<String> setFragments = new ArrayList<>();
-    List<Object> params = new ArrayList<>();
-
+    // Group updates by column to handle multiple nested updates to the same JSONB column
+    Map<String, List<SubDocumentUpdate>> updatesByColumn = new LinkedHashMap<>();
     for (SubDocumentUpdate update : updates) {
       String path = update.getSubDocument().getPath();
       String columnName = resolvedColumns.get(path);
-
       if (columnName == null) {
         LOGGER.warn("Skipping update for unresolved path: {}", path);
         continue;
       }
+      updatesByColumn.computeIfAbsent(columnName, k -> new ArrayList<>()).add(update);
+    }
+
+    // Build SET clause fragments - one per column
+    List<String> setFragments = new ArrayList<>();
+    List<Object> params = new ArrayList<>();
+
+    for (Map.Entry<String, List<SubDocumentUpdate>> entry : updatesByColumn.entrySet()) {
+      String columnName = entry.getKey();
+      List<SubDocumentUpdate> columnUpdates = entry.getValue();
 
       PostgresColumnMetadata colMeta =
           schemaRegistry.getColumnOrRefresh(tableName, columnName).orElseThrow();
 
-      String[] nestedPath = getNestedPath(path, columnName);
-      boolean isTopLevel = nestedPath.length == 0;
-      UpdateOperator operator = update.getOperator();
+      // Track the current expression for chaining nested JSONB updates
+      String currentExpr = String.format("\"%s\"", columnName);
+      String fragment = null;
 
-      Params.Builder paramsBuilder = Params.newBuilder();
-      PostgresUpdateOperationParser parser = UPDATE_PARSER_MAP.get(operator);
+      for (SubDocumentUpdate update : columnUpdates) {
+        String path = update.getSubDocument().getPath();
+        String[] nestedPath = getNestedPath(path, columnName);
+        boolean isTopLevel = nestedPath.length == 0;
+        UpdateOperator operator = update.getOperator();
 
-      String fragment;
+        Params.Builder paramsBuilder = Params.newBuilder();
+        PostgresUpdateOperationParser parser = UPDATE_PARSER_MAP.get(operator);
 
-      if (isTopLevel) {
-        UpdateParserInput input =
-            UpdateParserInput.builder()
-                .baseField(columnName)
-                .path(new String[0])
-                .update(update)
-                .paramsBuilder(paramsBuilder)
-                .columnType(colMeta.getPostgresType())
-                .isArray(colMeta.isArray())
-                .build();
-        fragment = parser.parseNonJsonbField(input);
-      } else {
-        // this handles nested jsonb fields
-        UpdateParserInput jsonbInput =
-            UpdateParserInput.builder()
-                .baseField(String.format("\"%s\"", columnName))
-                .path(nestedPath)
-                .update(update)
-                .paramsBuilder(paramsBuilder)
-                .columnType(colMeta.getPostgresType())
-                .build();
-        String valueExpr = parser.parseInternal(jsonbInput);
-        fragment = String.format("\"%s\" = %s", columnName, valueExpr);
-      }
-      for (Object paramValue : paramsBuilder.build().getObjectParams().values()) {
-        if (isTopLevel && colMeta.isArray() && paramValue != null) {
-          Object[] arrayValues = (Object[]) paramValue;
-          Array sqlArray =
-              connection.createArrayOf(colMeta.getPostgresType().getSqlType(), arrayValues);
-          params.add(sqlArray);
+        if (isTopLevel) {
+          UpdateParserInput input =
+              UpdateParserInput.builder()
+                  .baseField(columnName)
+                  .path(new String[0])
+                  .update(update)
+                  .paramsBuilder(paramsBuilder)
+                  .columnType(colMeta.getPostgresType())
+                  .isArray(colMeta.isArray())
+                  .build();
+          fragment = parser.parseNonJsonbField(input);
         } else {
-          params.add(paramValue);
+          // For nested JSONB fields, chain updates by using previous expression as baseField
+          UpdateParserInput jsonbInput =
+              UpdateParserInput.builder()
+                  .baseField(currentExpr)
+                  .path(nestedPath)
+                  .update(update)
+                  .paramsBuilder(paramsBuilder)
+                  .columnType(colMeta.getPostgresType())
+                  .build();
+          String valueExpr = parser.parseInternal(jsonbInput);
+          // Update currentExpr for next iteration to chain nested updates
+          currentExpr = valueExpr;
+          fragment = String.format("\"%s\" = %s", columnName, valueExpr);
+        }
+
+        // Collect params in order
+        for (Object paramValue : paramsBuilder.build().getObjectParams().values()) {
+          if (isTopLevel && colMeta.isArray() && paramValue != null) {
+            Object[] arrayValues = (Object[]) paramValue;
+            Array sqlArray =
+                connection.createArrayOf(colMeta.getPostgresType().getSqlType(), arrayValues);
+            params.add(sqlArray);
+          } else {
+            params.add(paramValue);
+          }
         }
       }
-      setFragments.add(fragment);
+
+      if (fragment != null) {
+        setFragments.add(fragment);
+      }
     }
 
     // If all updates were skipped, nothing to do

@@ -2087,6 +2087,54 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
           assertEquals(999, rs.getInt("price"));
         }
       }
+
+      @Test
+      @DisplayName("SET multiple nested paths in same JSONB column should merge updates")
+      void testSetMultipleNestedPathsInSameJsonbColumn() throws Exception {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of("1")))
+                .build();
+
+        // Multiple nested updates targeting the same JSONB column (props)
+        List<SubDocumentUpdate> updates =
+            List.of(
+                SubDocumentUpdate.of("props.brand", "UpdatedBrand"),
+                SubDocumentUpdate.of("props.size", "XL"),
+                SubDocumentUpdate.of("props.newField", "newValue"),
+                SubDocumentUpdate.of(
+                    "props.owners", SubDocumentValue.of(new String[] {"owner1", "owner2"})));
+
+        UpdateOptions options =
+            UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+        Optional<Document> result = flatCollection.update(query, updates, options);
+
+        assertTrue(result.isPresent());
+        JsonNode resultJson = OBJECT_MAPPER.readTree(result.get().toJson());
+        JsonNode propsNode = resultJson.get("props");
+
+        // All nested updates should be applied
+        assertEquals("UpdatedBrand", propsNode.get("brand").asText());
+        assertEquals("XL", propsNode.get("size").asText());
+        assertEquals("newValue", propsNode.get("newField").asText());
+
+        // Verify nested array was set
+        JsonNode ownersNode = propsNode.get("owners");
+        assertNotNull(ownersNode);
+        assertTrue(ownersNode.isArray());
+        assertEquals(2, ownersNode.size());
+        assertEquals("owner1", ownersNode.get(0).asText());
+        assertEquals("owner2", ownersNode.get(1).asText());
+
+        // Original fields not in the update should be preserved
+        assertNotNull(propsNode.get("seller"));
+        assertEquals("Metro Chemicals Pvt. Ltd.", propsNode.get("seller").get("name").asText());
+      }
     }
 
     @Nested
