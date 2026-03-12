@@ -551,8 +551,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         newProps.putArray("features").add("feature1").add("feature2");
 
         List<SubDocumentUpdate> updates =
-            List.of(
-                SubDocumentUpdate.of("props", SubDocumentValue.of(new JSONDocument(newProps))));
+            List.of(SubDocumentUpdate.of("props", SubDocumentValue.of(new JSONDocument(newProps))));
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();

@@ -7,7 +7,7 @@ public class PostgresUnsetPathParser implements PostgresUpdateOperationParser {
 
   @Override
   public String parseNonJsonbField(final UpdateParserInput input) {
-    return String.format("\"%s\" = NULL", input.getBaseField());
+    return String.format("\"%s\" = DEFAULT", input.getBaseField());
   }
 
   @Override
