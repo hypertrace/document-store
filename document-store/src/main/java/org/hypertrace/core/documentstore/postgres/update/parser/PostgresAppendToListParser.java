@@ -8,6 +8,14 @@ public class PostgresAppendToListParser implements PostgresUpdateOperationParser
 
   @Override
   public String parseNonJsonbField(final UpdateParserInput input) {
+    if (!input.isArray()) {
+      throw new IllegalArgumentException(
+          String.format(
+              "APPEND_TO_LIST operator can only be applied to array columns. "
+                  + "Column '%s' is not an array type.",
+              input.getBaseField()));
+    }
+
     final SubDocumentValue value = input.getUpdate().getSubDocumentValue();
 
     // Extract array values directly for top-level array columns

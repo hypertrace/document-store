@@ -1378,6 +1378,14 @@ public abstract class PostgresCollection implements Collection {
           }
           break;
 
+        case "float4":
+        case "real":
+          float floatValue = resultSet.getFloat(columnIndex);
+          if (!resultSet.wasNull()) {
+            jsonNode.put(columnName, floatValue);
+          }
+          break;
+
         case "float8":
         case "double":
           double doubleValue = resultSet.getDouble(columnIndex);

@@ -40,6 +40,8 @@ import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
+import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
@@ -95,6 +97,7 @@ public class FlatPostgresCollection extends PostgresCollection {
           entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
+  private final UpdateValidator updateValidator;
 
   /**
    * Strategy for handling fields that don't match the schema. Default is SKIP (best-effort writes).
@@ -111,6 +114,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       final PostgresLazyilyLoadedSchemaRegistry schemaRegistry) {
     super(client, collectionName);
     this.schemaRegistry = schemaRegistry;
+    this.updateValidator = new CommonUpdateValidator();
     this.missingColumnStrategy = parseMissingColumnStrategy(client.getCustomParameters());
 
     // Get timestamp configuration from collectionConfigs
@@ -564,6 +568,8 @@ public class FlatPostgresCollection extends PostgresCollection {
     Preconditions.checkArgument(
         updateOptions != null && !updates.isEmpty(), "Updates collection cannot be NULL or empty");
 
+    updateValidator.validate(updates);
+
     String tableName = tableIdentifier.getTableName();
 
     // Acquire a transactional connection that can be managed manually
@@ -616,6 +622,8 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     Preconditions.checkArgument(
         updateOptions != null && !updates.isEmpty(), "Updates cannot be NULL or empty");
+
+    updateValidator.validate(updates);
 
     String tableName = tableIdentifier.getTableName();
     CloseableIterator<Document> beforeIterator = null;
@@ -784,57 +792,85 @@ public class FlatPostgresCollection extends PostgresCollection {
     String filterClause = filterParser.buildFilterClause();
     Params filterParams = filterParser.getParamsBuilder().build();
 
-    // Build SET clause fragments
-    List<String> setFragments = new ArrayList<>();
-    List<Object> params = new ArrayList<>();
-
+    // Group updates by column to handle multiple nested updates to the same JSONB column
+    Map<String, List<SubDocumentUpdate>> updatesByColumn = new LinkedHashMap<>();
     for (SubDocumentUpdate update : updates) {
       String path = update.getSubDocument().getPath();
       String columnName = resolvedColumns.get(path);
-
       if (columnName == null) {
         LOGGER.warn("Skipping update for unresolved path: {}", path);
         continue;
       }
+      updatesByColumn.computeIfAbsent(columnName, k -> new ArrayList<>()).add(update);
+    }
+
+    // Build SET clause fragments - one per column
+    List<String> setFragments = new ArrayList<>();
+    List<Object> params = new ArrayList<>();
+
+    for (Map.Entry<String, List<SubDocumentUpdate>> entry : updatesByColumn.entrySet()) {
+      String columnName = entry.getKey();
+      List<SubDocumentUpdate> columnUpdates = entry.getValue();
 
       PostgresColumnMetadata colMeta =
           schemaRegistry.getColumnOrRefresh(tableName, columnName).orElseThrow();
 
-      String[] nestedPath = getNestedPath(path, columnName);
-      boolean isTopLevel = nestedPath.length == 0;
-      UpdateOperator operator = update.getOperator();
+      // Track the current expression for chaining nested JSONB updates
+      String currentExpr = String.format("\"%s\"", columnName);
+      String fragment = null;
 
-      Params.Builder paramsBuilder = Params.newBuilder();
-      PostgresUpdateOperationParser unifiedParser = UPDATE_PARSER_MAP.get(operator);
+      for (SubDocumentUpdate update : columnUpdates) {
+        String path = update.getSubDocument().getPath();
+        String[] nestedPath = getNestedPath(path, columnName);
+        boolean isTopLevel = nestedPath.length == 0;
+        UpdateOperator operator = update.getOperator();
 
-      String fragment;
+        Params.Builder paramsBuilder = Params.newBuilder();
+        PostgresUpdateOperationParser parser = UPDATE_PARSER_MAP.get(operator);
 
-      if (isTopLevel) {
-        UpdateParserInput input =
-            UpdateParserInput.builder()
-                .baseField(columnName)
-                .path(new String[0])
-                .update(update)
-                .paramsBuilder(paramsBuilder)
-                .columnType(colMeta.getPostgresType())
-                .build();
-        fragment = unifiedParser.parseNonJsonbField(input);
-      } else {
-        // parseInternal() returns just the value expression
-        UpdateParserInput jsonbInput =
-            UpdateParserInput.builder()
-                .baseField(String.format("\"%s\"", columnName))
-                .path(nestedPath)
-                .update(update)
-                .paramsBuilder(paramsBuilder)
-                .columnType(colMeta.getPostgresType())
-                .build();
-        String valueExpr = unifiedParser.parseInternal(jsonbInput);
-        fragment = String.format("\"%s\" = %s", columnName, valueExpr);
+        if (isTopLevel) {
+          UpdateParserInput input =
+              UpdateParserInput.builder()
+                  .baseField(columnName)
+                  .path(new String[0])
+                  .update(update)
+                  .paramsBuilder(paramsBuilder)
+                  .columnType(colMeta.getPostgresType())
+                  .isArray(colMeta.isArray())
+                  .build();
+          fragment = parser.parseNonJsonbField(input);
+        } else {
+          // For nested JSONB fields, chain updates by using previous expression as baseField
+          UpdateParserInput jsonbInput =
+              UpdateParserInput.builder()
+                  .baseField(currentExpr)
+                  .path(nestedPath)
+                  .update(update)
+                  .paramsBuilder(paramsBuilder)
+                  .columnType(colMeta.getPostgresType())
+                  .build();
+          String valueExpr = parser.parseInternal(jsonbInput);
+          // Update currentExpr for next iteration to chain nested updates
+          currentExpr = valueExpr;
+          fragment = String.format("\"%s\" = %s", columnName, valueExpr);
+        }
+
+        // Collect params in order
+        for (Object paramValue : paramsBuilder.build().getObjectParams().values()) {
+          if (isTopLevel && colMeta.isArray() && paramValue != null) {
+            Object[] arrayValues = (Object[]) paramValue;
+            Array sqlArray =
+                connection.createArrayOf(colMeta.getPostgresType().getSqlType(), arrayValues);
+            params.add(sqlArray);
+          } else {
+            params.add(paramValue);
+          }
+        }
       }
-      // Transfer params from builder to our list
-      params.addAll(paramsBuilder.build().getObjectParams().values());
-      setFragments.add(fragment);
+
+      if (fragment != null) {
+        setFragments.add(fragment);
+      }
     }
 
     // If all updates were skipped, nothing to do
@@ -852,11 +888,9 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     try (PreparedStatement ps = connection.prepareStatement(sql)) {
       int idx = 1;
-      // Add SET clause params
       for (Object param : params) {
         ps.setObject(idx++, param);
       }
-      // Add WHERE clause params
       for (Object param : filterParams.getObjectParams().values()) {
         ps.setObject(idx++, param);
       }
@@ -1079,12 +1113,12 @@ public class FlatPostgresCollection extends PostgresCollection {
               .collect(Collectors.toList());
 
       String sql = buildCreateOrReplaceSql(allColumns, docColumns, quotedPkColumn);
-      LOGGER.debug("Upsert SQL: {}", sql);
+      LOGGER.debug("CreateOrReplace SQL: {}", sql);
 
-      return executeUpsert(sql, parsed);
+      return executeUpsertReturningIsInsert(sql, parsed);
 
     } catch (PSQLException e) {
-      return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
+      return handlePSQLExceptionForCreateOrReplace(e, key, document, tableName, isRetry);
     } catch (SQLException e) {
       LOGGER.error("SQLException in createOrReplace. key: {} content: {}", key, document, e);
       throw new IOException(e);
@@ -1246,9 +1280,28 @@ public class FlatPostgresCollection extends PostgresCollection {
             parsed.isArray(column));
       }
       try (ResultSet rs = ps.executeQuery()) {
+        return rs.next();
+      }
+    }
+  }
+
+  /** Returns true if INSERT, false if UPDATE. */
+  private boolean executeUpsertReturningIsInsert(String sql, TypedDocument parsed)
+      throws SQLException {
+    try (Connection conn = client.getPooledConnection();
+        PreparedStatement ps = conn.prepareStatement(sql)) {
+      int index = 1;
+      for (String column : parsed.getColumns()) {
+        setParameter(
+            conn,
+            ps,
+            index++,
+            parsed.getValue(column),
+            parsed.getType(column),
+            parsed.isArray(column));
+      }
+      try (ResultSet rs = ps.executeQuery()) {
         if (rs.next()) {
-          // is_insert is true if xmax = 0 (new row), false if updated. This helps us differentiate
-          // b/w creates/upserts
           return rs.getBoolean("is_insert");
         }
       }

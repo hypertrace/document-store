@@ -265,7 +265,6 @@ class FlatPostgresCollectionTest {
       PSQLException psqlException = createPSQLException(PSQLState.UNDEFINED_COLUMN);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException).thenReturn(mockResultSet);
       when(mockResultSet.next()).thenReturn(true);
-      when(mockResultSet.getBoolean("is_insert")).thenReturn(true);
 
       doNothing().when(mockSchemaRegistry).invalidate(COLLECTION_NAME);
 
@@ -289,13 +288,13 @@ class FlatPostgresCollectionTest {
       PSQLException psqlException = createPSQLException(PSQLState.DATATYPE_MISMATCH);
       when(mockPreparedStatement.executeQuery()).thenThrow(psqlException).thenReturn(mockResultSet);
       when(mockResultSet.next()).thenReturn(true);
-      when(mockResultSet.getBoolean("is_insert")).thenReturn(false);
 
       doNothing().when(mockSchemaRegistry).invalidate(COLLECTION_NAME);
 
       boolean result = flatPostgresCollection.upsert(key, document);
 
-      assertFalse(result);
+      // upsert always returns true if it succeeds
+      assertTrue(result);
       verify(mockSchemaRegistry, times(1)).invalidate(COLLECTION_NAME);
       verify(mockPreparedStatement, times(2)).executeQuery();
     }
