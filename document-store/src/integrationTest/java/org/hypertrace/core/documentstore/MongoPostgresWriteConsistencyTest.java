@@ -1032,7 +1032,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
 
         // Since there are multiple updates on the same field, it should throw an exception
         assertThrows(
-            Exception.class, () -> collection.update(query, topLevelPrimitiveUpdates, options));
+            IOException.class, () -> collection.update(query, topLevelPrimitiveUpdates, options));
 
         // top-level arrays
         List<SubDocumentUpdate> topLevelArrayUpdates =
@@ -1065,7 +1065,8 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                     .subDocumentValue(SubDocumentValue.of(new String[] {"EMEA"}))
                     .build());
 
-        assertThrows(Exception.class, () -> collection.update(query, nestedArrayUpdates, options));
+        assertThrows(
+            IOException.class, () -> collection.update(query, nestedArrayUpdates, options));
 
         // nested primitives
         List<SubDocumentUpdate> nestedPrimitiveUpdates =
@@ -1082,7 +1083,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                     .build());
 
         assertThrows(
-            Exception.class, () -> collection.update(query, nestedPrimitiveUpdates, options));
+            IOException.class, () -> collection.update(query, nestedPrimitiveUpdates, options));
       }
     }
   }

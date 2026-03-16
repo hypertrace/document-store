@@ -40,6 +40,8 @@ import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
+import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
@@ -95,6 +97,7 @@ public class FlatPostgresCollection extends PostgresCollection {
           entry(APPEND_TO_LIST, new PostgresAppendToListParser()));
 
   private final PostgresLazyilyLoadedSchemaRegistry schemaRegistry;
+  private final UpdateValidator updateValidator;
 
   /**
    * Strategy for handling fields that don't match the schema. Default is SKIP (best-effort writes).
@@ -111,6 +114,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       final PostgresLazyilyLoadedSchemaRegistry schemaRegistry) {
     super(client, collectionName);
     this.schemaRegistry = schemaRegistry;
+    this.updateValidator = new CommonUpdateValidator();
     this.missingColumnStrategy = parseMissingColumnStrategy(client.getCustomParameters());
 
     // Get timestamp configuration from collectionConfigs
@@ -564,6 +568,8 @@ public class FlatPostgresCollection extends PostgresCollection {
     Preconditions.checkArgument(
         updateOptions != null && !updates.isEmpty(), "Updates collection cannot be NULL or empty");
 
+    updateValidator.validate(updates);
+
     String tableName = tableIdentifier.getTableName();
 
     // Acquire a transactional connection that can be managed manually
@@ -616,6 +622,8 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     Preconditions.checkArgument(
         updateOptions != null && !updates.isEmpty(), "Updates cannot be NULL or empty");
+
+    updateValidator.validate(updates);
 
     String tableName = tableIdentifier.getTableName();
     CloseableIterator<Document> beforeIterator = null;
