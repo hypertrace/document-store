@@ -2173,7 +2173,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                     .operator(UpdateOperator.UNSET)
                     .build(),
                 SubDocumentUpdate.builder()
-                    .subDocument("nonexistentCol.key")
+                    .subDocument("nonexistentCol2.key")
                     .operator(UpdateOperator.UNSET)
                     .build());
 
