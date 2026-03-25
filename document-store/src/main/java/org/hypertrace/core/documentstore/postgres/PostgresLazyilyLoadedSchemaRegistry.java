@@ -55,6 +55,7 @@ public class PostgresLazyilyLoadedSchemaRegistry implements SchemaRegistry<Postg
 
   private static final Logger LOGGER =
       LoggerFactory.getLogger(PostgresLazyilyLoadedSchemaRegistry.class);
+  private static final int SLOW_LOOKUP_THRESHOLD_MS = 100;
 
   // The cache registry - Key: Table name, value: Map of column name to column metadata
   private final LoadingCache<String, Map<String, PostgresColumnMetadata>> cache;
@@ -84,9 +85,15 @@ public class PostgresLazyilyLoadedSchemaRegistry implements SchemaRegistry<Postg
                   @Override
                   public Map<String, PostgresColumnMetadata> load(String tableName) {
                     LOGGER.info("Loading schema for table: {}", tableName);
+                    long startTime = System.currentTimeMillis();
                     Map<String, PostgresColumnMetadata> updatedSchema = fetcher.fetch(tableName);
+                    long duration = System.currentTimeMillis() - startTime;
                     lastRefreshTimes.put(tableName, Instant.now());
-                    LOGGER.info("Successfully loading schema for table: {}", tableName);
+                    LOGGER.info(
+                        "Successfully loaded schema for table: {}, columns: {}, durationMs: {}",
+                        tableName,
+                        updatedSchema.size(),
+                        duration);
                     return updatedSchema;
                   }
                 });
@@ -102,7 +109,17 @@ public class PostgresLazyilyLoadedSchemaRegistry implements SchemaRegistry<Postg
   @Override
   public Map<String, PostgresColumnMetadata> getSchema(String tableName) {
     try {
-      return cache.get(tableName);
+      long startTime = System.currentTimeMillis();
+      Map<String, PostgresColumnMetadata> schema = cache.get(tableName);
+      long duration = System.currentTimeMillis() - startTime;
+      // Only log slow lookups (indicates a cache miss that triggered DB fetch)
+      if (duration > SLOW_LOOKUP_THRESHOLD_MS) {
+        LOGGER.debug(
+            "getSchema slow lookup (likely cache miss) - table: {}, durationMs: {}",
+            tableName,
+            duration);
+      }
+      return schema;
     } catch (ExecutionException e) {
       LOGGER.error("Could not fetch the schema for table from the cache: {}", tableName, e);
       throw new RuntimeException("Failed to fetch schema for " + tableName, e.getCause());
@@ -148,10 +165,25 @@ public class PostgresLazyilyLoadedSchemaRegistry implements SchemaRegistry<Postg
   @Override
   public Optional<PostgresColumnMetadata> getColumnOrRefresh(String tableName, String colName) {
     Map<String, PostgresColumnMetadata> schema = getSchema(tableName);
+    boolean refreshed = false;
 
     if (!schema.containsKey(colName) && canRefresh(tableName)) {
+      LOGGER.debug(
+          "Column '{}' not found in cached schema for table '{}', triggering refresh",
+          colName,
+          tableName);
       invalidate(tableName);
       schema = getSchema(tableName);
+      refreshed = true;
+    }
+
+    if (refreshed) {
+      LOGGER.debug(
+          "getColumnOrRefresh - table: {}, column: {}, found: {}, refreshed: {}",
+          tableName,
+          colName,
+          schema.containsKey(colName),
+          refreshed);
     }
 
     return Optional.ofNullable(schema.get(colName));

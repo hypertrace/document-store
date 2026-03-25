@@ -131,21 +131,14 @@ public class FlatPostgresCollection extends PostgresCollection {
     this.createdTsColumn = createdTs;
     this.lastUpdatedTsColumn = lastUpdatedTs;
 
-    if (this.createdTsColumn == null) {
+    if (this.createdTsColumn == null || this.lastUpdatedTsColumn == null) {
       LOGGER.warn(
           "timestampFields config not set properly for collection '{}'. "
-              + "Row created timestamp will not be auto-managed. "
+              + "createdTsColumn: {}, lastUpdatedTsColumn: {}. "
               + "Configure via collectionConfigs.{}.timestampFields {{ created = \"<col>\", lastUpdated = \"<col>\" }}",
           collectionName,
-          collectionName);
-    }
-
-    if (this.lastUpdatedTsColumn == null) {
-      LOGGER.warn(
-          "timestampFields config not set properly for collection '{}'. "
-              + "Row lastUpdated timestamp will not be auto-managed. "
-              + "Configure via collectionConfigs.{}.timestampFields {{ created = \"<col>\", lastUpdated = \"<col>\" }}",
-          collectionName,
+          this.createdTsColumn,
+          this.lastUpdatedTsColumn,
           collectionName);
     }
   }
@@ -572,11 +565,20 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     String tableName = tableIdentifier.getTableName();
 
+    long startTime = System.currentTimeMillis();
+    long resolveColumnsTime;
+    long connectionAcquireTime;
+    long executeUpdateTime;
+
     // Acquire a transactional connection that can be managed manually
+    long connStart = System.currentTimeMillis();
     try (Connection connection = client.getTransactionalConnection()) {
+      connectionAcquireTime = System.currentTimeMillis() - connStart;
       try {
         // 1. Validate all columns exist and operators are supported.
+        long resolveStart = System.currentTimeMillis();
         Map<String, String> resolvedColumns = resolvePathsToColumns(updates, tableName);
+        resolveColumnsTime = System.currentTimeMillis() - resolveStart;
 
         // 2. Get before-document if needed (only for BEFORE_UPDATE)
         Optional<Document> beforeDoc = Optional.empty();
@@ -589,10 +591,10 @@ public class FlatPostgresCollection extends PostgresCollection {
           }
         }
 
-        // 3. Build and execute UPDATE
+        long execStart = System.currentTimeMillis();
         executeUpdate(connection, query, updates, tableName, resolvedColumns);
+        executeUpdateTime = System.currentTimeMillis() - execStart;
 
-        // 4. Resolve return document based on options
         Document returnDoc = null;
         if (returnType == BEFORE_UPDATE) {
           returnDoc = beforeDoc.orElse(null);
@@ -601,6 +603,16 @@ public class FlatPostgresCollection extends PostgresCollection {
         }
 
         connection.commit();
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        LOGGER.debug(
+            "update timing - totalMs: {}, resolveColumnsMs: {}, connectionAcquireMs: {}, executeUpdateMs: {}, table: {}",
+            totalTime,
+            resolveColumnsTime,
+            connectionAcquireTime,
+            executeUpdateTime,
+            tableName);
+
         return Optional.ofNullable(returnDoc);
 
       } catch (Exception e) {
@@ -628,18 +640,39 @@ public class FlatPostgresCollection extends PostgresCollection {
     String tableName = tableIdentifier.getTableName();
     CloseableIterator<Document> beforeIterator = null;
 
+    long startTime = System.currentTimeMillis();
+    long resolveColumnsTime;
+    long connectionAcquireTime;
+    long executeUpdateTime;
+
     try {
       ReturnDocumentType returnType = updateOptions.getReturnDocumentType();
 
+      long resolveStart = System.currentTimeMillis();
       Map<String, String> resolvedColumns = resolvePathsToColumns(updates, tableName);
+      resolveColumnsTime = System.currentTimeMillis() - resolveStart;
 
       if (returnType == BEFORE_UPDATE) {
         beforeIterator = find(query);
       }
 
+      long connStart = System.currentTimeMillis();
       try (Connection connection = client.getPooledConnection()) {
+        connectionAcquireTime = System.currentTimeMillis() - connStart;
+
+        long execStart = System.currentTimeMillis();
         executeUpdate(connection, query, updates, tableName, resolvedColumns);
+        executeUpdateTime = System.currentTimeMillis() - execStart;
       }
+
+      long totalTime = System.currentTimeMillis() - startTime;
+      LOGGER.debug(
+          "bulkUpdate timing - totalMs: {}, resolveColumnsMs: {}, connectionAcquireMs: {}, executeUpdateMs: {}, table: {}",
+          totalTime,
+          resolveColumnsTime,
+          connectionAcquireTime,
+          executeUpdateTime,
+          tableName);
 
       switch (returnType) {
         case AFTER_UPDATE:
