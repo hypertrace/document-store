@@ -11,18 +11,12 @@ import org.hypertrace.core.documentstore.expression.impl.DataType;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 
-/**
- * Fetches schema metadata directly from Postgres system catalogs (pg_catalog).
- *
- * <p>Uses pg_catalog tables directly instead of information_schema views for better performance.
- */
+/** Fetches schema metadata directly from Postgres system catalogs (pg_catalog). */
 @AllArgsConstructor
 public class PostgresMetadataFetcher {
 
   private final PostgresClient client;
 
-  // Combined query using pg_catalog directly (faster than information_schema)
-  // Fetches column metadata and primary key info in a single round trip
   private static final String DISCOVERY_SQL =
       "SELECT a.attname AS column_name, "
           + "t.typname AS udt_name, "
