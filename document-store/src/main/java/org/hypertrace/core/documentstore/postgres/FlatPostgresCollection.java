@@ -419,6 +419,109 @@ public class FlatPostgresCollection extends PostgresCollection {
     return false;
   }
 
+  @Override
+  public boolean bulkCreateOrReplace(Map<Key, Document> documents) {
+    if (documents == null || documents.isEmpty()) {
+      return true;
+    }
+
+    String tableName = tableIdentifier.getTableName();
+    String pkColumn = getPKForTable(tableName);
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+    PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+
+    try {
+      // Parse all documents and collect the union of all columns from documents
+      Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
+      Set<String> docColumns = new LinkedHashSet<>();
+      docColumns.add(quotedPkColumn);
+
+      List<Key> ignoredDocuments = new ArrayList<>();
+      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+        List<String> skippedFields = new ArrayList<>();
+        TypedDocument parsed = parseDocument(entry.getValue(), tableName, skippedFields);
+
+        // Handle IGNORE_DOCUMENT strategy: skip docs with unknown fields
+        if (missingColumnStrategy == MissingColumnStrategy.IGNORE_DOCUMENT
+            && !skippedFields.isEmpty()) {
+          ignoredDocuments.add(entry.getKey());
+          continue;
+        }
+
+        parsed.add(quotedPkColumn, entry.getKey().toString(), pkType, false);
+        parsedDocuments.put(entry.getKey(), parsed);
+        docColumns.addAll(parsed.getColumns());
+      }
+
+      if (!ignoredDocuments.isEmpty()) {
+        LOGGER.info(
+            "bulkCreateOrReplace: Ignored {} documents due to IGNORE_DOCUMENT strategy. Keys: {}",
+            ignoredDocuments.size(),
+            ignoredDocuments);
+      }
+
+      // If all documents were ignored, return true (nothing to do)
+      if (parsedDocuments.isEmpty()) {
+        return true;
+      }
+
+      // Get all table columns for the replace semantics (missing cols set to DEFAULT)
+      List<String> allTableColumns =
+          schemaRegistry.getSchema(tableName).values().stream()
+              .map(PostgresColumnMetadata::getName)
+              .map(PostgresUtils::wrapFieldNamesWithDoubleQuotes)
+              .collect(Collectors.toList());
+
+      // Build the bulk createOrReplace SQL - uses all table columns with DEFAULT for missing
+      List<String> docColumnList = new ArrayList<>(docColumns);
+      String sql = buildCreateOrReplaceSql(allTableColumns, docColumnList, quotedPkColumn);
+      LOGGER.debug("Bulk createOrReplace SQL: {}", sql);
+
+      try (Connection conn = client.getPooledConnection();
+          PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        for (Map.Entry<Key, TypedDocument> entry : parsedDocuments.entrySet()) {
+          TypedDocument parsed = entry.getValue();
+          int index = 1;
+
+          for (String column : docColumnList) {
+            if (parsed.getColumns().contains(column)) {
+              setParameter(
+                  conn,
+                  ps,
+                  index++,
+                  parsed.getValue(column),
+                  parsed.getType(column),
+                  parsed.isArray(column));
+            } else {
+              ps.setObject(index++, null);
+            }
+          }
+          ps.addBatch();
+        }
+
+        int[] results = ps.executeBatch();
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Bulk createOrReplace results: {}", Arrays.toString(results));
+        }
+        return true;
+      }
+
+    } catch (BatchUpdateException e) {
+      LOGGER.error("BatchUpdateException in bulkCreateOrReplace", e);
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException in bulkCreateOrReplace. SQLState: {} Error Code: {}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+    } catch (IOException e) {
+      LOGGER.error("IOException in bulkCreateOrReplace. documents: {}", documents, e);
+    }
+
+    return false;
+  }
+
   /**
    * Builds a PostgreSQL upsert SQL statement with merge semantics.
    *

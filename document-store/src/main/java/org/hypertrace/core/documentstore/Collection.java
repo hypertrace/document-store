@@ -15,19 +15,16 @@ import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
+
   /**
    * Upsert (create a new doc or update if one already exists) the given document into the doc
    * store.
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
    * the existing fields are modified is implementation specific. For example, upserting <code>
-   *   {
-   *    "foo2": "bar2"
-   *   }
+   * { "foo2": "bar2" }
    * </code> if a document <code>
-   *   {
-   *     "foo1": "bar1"
-   *   }
+   * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
    * the "foo1" field is implementation specific
    *
@@ -46,13 +43,9 @@ public interface Collection {
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
    * the existing fields are modified is implementation specific. For example, upserting <code>
-   *   {
-   *    "foo2": "bar2"
-   *   }
+   * { "foo2": "bar2" }
    * </code> if a document <code>
-   *   {
-   *     "foo1": "bar1"
-   *   }
+   * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
    * the "foo1" field is implementation specific
    *
@@ -104,10 +97,10 @@ public interface Collection {
   /**
    * Search for documents matching the query.
    *
-   * @deprecated Use {@link #query(org.hypertrace.core.documentstore.query.Query, QueryOptions)}
-   *     instead
    * @param query filter to query matching documents
    * @return {@link CloseableIterator} of matching documents
+   * @deprecated Use {@link #query(org.hypertrace.core.documentstore.query.Query, QueryOptions)}
+   *     instead
    */
   @Deprecated(forRemoval = true)
   CloseableIterator<Document> search(Query query);
@@ -267,6 +260,30 @@ public interface Collection {
    * @throws IOException If the operation could not be performed
    */
   boolean createOrReplace(final Key key, final Document document) throws IOException;
+
+  /**
+   * Bulk createOrReplace with no atomicity guarantee. It partial documents succeed, the operation
+   * is not rolled back. It's possible that certain document are ignored, if they contain columns
+   * that are not present in the table's schema. This happens when the missingColumnStrategy is
+   * configured to {@link
+   * org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#IGNORE_DOCUMENT}. If it's
+   * configured to {@link
+   * org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#SKIP}, then that column
+   * is skipped (but the document is still created/replaced). If it's configured to be {@link
+   * org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#THROW}, the entire batch
+   * fails.
+   *
+   * <p>Semantically, if the document already exists, each column is replaced with its new value (or
+   * to its default value if not specified). Note that no merge happens. For example, if the
+   * original row contains "tag" : {"k1": "v1"} and the new row contains "tag" : {"k2": "v2"}, then
+   * the final row will be "tag" : {"k2": "v2"}
+   *
+   * @param documents the batch
+   * @return true if the operation succeeded, even partially.
+   */
+  default boolean bulkCreateOrReplace(Map<Key, Document> documents) {
+    throw new UnsupportedOperationException("bulkCreateOrReplace is not supported");
+  }
 
   /**
    * Atomically create a new document if the key does not exist in the collection or, replace the
