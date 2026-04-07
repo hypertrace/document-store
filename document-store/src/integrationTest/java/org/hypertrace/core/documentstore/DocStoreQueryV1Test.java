@@ -6275,6 +6275,27 @@ public class DocStoreQueryV1Test {
       }
       assertEquals(5, count);
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithUnknownFieldFallback(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withSelection("nonexistent_field")
+              .withOrderBy(new OrderBy("another_unknown", true))
+              .withLimit(1);
+
+      assertThrows(
+          Exception.class,
+          () -> {
+            Iterator<Document> results = flatCollection.search(legacyQuery);
+            while (results.hasNext()) {
+              results.next();
+            }
+          });
+    }
   }
 
   @Nested
