@@ -72,7 +72,8 @@ class LegacyQueryToV2QueryTransformerTest {
     @Test
     void transformDirectColumnSelection_createsIdentifierExpression() {
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
-      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "status")).thenReturn(Optional.of(columnMeta));
+      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "status"))
+          .thenReturn(Optional.of(columnMeta));
 
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withSelection("status");
@@ -111,13 +112,13 @@ class LegacyQueryToV2QueryTransformerTest {
     @Test
     void transformMultipleSelections_createsMultipleExpressions() {
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
-      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "col1")).thenReturn(Optional.of(columnMeta));
-      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "col2")).thenReturn(Optional.of(columnMeta));
+      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "col1"))
+          .thenReturn(Optional.of(columnMeta));
+      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "col2"))
+          .thenReturn(Optional.of(columnMeta));
 
       org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query()
-              .withSelection("col1")
-              .withSelection("col2");
+          new org.hypertrace.core.documentstore.Query().withSelection("col1").withSelection("col2");
 
       Query result = transformer.transform(legacyQuery);
 
@@ -144,8 +145,7 @@ class LegacyQueryToV2QueryTransformerTest {
           .thenReturn(Optional.of(columnMeta));
 
       org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query()
-              .withOrderBy(new OrderBy("createdAt", true));
+          new org.hypertrace.core.documentstore.Query().withOrderBy(new OrderBy("createdAt", true));
 
       Query result = transformer.transform(legacyQuery);
 

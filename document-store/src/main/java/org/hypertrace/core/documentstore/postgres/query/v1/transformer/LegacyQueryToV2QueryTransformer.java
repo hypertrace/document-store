@@ -1,6 +1,8 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
+import com.google.common.base.Preconditions;
 import java.util.Optional;
+import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.commons.ColumnMetadata;
 import org.hypertrace.core.documentstore.commons.SchemaRegistry;
@@ -27,6 +29,7 @@ import org.hypertrace.core.documentstore.query.Query;
  *   <li>Pagination (limit/offset)
  * </ul>
  */
+@Slf4j
 public class LegacyQueryToV2QueryTransformer {
 
   private final SchemaRegistry<? extends ColumnMetadata> schemaRegistry;
@@ -50,6 +53,8 @@ public class LegacyQueryToV2QueryTransformer {
     if (legacyQuery == null) {
       return Query.builder().build();
     }
+
+    log.debug("Incoming v1 query: {}", legacyQuery);
 
     Query.QueryBuilder builder = Query.builder();
 
@@ -87,7 +92,11 @@ public class LegacyQueryToV2QueryTransformer {
               .build());
     }
 
-    return builder.build();
+    Query v2Query = builder.build();
+
+    log.debug("Transformed v2 query: {}", v2Query);
+
+    return v2Query;
   }
 
   /**
@@ -105,9 +114,9 @@ public class LegacyQueryToV2QueryTransformer {
    * SortTypeExpression, allowing use in both selections and orderBy clauses.
    */
   private IdentifierExpression createIdentifierExpression(String fieldName) {
-    if (fieldName == null || fieldName.isEmpty()) {
-      throw new IllegalArgumentException("Field name cannot be null or empty");
-    }
+
+    Preconditions.checkArgument(
+        fieldName != null && !fieldName.isEmpty(), "Field name cannot be null or empty");
 
     // Check if the full path is a direct column
     if (schemaRegistry.getColumnOrRefresh(tableName, fieldName).isPresent()) {
