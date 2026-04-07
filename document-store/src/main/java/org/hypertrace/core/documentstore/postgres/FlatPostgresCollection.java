@@ -56,6 +56,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.LegacyFilterToQueryFilterTransformer;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.LegacyQueryToV2QueryTransformer;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddToListIfAbsentParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddValueParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAppendToListParser;
@@ -171,6 +172,14 @@ public class FlatPostgresCollection extends PostgresCollection {
       final org.hypertrace.core.documentstore.query.Query query) {
     PostgresQueryParser queryParser = createParser(query);
     return queryWithParser(query, queryParser);
+  }
+
+  @Override
+  public CloseableIterator<Document> search(org.hypertrace.core.documentstore.Query query) {
+    LegacyQueryToV2QueryTransformer transformer =
+        new LegacyQueryToV2QueryTransformer(schemaRegistry, tableIdentifier.getTableName());
+    Query v2Query = transformer.transform(query);
+    return query(v2Query, QueryOptions.builder().build());
   }
 
   @Override
