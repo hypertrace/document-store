@@ -6219,6 +6219,62 @@ public class DocStoreQueryV1Test {
       }
       assertEquals(5, count);
     }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithFilterSelectionsOrderByAndOffset(String dataStoreName)
+        throws JsonProcessingException {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Test covering: filter, selections, orderBy, and offset (pagination)
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withFilter(
+                  new org.hypertrace.core.documentstore.Filter(
+                      org.hypertrace.core.documentstore.Filter.Op.GTE, "price", 5))
+              .withSelection("item")
+              .withSelection("price")
+              .withOrderBy(new OrderBy("price", true)) // ASC
+              .withLimit(3)
+              .withOffset(1); // Skip first result
+
+      Iterator<Document> results = flatCollection.search(legacyQuery);
+      int count = 0;
+      int previousPrice = Integer.MIN_VALUE;
+      while (results.hasNext()) {
+        Document doc = results.next();
+        JsonNode json = new ObjectMapper().readTree(doc.toJson());
+        assertTrue(json.has("item"));
+        assertTrue(json.has("price"));
+        int price = json.get("price").asInt();
+        assertTrue(price >= previousPrice); // ASC order
+        previousPrice = price;
+        count++;
+      }
+      assertEquals(3, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithNullFilterEmptySelectionsNoOrderBy(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Test covering null/empty branches:
+      // - No filter (null filter path)
+      // - No selections (empty selections path)
+      // - No orderBy (empty orderBys path)
+      // - Limit without offset (offset defaults to 0)
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query().withLimit(5);
+
+      Iterator<Document> results = flatCollection.search(legacyQuery);
+      int count = 0;
+      while (results.hasNext()) {
+        results.next();
+        count++;
+      }
+      assertEquals(5, count);
+    }
   }
 
   @Nested
