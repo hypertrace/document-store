@@ -676,13 +676,8 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public void drop() {
-    String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", tableIdentifier);
-    try (PreparedStatement preparedStatement =
-        client.getConnection().prepareStatement(dropTableSQL)) {
-      preparedStatement.executeUpdate();
-    } catch (SQLException e) {
-      LOGGER.error("Exception dropping table: {}", tableIdentifier, e);
-    }
+    // Table management(create/alter/drop) should be outside the collection.
+    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
   }
 
   @Override

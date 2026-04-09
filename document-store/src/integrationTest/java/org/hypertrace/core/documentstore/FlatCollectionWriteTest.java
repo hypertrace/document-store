@@ -3423,39 +3423,4 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       }
     }
   }
-
-  @Nested
-  @DisplayName("Drop Operations")
-  class DropTests {
-
-    @Test
-    @DisplayName("Should drop the table successfully")
-    void testDrop() throws Exception {
-      // Create a separate collection to drop (don't drop the main test collection)
-      String dropTestCollection = "drop_test_collection";
-      createFlatCollectionSchema((PostgresDatastore) postgresDatastore, dropTestCollection);
-      Collection dropCollection =
-          postgresDatastore.getCollectionForType(dropTestCollection, DocumentType.FLAT);
-
-      Key key = new SingleValueKey("default", "drop-test-doc");
-      ObjectNode doc = OBJECT_MAPPER.createObjectNode();
-      doc.put("item", "test");
-      dropCollection.upsert(key, new JSONDocument(doc));
-
-      dropCollection.drop();
-
-      // Verify table no longer exists by trying to query it
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '%s')",
-                      dropTestCollection));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertFalse(rs.getBoolean(1));
-      }
-    }
-  }
 }
