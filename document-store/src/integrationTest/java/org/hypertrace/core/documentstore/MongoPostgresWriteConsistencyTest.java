@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -92,6 +93,181 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
   private void insertTestDocument(String docId) throws IOException {
     for (Collection collection : collectionMap.values()) {
       insertTestDocument(docId, collection);
+    }
+  }
+
+  @Nested
+  class BulkUpsertConsistencyTest {
+    @ParameterizedTest(name = "{0}: bulkUpsert multiple documents")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testBulkUpsert(String storeName) throws Exception {
+      String docId1 = generateDocId("bulk-1");
+      String docId2 = generateDocId("bulk-2");
+
+      Collection collection = getCollection(storeName);
+
+      Map<Key, Document> documents = new HashMap<>();
+      documents.put(createKey(docId1), createTestDocument(docId1));
+      documents.put(createKey(docId2), createTestDocument(docId2));
+
+      boolean result = collection.bulkUpsert(documents);
+      assertTrue(result);
+
+      for (String docId : List.of(docId1, docId2)) {
+        Query query = buildQueryById(docId);
+        try (CloseableIterator<Document> iterator = collection.find(query)) {
+          assertTrue(iterator.hasNext());
+          Document doc = iterator.next();
+          JsonNode json = OBJECT_MAPPER.readTree(doc.toJson());
+
+          assertEquals("TestItem", json.get("item").asText());
+          assertEquals(100, json.get("price").asInt());
+          assertEquals(50, json.get("quantity").asInt());
+          assertTrue(json.get("in_stock").asBoolean());
+
+          JsonNode tagsNode = json.get("tags");
+          assertNotNull(tagsNode);
+          assertEquals(2, tagsNode.size());
+        }
+      }
+    }
+
+    @ParameterizedTest(name = "{0}: bulkUpsert merges fields (does not replace entire document)")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testBulkUpsertMergesFields(String storeName) throws Exception {
+      String docId1 = generateDocId("bulk-merge-1");
+      String docId2 = generateDocId("bulk-merge-2");
+
+      Collection collection = getCollection(storeName);
+
+      // Step 1: Insert initial documents with all fields
+      Map<Key, Document> initialDocs = new HashMap<>();
+      initialDocs.put(createKey(docId1), createTestDocument(docId1));
+      initialDocs.put(createKey(docId2), createTestDocument(docId2));
+
+      boolean insertResult = collection.bulkUpsert(initialDocs);
+      assertTrue(insertResult);
+
+      // Step 2: Upsert with partial documents (only some fields)
+      Map<Key, Document> partialDocs = new HashMap<>();
+
+      // Partial doc for docId1 - only update item and price
+      ObjectNode partial1 = OBJECT_MAPPER.createObjectNode();
+      partial1.put("id", getKeyString(docId1));
+      partial1.put("item", "UpdatedItem1");
+      partial1.put("price", 999);
+      partialDocs.put(createKey(docId1), new JSONDocument(partial1));
+
+      // Partial doc for docId2 - only update quantity and in_stock
+      ObjectNode partial2 = OBJECT_MAPPER.createObjectNode();
+      partial2.put("id", getKeyString(docId2));
+      partial2.put("quantity", 999);
+      partial2.put("in_stock", false);
+      partialDocs.put(createKey(docId2), new JSONDocument(partial2));
+
+      boolean upsertResult = collection.bulkUpsert(partialDocs);
+      assertTrue(upsertResult);
+
+      // Step 3: Verify that fields were merged, not replaced
+      // Doc1: item and price should be updated, other fields should be preserved
+      Query query1 = buildQueryById(docId1);
+      try (CloseableIterator<Document> iter = collection.find(query1)) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+
+        // Updated fields
+        assertEquals("UpdatedItem1", json.get("item").asText());
+        assertEquals(999, json.get("price").asInt());
+
+        // Preserved fields (should still have original values)
+        assertEquals(50, json.get("quantity").asInt());
+        assertTrue(json.get("in_stock").asBoolean());
+        assertEquals(1000000000000L, json.get("big_number").asLong());
+
+        // Arrays and JSONB should be preserved
+        JsonNode tagsNode = json.get("tags");
+        assertNotNull(tagsNode);
+        assertEquals(2, tagsNode.size());
+
+        JsonNode propsNode = json.get("props");
+        assertNotNull(propsNode);
+        assertEquals("TestBrand", propsNode.get("brand").asText());
+      }
+
+      // Doc2: quantity and in_stock should be updated, other fields should be preserved
+      Query query2 = buildQueryById(docId2);
+      try (CloseableIterator<Document> iter = collection.find(query2)) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+
+        // Updated fields
+        assertEquals(999, json.get("quantity").asInt());
+        assertFalse(json.get("in_stock").asBoolean());
+
+        // Preserved fields (should still have original values)
+        assertEquals("TestItem", json.get("item").asText());
+        assertEquals(100, json.get("price").asInt());
+        assertEquals(1000000000000L, json.get("big_number").asLong());
+
+        // Arrays and JSONB should be preserved
+        JsonNode tagsNode = json.get("tags");
+        assertNotNull(tagsNode);
+        assertEquals(2, tagsNode.size());
+
+        JsonNode propsNode = json.get("props");
+        assertNotNull(propsNode);
+        assertEquals("TestBrand", propsNode.get("brand").asText());
+      }
+    }
+
+    @ParameterizedTest(name = "{0}: bulkUpsert skips documents with invalid fields gracefully")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testBulkUpsertSkipsInvalidFields(String storeName) throws Exception {
+      String docId1 = generateDocId("bulk-skip-1");
+      String docId2 = generateDocId("bulk-skip-2");
+      String docId3 = generateDocId("bulk-skip-3");
+
+      Collection collection = getCollection(storeName);
+
+      Map<Key, Document> documents = new LinkedHashMap<>();
+
+      // First document - valid
+      documents.put(createKey(docId1), createTestDocument(docId1));
+
+      ObjectNode invalidFieldDoc = OBJECT_MAPPER.createObjectNode();
+      invalidFieldDoc.put("id", getKeyString(docId2));
+      invalidFieldDoc.put("item", "PartialItem");
+      invalidFieldDoc.put("price", 200);
+      invalidFieldDoc.put("quantity", 20);
+      invalidFieldDoc.put("in_stock", false);
+      invalidFieldDoc.putArray("numbers").add("not-a-number").add("also-not-a-number");
+      documents.put(createKey(docId2), new JSONDocument(invalidFieldDoc));
+
+      // Third document - valid
+      documents.put(createKey(docId3), createTestDocument(docId3));
+
+      boolean result = collection.bulkUpsert(documents);
+      assertTrue(result);
+
+      for (String docId : List.of(docId1, docId2, docId3)) {
+        Query query = buildQueryById(docId);
+        try (CloseableIterator<Document> iter = collection.find(query)) {
+          assertTrue(iter.hasNext());
+        }
+      }
+
+      if (storeName.equals(POSTGRES_FLAT_STORE)) {
+        Query query2 = buildQueryById(docId2);
+        try (CloseableIterator<Document> iter = collection.find(query2)) {
+          assertTrue(iter.hasNext());
+          JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+          // The 'numbers' field should be null/missing since it was skipped
+          assertTrue(json.get("numbers") == null || json.get("numbers").isNull());
+          // But other fields should be present
+          assertEquals("PartialItem", json.get("item").asText());
+          assertEquals(200, json.get("price").asInt());
+        }
+      }
     }
   }
 
@@ -209,40 +385,6 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         JsonNode salesNode = resultJson.get("sales");
         assertNotNull(salesNode);
         assertEquals(200, salesNode.get("total").asInt());
-      }
-    }
-
-    @ParameterizedTest(name = "{0}: bulkUpsert multiple documents")
-    @ArgumentsSource(AllStoresProvider.class)
-    void testBulkUpsert(String storeName) throws Exception {
-      String docId1 = generateDocId("bulk-1");
-      String docId2 = generateDocId("bulk-2");
-
-      Collection collection = getCollection(storeName);
-
-      Map<Key, Document> documents = new HashMap<>();
-      documents.put(createKey(docId1), createTestDocument(docId1));
-      documents.put(createKey(docId2), createTestDocument(docId2));
-
-      boolean result = collection.bulkUpsert(documents);
-      assertTrue(result);
-
-      for (String docId : List.of(docId1, docId2)) {
-        Query query = buildQueryById(docId);
-        try (CloseableIterator<Document> iterator = collection.find(query)) {
-          assertTrue(iterator.hasNext());
-          Document doc = iterator.next();
-          JsonNode json = OBJECT_MAPPER.readTree(doc.toJson());
-
-          assertEquals("TestItem", json.get("item").asText());
-          assertEquals(100, json.get("price").asInt());
-          assertEquals(50, json.get("quantity").asInt());
-          assertTrue(json.get("in_stock").asBoolean());
-
-          JsonNode tagsNode = json.get("tags");
-          assertNotNull(tagsNode);
-          assertEquals(2, tagsNode.size());
-        }
       }
     }
 
