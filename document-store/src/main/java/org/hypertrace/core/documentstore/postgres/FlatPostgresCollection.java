@@ -379,8 +379,9 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
 
       // Build the bulk upsert SQL with all columns
+      // Use COALESCE to preserve existing values when a document doesn't have a column
       List<String> columnList = new ArrayList<>(allColumns);
-      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false);
+      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false, true);
       LOGGER.debug("Bulk upsert SQL: {}", sql);
 
       try (Connection conn = client.getPooledConnection();
@@ -585,6 +586,24 @@ public class FlatPostgresCollection extends PostgresCollection {
    */
   private String buildMergeUpsertSql(
       List<String> columns, String pkColumn, boolean includeReturning) {
+    return buildMergeUpsertSql(columns, pkColumn, includeReturning, false);
+  }
+
+  /**
+   * Builds a PostgreSQL upsert SQL statement with merge semantics.
+   *
+   * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
+   * columns in the provided list are updated on conflict (merge behavior).
+   *
+   * @param columns List of quoted column names to include
+   * @param pkColumn The quoted primary key column name
+   * @param includeReturning If true, adds RETURNING clause to detect insert vs update
+   * @param useCoalesce If true, uses COALESCE(EXCLUDED.col, table.col) to preserve existing values
+   *     when the new value is NULL
+   * @return The upsert SQL statement
+   */
+  private String buildMergeUpsertSql(
+      List<String> columns, String pkColumn, boolean includeReturning, boolean useCoalesce) {
     String columnList = String.join(", ", columns);
     String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
 
@@ -593,13 +612,29 @@ public class FlatPostgresCollection extends PostgresCollection {
             ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
             : null;
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col. Exclude createdTsColumn from updates
-    // to preserve original creation time
+    // Build SET clause for non-PK columns.
+    // If useCoalesce is true, use COALESCE(EXCLUDED.col, table.col) to preserve existing values
+    // when the new value is NULL (for bulk upsert merge semantics).
+    // Exclude createdTsColumn from updates to preserve original creation time.
     String setClause =
         columns.stream()
             .filter(col -> !col.equals(pkColumn))
             .filter(col -> !col.equals(quotedCreatedTs))
-            .map(col -> col + " = EXCLUDED." + col)
+            .map(
+                col -> {
+                  if (useCoalesce) {
+                    return col
+                        + " = COALESCE(EXCLUDED."
+                        + col
+                        + ", "
+                        + tableIdentifier
+                        + "."
+                        + col
+                        + ")";
+                  } else {
+                    return col + " = EXCLUDED." + col;
+                  }
+                })
             .collect(Collectors.joining(", "));
 
     String sql =
