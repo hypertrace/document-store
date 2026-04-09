@@ -21,8 +21,8 @@ public interface Collection {
    * store.
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
-   * the existing fields are modified is implementation specific. For example, upserting <code>
-   * { "foo2": "bar2" }
+   * the existing fields are modified is implementation specific. For example, upserting <code> {
+   * "foo2": "bar2" }
    * </code> if a document <code>
    * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
@@ -42,8 +42,8 @@ public interface Collection {
    * store.
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
-   * the existing fields are modified is implementation specific. For example, upserting <code>
-   * { "foo2": "bar2" }
+   * the existing fields are modified is implementation specific. For example, upserting <code> {
+   * "foo2": "bar2" }
    * </code> if a document <code>
    * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
@@ -283,6 +283,17 @@ public interface Collection {
    */
   default boolean bulkCreateOrReplace(Map<Key, Document> documents) {
     throw new UnsupportedOperationException("bulkCreateOrReplace is not supported");
+  }
+
+  /**
+   * Method to bulkCreateOrReplace the given documents and return the previous copies of those documents.
+   * This helps the clients to see how the documents were prior to upserting them and do that in one
+   * less round trip.
+   */
+  default CloseableIterator<Document> bulkCreateOrReplaceReturnOlderDocuments(
+      Map<Key, Document> documents) throws IOException {
+    throw new UnsupportedOperationException(
+        "bulkCreateOrReplaceReturnOlderDocuments is not supported!");
   }
 
   /**
