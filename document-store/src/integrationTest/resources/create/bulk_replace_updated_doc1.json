@@ -1,0 +1,9 @@
+{
+  "id": "default:bulk-replace-return-1",
+  "item": "Updated1",
+  "price": 999,
+  "tags": ["newTag1"],
+  "props": {
+    "brand": "NewBrand1"
+  }
+}

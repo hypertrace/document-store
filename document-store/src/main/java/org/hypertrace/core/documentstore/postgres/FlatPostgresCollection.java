@@ -235,8 +235,8 @@ public class FlatPostgresCollection extends PostgresCollection {
             tableIdentifier, PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkForTable));
     try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
       preparedStatement.setString(1, key.toString());
-      preparedStatement.executeUpdate();
-      return true;
+      int rowsDeleted = preparedStatement.executeUpdate();
+      return rowsDeleted > 0;
     } catch (SQLException e) {
       LOGGER.error("SQLException deleting document. key: {}", key, e);
     }
@@ -379,8 +379,9 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
 
       // Build the bulk upsert SQL with all columns
+      // Use COALESCE to preserve existing values when a document doesn't have a column
       List<String> columnList = new ArrayList<>(allColumns);
-      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false);
+      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false, true);
       LOGGER.debug("Bulk upsert SQL: {}", sql);
 
       try (Connection conn = client.getPooledConnection();
@@ -524,11 +525,52 @@ public class FlatPostgresCollection extends PostgresCollection {
           e.getSQLState(),
           e.getErrorCode(),
           e);
-    } catch (IOException e) {
+    } catch (Exception e) {
       LOGGER.error("IOException in bulkCreateOrReplace. documents: {}", documents, e);
     }
-
     return false;
+  }
+
+  @Override
+  public CloseableIterator<Document> bulkCreateOrReplaceReturnOlderDocuments(
+      Map<Key, Document> documents) throws IOException {
+    if (documents == null || documents.isEmpty()) {
+      return CloseableIterator.emptyIterator();
+    }
+
+    String tableName = tableIdentifier.getTableName();
+    String pkColumn = getPKForTable(tableName);
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+    PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+
+    Connection connection = null;
+    try {
+      connection = client.getPooledConnection();
+
+      PreparedStatement preparedStatement =
+          getPreparedStatementForQuery(documents, quotedPkColumn, connection, pkType);
+
+      ResultSet resultSet = preparedStatement.executeQuery();
+
+      boolean replaceResult = bulkCreateOrReplace(documents);
+      if (!replaceResult) {
+        closeConnection(connection);
+        throw new IOException("bulkCreateOrReplace failed");
+      }
+
+      // note that connection will be closed after the iterator is used by the client
+      return new PostgresCollection.PostgresResultIteratorWithBasicTypes(
+          resultSet, connection, DocumentType.FLAT);
+
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in bulkCreateOrReplaceReturnOlderDocuments", e);
+      closeConnection(connection);
+      throw new IOException("Could not bulk createOrReplace the documents.", e);
+    } catch (Exception e) {
+      LOGGER.error("Exception in bulkCreateOrReplaceReturnOlderDocuments", e);
+      closeConnection(connection);
+      throw new IOException("Could not bulk createOrReplace the documents.", e);
+    }
   }
 
   /**
@@ -544,6 +586,24 @@ public class FlatPostgresCollection extends PostgresCollection {
    */
   private String buildMergeUpsertSql(
       List<String> columns, String pkColumn, boolean includeReturning) {
+    return buildMergeUpsertSql(columns, pkColumn, includeReturning, false);
+  }
+
+  /**
+   * Builds a PostgreSQL upsert SQL statement with merge semantics.
+   *
+   * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
+   * columns in the provided list are updated on conflict (merge behavior).
+   *
+   * @param columns List of quoted column names to include
+   * @param pkColumn The quoted primary key column name
+   * @param includeReturning If true, adds RETURNING clause to detect insert vs update
+   * @param useCoalesce If true, uses COALESCE(EXCLUDED.col, table.col) to preserve existing values
+   *     when the new value is NULL
+   * @return The upsert SQL statement
+   */
+  private String buildMergeUpsertSql(
+      List<String> columns, String pkColumn, boolean includeReturning, boolean useCoalesce) {
     String columnList = String.join(", ", columns);
     String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
 
@@ -552,13 +612,29 @@ public class FlatPostgresCollection extends PostgresCollection {
             ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
             : null;
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col. Exclude createdTsColumn from updates
-    // to preserve original creation time
+    // Build SET clause for non-PK columns.
+    // If useCoalesce is true, use COALESCE(EXCLUDED.col, table.col) to preserve existing values
+    // when the new value is NULL (for bulk upsert merge semantics).
+    // Exclude createdTsColumn from updates to preserve original creation time.
     String setClause =
         columns.stream()
             .filter(col -> !col.equals(pkColumn))
             .filter(col -> !col.equals(quotedCreatedTs))
-            .map(col -> col + " = EXCLUDED." + col)
+            .map(
+                col -> {
+                  if (useCoalesce) {
+                    return col
+                        + " = COALESCE(EXCLUDED."
+                        + col
+                        + ", "
+                        + tableIdentifier
+                        + "."
+                        + col
+                        + ")";
+                  } else {
+                    return col + " = EXCLUDED." + col;
+                  }
+                })
             .collect(Collectors.joining(", "));
 
     String sql =
@@ -635,6 +711,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public void drop() {
+    // Table management(create/alter/drop) should be outside the collection.
     throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
   }
 
