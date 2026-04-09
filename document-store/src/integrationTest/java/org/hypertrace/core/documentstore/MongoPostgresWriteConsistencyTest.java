@@ -1,6 +1,5 @@
 package org.hypertrace.core.documentstore;
 
-import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -13,7 +12,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -90,9 +88,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
     }
   }
 
-  /**
-   * Inserts a test document into all collections (Mongo and PG)
-   */
+  /** Inserts a test document into all collections (Mongo and PG) */
   private void insertTestDocument(String docId) throws IOException {
     for (Collection collection : collectionMap.values()) {
       insertTestDocument(docId, collection);
@@ -437,7 +433,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         Query query = buildQueryById(docId);
 
         List<SubDocumentUpdate> updates =
-            List.of(SubDocumentUpdate.of("tags", new String[]{"tag4", "tag5", "tag6"}));
+            List.of(SubDocumentUpdate.of("tags", new String[] {"tag4", "tag5", "tag6"}));
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
@@ -463,7 +459,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         Collection collection = getCollection(storeName);
         Query query = buildQueryById(docId);
 
-        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("tags", new String[]{}));
+        List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("tags", new String[] {}));
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
@@ -521,7 +517,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("sales.regions")
                     .operator(UpdateOperator.SET)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"US", "EU", "APAC"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"US", "EU", "APAC"}))
                     .build());
 
         UpdateOptions options =
@@ -741,19 +737,19 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"newTag1", "newTag2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"newTag1", "newTag2"}))
                     .build(),
                 // Nested JSONB array: append to existing props.colors
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"green", "yellow"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"green", "yellow"}))
                     .build(),
                 // Nested JSONB: append to non-existent array (creates it)
                 SubDocumentUpdate.builder()
                     .subDocument("sales.regions")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"US", "EU"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"US", "EU"}))
                     .build());
 
         UpdateOptions options =
@@ -810,7 +806,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("item")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"value1", "value2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"value1", "value2"}))
                     .build());
 
         UpdateOptions options =
@@ -834,7 +830,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("price")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new Integer[]{100, 200}))
+                    .subDocumentValue(SubDocumentValue.of(new Integer[] {100, 200}))
                     .build());
 
         UpdateOptions options =
@@ -863,13 +859,13 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag1", "newTag"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1", "newTag"}))
                     .build(),
                 // Nested JSONB: 'red' exists, 'green' is new → adds only 'green'
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"red", "green"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"red", "green"}))
                     .build());
 
         UpdateOptions options =
@@ -916,7 +912,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("item")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"value1", "value2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"value1", "value2"}))
                     .build());
 
         UpdateOptions options =
@@ -945,13 +941,13 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag1"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1"}))
                     .build(),
                 // Nested JSONB: remove 'red' → leaves blue
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"red"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"red"}))
                     .build());
 
         UpdateOptions options =
@@ -995,7 +991,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("item")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"value1"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"value1"}))
                     .build());
 
         UpdateOptions options =
@@ -1044,12 +1040,12 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag1", "tag2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1", "tag2"}))
                     .build(),
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag2"}))
                     .build());
 
         assertThrows(
@@ -1061,12 +1057,12 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("sales.regions")
                     .operator(UpdateOperator.SET)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"US", "EU", "APAC"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"US", "EU", "APAC"}))
                     .build(),
                 SubDocumentUpdate.builder()
                     .subDocument("sales.regions")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"EMEA"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"EMEA"}))
                     .build());
 
         assertThrows(

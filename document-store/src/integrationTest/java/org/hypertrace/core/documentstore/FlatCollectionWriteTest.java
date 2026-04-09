@@ -1711,14 +1711,14 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       String docId1 = "bulk-replace-return-1";
       String docId2 = "bulk-replace-return-2";
 
-      String initial1Json = readFileFromResource(
-          "create/bulk_replace_initial_doc1.json").orElseThrow();
-      String initial2Json = readFileFromResource(
-          "create/bulk_replace_initial_doc2.json").orElseThrow();
-      String updated1Json = readFileFromResource(
-          "create/bulk_replace_updated_doc1.json").orElseThrow();
-      String updated2Json = readFileFromResource(
-          "create/bulk_replace_updated_doc2.json").orElseThrow();
+      String initial1Json =
+          readFileFromResource("create/bulk_replace_initial_doc1.json").orElseThrow();
+      String initial2Json =
+          readFileFromResource("create/bulk_replace_initial_doc2.json").orElseThrow();
+      String updated1Json =
+          readFileFromResource("create/bulk_replace_updated_doc1.json").orElseThrow();
+      String updated2Json =
+          readFileFromResource("create/bulk_replace_updated_doc2.json").orElseThrow();
 
       flatCollection.createOrReplace(
           new SingleValueKey(DEFAULT_TENANT, docId1), new JSONDocument(initial1Json));
@@ -1760,18 +1760,19 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       assertEquals(expectedDoc2, oldDoc2);
 
       // Verify the documents were actually replaced with new values
-      String expectedResult1Json = readFileFromResource(
-          "expected/bulk_replace_result_doc1.json").orElseThrow();
-      String expectedResult2Json = readFileFromResource(
-          "expected/bulk_replace_result_doc2.json").orElseThrow();
+      String expectedResult1Json =
+          readFileFromResource("expected/bulk_replace_result_doc1.json").orElseThrow();
+      String expectedResult2Json =
+          readFileFromResource("expected/bulk_replace_result_doc2.json").orElseThrow();
 
-      Query query1 = Query.builder()
-          .setFilter(
-              RelationalExpression.of(
-                  IdentifierExpression.of("id"),
-                  RelationalOperator.EQ,
-                  ConstantExpression.of(new SingleValueKey(DEFAULT_TENANT, docId1).toString())))
-          .build();
+      Query query1 =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of(new SingleValueKey(DEFAULT_TENANT, docId1).toString())))
+              .build();
       try (CloseableIterator<Document> iter = flatCollection.find(query1)) {
         assertTrue(iter.hasNext());
         JsonNode actualDoc1 = OBJECT_MAPPER.readTree(iter.next().toJson());
@@ -1779,13 +1780,14 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         assertEquals(expectedResultDoc1, actualDoc1);
       }
 
-      Query query2 = Query.builder()
-          .setFilter(
-              RelationalExpression.of(
-                  IdentifierExpression.of("id"),
-                  RelationalOperator.EQ,
-                  ConstantExpression.of(new SingleValueKey(DEFAULT_TENANT, docId2).toString())))
-          .build();
+      Query query2 =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of(new SingleValueKey(DEFAULT_TENANT, docId2).toString())))
+              .build();
       try (CloseableIterator<Document> iter = flatCollection.find(query2)) {
         assertTrue(iter.hasNext());
         JsonNode actualDoc2 = OBJECT_MAPPER.readTree(iter.next().toJson());
@@ -2237,15 +2239,15 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.of("rating", 4.5f),
                 SubDocumentUpdate.of("weight", 123.456),
                 // Case 2: Top-level arrays
-                SubDocumentUpdate.of("tags", new String[]{"tag4", "tag5", "tag6"}),
-                SubDocumentUpdate.of("numbers", new Integer[]{10, 20, 30}),
-                SubDocumentUpdate.of("scores", new Double[]{1.1, 2.2, 3.3}),
-                SubDocumentUpdate.of("flags", new Boolean[]{true, false, true}),
+                SubDocumentUpdate.of("tags", new String[] {"tag4", "tag5", "tag6"}),
+                SubDocumentUpdate.of("numbers", new Integer[] {10, 20, 30}),
+                SubDocumentUpdate.of("scores", new Double[] {1.1, 2.2, 3.3}),
+                SubDocumentUpdate.of("flags", new Boolean[] {true, false, true}),
                 // Case 3 & 4: One nested path in JSONB (props) - tests nested primitive
                 SubDocumentUpdate.of("props.brand", "NewBrand"),
                 // Use 'sales' JSONB column for nested array test
                 SubDocumentUpdate.of(
-                    "sales.regions", SubDocumentValue.of(new String[]{"US", "EU", "APAC"})));
+                    "sales.regions", SubDocumentValue.of(new String[] {"US", "EU", "APAC"})));
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
@@ -2455,7 +2457,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.of("props.size", "XL"),
                 SubDocumentUpdate.of("props.newField", "newValue"),
                 SubDocumentUpdate.of(
-                    "props.owners", SubDocumentValue.of(new String[]{"owner1", "owner2"})));
+                    "props.owners", SubDocumentValue.of(new String[] {"owner1", "owner2"})));
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
@@ -2761,7 +2763,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("price")
                     .operator(UpdateOperator.ADD)
-                    .subDocumentValue(SubDocumentValue.of(new Integer[]{1, 2, 3}))
+                    .subDocumentValue(SubDocumentValue.of(new Integer[] {1, 2, 3}))
                     .build());
 
         UpdateOptions options =
@@ -2808,19 +2810,19 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"newTag1", "newTag2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"newTag1", "newTag2"}))
                     .build(),
                 // Nested JSONB array: append to existing props.colors
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"green", "yellow"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"green", "yellow"}))
                     .build(),
                 // Nested JSONB: append to non-existent array (creates it)
                 SubDocumentUpdate.builder()
                     .subDocument("sales.regions")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"US", "EU"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"US", "EU"}))
                     .build());
 
         UpdateOptions options =
@@ -2899,13 +2901,13 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"existing1", "newTag"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"existing1", "newTag"}))
                     .build(),
                 // Nested JSONB: 'red' exists, 'green' is new → adds only 'green'
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"red", "green"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"red", "green"}))
                     .build());
 
         UpdateOptions options =
@@ -2976,13 +2978,13 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag1"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1"}))
                     .build(),
                 // Nested JSONB: remove 'red' and 'blue' → leaves green
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[]{"red", "blue"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[] {"red", "blue"}))
                     .build());
 
         UpdateOptions options =
@@ -3427,9 +3429,33 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
   class DropTests {
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for drop")
-    void testDrop() {
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.drop());
+    @DisplayName("Should drop the table successfully")
+    void testDrop() throws Exception {
+      // Create a separate collection to drop (don't drop the main test collection)
+      String dropTestCollection = "drop_test_collection";
+      createFlatCollectionSchema((PostgresDatastore) postgresDatastore, dropTestCollection);
+      Collection dropCollection =
+          postgresDatastore.getCollectionForType(dropTestCollection, DocumentType.FLAT);
+
+      Key key = new SingleValueKey("default", "drop-test-doc");
+      ObjectNode doc = OBJECT_MAPPER.createObjectNode();
+      doc.put("item", "test");
+      dropCollection.upsert(key, new JSONDocument(doc));
+
+      dropCollection.drop();
+
+      // Verify table no longer exists by trying to query it
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = '%s')",
+                      dropTestCollection));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertFalse(rs.getBoolean(1));
+      }
     }
   }
 }

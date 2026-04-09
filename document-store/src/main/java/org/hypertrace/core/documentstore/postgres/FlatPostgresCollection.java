@@ -578,8 +578,8 @@ public class FlatPostgresCollection extends PostgresCollection {
    * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
    * columns in the provided list are updated on conflict (merge behavior).
    *
-   * @param columns          List of quoted column names to include
-   * @param pkColumn         The quoted primary key column name
+   * @param columns List of quoted column names to include
+   * @param pkColumn The quoted primary key column name
    * @param includeReturning If true, adds RETURNING clause to detect insert vs update
    * @return The upsert SQL statement
    */
@@ -676,7 +676,13 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public void drop() {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    String dropTableSQL = String.format("DROP TABLE IF EXISTS %s", tableIdentifier);
+    try (PreparedStatement preparedStatement =
+        client.getConnection().prepareStatement(dropTableSQL)) {
+      preparedStatement.executeUpdate();
+    } catch (SQLException e) {
+      LOGGER.error("Exception dropping table: {}", tableIdentifier, e);
+    }
   }
 
   @Override
@@ -864,7 +870,7 @@ public class FlatPostgresCollection extends PostgresCollection {
    * Validates all updates and resolves column names.
    *
    * @return Map of path -> columnName for all resolved columns. For example: customAttributes.props
-   * -> customAttributes (since customAttributes is the top-level JSONB col)
+   *     -> customAttributes (since customAttributes is the top-level JSONB col)
    */
   private Map<String, String> resolvePathsToColumns(
       Collection<SubDocumentUpdate> updates, String tableName) {
@@ -937,9 +943,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     return Optional.empty();
   }
 
-  /**
-   * Extracts the nested JSONB path from a full path given the resolved column name.
-   */
+  /** Extracts the nested JSONB path from a full path given the resolved column name. */
   private String[] getNestedPath(String fullPath, String columnName) {
     if (fullPath.equals(columnName)) {
       return new String[0];
@@ -1320,9 +1324,9 @@ public class FlatPostgresCollection extends PostgresCollection {
    * <p>Unlike {@link #createOrReplaceWithRetry}, this method does NOT reset missing columns to
    * their default values.
    *
-   * @param key      The document key
+   * @param key The document key
    * @param document The document to upsert
-   * @param isRetry  Whether this is a retry attempt after schema refresh
+   * @param isRetry Whether this is a retry attempt after schema refresh
    * @return true if a new document was created, false if an existing document was updated
    */
   private boolean upsertWithRetry(Key key, Document document, boolean isRetry) throws IOException {
@@ -1374,7 +1378,7 @@ public class FlatPostgresCollection extends PostgresCollection {
    * }</pre>
    *
    * @param docColumns columns present in the document
-   * @param pkColumn   The quoted primary key column name used for conflict detection
+   * @param pkColumn The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
   private String buildUpsertSql(List<String> docColumns, String pkColumn) {
@@ -1417,8 +1421,8 @@ public class FlatPostgresCollection extends PostgresCollection {
    * </ul>
    *
    * @param allTableColumns all cols present in the table
-   * @param docColumns      cols present in the document
-   * @param pkColumn        The quoted primary key column name used for conflict detection
+   * @param docColumns cols present in the document
+   * @param pkColumn The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
   private String buildCreateOrReplaceSql(
@@ -1473,9 +1477,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
-  /**
-   * Returns true if INSERT, false if UPDATE.
-   */
+  /** Returns true if INSERT, false if UPDATE. */
   private boolean executeUpsertReturningIsInsert(String sql, TypedDocument parsed)
       throws SQLException {
     try (Connection conn = client.getPooledConnection();

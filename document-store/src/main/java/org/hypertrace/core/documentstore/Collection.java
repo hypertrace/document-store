@@ -286,9 +286,9 @@ public interface Collection {
   }
 
   /**
-   * Method to bulkCreateOrReplace the given documents and return the previous copies of those documents.
-   * This helps the clients to see how the documents were prior to upserting them and do that in one
-   * less round trip.
+   * Method to bulkCreateOrReplace the given documents and return the previous copies of those
+   * documents. This helps the clients to see how the documents were prior to upserting them and do
+   * that in one less round trip.
    */
   default CloseableIterator<Document> bulkCreateOrReplaceReturnOlderDocuments(
       Map<Key, Document> documents) throws IOException {
