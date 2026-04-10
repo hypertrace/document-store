@@ -133,7 +133,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     this.lastUpdatedTsColumn = lastUpdatedTs;
 
     if (this.createdTsColumn == null || this.lastUpdatedTsColumn == null) {
-      LOGGER.warn(
+      LOGGER.debug(
           "timestampFields config not set properly for collection '{}'. "
               + "createdTsColumn: {}, lastUpdatedTsColumn: {}. "
               + "Configure via collectionConfigs.{}.timestampFields {{ created = \"<col>\", lastUpdated = \"<col>\" }}",
