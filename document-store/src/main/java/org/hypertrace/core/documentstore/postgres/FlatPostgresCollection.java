@@ -25,8 +25,19 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -896,6 +907,104 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
+  @Override
+  public BulkUpdateResult bulkUpdate(
+      Map<Key, Collection<SubDocumentUpdate>> updates, UpdateOptions updateOptions)
+      throws IOException {
+
+    if (updates == null || updates.isEmpty()) {
+      return new BulkUpdateResult(0);
+    }
+
+    Preconditions.checkArgument(updateOptions != null, "UpdateOptions cannot be NULL");
+
+    String tableName = tableIdentifier.getTableName();
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(getPKForTable(tableName));
+
+    Set<Key> updatedKeys = new HashSet<>();
+    for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
+      Key key = entry.getKey();
+      Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
+
+      if (keyUpdates == null || keyUpdates.isEmpty()) {
+        continue;
+      }
+
+      try {
+        boolean updated = updateSingleKey(key, keyUpdates, tableName, quotedPkColumn);
+        if (updated) {
+          updatedKeys.add(key);
+        }
+      } catch (Exception e) {
+        LOGGER.warn("Failed to update key {}: {}", key, e.getMessage());
+        // Continue with other keys - no cross-key atomicity
+      }
+    }
+
+    return new BulkUpdateResult(updatedKeys.size());
+  }
+
+  private boolean updateSingleKey(
+      Key key, Collection<SubDocumentUpdate> keyUpdates, String tableName, String quotedPkColumn)
+      throws IOException {
+
+    updateValidator.validate(keyUpdates);
+    Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
+
+    try (Connection connection = client.getPooledConnection()) {
+      return executeKeyUpdate(
+          connection, key, keyUpdates, tableName, quotedPkColumn, resolvedColumns);
+    } catch (SQLException e) {
+      throw new IOException("Failed to update key: " + key, e);
+    }
+  }
+
+  private boolean executeKeyUpdate(
+      Connection connection,
+      Key key,
+      java.util.Collection<SubDocumentUpdate> keyUpdates,
+      String tableName,
+      String quotedPkColumn,
+      Map<String, String> resolvedColumns)
+      throws SQLException {
+
+    List<String> setFragments = new ArrayList<>();
+    List<Object> params = new ArrayList<>();
+
+    boolean hasUpdates =
+        buildSetClauseFragments(
+            connection, keyUpdates, tableName, resolvedColumns, setFragments, params);
+
+    if (!hasUpdates) {
+      return false;
+    }
+
+    // Add lastUpdatedTime to the same UPDATE statement
+    if (lastUpdatedTsColumn != null) {
+      setFragments.add(String.format("\"%s\" = ?", lastUpdatedTsColumn));
+      params.add(new Timestamp(System.currentTimeMillis()));
+    }
+
+    // Build and execute UPDATE SQL for this key
+    String sql =
+        String.format(
+            "UPDATE %s SET %s WHERE %s = ?",
+            tableIdentifier, String.join(", ", setFragments), quotedPkColumn);
+
+    params.add(key.toString());
+
+    LOGGER.debug("Executing key update SQL: {}", sql);
+
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+      int idx = 1;
+      for (Object param : params) {
+        ps.setObject(idx++, param);
+      }
+      int rowsUpdated = ps.executeUpdate();
+      return rowsUpdated > 0;
+    }
+  }
+
   /**
    * Validates all updates and resolves column names.
    *
@@ -1014,6 +1123,56 @@ public class FlatPostgresCollection extends PostgresCollection {
     String filterClause = filterParser.buildFilterClause();
     Params filterParams = filterParser.getParamsBuilder().build();
 
+    List<String> setFragments = new ArrayList<>();
+    List<Object> params = new ArrayList<>();
+
+    boolean hasUpdates =
+        buildSetClauseFragments(
+            connection, updates, tableName, resolvedColumns, setFragments, params);
+
+    if (!hasUpdates) {
+      LOGGER.warn("All update paths were skipped - no valid columns to update");
+      return;
+    }
+
+    // Build final UPDATE SQL
+    String sql =
+        String.format(
+            "UPDATE %s SET %s %s", tableIdentifier, String.join(", ", setFragments), filterClause);
+
+    LOGGER.debug("Executing update SQL: {}", sql);
+
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+      int idx = 1;
+      for (Object param : params) {
+        ps.setObject(idx++, param);
+      }
+      for (Object param : filterParams.getObjectParams().values()) {
+        ps.setObject(idx++, param);
+      }
+      int rowsUpdated = ps.executeUpdate();
+      LOGGER.debug("Rows updated: {}", rowsUpdated);
+    } catch (SQLException e) {
+      LOGGER.error("Failed to execute update. SQL: {}, SQLState: {}", sql, e.getSQLState(), e);
+      throw e;
+    }
+  }
+
+  /**
+   * Builds SET clause fragments for an UPDATE statement by grouping updates by column and chaining
+   * nested JSONB updates.
+   *
+   * @return true if at least one valid update fragment was built, false otherwise
+   */
+  private boolean buildSetClauseFragments(
+      Connection connection,
+      Collection<SubDocumentUpdate> updates,
+      String tableName,
+      Map<String, String> resolvedColumns,
+      List<String> setFragments,
+      List<Object> params)
+      throws SQLException {
+
     // Group updates by column to handle multiple nested updates to the same JSONB column
     Map<String, List<SubDocumentUpdate>> updatesByColumn = new LinkedHashMap<>();
     for (SubDocumentUpdate update : updates) {
@@ -1026,9 +1185,9 @@ public class FlatPostgresCollection extends PostgresCollection {
       updatesByColumn.computeIfAbsent(columnName, k -> new ArrayList<>()).add(update);
     }
 
-    // Build SET clause fragments - one per column
-    List<String> setFragments = new ArrayList<>();
-    List<Object> params = new ArrayList<>();
+    if (updatesByColumn.isEmpty()) {
+      return false;
+    }
 
     for (Map.Entry<String, List<SubDocumentUpdate>> entry : updatesByColumn.entrySet()) {
       String columnName = entry.getKey();
@@ -1095,33 +1254,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
     }
 
-    // If all updates were skipped, nothing to do
-    if (setFragments.isEmpty()) {
-      LOGGER.warn("All update paths were skipped - no valid columns to update");
-      return;
-    }
-
-    // Build final UPDATE SQL
-    String sql =
-        String.format(
-            "UPDATE %s SET %s %s", tableIdentifier, String.join(", ", setFragments), filterClause);
-
-    LOGGER.debug("Executing update SQL: {}", sql);
-
-    try (PreparedStatement ps = connection.prepareStatement(sql)) {
-      int idx = 1;
-      for (Object param : params) {
-        ps.setObject(idx++, param);
-      }
-      for (Object param : filterParams.getObjectParams().values()) {
-        ps.setObject(idx++, param);
-      }
-      int rowsUpdated = ps.executeUpdate();
-      LOGGER.debug("Rows updated: {}", rowsUpdated);
-    } catch (SQLException e) {
-      LOGGER.error("Failed to execute update. SQL: {}, SQLState: {}", sql, e.getSQLState(), e);
-      throw e;
-    }
+    return !setFragments.isEmpty();
   }
 
   /*isRetry: Whether this is a retry attempt*/

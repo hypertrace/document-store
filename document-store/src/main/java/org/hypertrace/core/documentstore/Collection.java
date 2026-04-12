@@ -21,8 +21,8 @@ public interface Collection {
    * store.
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
-   * the existing fields are modified is implementation specific. For example, upserting <code> {
-   * "foo2": "bar2" }
+   * the existing fields are modified is implementation specific. For example, upserting <code>
+   * { "foo2": "bar2" }
    * </code> if a document <code>
    * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
@@ -42,8 +42,8 @@ public interface Collection {
    * store.
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
-   * the existing fields are modified is implementation specific. For example, upserting <code> {
-   * "foo2": "bar2" }
+   * the existing fields are modified is implementation specific. For example, upserting <code>
+   * { "foo2": "bar2" }
    * </code> if a document <code>
    * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
@@ -397,6 +397,54 @@ public interface Collection {
       final java.util.Collection<SubDocumentUpdate> updates,
       final UpdateOptions updateOptions)
       throws IOException;
+
+  /**
+   * Bulk update sub-documents with key-specific updates. Each key can have its own set of
+   * SubDocumentUpdate operations, allowing different updates per document.
+   *
+   * <p>This method supports all update operators (SET, UNSET, ADD, APPEND_TO_LIST,
+   * ADD_TO_LIST_IF_ABSENT, REMOVE_ALL_FROM_LIST). Updates for each individual key are applied
+   * atomically, but there is no atomicity guarantee across different keys - some keys may be
+   * updated while others fail. Any atomicity guarantees are implementation-specific.
+   *
+   * <p>Example usage:
+   *
+   * <pre>{@code
+   * Map<Key, Collection<SubDocumentUpdate>> updates = new HashMap<>();
+   *
+   * // Key 1: SET a field and ADD to a number
+   * updates.put(key1, List.of(
+   *     SubDocumentUpdate.of("name", "NewName"),
+   *     SubDocumentUpdate.builder()
+   *         .subDocument("count")
+   *         .operator(UpdateOperator.ADD)
+   *         .subDocumentValue(SubDocumentValue.of(5))
+   *         .build()
+   * ));
+   *
+   * // Key 2: APPEND to an array
+   * updates.put(key2, List.of(
+   *     SubDocumentUpdate.builder()
+   *         .subDocument("tags")
+   *         .operator(UpdateOperator.APPEND_TO_LIST)
+   *         .subDocumentValue(SubDocumentValue.of(new String[]{"newTag"}))
+   *         .build()
+   * ));
+   *
+   * BulkUpdateResult result = collection.bulkUpdate(updates, UpdateOptions.builder().build());
+   * }</pre>
+   *
+   * @param updates Map of Key to Collection of SubDocumentUpdate operations. Each key's updates are
+   *     applied atomically, but no cross-key atomicity is guaranteed.
+   * @param updateOptions Options for the update operation
+   * @return BulkUpdateResult containing the count of successfully updated documents
+   * @throws IOException if the update operation fails
+   */
+  default BulkUpdateResult bulkUpdate(
+      Map<Key, java.util.Collection<SubDocumentUpdate>> updates, UpdateOptions updateOptions)
+      throws IOException {
+    throw new UnsupportedOperationException("bulkUpdate is not supported!");
+  }
 
   String UNSUPPORTED_QUERY_OPERATION = "Query operation is not supported";
 }
