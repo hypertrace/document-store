@@ -922,41 +922,47 @@ public class FlatPostgresCollection extends PostgresCollection {
     String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(getPKForTable(tableName));
 
     Set<Key> updatedKeys = new HashSet<>();
-    for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
-      Key key = entry.getKey();
-      Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
 
-      if (keyUpdates == null || keyUpdates.isEmpty()) {
-        continue;
-      }
+    // Use a single connection for all key updates to reduce pool overhead
+    try (Connection connection = client.getPooledConnection()) {
+      for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
+        Key key = entry.getKey();
+        Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
 
-      try {
-        boolean updated = updateSingleKey(key, keyUpdates, tableName, quotedPkColumn);
-        if (updated) {
-          updatedKeys.add(key);
+        if (keyUpdates == null || keyUpdates.isEmpty()) {
+          continue;
         }
-      } catch (Exception e) {
-        LOGGER.warn("Failed to update key {}: {}", key, e.getMessage());
-        // Continue with other keys - no cross-key atomicity
+
+        try {
+          boolean updated = updateSingleKey(connection, key, keyUpdates, tableName, quotedPkColumn);
+          if (updated) {
+            updatedKeys.add(key);
+          }
+        } catch (Exception e) {
+          LOGGER.warn("Failed to update key {}: {}", key, e.getMessage());
+          // Continue with other keys - no cross-key atomicity
+        }
       }
+    } catch (SQLException e) {
+      throw new IOException("Failed to get connection for bulk update", e);
     }
 
     return new BulkUpdateResult(updatedKeys.size());
   }
 
   private boolean updateSingleKey(
-      Key key, Collection<SubDocumentUpdate> keyUpdates, String tableName, String quotedPkColumn)
-      throws IOException {
+      Connection connection,
+      Key key,
+      Collection<SubDocumentUpdate> keyUpdates,
+      String tableName,
+      String quotedPkColumn)
+      throws IOException, SQLException {
 
     updateValidator.validate(keyUpdates);
     Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
 
-    try (Connection connection = client.getPooledConnection()) {
-      return executeKeyUpdate(
-          connection, key, keyUpdates, tableName, quotedPkColumn, resolvedColumns);
-    } catch (SQLException e) {
-      throw new IOException("Failed to update key: " + key, e);
-    }
+    return executeKeyUpdate(
+        connection, key, keyUpdates, tableName, quotedPkColumn, resolvedColumns);
   }
 
   private boolean executeKeyUpdate(
