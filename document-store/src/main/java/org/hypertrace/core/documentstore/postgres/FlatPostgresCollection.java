@@ -923,7 +923,6 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     Set<Key> updatedKeys = new HashSet<>();
 
-    // Use a single connection for all key updates to reduce pool overhead
     try (Connection connection = client.getPooledConnection()) {
       for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
         Key key = entry.getKey();

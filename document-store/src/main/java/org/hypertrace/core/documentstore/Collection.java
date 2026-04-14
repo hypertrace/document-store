@@ -21,8 +21,8 @@ public interface Collection {
    * store.
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
-   * the existing fields are modified is implementation specific. For example, upserting <code>
-   * { "foo2": "bar2" }
+   * the existing fields are modified is implementation specific. For example, upserting <code> {
+   * "foo2": "bar2" }
    * </code> if a document <code>
    * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
@@ -42,8 +42,8 @@ public interface Collection {
    * store.
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
-   * the existing fields are modified is implementation specific. For example, upserting <code>
-   * { "foo2": "bar2" }
+   * the existing fields are modified is implementation specific. For example, upserting <code> {
+   * "foo2": "bar2" }
    * </code> if a document <code>
    * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
@@ -405,7 +405,8 @@ public interface Collection {
    * <p>This method supports all update operators (SET, UNSET, ADD, APPEND_TO_LIST,
    * ADD_TO_LIST_IF_ABSENT, REMOVE_ALL_FROM_LIST). Updates for each individual key are applied
    * atomically, but there is no atomicity guarantee across different keys - some keys may be
-   * updated while others fail. Any atomicity guarantees are implementation-specific.
+   * updated while others fail. Batch-level atomicity is not guaranteed, while per-key update
+   * atomicity is guaranteed.
    *
    * <p>Example usage:
    *
