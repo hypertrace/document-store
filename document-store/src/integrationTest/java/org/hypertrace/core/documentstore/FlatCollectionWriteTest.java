@@ -3403,6 +3403,135 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     }
   }
 
+  @Nested
+  @DisplayName("Key-Specific Bulk Update Operations")
+  class KeySpecificBulkUpdateTests {
+
+    @Test
+    @DisplayName("Should update multiple keys with all operator types in a single batch")
+    void testBulkUpdateAllOperatorTypes() throws Exception {
+      Map<Key, java.util.Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
+      updates.put(
+          rawKey("1"),
+          List.of(
+              SubDocumentUpdate.of("item", "UpdatedSoap"),
+              SubDocumentUpdate.builder()
+                  .subDocument("price")
+                  .operator(UpdateOperator.ADD)
+                  .subDocumentValue(SubDocumentValue.of(5))
+                  .build(),
+              SubDocumentUpdate.builder()
+                  .subDocument("props.brand")
+                  .operator(UpdateOperator.SET)
+                  .subDocumentValue(SubDocumentValue.of("NewBrand"))
+                  .build()));
+
+      updates.put(
+          rawKey("3"),
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("props.brand")
+                  .operator(UpdateOperator.UNSET)
+                  .build(),
+              SubDocumentUpdate.builder()
+                  .subDocument("tags")
+                  .operator(UpdateOperator.APPEND_TO_LIST)
+                  .subDocumentValue(SubDocumentValue.of(new String[] {"newTag1", "newTag2"}))
+                  .build()));
+
+      updates.put(
+          rawKey("5"),
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("tags")
+                  .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                  .subDocumentValue(SubDocumentValue.of(new String[] {"hygiene", "uniqueTag"}))
+                  .build()));
+
+      updates.put(
+          rawKey("6"),
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("tags")
+                  .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                  .subDocumentValue(SubDocumentValue.of(new String[] {"plastic"}))
+                  .build()));
+
+      BulkUpdateResult result = flatCollection.bulkUpdate(updates, UpdateOptions.builder().build());
+
+      assertEquals(4, result.getUpdatedCount());
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("1"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        assertEquals("UpdatedSoap", json.get("item").asText());
+        assertEquals(15, json.get("price").asInt()); // 10 + 5
+        assertEquals("NewBrand", json.get("props").get("brand").asText());
+        assertEquals("M", json.get("props").get("size").asText()); // preserved
+      }
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("3"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        assertFalse(json.get("props").has("brand"));
+        assertEquals("L", json.get("props").get("size").asText()); // preserved
+        JsonNode tagsNode = json.get("tags");
+        assertEquals(6, tagsNode.size()); // Original 4 + 2 new
+      }
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("5"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        JsonNode tagsNode = json.get("tags");
+        assertEquals(4, tagsNode.size()); // Original 3 + 1 new unique
+        Set<String> tags = new HashSet<>();
+        tagsNode.forEach(n -> tags.add(n.asText()));
+        assertTrue(tags.contains("uniqueTag"));
+      }
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("6"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        JsonNode tagsNode = json.get("tags");
+        assertEquals(2, tagsNode.size()); // grooming, essential remain
+        Set<String> tags = new HashSet<>();
+        tagsNode.forEach(n -> tags.add(n.asText()));
+        assertFalse(tags.contains("plastic"));
+      }
+    }
+
+    @Test
+    @DisplayName("Should handle edge cases: empty map, null map, non-existent keys")
+    void testBulkUpdateEdgeCases() throws Exception {
+      UpdateOptions options = UpdateOptions.builder().build();
+
+      // Empty map
+      assertEquals(0, flatCollection.bulkUpdate(new HashMap<>(), options).getUpdatedCount());
+
+      // Null map
+      Map<Key, java.util.Collection<SubDocumentUpdate>> nullUpdates = null;
+      assertEquals(0, flatCollection.bulkUpdate(nullUpdates, options).getUpdatedCount());
+
+      // Non-existent key
+      Map<Key, java.util.Collection<SubDocumentUpdate>> nonExistent = new LinkedHashMap<>();
+      nonExistent.put(rawKey("non-existent"), List.of(SubDocumentUpdate.of("item", "X")));
+      assertEquals(0, flatCollection.bulkUpdate(nonExistent, options).getUpdatedCount());
+    }
+
+    // Creates a key with raw ID (matching test data format)
+    private Key rawKey(String id) {
+      return Key.from(id);
+    }
+
+    private Query queryById(String id) {
+      return Query.builder()
+          .setFilter(
+              RelationalExpression.of(
+                  IdentifierExpression.of("id"), RelationalOperator.EQ, ConstantExpression.of(id)))
+          .build();
+    }
+  }
+
   private static void executeInsertStatements() {
     PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
     try {
