@@ -22,6 +22,7 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
@@ -590,8 +591,8 @@ public class FlatPostgresCollection extends PostgresCollection {
    * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
    * columns in the provided list are updated on conflict (merge behavior).
    *
-   * @param columns List of quoted column names to include
-   * @param pkColumn The quoted primary key column name
+   * @param columns          List of quoted column names to include
+   * @param pkColumn         The quoted primary key column name
    * @param includeReturning If true, adds RETURNING clause to detect insert vs update
    * @return The upsert SQL statement
    */
@@ -606,11 +607,11 @@ public class FlatPostgresCollection extends PostgresCollection {
    * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
    * columns in the provided list are updated on conflict (merge behavior).
    *
-   * @param columns List of quoted column names to include
-   * @param pkColumn The quoted primary key column name
+   * @param columns          List of quoted column names to include
+   * @param pkColumn         The quoted primary key column name
    * @param includeReturning If true, adds RETURNING clause to detect insert vs update
-   * @param useCoalesce If true, uses COALESCE(EXCLUDED.col, table.col) to preserve existing values
-   *     when the new value is NULL
+   * @param useCoalesce      If true, uses COALESCE(EXCLUDED.col, table.col) to preserve existing
+   *                         values when the new value is NULL
    * @return The upsert SQL statement
    */
   private String buildMergeUpsertSql(
@@ -921,100 +922,128 @@ public class FlatPostgresCollection extends PostgresCollection {
     String tableName = tableIdentifier.getTableName();
     String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(getPKForTable(tableName));
 
-    Set<Key> updatedKeys = new HashSet<>();
+    // Phase 1: group entries by update structure (paths + operators) — determines SQL template
+    Map<String, List<Map.Entry<Key, Collection<SubDocumentUpdate>>>> bySignature =
+        new LinkedHashMap<>();
+    for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
+      Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
+      if (keyUpdates == null || keyUpdates.isEmpty()) {
+        continue;
+      }
+      bySignature
+          .computeIfAbsent(toUpdateSignature(keyUpdates), k -> new ArrayList<>())
+          .add(entry);
+    }
 
+    // Phase 2: for each group, build SQL once and batch-execute all keys
+    int totalUpdated = 0;
     try (Connection connection = client.getPooledConnection()) {
-      for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
-        Key key = entry.getKey();
-        Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
-
-        if (keyUpdates == null || keyUpdates.isEmpty()) {
-          continue;
-        }
-
+      for (List<Map.Entry<Key, Collection<SubDocumentUpdate>>> group : bySignature.values()) {
         try {
-          boolean updated = updateSingleKey(connection, key, keyUpdates, tableName, quotedPkColumn);
-          if (updated) {
-            updatedKeys.add(key);
-          }
+          totalUpdated += executeBatchForGroup(connection, group, tableName, quotedPkColumn);
         } catch (Exception e) {
-          LOGGER.warn("Failed to update key {}: {}", key, e.getMessage());
-          // Continue with other keys - no cross-key atomicity
+          LOGGER.warn("Failed to execute batch for update group: {}", e.getMessage());
         }
       }
     } catch (SQLException e) {
       throw new IOException("Failed to get connection for bulk update", e);
     }
 
-    return new BulkUpdateResult(updatedKeys.size());
+    return new BulkUpdateResult(totalUpdated);
   }
 
-  private boolean updateSingleKey(
+  private String toUpdateSignature(Collection<SubDocumentUpdate> updates) {
+    return updates.stream()
+        .map(u -> u.getSubDocument().getPath() + ":" + u.getOperator())
+        .collect(Collectors.joining(","));
+  }
+
+  private int executeBatchForGroup(
       Connection connection,
-      Key key,
-      Collection<SubDocumentUpdate> keyUpdates,
+      List<Map.Entry<Key, Collection<SubDocumentUpdate>>> group,
       String tableName,
       String quotedPkColumn)
       throws IOException, SQLException {
 
-    updateValidator.validate(keyUpdates);
-    Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
+    // Validate and resolve columns once — all entries share the same structure
+    Collection<SubDocumentUpdate> firstUpdates = group.get(0).getValue();
+    updateValidator.validate(firstUpdates);
+    Map<String, String> resolvedColumns = resolvePathsToColumns(firstUpdates, tableName);
 
-    return executeKeyUpdate(
-        connection, key, keyUpdates, tableName, quotedPkColumn, resolvedColumns);
-  }
-
-  private boolean executeKeyUpdate(
-      Connection connection,
-      Key key,
-      java.util.Collection<SubDocumentUpdate> keyUpdates,
-      String tableName,
-      String quotedPkColumn,
-      Map<String, String> resolvedColumns)
-      throws SQLException {
-
+    // Build SET clause SQL fragments from the first entry
     List<String> setFragments = new ArrayList<>();
-    List<Object> params = new ArrayList<>();
-
+    List<Object> firstParams = new ArrayList<>();
     boolean hasUpdates =
         buildSetClauseFragments(
-            connection, keyUpdates, tableName, resolvedColumns, setFragments, params);
+            connection, firstUpdates, tableName, resolvedColumns, setFragments, firstParams);
 
     if (!hasUpdates) {
-      return false;
+      return 0;
     }
 
-    // Add lastUpdatedTime to the same UPDATE statement
     if (lastUpdatedTsColumn != null) {
       setFragments.add(String.format("\"%s\" = ?", lastUpdatedTsColumn));
-      params.add(new Timestamp(System.currentTimeMillis()));
     }
 
-    // Build and execute UPDATE SQL for this key
     String sql =
         String.format(
             "UPDATE %s SET %s WHERE %s = ?",
             tableIdentifier, String.join(", ", setFragments), quotedPkColumn);
 
-    params.add(key.toString());
+    LOGGER.debug("Executing batched key update SQL: {} (batch size: {})", sql, group.size());
 
-    LOGGER.debug("Executing key update SQL: {}", sql);
-
+    int updatedCount = 0;
     try (PreparedStatement ps = connection.prepareStatement(sql)) {
-      int idx = 1;
-      for (Object param : params) {
-        ps.setObject(idx++, param);
+      bindBatchParams(ps, firstParams, group.get(0).getKey());
+
+      for (int i = 1; i < group.size(); i++) {
+        Map.Entry<Key, Collection<SubDocumentUpdate>> entry = group.get(i);
+        List<Object> params = new ArrayList<>();
+        try {
+          buildSetClauseFragments(
+              connection, entry.getValue(), tableName, resolvedColumns, new ArrayList<>(), params);
+          bindBatchParams(ps, params, entry.getKey());
+        } catch (Exception e) {
+          LOGGER.warn("Failed to prepare params for key {}: {}", entry.getKey(), e.getMessage());
+        }
       }
-      int rowsUpdated = ps.executeUpdate();
-      return rowsUpdated > 0;
+
+      int[] results = ps.executeBatch();
+      for (int r : results) {
+        if (r > 0 || r == Statement.SUCCESS_NO_INFO) {
+          updatedCount++;
+        }
+      }
+    } catch (BatchUpdateException e) {
+      LOGGER.warn("Batch update partially failed", e);
+      for (int r : e.getUpdateCounts()) {
+        if (r > 0 || r == Statement.SUCCESS_NO_INFO) {
+          updatedCount++;
+        }
+      }
     }
+
+    return updatedCount;
+  }
+
+  private void bindBatchParams(PreparedStatement ps, List<Object> valueParams, Key key)
+      throws SQLException {
+    int idx = 1;
+    for (Object param : valueParams) {
+      ps.setObject(idx++, param);
+    }
+    if (lastUpdatedTsColumn != null) {
+      ps.setObject(idx++, new Timestamp(System.currentTimeMillis()));
+    }
+    ps.setObject(idx, key.toString());
+    ps.addBatch();
   }
 
   /**
    * Validates all updates and resolves column names.
    *
    * @return Map of path -> columnName for all resolved columns. For example: customAttributes.props
-   *     -> customAttributes (since customAttributes is the top-level JSONB col)
+   * -> customAttributes (since customAttributes is the top-level JSONB col)
    */
   private Map<String, String> resolvePathsToColumns(
       Collection<SubDocumentUpdate> updates, String tableName) {
@@ -1087,7 +1116,9 @@ public class FlatPostgresCollection extends PostgresCollection {
     return Optional.empty();
   }
 
-  /** Extracts the nested JSONB path from a full path given the resolved column name. */
+  /**
+   * Extracts the nested JSONB path from a full path given the resolved column name.
+   */
   private String[] getNestedPath(String fullPath, String columnName) {
     if (fullPath.equals(columnName)) {
       return new String[0];
@@ -1492,9 +1523,9 @@ public class FlatPostgresCollection extends PostgresCollection {
    * <p>Unlike {@link #createOrReplaceWithRetry}, this method does NOT reset missing columns to
    * their default values.
    *
-   * @param key The document key
+   * @param key      The document key
    * @param document The document to upsert
-   * @param isRetry Whether this is a retry attempt after schema refresh
+   * @param isRetry  Whether this is a retry attempt after schema refresh
    * @return true if a new document was created, false if an existing document was updated
    */
   private boolean upsertWithRetry(Key key, Document document, boolean isRetry) throws IOException {
@@ -1546,7 +1577,7 @@ public class FlatPostgresCollection extends PostgresCollection {
    * }</pre>
    *
    * @param docColumns columns present in the document
-   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @param pkColumn   The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
   private String buildUpsertSql(List<String> docColumns, String pkColumn) {
@@ -1589,8 +1620,8 @@ public class FlatPostgresCollection extends PostgresCollection {
    * </ul>
    *
    * @param allTableColumns all cols present in the table
-   * @param docColumns cols present in the document
-   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @param docColumns      cols present in the document
+   * @param pkColumn        The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
   private String buildCreateOrReplaceSql(
@@ -1645,7 +1676,9 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
-  /** Returns true if INSERT, false if UPDATE. */
+  /**
+   * Returns true if INSERT, false if UPDATE.
+   */
   private boolean executeUpsertReturningIsInsert(String sql, TypedDocument parsed)
       throws SQLException {
     try (Connection conn = client.getPooledConnection();
