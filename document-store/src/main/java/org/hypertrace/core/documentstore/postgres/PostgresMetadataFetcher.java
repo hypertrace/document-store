@@ -11,7 +11,10 @@ import org.hypertrace.core.documentstore.expression.impl.DataType;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 
-/** Fetches schema metadata directly from Postgres system catalogs (pg_catalog). */
+/**
+ * Fetches schema metadata directly from Postgres system catalogs (pg_catalog). Todo: Composite PKs
+ * are not supported yet
+ */
 @AllArgsConstructor
 public class PostgresMetadataFetcher {
 
@@ -68,7 +71,9 @@ public class PostgresMetadataFetcher {
     }
   }
 
-  /** Maps Postgres udt_name to canonical DataType. */
+  /**
+   * Maps Postgres udt_name to canonical DataType.
+   */
   private DataType mapToCanonicalType(String udtName) {
     if (udtName == null) {
       return DataType.UNSPECIFIED;
@@ -103,7 +108,9 @@ public class PostgresMetadataFetcher {
     }
   }
 
-  /** Maps Postgres udt_name to PostgresDataType. */
+  /**
+   * Maps Postgres udt_name to PostgresDataType.
+   */
   private PostgresDataType mapToPostgresType(String udtName) {
     if (udtName == null) {
       return PostgresDataType.UNKNOWN;
