@@ -1,0 +1,12 @@
+{
+  "id": "default:bulk-replace-return-2",
+  "item": "Original2",
+  "price": 200,
+  "quantity": 75,
+  "tags": ["clothing", "premium"],
+  "scores": [1.5, 2.5, 3.5],
+  "props": {
+    "brand": "OriginalBrand2",
+    "size": "large"
+  }
+}

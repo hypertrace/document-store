@@ -1,0 +1,19 @@
+{
+  "id": "default:bulk-replace-return-1",
+  "item": "Original1",
+  "price": 100,
+  "quantity": 50,
+  "tags": ["electronics", "sale"],
+  "numbers": [10, 20, 30],
+  "props": {
+    "brand": "OriginalBrand1",
+    "color": "red",
+    "nested": {
+      "key": "value1"
+    }
+  },
+  "sales": {
+    "total": 500,
+    "region": "US"
+  }
+}

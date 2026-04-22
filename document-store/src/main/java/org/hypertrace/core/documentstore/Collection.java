@@ -15,19 +15,16 @@ import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 
 /** Interface spec for common operations on a collection of documents */
 public interface Collection {
+
   /**
    * Upsert (create a new doc or update if one already exists) the given document into the doc
    * store.
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
-   * the existing fields are modified is implementation specific. For example, upserting <code>
-   *   {
-   *    "foo2": "bar2"
-   *   }
+   * the existing fields are modified is implementation specific. For example, upserting <code> {
+   * "foo2": "bar2" }
    * </code> if a document <code>
-   *   {
-   *     "foo1": "bar1"
-   *   }
+   * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
    * the "foo1" field is implementation specific
    *
@@ -45,14 +42,10 @@ public interface Collection {
    * store.
    *
    * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
-   * the existing fields are modified is implementation specific. For example, upserting <code>
-   *   {
-   *    "foo2": "bar2"
-   *   }
+   * the existing fields are modified is implementation specific. For example, upserting <code> {
+   * "foo2": "bar2" }
    * </code> if a document <code>
-   *   {
-   *     "foo1": "bar1"
-   *   }
+   * { "foo1": "bar1" }
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
    * the "foo1" field is implementation specific
    *
@@ -104,10 +97,10 @@ public interface Collection {
   /**
    * Search for documents matching the query.
    *
-   * @deprecated Use {@link #query(org.hypertrace.core.documentstore.query.Query, QueryOptions)}
-   *     instead
    * @param query filter to query matching documents
    * @return {@link CloseableIterator} of matching documents
+   * @deprecated Use {@link #query(org.hypertrace.core.documentstore.query.Query, QueryOptions)}
+   *     instead
    */
   @Deprecated(forRemoval = true)
   CloseableIterator<Document> search(Query query);
@@ -269,6 +262,41 @@ public interface Collection {
   boolean createOrReplace(final Key key, final Document document) throws IOException;
 
   /**
+   * Bulk createOrReplace with no atomicity guarantee. It partial documents succeed, the operation
+   * is not rolled back. It's possible that certain document are ignored, if they contain columns
+   * that are not present in the table's schema. This happens when the missingColumnStrategy is
+   * configured to {@link
+   * org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#IGNORE_DOCUMENT}. If it's
+   * configured to {@link
+   * org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#SKIP}, then that column
+   * is skipped (but the document is still created/replaced). If it's configured to be {@link
+   * org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#THROW}, the entire batch
+   * fails.
+   *
+   * <p>Semantically, if the document already exists, each column is replaced with its new value (or
+   * to its default value if not specified). Note that no merge happens. For example, if the
+   * original row contains "tag" : {"k1": "v1"} and the new row contains "tag" : {"k2": "v2"}, then
+   * the final row will be "tag" : {"k2": "v2"}
+   *
+   * @param documents the batch
+   * @return true if the operation succeeded, even partially.
+   */
+  default boolean bulkCreateOrReplace(Map<Key, Document> documents) {
+    throw new UnsupportedOperationException("bulkCreateOrReplace is not supported");
+  }
+
+  /**
+   * Method to bulkCreateOrReplace the given documents and return the previous copies of those
+   * documents. This helps the clients to see how the documents were prior to upserting them and do
+   * that in one less round trip.
+   */
+  default CloseableIterator<Document> bulkCreateOrReplaceReturnOlderDocuments(
+      Map<Key, Document> documents) throws IOException {
+    throw new UnsupportedOperationException(
+        "bulkCreateOrReplaceReturnOlderDocuments is not supported!");
+  }
+
+  /**
    * Atomically create a new document if the key does not exist in the collection or, replace the
    * existing document if the key exists in the collection and return the created/replaced document
    *
@@ -369,6 +397,55 @@ public interface Collection {
       final java.util.Collection<SubDocumentUpdate> updates,
       final UpdateOptions updateOptions)
       throws IOException;
+
+  /**
+   * Bulk update sub-documents with key-specific updates. Each key can have its own set of
+   * SubDocumentUpdate operations, allowing different updates per document.
+   *
+   * <p>This method supports all update operators (SET, UNSET, ADD, APPEND_TO_LIST,
+   * ADD_TO_LIST_IF_ABSENT, REMOVE_ALL_FROM_LIST). Updates for each individual key are applied
+   * atomically, but there is no atomicity guarantee across different keys - some keys may be
+   * updated while others fail. Batch-level atomicity is not guaranteed, while per-key update
+   * atomicity is guaranteed.
+   *
+   * <p>Example usage:
+   *
+   * <pre>{@code
+   * Map<Key, Collection<SubDocumentUpdate>> updates = new HashMap<>();
+   *
+   * // Key 1: SET a field and ADD to a number
+   * updates.put(key1, List.of(
+   *     SubDocumentUpdate.of("name", "NewName"),
+   *     SubDocumentUpdate.builder()
+   *         .subDocument("count")
+   *         .operator(UpdateOperator.ADD)
+   *         .subDocumentValue(SubDocumentValue.of(5))
+   *         .build()
+   * ));
+   *
+   * // Key 2: APPEND to an array
+   * updates.put(key2, List.of(
+   *     SubDocumentUpdate.builder()
+   *         .subDocument("tags")
+   *         .operator(UpdateOperator.APPEND_TO_LIST)
+   *         .subDocumentValue(SubDocumentValue.of(new String[]{"newTag"}))
+   *         .build()
+   * ));
+   *
+   * BulkUpdateResult result = collection.bulkUpdate(updates, UpdateOptions.builder().build());
+   * }</pre>
+   *
+   * @param updates Map of Key to Collection of SubDocumentUpdate operations. Each key's updates are
+   *     applied atomically, but no cross-key atomicity is guaranteed.
+   * @param updateOptions Options for the update operation
+   * @return BulkUpdateResult containing the count of successfully updated documents
+   * @throws IOException if the update operation fails
+   */
+  default BulkUpdateResult bulkUpdate(
+      Map<Key, java.util.Collection<SubDocumentUpdate>> updates, UpdateOptions updateOptions)
+      throws IOException {
+    throw new UnsupportedOperationException("bulkUpdate is not supported!");
+  }
 
   String UNSUPPORTED_QUERY_OPERATION = "Query operation is not supported";
 }

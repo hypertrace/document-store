@@ -97,29 +97,12 @@ public class LegacyToQueryFilterTransformationTest {
             pgDatastore.getSchemaRegistry(), FLAT_COLLECTION_NAME);
   }
 
+  private static final String FLAT_COLLECTION_SCHEMA_PATH =
+      "schema/flat_collection_test_schema.sql";
+
   private static void createFlatCollectionSchema() {
-    String createTableSQL =
-        String.format(
-            "CREATE TABLE \"%s\" ("
-                + "\"id\" TEXT PRIMARY KEY,"
-                + "\"item\" TEXT,"
-                + "\"price\" INTEGER,"
-                + "\"quantity\" INTEGER,"
-                + "\"date\" TIMESTAMPTZ,"
-                + "\"in_stock\" BOOLEAN,"
-                + "\"tags\" TEXT[],"
-                + "\"categoryTags\" TEXT[],"
-                + "\"props\" JSONB,"
-                + "\"sales\" JSONB,"
-                + "\"numbers\" INTEGER[],"
-                + "\"scores\" DOUBLE PRECISION[],"
-                + "\"flags\" BOOLEAN[],"
-                + "\"big_number\" BIGINT,"
-                + "\"rating\" REAL,"
-                + "\"created_date\" DATE,"
-                + "\"weight\" DOUBLE PRECISION"
-                + ");",
-            FLAT_COLLECTION_NAME);
+    String schemaTemplate = loadSchemaFromResource();
+    String createTableSQL = String.format(schemaTemplate, FLAT_COLLECTION_NAME);
 
     PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
 
@@ -129,6 +112,23 @@ public class LegacyToQueryFilterTransformationTest {
       LOGGER.info("Created flat collection table: {}", FLAT_COLLECTION_NAME);
     } catch (Exception e) {
       LOGGER.error("Failed to create flat collection schema: {}", e.getMessage(), e);
+    }
+  }
+
+  private static String loadSchemaFromResource() {
+    try (var is =
+            LegacyToQueryFilterTransformationTest.class
+                .getClassLoader()
+                .getResourceAsStream(FLAT_COLLECTION_SCHEMA_PATH);
+        var reader = new java.io.BufferedReader(new java.io.InputStreamReader(is))) {
+      StringBuilder sb = new StringBuilder();
+      String line;
+      while ((line = reader.readLine()) != null) {
+        sb.append(line).append(" ");
+      }
+      return sb.toString().trim();
+    } catch (Exception e) {
+      throw new RuntimeException("Failed to load schema from " + FLAT_COLLECTION_SCHEMA_PATH, e);
     }
   }
 
@@ -202,7 +202,7 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> newResults = collectResults(flatCollection.find(query));
 
       assertNotNull(newResults);
-      assertFalse(newResults.isEmpty(), "Should find at least one document with item='Soap'");
+      assertFalse(newResults.isEmpty());
 
       for (Document doc : newResults) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
@@ -223,9 +223,7 @@ public class LegacyToQueryFilterTransformationTest {
       assertNotNull(results);
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
-        assertTrue(
-            !node.has("item") || !node.get("item").asText().equals("Soap"),
-            "Should not contain item='Soap'");
+        assertTrue(!node.has("item") || !node.get("item").asText().equals("Soap"));
       }
     }
   }
@@ -245,11 +243,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with price > 10");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         if (node.has("price") && !node.get("price").isNull()) {
-          assertTrue(node.get("price").asInt() > 10, "Price should be > 10");
+          assertTrue(node.get("price").asInt() > 10);
         }
       }
     }
@@ -265,11 +263,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with price >= 10");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         if (node.has("price") && !node.get("price").isNull()) {
-          assertTrue(node.get("price").asInt() >= 10, "Price should be >= 10");
+          assertTrue(node.get("price").asInt() >= 10);
         }
       }
     }
@@ -285,11 +283,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with price < 10");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         if (node.has("price") && !node.get("price").isNull()) {
-          assertTrue(node.get("price").asInt() < 10, "Price should be < 10");
+          assertTrue(node.get("price").asInt() < 10);
         }
       }
     }
@@ -305,11 +303,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with price <= 10");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         if (node.has("price") && !node.get("price").isNull()) {
-          assertTrue(node.get("price").asInt() <= 10, "Price should be <= 10");
+          assertTrue(node.get("price").asInt() <= 10);
         }
       }
     }
@@ -331,11 +329,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with item in list");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         String item = node.get("item").asText();
-        assertTrue(items.contains(item), "Item should be in the list: " + item);
+        assertTrue(items.contains(item));
       }
     }
 
@@ -351,12 +349,12 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with item not in list");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         if (node.has("item") && !node.get("item").isNull()) {
           String item = node.get("item").asText();
-          assertFalse(items.contains(item), "Item should NOT be in the list: " + item);
+          assertFalse(items.contains(item));
         }
       }
     }
@@ -373,12 +371,12 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with price in list");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         if (node.has("price") && !node.get("price").isNull()) {
           int price = node.get("price").asInt();
-          assertTrue(prices.contains(price), "Price should be in the list: " + price);
+          assertTrue(prices.contains(price));
         }
       }
     }
@@ -402,11 +400,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents matching AND condition");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         assertEquals("Soap", node.get("item").asText());
-        assertTrue(node.get("price").asInt() > 10, "Price should be > 10");
+        assertTrue(node.get("price").asInt() > 10);
       }
     }
 
@@ -424,13 +422,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents matching OR condition");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         String item = node.get("item").asText();
-        assertTrue(
-            item.equals("Soap") || item.equals("Mirror"),
-            "Item should be 'Soap' or 'Mirror', got: " + item);
+        assertTrue(item.equals("Soap") || item.equals("Mirror"));
       }
     }
 
@@ -451,7 +447,7 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents matching complex condition");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         String item = node.get("item").asText();
@@ -461,9 +457,7 @@ public class LegacyToQueryFilterTransformationTest {
         boolean matchesSoapAndPrice = item.equals("Soap") && price > 10;
         boolean matchesComb = item.equals("Comb");
 
-        assertTrue(
-            matchesSoapAndPrice || matchesComb,
-            "Document should match (Soap AND price>10) OR Comb. Got: " + item + ", " + price);
+        assertTrue(matchesSoapAndPrice || matchesComb);
       }
     }
   }
@@ -485,9 +479,7 @@ public class LegacyToQueryFilterTransformationTest {
       assertNotNull(results);
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
-        assertTrue(
-            node.has("in_stock") && !node.get("in_stock").isNull(),
-            "Document should have in_stock field");
+        assertTrue(node.has("in_stock") && !node.get("in_stock").isNull());
       }
     }
 
@@ -504,9 +496,7 @@ public class LegacyToQueryFilterTransformationTest {
       assertNotNull(results);
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
-        assertTrue(
-            !node.has("in_stock") || node.get("in_stock").isNull(),
-            "Document should not have in_stock field or it should be null");
+        assertTrue(!node.has("in_stock") || node.get("in_stock").isNull());
       }
     }
   }
@@ -526,11 +516,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents matching LIKE pattern");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         String item = node.get("item").asText();
-        assertTrue(item.startsWith("Sha"), "Item should start with 'Sha': " + item);
+        assertTrue(item.startsWith("Sha"));
       }
     }
   }
@@ -550,11 +540,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with props.brand='Dettol'");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         JsonNode props = node.get("props");
-        assertNotNull(props, "props should exist");
+        assertNotNull(props);
         assertEquals("Dettol", props.get("brand").asText());
       }
     }
@@ -591,13 +581,13 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with props.brand in list");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         JsonNode props = node.get("props");
-        assertNotNull(props, "props should exist");
+        assertNotNull(props);
         String brand = props.get("brand").asText();
-        assertTrue(brands.contains(brand), "Brand should be in list: " + brand);
+        assertTrue(brands.contains(brand));
       }
     }
 
@@ -613,13 +603,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(
-          results.isEmpty(),
-          "Should find documents with props.seller.name='Metro Chemicals Pvt. Ltd.'");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         JsonNode seller = node.path("props").path("seller");
-        assertNotNull(seller, "seller should exist");
+        assertNotNull(seller);
         assertEquals("Metro Chemicals Pvt. Ltd.", seller.get("name").asText());
       }
     }
@@ -635,12 +623,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(
-          results.isEmpty(), "Should find documents with props.seller.address.city='Kolkata'");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         JsonNode address = node.path("props").path("seller").path("address");
-        assertNotNull(address, "address should exist");
+        assertNotNull(address);
         assertEquals("Kolkata", address.get("city").asText());
       }
     }
@@ -656,11 +643,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents with props.colors containing 'Blue'");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         JsonNode colors = node.path("props").path("colors");
-        assertTrue(colors.isArray(), "colors should be an array");
+        assertTrue(colors.isArray());
         boolean containsBlue = false;
         for (JsonNode color : colors) {
           if ("Blue".equals(color.asText())) {
@@ -668,7 +655,7 @@ public class LegacyToQueryFilterTransformationTest {
             break;
           }
         }
-        assertTrue(containsBlue, "colors should contain 'Blue'");
+        assertTrue(containsBlue);
       }
     }
 
@@ -683,13 +670,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(
-          results.isEmpty(),
-          "Should find documents with props.source-loc containing 'warehouse-A'");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         JsonNode sourceLoc = node.path("props").path("source-loc");
-        assertTrue(sourceLoc.isArray(), "source-loc should be an array");
+        assertTrue(sourceLoc.isArray());
         boolean containsWarehouseA = false;
         for (JsonNode loc : sourceLoc) {
           if ("warehouse-A".equals(loc.asText())) {
@@ -697,7 +682,7 @@ public class LegacyToQueryFilterTransformationTest {
             break;
           }
         }
-        assertTrue(containsWarehouseA, "source-loc should contain 'warehouse-A'");
+        assertTrue(containsWarehouseA);
       }
     }
 
@@ -715,7 +700,7 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents matching nested AND condition");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         JsonNode props = node.get("props");
@@ -738,13 +723,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(results.isEmpty(), "Should find documents matching nested OR condition");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         String brand = node.path("props").get("brand").asText();
-        assertTrue(
-            brand.equals("Dettol") || brand.equals("Sunsilk"),
-            "Brand should be 'Dettol' or 'Sunsilk', got: " + brand);
+        assertTrue(brand.equals("Dettol") || brand.equals("Sunsilk"));
       }
     }
 
@@ -759,14 +742,11 @@ public class LegacyToQueryFilterTransformationTest {
       List<Document> results = collectResults(flatCollection.find(query));
 
       assertNotNull(results);
-      assertFalse(
-          results.isEmpty(), "Should find documents with props.product-code like 'SOAP-.*'");
+      assertFalse(results.isEmpty());
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         String productCode = node.path("props").get("product-code").asText();
-        assertTrue(
-            productCode.startsWith("SOAP-"),
-            "product-code should start with 'SOAP-': " + productCode);
+        assertTrue(productCode.startsWith("SOAP-"));
       }
     }
 
@@ -784,8 +764,7 @@ public class LegacyToQueryFilterTransformationTest {
       for (Document doc : results) {
         JsonNode node = OBJECT_MAPPER.readTree(doc.toJson());
         JsonNode brand = node.path("props").path("brand");
-        assertTrue(
-            !brand.isMissingNode() && !brand.isNull(), "props.brand should exist and not be null");
+        assertTrue(!brand.isMissingNode() && !brand.isNull());
       }
     }
 
@@ -805,9 +784,7 @@ public class LegacyToQueryFilterTransformationTest {
         JsonNode props = node.get("props");
         if (props != null && !props.isNull()) {
           JsonNode brand = props.get("brand");
-          assertTrue(
-              brand == null || brand.isNull() || brand.isMissingNode(),
-              "props.brand should not exist or be null");
+          assertTrue(brand == null || brand.isNull() || brand.isMissingNode());
         }
       }
     }
