@@ -71,9 +71,7 @@ public class PostgresMetadataFetcher {
     }
   }
 
-  /**
-   * Maps Postgres udt_name to canonical DataType.
-   */
+  /** Maps Postgres udt_name to canonical DataType. */
   private DataType mapToCanonicalType(String udtName) {
     if (udtName == null) {
       return DataType.UNSPECIFIED;
@@ -108,9 +106,7 @@ public class PostgresMetadataFetcher {
     }
   }
 
-  /**
-   * Maps Postgres udt_name to PostgresDataType.
-   */
+  /** Maps Postgres udt_name to PostgresDataType. */
   private PostgresDataType mapToPostgresType(String udtName) {
     if (udtName == null) {
       return PostgresDataType.UNKNOWN;
