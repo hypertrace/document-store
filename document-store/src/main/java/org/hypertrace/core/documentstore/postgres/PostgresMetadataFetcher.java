@@ -62,10 +62,6 @@ public class PostgresMetadataFetcher {
                   isPrimaryKey));
         }
       }
-      if (metadataMap.isEmpty()) {
-        throw new RuntimeException(
-            "No columns found for table: " + tableName + ". Table may not exist.");
-      }
       return metadataMap;
     } catch (SQLException e) {
       throw new RuntimeException("Failed to fetch Postgres metadata for table: " + tableName, e);
