@@ -40,7 +40,6 @@ import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.PostgresDatastore;
 import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,34 +67,9 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         postgresDatastore.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
   }
 
-  private static void executeInsertStatements() {
-    PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-    try {
-      String jsonContent = readFileFromResource(INSERT_STATEMENTS_FILE).orElseThrow();
-      JsonNode rootNode = OBJECT_MAPPER.readTree(jsonContent);
-      JsonNode statementsNode = rootNode.get("statements");
-
-      if (statementsNode == null || !statementsNode.isArray()) {
-        throw new RuntimeException("Invalid JSON format: 'statements' array not found");
-      }
-
-      try (Connection connection = pgDatastore.getPostgresClient()) {
-        for (JsonNode statementNode : statementsNode) {
-          String statement = statementNode.asText().trim();
-          if (!statement.isEmpty()) {
-            try (PreparedStatement preparedStatement = connection.prepareStatement(statement)) {
-              preparedStatement.executeUpdate();
-            } catch (Exception e) {
-              LOGGER.error("Failed to execute INSERT statement: {}", e.getMessage(), e);
-              throw e;
-            }
-          }
-        }
-      }
-      LOGGER.info("Inserted initial data into: {}", FLAT_COLLECTION_NAME);
-    } catch (Exception e) {
-      LOGGER.error("Failed to execute INSERT statements: {}", e.getMessage(), e);
-    }
+  @AfterAll
+  public static void shutdown() {
+    shutdownPostgres();
   }
 
   @BeforeEach
@@ -103,16 +77,6 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     // Clear and repopulate with initial data before each test
     clearTable(FLAT_COLLECTION_NAME);
     executeInsertStatements();
-  }
-
-  @AfterEach
-  public void cleanup() {
-    // Data is cleared in @BeforeEach, but cleanup here for safety
-  }
-
-  @AfterAll
-  public static void shutdown() {
-    shutdownPostgres();
   }
 
   @Nested
@@ -186,65 +150,6 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     }
 
     @Test
-    @DisplayName("Upsert vs CreateOrReplace: upsert preserves, createOrReplace resets to default")
-    void testUpsertVsCreateOrReplaceBehavior() throws Exception {
-      String docId1 = generateDocId("test");
-      String docId2 = generateDocId("test");
-
-      // Setup: Create two identical documents
-      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
-      initialNode.put("item", "Original Item");
-      initialNode.put("price", 100);
-      initialNode.put("quantity", 50);
-
-      ObjectNode doc1 = initialNode.deepCopy();
-      doc1.put("id", docId1);
-      ObjectNode doc2 = initialNode.deepCopy();
-      doc2.put("id", docId2);
-
-      Key key1 = new SingleValueKey(DEFAULT_TENANT, docId1);
-      Key key2 = new SingleValueKey(DEFAULT_TENANT, docId2);
-
-      flatCollection.upsert(key1, new JSONDocument(doc1));
-      flatCollection.upsert(key2, new JSONDocument(doc2));
-
-      // Now update both with partial documents (only item field)
-      ObjectNode partialUpdate = OBJECT_MAPPER.createObjectNode();
-      partialUpdate.put("item", "Updated Item");
-
-      ObjectNode partial1 = partialUpdate.deepCopy();
-      partial1.put("id", docId1);
-      ObjectNode partial2 = partialUpdate.deepCopy();
-      partial2.put("id", docId2);
-
-      // Use upsert for doc1 - should PRESERVE price and quantity
-      flatCollection.upsert(key1, new JSONDocument(partial1));
-
-      // Use createOrReplace for doc2 - should RESET price and quantity to NULL (default)
-      flatCollection.createOrReplace(key2, new JSONDocument(partial2));
-
-      // Verify upsert preserved original values
-      queryAndAssert(
-          key1,
-          rs -> {
-            assertTrue(rs.next());
-            assertEquals("Updated Item", rs.getString("item"));
-            assertEquals(100, rs.getInt("price")); // PRESERVED
-            assertEquals(50, rs.getInt("quantity")); // PRESERVED
-          });
-
-      // Verify createOrReplace reset to defaults
-      queryAndAssert(
-          key2,
-          rs -> {
-            assertTrue(rs.next());
-            assertEquals("Updated Item", rs.getString("item"));
-            assertNull(rs.getObject("price")); // RESET to NULL
-            assertNull(rs.getObject("quantity")); // RESET to NULL
-          });
-    }
-
-    @Test
     @DisplayName("Should skip unknown fields in upsert (default SKIP strategy)")
     void testUpsertSkipsUnknownFields() throws Exception {
       String docId = generateDocId("test");
@@ -285,568 +190,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
   }
 
   @Nested
-  @DisplayName("Create Operations")
-  class CreateTests {
-
-    @Test
-    @DisplayName("Should create document with all supported data types")
-    void testCreateWithAllDataTypes() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      String docId = generateDocId("test");
-
-      objectNode.put("id", docId);
-      objectNode.put("item", "Comprehensive Test Item");
-      objectNode.put("price", 999);
-      objectNode.put("quantity", "50");
-      objectNode.put("big_number", 9223372036854775807L);
-      objectNode.put("rating", 4.5f);
-      objectNode.put("weight", 123.456789);
-      objectNode.put("in_stock", true);
-      objectNode.put("date", 1705315800000L);
-      objectNode.put("created_date", "2024-01-15");
-      objectNode.putArray("tags").add("electronics").add("sale").add("featured");
-      objectNode.put("categoryTags", "single-category");
-      objectNode.putArray("numbers").add(10).add(20).add(30);
-      objectNode.putArray("scores").add(1.5).add(2.5).add(3.5);
-      objectNode.putArray("flags").add(true).add(false).add(true);
-
-      ObjectNode propsNode = OBJECT_MAPPER.createObjectNode();
-      propsNode.put("color", "blue");
-      propsNode.put("size", "large");
-      propsNode.put("weight", 2.5);
-      propsNode.put("warranty", true);
-      propsNode.putObject("nested").put("key", "value");
-      objectNode.set("props", propsNode);
-
-      ObjectNode salesNode = OBJECT_MAPPER.createObjectNode();
-      salesNode.put("total", 1000);
-      salesNode.put("region", "US");
-      objectNode.set("sales", salesNode);
-
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      CreateResult result = flatCollection.create(key, document);
-
-      assertTrue(result.isSucceed());
-      assertFalse(result.isPartial());
-      assertTrue(result.getSkippedFields().isEmpty());
-
-      // Verify all data types were inserted correctly
-      queryAndAssert(
-          key,
-          rs -> {
-            assertTrue(rs.next());
-
-            assertEquals("Comprehensive Test Item", rs.getString("item"));
-            assertEquals(999, rs.getInt("price"));
-            assertEquals(50, rs.getInt("quantity"));
-            assertEquals(9223372036854775807L, rs.getLong("big_number"));
-            assertEquals(4.5f, rs.getFloat("rating"), 0.01f);
-            assertEquals(123.456789, rs.getDouble("weight"), 0.0001);
-            assertTrue(rs.getBoolean("in_stock"));
-            assertEquals(1705315800000L, rs.getTimestamp("date").getTime()); // epoch millis
-            assertNotNull(rs.getDate("created_date"));
-
-            String[] tags = (String[]) rs.getArray("tags").getArray();
-            assertEquals(3, tags.length);
-            assertEquals("electronics", tags[0]);
-            assertEquals("sale", tags[1]);
-            assertEquals("featured", tags[2]);
-
-            // Single value auto-converted to array
-            String[] categoryTags = (String[]) rs.getArray("categoryTags").getArray();
-            assertEquals(1, categoryTags.length);
-            assertEquals("single-category", categoryTags[0]);
-
-            Integer[] numbers = (Integer[]) rs.getArray("numbers").getArray();
-            assertEquals(3, numbers.length);
-            assertEquals(10, numbers[0]);
-            assertEquals(20, numbers[1]);
-            assertEquals(30, numbers[2]);
-
-            Double[] scores = (Double[]) rs.getArray("scores").getArray();
-            assertEquals(3, scores.length);
-            assertEquals(1.5, scores[0], 0.01);
-
-            Boolean[] flags = (Boolean[]) rs.getArray("flags").getArray();
-            assertEquals(3, flags.length);
-            assertTrue(flags[0]);
-            assertFalse(flags[1]);
-
-            String propsJson = rs.getString("props");
-            assertNotNull(propsJson);
-            JsonNode propsResult = OBJECT_MAPPER.readTree(propsJson);
-            assertEquals("blue", propsResult.get("color").asText());
-            assertEquals("large", propsResult.get("size").asText());
-            assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
-            assertTrue(propsResult.get("warranty").asBoolean());
-            assertEquals("value", propsResult.get("nested").get("key").asText());
-
-            String salesJson = rs.getString("sales");
-            assertNotNull(salesJson);
-            JsonNode salesResult = OBJECT_MAPPER.readTree(salesJson);
-            assertEquals(1000, salesResult.get("total").asInt());
-            assertEquals("US", salesResult.get("region").asText());
-          });
-    }
-
-    @Test
-    @DisplayName("Should throw DuplicateDocumentException when creating with existing key")
-    void testCreateDuplicateDocument() throws Exception {
-
-      String docId = generateDocId("test");
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "dup-doc-200");
-      objectNode.put("item", "First Item");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      CreateResult createResult = flatCollection.create(key, document);
-      Preconditions.checkArgument(
-          createResult.isSucceed(),
-          "Preconditions failure: Could not create doc with id: " + docId);
-
-      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
-      objectNode2.put("id", "dup-doc-200");
-      objectNode2.put("item", "Second Item");
-      Document document2 = new JSONDocument(objectNode2);
-
-      assertThrows(DuplicateDocumentException.class, () -> flatCollection.create(key, document2));
-    }
-
-    @ParameterizedTest
-    @DisplayName(
-        "When MissingColumnStrategy is Throw, should throw an exception for unknown fields. Unknown fields are those fields that are not found in the schema but are present in the doc")
-    @ArgumentsSource(MissingColumnStrategyProvider.class)
-    void testUnknownFieldsAsPerMissingColumnStrategy(MissingColumnStrategy missingColumnStrategy)
-        throws Exception {
-
-      String docId = generateDocId("test");
-
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", docId);
-      objectNode.put("item", "Item");
-      objectNode.put("unknown_column", "should throw");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      if (missingColumnStrategy == MissingColumnStrategy.THROW) {
-        Collection collection =
-            getFlatCollectionWithStrategy(MissingColumnStrategy.THROW.toString());
-        assertThrows(SchemaMismatchException.class, () -> collection.create(key, document));
-        // Verify no document was inserted
-        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-        try (Connection conn = pgDatastore.getPostgresClient();
-            PreparedStatement ps =
-                conn.prepareStatement(
-                    String.format(
-                        "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = '%s'",
-                        FLAT_COLLECTION_NAME, key));
-            ResultSet rs = ps.executeQuery()) {
-          assertTrue(rs.next());
-          assertEquals(0, rs.getInt(1));
-        }
-      } else {
-        CreateResult result = flatCollection.create(key, document);
-        // for SKIP
-        assertTrue(result.isSucceed());
-        // this is a partial write because unknown_column was not written to
-        assertTrue(result.isPartial());
-        assertTrue(result.getSkippedFields().contains("unknown_column"));
-
-        queryAndAssert(
-            key,
-            rs -> {
-              assertTrue(rs.next());
-              assertEquals("Item", rs.getString("item"));
-            });
-      }
-    }
-
-    @Test
-    @DisplayName(
-        "Should use default SKIP strategy when missingColumnStrategy config is empty string")
-    void testEmptyMissingColumnStrategyConfigUsesDefault() throws Exception {
-      Collection collectionWithEmptyStrategy = getFlatCollectionWithStrategy("");
-
-      // Test that it uses default SKIP strategy (unknown fields are skipped, not thrown)
-      String docId = generateDocId("test");
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", docId);
-      objectNode.put("item", "Test Item");
-      objectNode.put("unknown_field", "should be skipped with default SKIP strategy");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      CreateResult result = collectionWithEmptyStrategy.create(key, document);
-
-      // With default SKIP strategy, unknown fields are skipped
-      assertTrue(result.isSucceed());
-      assertTrue(result.isPartial());
-      assertTrue(result.getSkippedFields().contains("unknown_field"));
-    }
-
-    @Test
-    @DisplayName("Should use default SKIP strategy when missingColumnStrategy config is invalid")
-    void testInvalidMissingColumnStrategyConfigUsesDefault() throws Exception {
-      Collection collectionWithInvalidStrategy = getFlatCollectionWithStrategy("INVALID_STRATEGY");
-
-      String docId = generateDocId("test");
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", docId);
-      objectNode.put("item", "Test Item");
-      objectNode.put("unknown_field", "should be skipped with default SKIP strategy");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      CreateResult result = collectionWithInvalidStrategy.create(key, document);
-
-      // With default SKIP strategy, unknown fields are skipped
-      assertTrue(result.isSucceed());
-      assertTrue(result.isPartial());
-      assertTrue(result.getSkippedFields().contains("unknown_field"));
-    }
-
-    @Test
-    @DisplayName("Should return failure when all fields are unknown (parsed.isEmpty)")
-    void testCreateFailsWhenAllFieldsAreUnknown() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("completely_unknown_field1", "value1");
-      objectNode.put("completely_unknown_field2", "value2");
-      objectNode.put("another_nonexistent_column", 123);
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "all-unknown-doc-700");
-
-      CreateResult result = flatCollection.create(key, document);
-
-      // Although no column exists in the schema, it'll create a new doc with the key as the id
-      assertTrue(result.isSucceed());
-      assertEquals(3, result.getSkippedFields().size());
-      assertTrue(
-          result
-              .getSkippedFields()
-              .containsAll(
-                  List.of(
-                      "completely_unknown_field1",
-                      "completely_unknown_field2",
-                      "another_nonexistent_column")));
-
-      // Verify no row was inserted
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps =
-              conn.prepareStatement(
-                  String.format(
-                      "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = '%s'",
-                      FLAT_COLLECTION_NAME, key));
-          ResultSet rs = ps.executeQuery()) {
-        assertTrue(rs.next());
-        assertEquals(1, rs.getInt(1));
-      }
-    }
-
-    @Test
-    @DisplayName("Should refresh schema and retry on UNDEFINED_COLUMN error")
-    void testCreateRefreshesSchemaOnUndefinedColumnError() throws Exception {
-      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-
-      // Step 1: Add a temporary column and do a create to cache the schema
-      String addColumnSQL =
-          String.format("ALTER TABLE \"%s\" ADD COLUMN \"temp_col\" TEXT", FLAT_COLLECTION_NAME);
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps = conn.prepareStatement(addColumnSQL)) {
-        ps.execute();
-        LOGGER.info("Added temporary column 'temp_col' to table");
-      }
-
-      // Step 2: Create a document with the temp column to cache the schema
-      ObjectNode objectNode1 = OBJECT_MAPPER.createObjectNode();
-      objectNode1.put("id", "cache-schema-doc");
-      objectNode1.put("item", "Item to cache schema");
-      objectNode1.put("temp_col", "temp value");
-      flatCollection.create(
-          new SingleValueKey("default", "cache-schema-doc"), new JSONDocument(objectNode1));
-      LOGGER.info("Schema cached with temp_col");
-
-      // Step 3: DROP the column - now the cached schema is stale
-      String dropColumnSQL =
-          String.format("ALTER TABLE \"%s\" DROP COLUMN \"temp_col\"", FLAT_COLLECTION_NAME);
-      try (Connection conn = pgDatastore.getPostgresClient();
-          PreparedStatement ps = conn.prepareStatement(dropColumnSQL)) {
-        ps.execute();
-        LOGGER.info("Dropped temp_col - schema cache is now stale");
-      }
-
-      // Step 4: Try to create with the dropped column
-      // Schema registry still thinks temp_col exists, so it will include it in INSERT
-      // INSERT will fail with UNDEFINED_COLUMN, triggering handlePSQLExceptionForCreate
-      // which will refresh schema and retry
-      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
-      objectNode2.put("id", "retry-doc-800");
-      objectNode2.put("item", "Item after schema refresh");
-      objectNode2.put("temp_col", "this column no longer exists");
-      Document document = new JSONDocument(objectNode2);
-      Key key = new SingleValueKey("default", "retry-doc-800");
-
-      CreateResult result = flatCollection.create(key, document);
-
-      // Should succeed - temp_col will be skipped (either via retry or schema refresh)
-      assertTrue(result.isSucceed());
-      // The dropped column should be skipped
-      assertTrue(result.getSkippedFields().contains("temp_col"));
-
-      // Verify the valid fields were inserted
-      queryAndAssert(
-          key,
-          rs -> {
-            assertTrue(rs.next());
-            assertEquals("Item after schema refresh", rs.getString("item"));
-          });
-    }
-
-    @ParameterizedTest
-    @DisplayName("Should skip column with unparseable value and add to skippedFields")
-    @ArgumentsSource(MissingColumnStrategyProvider.class)
-    void testUnparsableValuesAsPerMissingColStrategy(MissingColumnStrategy missingColumnStrategy)
-        throws Exception {
-
-      String docId = generateDocId("test");
-
-      // Try to insert a string value into an integer column with wrong type
-      // The unparseable column should be skipped, not throw an exception
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", docId);
-      objectNode.put("item", "Valid Item");
-      objectNode.put("price", "not_a_number_at_all"); // price is INTEGER, this will fail parsing
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      if (missingColumnStrategy == MissingColumnStrategy.THROW) {
-        CreateResult result =
-            getFlatCollectionWithStrategy(MissingColumnStrategy.SKIP.toString())
-                .create(key, document);
-
-        // Should succeed with the valid columns, skipping the unparseable one
-        assertTrue(result.isSucceed());
-        assertTrue(result.isPartial());
-        assertEquals(1, result.getSkippedFields().size());
-        assertTrue(result.getSkippedFields().contains("price"));
-
-        // Verify the valid fields were inserted
-        queryAndAssert(
-            key,
-            rs -> {
-              assertTrue(rs.next());
-              assertEquals("Valid Item", rs.getString("item"));
-              // price should be null since it was skipped
-              assertEquals(0, rs.getInt("price"));
-              assertTrue(rs.wasNull());
-            });
-      } else {
-        // SKIP strategy: unparseable value should be skipped, document created
-        CreateResult result = flatCollection.create(key, document);
-        assertTrue(result.isSucceed());
-        assertTrue(result.isPartial());
-        assertEquals(1, result.getSkippedFields().size());
-        assertTrue(result.getSkippedFields().contains("price"));
-
-        // Verify the valid fields were inserted
-        queryAndAssert(
-            key,
-            rs -> {
-              assertTrue(rs.next());
-              assertEquals("Valid Item", rs.getString("item"));
-              // price should be null since it was skipped
-              assertEquals(0, rs.getInt("price"));
-              assertTrue(rs.wasNull());
-            });
-      }
-    }
-  }
-
-  private static Collection getFlatCollectionWithStrategy(String strategy) {
-    String postgresConnectionUrl =
-        String.format("jdbc:postgresql://localhost:%s/", postgresContainer.getMappedPort(5432));
-
-    Map<String, String> configWithStrategy = new HashMap<>();
-    configWithStrategy.put("url", postgresConnectionUrl);
-    configWithStrategy.put("user", "postgres");
-    configWithStrategy.put("password", "postgres");
-    configWithStrategy.put("customParams.missingColumnStrategy", strategy);
-
-    Datastore datastoreWithStrategy =
-        DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(configWithStrategy));
-
-    return datastoreWithStrategy.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
-  }
-
-  private void queryAndAssert(Key key, ResultSetConsumer consumer) throws Exception {
-    PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
-    try (Connection conn = pgDatastore.getPostgresClient();
-        PreparedStatement ps =
-            conn.prepareStatement(
-                String.format(
-                    "SELECT * FROM \"%s\" WHERE \"id\" = '%s'", FLAT_COLLECTION_NAME, key));
-        ResultSet rs = ps.executeQuery()) {
-      consumer.accept(rs);
-    }
-  }
-
-  @FunctionalInterface
-  interface ResultSetConsumer {
-
-    void accept(ResultSet rs) throws Exception;
-  }
-
-  @Nested
-  @DisplayName("CreateOrReplace Operations")
-  class CreateOrReplaceTests {
-
-    @Test
-    @DisplayName(
-        "Should create new document and return true. Cols not specified should be set of default NULL")
-    void testCreateOrReplaceNewDocument() throws Exception {
-
-      String docId = generateDocId("test");
-
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "upsert-new-doc-100");
-      objectNode.put("item", "New Upsert Item");
-      objectNode.put("price", 500);
-      objectNode.put("quantity", 25);
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      boolean isNew = flatCollection.createOrReplace(key, document);
-
-      assertTrue(isNew);
-
-      queryAndAssert(
-          key,
-          rs -> {
-            assertTrue(rs.next());
-            assertEquals("New Upsert Item", rs.getString("item"));
-            assertEquals(500, rs.getInt("price"));
-            assertEquals(25, rs.getInt("quantity"));
-            // assert on some fields that they're set to null correctly
-            assertNull(rs.getObject("sales"));
-            assertNull(rs.getObject("categoryTags"));
-            assertNull(rs.getObject("date"));
-          });
-    }
-
-    @Test
-    @DisplayName("Should replace existing document and return false")
-    void testCreateOrReplaceExistingDocument() throws Exception {
-      String docId = generateDocId("test");
-      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
-      initialNode.put("id", docId);
-      initialNode.put("item", "Original Item");
-      initialNode.put("price", 100);
-      Document initialDoc = new JSONDocument(initialNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      boolean firstResult = flatCollection.createOrReplace(key, initialDoc);
-
-      Preconditions.checkArgument(
-          firstResult, "Preconditions failure: Could not create first document with id: " + docId);
-
-      // Now replace with updated document
-      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
-      updatedNode.put("id", docId);
-      updatedNode.put("item", "Updated Item");
-      updatedNode.put("quantity", 50);
-      Document updatedDoc = new JSONDocument(updatedNode);
-
-      boolean secondResult = flatCollection.createOrReplace(key, updatedDoc);
-
-      assertFalse(secondResult);
-
-      queryAndAssert(
-          key,
-          rs -> {
-            assertTrue(rs.next());
-            assertEquals("Updated Item", rs.getString("item"));
-            // this should be the default since price is not present in the updated document
-            assertNull(rs.getObject("price"));
-            assertEquals(50, rs.getInt("quantity"));
-          });
-    }
-
-    @Test
-    @DisplayName("Should skip unknown fields in createOrReplace (default SKIP strategy)")
-    void testCreateOrReplaceSkipsUnknownFields() throws Exception {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("id", "upsert-skip-fields-300");
-      objectNode.put("item", "Item with unknown");
-      objectNode.put("price", 200);
-      objectNode.put("unknown_field", "should be skipped");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "upsert-skip-fields-300");
-
-      boolean isNew = flatCollection.createOrReplace(key, document);
-      assertTrue(isNew);
-
-      // Verify only known fields were inserted
-      queryAndAssert(
-          key,
-          rs -> {
-            assertTrue(rs.next());
-            assertEquals("Item with unknown", rs.getString("item"));
-            assertEquals(200, rs.getInt("price"));
-          });
-    }
-
-    @Test
-    @DisplayName("Should handle JSONB fields in createOrReplace")
-    void testCreateOrReplaceWithJsonbField() throws Exception {
-      String docId = generateDocId("test");
-      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
-      initialNode.put("id", docId);
-      initialNode.put("item", "Item with props");
-      ObjectNode initialProps = OBJECT_MAPPER.createObjectNode();
-      initialProps.put("color", "red");
-      initialProps.put("size", "small");
-      initialNode.set("props", initialProps);
-      Document initialDoc = new JSONDocument(initialNode);
-      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
-
-      boolean wasCreated = flatCollection.createOrReplace(key, initialDoc);
-      Preconditions.checkArgument(
-          wasCreated, "Precondition failure: Doc could not be created with id: " + docId);
-
-      // Update with new JSONB value
-      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
-      updatedNode.put("id", docId);
-      updatedNode.put("item", "Updated Item");
-      ObjectNode updatedProps = OBJECT_MAPPER.createObjectNode();
-      updatedProps.put("color", "blue");
-      updatedProps.put("size", "large");
-      updatedProps.put("weight", 2.5);
-      updatedNode.set("props", updatedProps);
-      Document updatedDoc = new JSONDocument(updatedNode);
-
-      boolean isNew = flatCollection.createOrReplace(key, updatedDoc);
-      assertFalse(isNew);
-
-      // Verify JSONB was updated
-      queryAndAssert(
-          key,
-          rs -> {
-            assertTrue(rs.next());
-            JsonNode propsResult = OBJECT_MAPPER.readTree(rs.getString("props"));
-            assertEquals("blue", propsResult.get("color").asText());
-            assertEquals("large", propsResult.get("size").asText());
-            assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
-          });
-    }
-  }
-
-  @Nested
-  @DisplayName("Bulk Operations")
-  class BulkOperationTests {
-
+  class BulkUpsertTests {
     @Test
     @DisplayName("Should bulk upsert multiple new documents")
     void testBulkUpsertNewDocuments() throws Exception {
@@ -1233,6 +577,636 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         }
       }
     }
+  }
+
+  @Nested
+  @DisplayName("Create Operations")
+  class CreateTests {
+
+    @Test
+    @DisplayName("Should create document with all supported data types")
+    void testCreateWithAllDataTypes() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      String docId = generateDocId("test");
+
+      objectNode.put("id", docId);
+      objectNode.put("item", "Comprehensive Test Item");
+      objectNode.put("price", 999);
+      objectNode.put("quantity", "50");
+      objectNode.put("big_number", 9223372036854775807L);
+      objectNode.put("rating", 4.5f);
+      objectNode.put("weight", 123.456789);
+      objectNode.put("in_stock", true);
+      objectNode.put("date", 1705315800000L);
+      objectNode.put("created_date", "2024-01-15");
+      objectNode.putArray("tags").add("electronics").add("sale").add("featured");
+      objectNode.put("categoryTags", "single-category");
+      objectNode.putArray("numbers").add(10).add(20).add(30);
+      objectNode.putArray("scores").add(1.5).add(2.5).add(3.5);
+      objectNode.putArray("flags").add(true).add(false).add(true);
+
+      ObjectNode propsNode = OBJECT_MAPPER.createObjectNode();
+      propsNode.put("color", "blue");
+      propsNode.put("size", "large");
+      propsNode.put("weight", 2.5);
+      propsNode.put("warranty", true);
+      propsNode.putObject("nested").put("key", "value");
+      objectNode.set("props", propsNode);
+
+      ObjectNode salesNode = OBJECT_MAPPER.createObjectNode();
+      salesNode.put("total", 1000);
+      salesNode.put("region", "US");
+      objectNode.set("sales", salesNode);
+
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      CreateResult result = flatCollection.create(key, document);
+
+      assertTrue(result.isSucceed());
+      assertFalse(result.isPartial());
+      assertTrue(result.getSkippedFields().isEmpty());
+
+      // Verify all data types were inserted correctly
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+
+            assertEquals("Comprehensive Test Item", rs.getString("item"));
+            assertEquals(999, rs.getInt("price"));
+            assertEquals(50, rs.getInt("quantity"));
+            assertEquals(9223372036854775807L, rs.getLong("big_number"));
+            assertEquals(4.5f, rs.getFloat("rating"), 0.01f);
+            assertEquals(123.456789, rs.getDouble("weight"), 0.0001);
+            assertTrue(rs.getBoolean("in_stock"));
+            assertEquals(1705315800000L, rs.getTimestamp("date").getTime()); // epoch millis
+            assertNotNull(rs.getDate("created_date"));
+
+            String[] tags = (String[]) rs.getArray("tags").getArray();
+            assertEquals(3, tags.length);
+            assertEquals("electronics", tags[0]);
+            assertEquals("sale", tags[1]);
+            assertEquals("featured", tags[2]);
+
+            // Single value auto-converted to array
+            String[] categoryTags = (String[]) rs.getArray("categoryTags").getArray();
+            assertEquals(1, categoryTags.length);
+            assertEquals("single-category", categoryTags[0]);
+
+            Integer[] numbers = (Integer[]) rs.getArray("numbers").getArray();
+            assertEquals(3, numbers.length);
+            assertEquals(10, numbers[0]);
+            assertEquals(20, numbers[1]);
+            assertEquals(30, numbers[2]);
+
+            Double[] scores = (Double[]) rs.getArray("scores").getArray();
+            assertEquals(3, scores.length);
+            assertEquals(1.5, scores[0], 0.01);
+
+            Boolean[] flags = (Boolean[]) rs.getArray("flags").getArray();
+            assertEquals(3, flags.length);
+            assertTrue(flags[0]);
+            assertFalse(flags[1]);
+
+            String propsJson = rs.getString("props");
+            assertNotNull(propsJson);
+            JsonNode propsResult = OBJECT_MAPPER.readTree(propsJson);
+            assertEquals("blue", propsResult.get("color").asText());
+            assertEquals("large", propsResult.get("size").asText());
+            assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
+            assertTrue(propsResult.get("warranty").asBoolean());
+            assertEquals("value", propsResult.get("nested").get("key").asText());
+
+            String salesJson = rs.getString("sales");
+            assertNotNull(salesJson);
+            JsonNode salesResult = OBJECT_MAPPER.readTree(salesJson);
+            assertEquals(1000, salesResult.get("total").asInt());
+            assertEquals("US", salesResult.get("region").asText());
+          });
+    }
+
+    @Test
+    @DisplayName("Should throw DuplicateDocumentException when creating with existing key")
+    void testCreateDuplicateDocument() throws Exception {
+
+      String docId = generateDocId("test");
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "dup-doc-200");
+      objectNode.put("item", "First Item");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      CreateResult createResult = flatCollection.create(key, document);
+      Preconditions.checkArgument(
+          createResult.isSucceed(),
+          "Preconditions failure: Could not create doc with id: " + docId);
+
+      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
+      objectNode2.put("id", "dup-doc-200");
+      objectNode2.put("item", "Second Item");
+      Document document2 = new JSONDocument(objectNode2);
+
+      assertThrows(DuplicateDocumentException.class, () -> flatCollection.create(key, document2));
+    }
+
+    @ParameterizedTest
+    @DisplayName(
+        "When MissingColumnStrategy is Throw, should throw an exception for unknown fields. Unknown fields are those fields that are not found in the schema but are present in the doc")
+    @ArgumentsSource(MissingColumnStrategyProvider.class)
+    void testUnknownFieldsAsPerMissingColumnStrategy(MissingColumnStrategy missingColumnStrategy)
+        throws Exception {
+
+      String docId = generateDocId("test");
+
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", docId);
+      objectNode.put("item", "Item");
+      objectNode.put("unknown_column", "should throw");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      if (missingColumnStrategy == MissingColumnStrategy.THROW) {
+        Collection collection =
+            getFlatCollectionWithStrategy(MissingColumnStrategy.THROW.toString());
+        assertThrows(SchemaMismatchException.class, () -> collection.create(key, document));
+        // Verify no document was inserted
+        PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+        try (Connection conn = pgDatastore.getPostgresClient();
+            PreparedStatement ps =
+                conn.prepareStatement(
+                    String.format(
+                        "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = '%s'",
+                        FLAT_COLLECTION_NAME, key));
+            ResultSet rs = ps.executeQuery()) {
+          assertTrue(rs.next());
+          assertEquals(0, rs.getInt(1));
+        }
+      } else {
+        CreateResult result = flatCollection.create(key, document);
+        // for SKIP
+        assertTrue(result.isSucceed());
+        // this is a partial write because unknown_column was not written to
+        assertTrue(result.isPartial());
+        assertTrue(result.getSkippedFields().contains("unknown_column"));
+
+        queryAndAssert(
+            key,
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Item", rs.getString("item"));
+            });
+      }
+    }
+
+    @Test
+    @DisplayName(
+        "Should use default SKIP strategy when missingColumnStrategy config is empty string")
+    void testEmptyMissingColumnStrategyConfigUsesDefault() throws Exception {
+      Collection collectionWithEmptyStrategy = getFlatCollectionWithStrategy("");
+
+      // Test that it uses default SKIP strategy (unknown fields are skipped, not thrown)
+      String docId = generateDocId("test");
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", docId);
+      objectNode.put("item", "Test Item");
+      objectNode.put("unknown_field", "should be skipped with default SKIP strategy");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      CreateResult result = collectionWithEmptyStrategy.create(key, document);
+
+      // With default SKIP strategy, unknown fields are skipped
+      assertTrue(result.isSucceed());
+      assertTrue(result.isPartial());
+      assertTrue(result.getSkippedFields().contains("unknown_field"));
+    }
+
+    @Test
+    @DisplayName("Should use default SKIP strategy when missingColumnStrategy config is invalid")
+    void testInvalidMissingColumnStrategyConfigUsesDefault() throws Exception {
+      Collection collectionWithInvalidStrategy = getFlatCollectionWithStrategy("INVALID_STRATEGY");
+
+      String docId = generateDocId("test");
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", docId);
+      objectNode.put("item", "Test Item");
+      objectNode.put("unknown_field", "should be skipped with default SKIP strategy");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      CreateResult result = collectionWithInvalidStrategy.create(key, document);
+
+      // With default SKIP strategy, unknown fields are skipped
+      assertTrue(result.isSucceed());
+      assertTrue(result.isPartial());
+      assertTrue(result.getSkippedFields().contains("unknown_field"));
+    }
+
+    @Test
+    @DisplayName("Should return failure when all fields are unknown (parsed.isEmpty)")
+    void testCreateFailsWhenAllFieldsAreUnknown() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("completely_unknown_field1", "value1");
+      objectNode.put("completely_unknown_field2", "value2");
+      objectNode.put("another_nonexistent_column", 123);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "all-unknown-doc-700");
+
+      CreateResult result = flatCollection.create(key, document);
+
+      // Although no column exists in the schema, it'll create a new doc with the key as the id
+      assertTrue(result.isSucceed());
+      assertEquals(3, result.getSkippedFields().size());
+      assertTrue(
+          result
+              .getSkippedFields()
+              .containsAll(
+                  List.of(
+                      "completely_unknown_field1",
+                      "completely_unknown_field2",
+                      "another_nonexistent_column")));
+
+      // Verify no row was inserted
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT COUNT(*) FROM \"%s\" WHERE \"id\" = '%s'",
+                      FLAT_COLLECTION_NAME, key));
+          ResultSet rs = ps.executeQuery()) {
+        assertTrue(rs.next());
+        assertEquals(1, rs.getInt(1));
+      }
+    }
+
+    @Test
+    @DisplayName("Should refresh schema and retry on UNDEFINED_COLUMN error")
+    void testCreateRefreshesSchemaOnUndefinedColumnError() throws Exception {
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+
+      // Step 1: Add a temporary column and do a create to cache the schema
+      String addColumnSQL =
+          String.format("ALTER TABLE \"%s\" ADD COLUMN \"temp_col\" TEXT", FLAT_COLLECTION_NAME);
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps = conn.prepareStatement(addColumnSQL)) {
+        ps.execute();
+        LOGGER.info("Added temporary column 'temp_col' to table");
+      }
+
+      // Step 2: Create a document with the temp column to cache the schema
+      ObjectNode objectNode1 = OBJECT_MAPPER.createObjectNode();
+      objectNode1.put("id", "cache-schema-doc");
+      objectNode1.put("item", "Item to cache schema");
+      objectNode1.put("temp_col", "temp value");
+      flatCollection.create(
+          new SingleValueKey("default", "cache-schema-doc"), new JSONDocument(objectNode1));
+      LOGGER.info("Schema cached with temp_col");
+
+      // Step 3: DROP the column - now the cached schema is stale
+      String dropColumnSQL =
+          String.format("ALTER TABLE \"%s\" DROP COLUMN \"temp_col\"", FLAT_COLLECTION_NAME);
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps = conn.prepareStatement(dropColumnSQL)) {
+        ps.execute();
+        LOGGER.info("Dropped temp_col - schema cache is now stale");
+      }
+
+      // Step 4: Try to create with the dropped column
+      // Schema registry still thinks temp_col exists, so it will include it in INSERT
+      // INSERT will fail with UNDEFINED_COLUMN, triggering handlePSQLExceptionForCreate
+      // which will refresh schema and retry
+      ObjectNode objectNode2 = OBJECT_MAPPER.createObjectNode();
+      objectNode2.put("id", "retry-doc-800");
+      objectNode2.put("item", "Item after schema refresh");
+      objectNode2.put("temp_col", "this column no longer exists");
+      Document document = new JSONDocument(objectNode2);
+      Key key = new SingleValueKey("default", "retry-doc-800");
+
+      CreateResult result = flatCollection.create(key, document);
+
+      // Should succeed - temp_col will be skipped (either via retry or schema refresh)
+      assertTrue(result.isSucceed());
+      // The dropped column should be skipped
+      assertTrue(result.getSkippedFields().contains("temp_col"));
+
+      // Verify the valid fields were inserted
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Item after schema refresh", rs.getString("item"));
+          });
+    }
+
+    @ParameterizedTest
+    @DisplayName("Should skip column with unparseable value and add to skippedFields")
+    @ArgumentsSource(MissingColumnStrategyProvider.class)
+    void testUnparsableValuesAsPerMissingColStrategy(MissingColumnStrategy missingColumnStrategy)
+        throws Exception {
+
+      String docId = generateDocId("test");
+
+      // Try to insert a string value into an integer column with wrong type
+      // The unparseable column should be skipped, not throw an exception
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", docId);
+      objectNode.put("item", "Valid Item");
+      objectNode.put("price", "not_a_number_at_all"); // price is INTEGER, this will fail parsing
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      if (missingColumnStrategy == MissingColumnStrategy.THROW) {
+        CreateResult result =
+            getFlatCollectionWithStrategy(MissingColumnStrategy.SKIP.toString())
+                .create(key, document);
+
+        // Should succeed with the valid columns, skipping the unparseable one
+        assertTrue(result.isSucceed());
+        assertTrue(result.isPartial());
+        assertEquals(1, result.getSkippedFields().size());
+        assertTrue(result.getSkippedFields().contains("price"));
+
+        // Verify the valid fields were inserted
+        queryAndAssert(
+            key,
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Valid Item", rs.getString("item"));
+              // price should be null since it was skipped
+              assertEquals(0, rs.getInt("price"));
+              assertTrue(rs.wasNull());
+            });
+      } else {
+        // SKIP strategy: unparseable value should be skipped, document created
+        CreateResult result = flatCollection.create(key, document);
+        assertTrue(result.isSucceed());
+        assertTrue(result.isPartial());
+        assertEquals(1, result.getSkippedFields().size());
+        assertTrue(result.getSkippedFields().contains("price"));
+
+        // Verify the valid fields were inserted
+        queryAndAssert(
+            key,
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Valid Item", rs.getString("item"));
+              // price should be null since it was skipped
+              assertEquals(0, rs.getInt("price"));
+              assertTrue(rs.wasNull());
+            });
+      }
+    }
+  }
+
+  @Nested
+  @DisplayName("CreateOrReplace Operations")
+  class CreateOrReplaceTests {
+
+    @Test
+    @DisplayName(
+        "Should create new document and return true. Cols not specified should be set of default NULL")
+    void testCreateOrReplaceNewDocument() throws Exception {
+
+      String docId = generateDocId("test");
+
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "upsert-new-doc-100");
+      objectNode.put("item", "New Upsert Item");
+      objectNode.put("price", 500);
+      objectNode.put("quantity", 25);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      boolean isNew = flatCollection.createOrReplace(key, document);
+
+      assertTrue(isNew);
+
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("New Upsert Item", rs.getString("item"));
+            assertEquals(500, rs.getInt("price"));
+            assertEquals(25, rs.getInt("quantity"));
+            // assert on some fields that they're set to null correctly
+            assertNull(rs.getObject("sales"));
+            assertNull(rs.getObject("categoryTags"));
+            assertNull(rs.getObject("date"));
+          });
+    }
+
+    @Test
+    @DisplayName("Should replace existing document and return false")
+    void testCreateOrReplaceExistingDocument() throws Exception {
+      String docId = generateDocId("test");
+      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
+      initialNode.put("id", docId);
+      initialNode.put("item", "Original Item");
+      initialNode.put("price", 100);
+      Document initialDoc = new JSONDocument(initialNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      boolean firstResult = flatCollection.createOrReplace(key, initialDoc);
+
+      Preconditions.checkArgument(
+          firstResult, "Preconditions failure: Could not create first document with id: " + docId);
+
+      // Now replace with updated document
+      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
+      updatedNode.put("id", docId);
+      updatedNode.put("item", "Updated Item");
+      updatedNode.put("quantity", 50);
+      Document updatedDoc = new JSONDocument(updatedNode);
+
+      boolean secondResult = flatCollection.createOrReplace(key, updatedDoc);
+
+      assertFalse(secondResult);
+
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Updated Item", rs.getString("item"));
+            // this should be the default since price is not present in the updated document
+            assertNull(rs.getObject("price"));
+            assertEquals(50, rs.getInt("quantity"));
+          });
+    }
+
+    @Test
+    @DisplayName("Should skip unknown fields in createOrReplace (default SKIP strategy)")
+    void testCreateOrReplaceSkipsUnknownFields() throws Exception {
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", "upsert-skip-fields-300");
+      objectNode.put("item", "Item with unknown");
+      objectNode.put("price", 200);
+      objectNode.put("unknown_field", "should be skipped");
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey("default", "upsert-skip-fields-300");
+
+      boolean isNew = flatCollection.createOrReplace(key, document);
+      assertTrue(isNew);
+
+      // Verify only known fields were inserted
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Item with unknown", rs.getString("item"));
+            assertEquals(200, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("Should handle JSONB fields in createOrReplace")
+    void testCreateOrReplaceWithJsonbField() throws Exception {
+      String docId = generateDocId("test");
+      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
+      initialNode.put("id", docId);
+      initialNode.put("item", "Item with props");
+      ObjectNode initialProps = OBJECT_MAPPER.createObjectNode();
+      initialProps.put("color", "red");
+      initialProps.put("size", "small");
+      initialNode.set("props", initialProps);
+      Document initialDoc = new JSONDocument(initialNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      boolean wasCreated = flatCollection.createOrReplace(key, initialDoc);
+      Preconditions.checkArgument(
+          wasCreated, "Precondition failure: Doc could not be created with id: " + docId);
+
+      // Update with new JSONB value
+      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
+      updatedNode.put("id", docId);
+      updatedNode.put("item", "Updated Item");
+      ObjectNode updatedProps = OBJECT_MAPPER.createObjectNode();
+      updatedProps.put("color", "blue");
+      updatedProps.put("size", "large");
+      updatedProps.put("weight", 2.5);
+      updatedNode.set("props", updatedProps);
+      Document updatedDoc = new JSONDocument(updatedNode);
+
+      boolean isNew = flatCollection.createOrReplace(key, updatedDoc);
+      assertFalse(isNew);
+
+      // Verify JSONB was updated
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            JsonNode propsResult = OBJECT_MAPPER.readTree(rs.getString("props"));
+            assertEquals("blue", propsResult.get("color").asText());
+            assertEquals("large", propsResult.get("size").asText());
+            assertEquals(2.5, propsResult.get("weight").asDouble(), 0.01);
+          });
+    }
+  }
+
+  @Nested
+  @DisplayName("BulkCreateOrReplace Operations")
+  class BulkCreateOrReplaceTests {
+
+    @Test
+    @DisplayName("Should bulk create new documents and replace existing ones")
+    void testBulkCreateOrReplaceMixedInsertAndUpdate() throws Exception {
+      // Create an existing document first
+      String existingId = "bulk-cor-existing";
+      ObjectNode existingNode = OBJECT_MAPPER.createObjectNode();
+      existingNode.put("item", "OriginalItem");
+      existingNode.put("price", 100);
+      existingNode.put("quantity", 10);
+      ObjectNode existingProps = OBJECT_MAPPER.createObjectNode();
+      existingProps.put("color", "red");
+      existingProps.put("size", "small");
+      existingNode.set("props", existingProps);
+      existingNode.putArray("tags").add("original").add("test");
+      flatCollection.createOrReplace(
+          new SingleValueKey(DEFAULT_TENANT, existingId), new JSONDocument(existingNode));
+
+      Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+      // Updated existing document - should replace entirely
+      ObjectNode updatedExisting = OBJECT_MAPPER.createObjectNode();
+      updatedExisting.put("item", "ReplacedItem");
+      updatedExisting.put("price", 999);
+      ObjectNode updatedProps = OBJECT_MAPPER.createObjectNode();
+      updatedProps.put("color", "blue");
+      updatedExisting.set("props", updatedProps);
+      updatedExisting.putArray("tags").add("replaced").add("updated").add("bulk");
+      updatedExisting.putArray("numbers").add(100).add(200);
+      // Note: quantity is NOT included - should become NULL after replace
+      bulkMap.put(
+          new SingleValueKey(DEFAULT_TENANT, existingId), new JSONDocument(updatedExisting));
+
+      // New document with JSONB and array columns
+      ObjectNode newDoc = OBJECT_MAPPER.createObjectNode();
+      newDoc.put("item", "BrandNewItem");
+      newDoc.put("price", 500);
+      newDoc.put("in_stock", true);
+      ObjectNode newProps = OBJECT_MAPPER.createObjectNode();
+      newProps.put("material", "steel");
+      newProps.put("warranty", 12);
+      newDoc.set("props", newProps);
+      newDoc.putArray("tags").add("new").add("premium");
+      newDoc.putArray("numbers").add(10).add(20).add(30);
+      bulkMap.put(new SingleValueKey(DEFAULT_TENANT, "bulk-cor-new"), new JSONDocument(newDoc));
+
+      boolean result = flatCollection.bulkCreateOrReplace(bulkMap);
+
+      assertTrue(result);
+
+      // Verify existing document was REPLACED (not merged)
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, existingId),
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("ReplacedItem", rs.getString("item"));
+            assertEquals(999, rs.getInt("price"));
+            // quantity should be NULL since it wasn't in the replacement doc
+            assertNull(rs.getObject("quantity"));
+
+            // Verify JSONB was replaced (only color set, size from original is gone)
+            JsonNode propsResult = OBJECT_MAPPER.readTree(rs.getString("props"));
+            assertEquals("blue", propsResult.get("color").asText());
+            assertNull(propsResult.get("size")); // size was in original but not replacement
+
+            // Verify array was replaced
+            String[] tags = (String[]) rs.getArray("tags").getArray();
+            assertEquals(3, tags.length);
+            assertEquals("replaced", tags[0]);
+          });
+
+      // Verify new document was created
+      queryAndAssert(
+          new SingleValueKey(DEFAULT_TENANT, "bulk-cor-new"),
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("BrandNewItem", rs.getString("item"));
+            assertEquals(500, rs.getInt("price"));
+            assertTrue(rs.getBoolean("in_stock"));
+
+            // Verify JSONB column
+            JsonNode propsResult = OBJECT_MAPPER.readTree(rs.getString("props"));
+            assertEquals("steel", propsResult.get("material").asText());
+            assertEquals(12, propsResult.get("warranty").asInt());
+
+            // Verify array columns
+            String[] tags = (String[]) rs.getArray("tags").getArray();
+            assertEquals(2, tags.length);
+            assertEquals("new", tags[0]);
+
+            Integer[] numbers = (Integer[]) rs.getArray("numbers").getArray();
+            assertEquals(3, numbers.length);
+            assertEquals(10, numbers[0]);
+          });
+    }
+  }
+
+  @Nested
+  @DisplayName("Bulk Operations")
+  class BulkUpsertAndReturnOlder {
 
     @Test
     @DisplayName("Should return empty iterator for null document map")
@@ -1463,6 +1437,361 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
             PreparedStatement ps = conn.prepareStatement(dropConstraintSQL)) {
           ps.execute();
         }
+      }
+    }
+
+    @Nested
+    class BulkCreateOrReplaceTests {
+      @Test
+      @DisplayName("Should bulk createOrReplace multiple new documents")
+      void testBulkCreateOrReplaceNewDocuments() throws Exception {
+        Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+        ObjectNode node1 = OBJECT_MAPPER.createObjectNode();
+        node1.put("item", "BulkReplaceItem1");
+        node1.put("price", 201);
+        node1.put("quantity", 10);
+        bulkMap.put(new SingleValueKey(DEFAULT_TENANT, "bulk-replace-1"), new JSONDocument(node1));
+
+        ObjectNode node2 = OBJECT_MAPPER.createObjectNode();
+        node2.put("item", "BulkReplaceItem2");
+        node2.put("price", 202);
+        node2.put("quantity", 20);
+        bulkMap.put(new SingleValueKey(DEFAULT_TENANT, "bulk-replace-2"), new JSONDocument(node2));
+
+        boolean result = flatCollection.bulkCreateOrReplace(bulkMap);
+
+        assertTrue(result);
+
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, "bulk-replace-1"),
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("BulkReplaceItem1", rs.getString("item"));
+              assertEquals(201, rs.getInt("price"));
+              assertEquals(10, rs.getInt("quantity"));
+            });
+
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, "bulk-replace-2"),
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("BulkReplaceItem2", rs.getString("item"));
+              assertEquals(202, rs.getInt("price"));
+              assertEquals(20, rs.getInt("quantity"));
+            });
+      }
+
+      @Test
+      @DisplayName(
+          "Should bulk createOrReplace replacing existing documents and reset missing cols to default")
+      void testBulkCreateOrReplaceResetsUnspecifiedColumnsToDefault() throws Exception {
+        // First create documents with multiple fields
+        String docId1 = "bulk-replace-reset-1";
+        String docId2 = "bulk-replace-reset-2";
+
+        ObjectNode initial1 = OBJECT_MAPPER.createObjectNode();
+        initial1.put("item", "Original1");
+        initial1.put("price", 100);
+        initial1.put("quantity", 50);
+        initial1.put("in_stock", true);
+        flatCollection.createOrReplace(
+            new SingleValueKey(DEFAULT_TENANT, docId1), new JSONDocument(initial1));
+
+        ObjectNode initial2 = OBJECT_MAPPER.createObjectNode();
+        initial2.put("item", "Original2");
+        initial2.put("price", 200);
+        initial2.put("quantity", 75);
+        initial2.put("in_stock", false);
+        flatCollection.createOrReplace(
+            new SingleValueKey(DEFAULT_TENANT, docId2), new JSONDocument(initial2));
+
+        // Now bulk createOrReplace with only some fields - others should be RESET to default
+        Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+        ObjectNode updated1 = OBJECT_MAPPER.createObjectNode();
+        updated1.put("item", "Updated1");
+        // price, quantity, in_stock are NOT specified - should be reset to NULL
+        bulkMap.put(new SingleValueKey(DEFAULT_TENANT, docId1), new JSONDocument(updated1));
+
+        ObjectNode updated2 = OBJECT_MAPPER.createObjectNode();
+        updated2.put("item", "Updated2");
+        updated2.put("price", 999);
+        // quantity, in_stock are NOT specified - should be reset to NULL
+        bulkMap.put(new SingleValueKey(DEFAULT_TENANT, docId2), new JSONDocument(updated2));
+
+        boolean result = flatCollection.bulkCreateOrReplace(bulkMap);
+
+        assertTrue(result);
+
+        // Verify doc1: item updated, other fields reset to NULL
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, docId1),
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Updated1", rs.getString("item"));
+              assertNull(rs.getObject("price")); // RESET to NULL
+              assertNull(rs.getObject("quantity")); // RESET to NULL
+              assertNull(rs.getObject("in_stock")); // RESET to NULL
+            });
+
+        // Verify doc2: item and price updated, other fields reset to NULL
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, docId2),
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Updated2", rs.getString("item"));
+              assertEquals(999, rs.getInt("price"));
+              assertNull(rs.getObject("quantity")); // RESET to NULL
+              assertNull(rs.getObject("in_stock")); // RESET to NULL
+            });
+      }
+
+      @Test
+      @DisplayName("bulkUpsert vs bulkCreateOrReplace: upsert preserves, createOrReplace resets")
+      void testBulkUpsertVsBulkCreateOrReplaceBehavior() throws Exception {
+        // Setup: Create two identical documents
+        String docId1 = "bulk-compare-upsert";
+        String docId2 = "bulk-compare-replace";
+
+        ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+        initial.put("item", "Original Item");
+        initial.put("price", 100);
+        initial.put("quantity", 50);
+
+        flatCollection.createOrReplace(
+            new SingleValueKey(DEFAULT_TENANT, docId1), new JSONDocument(initial.deepCopy()));
+        flatCollection.createOrReplace(
+            new SingleValueKey(DEFAULT_TENANT, docId2), new JSONDocument(initial.deepCopy()));
+
+        // Now update both with partial documents (only item field)
+        ObjectNode partialUpdate = OBJECT_MAPPER.createObjectNode();
+        partialUpdate.put("item", "Updated Item");
+
+        // Use bulkUpsert for doc1 - should PRESERVE price and quantity
+        Map<Key, Document> upsertMap = new LinkedHashMap<>();
+        upsertMap.put(
+            new SingleValueKey(DEFAULT_TENANT, docId1), new JSONDocument(partialUpdate.deepCopy()));
+        flatCollection.bulkUpsert(upsertMap);
+
+        // Use bulkCreateOrReplace for doc2 - should RESET price and quantity to NULL
+        Map<Key, Document> replaceMap = new LinkedHashMap<>();
+        replaceMap.put(
+            new SingleValueKey(DEFAULT_TENANT, docId2), new JSONDocument(partialUpdate.deepCopy()));
+        flatCollection.bulkCreateOrReplace(replaceMap);
+
+        // Verify bulkUpsert preserved original values
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, docId1),
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Updated Item", rs.getString("item"));
+              assertEquals(100, rs.getInt("price")); // PRESERVED
+              assertEquals(50, rs.getInt("quantity")); // PRESERVED
+            });
+
+        // Verify bulkCreateOrReplace reset to defaults
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, docId2),
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("Updated Item", rs.getString("item"));
+              assertNull(rs.getObject("price")); // RESET to NULL
+              assertNull(rs.getObject("quantity")); // RESET to NULL
+            });
+      }
+
+      @Test
+      @DisplayName("Should handle empty document map for bulkCreateOrReplace")
+      void testBulkCreateOrReplaceEmptyMap() {
+        Map<Key, Document> emptyMap = Collections.emptyMap();
+        boolean result = flatCollection.bulkCreateOrReplace(emptyMap);
+        assertTrue(result);
+      }
+
+      @Test
+      @DisplayName("Should handle null document map for bulkCreateOrReplace")
+      void testBulkCreateOrReplaceNullMap() {
+        boolean result = flatCollection.bulkCreateOrReplace(null);
+        assertTrue(result);
+      }
+
+      @Test
+      @DisplayName("Should skip unknown fields in bulkCreateOrReplace")
+      void testBulkCreateOrReplaceSkipsUnknownFields() throws Exception {
+        Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+        ObjectNode node = OBJECT_MAPPER.createObjectNode();
+        node.put("item", "ItemWithUnknown");
+        node.put("price", 300);
+        node.put("unknown_field", "should be skipped");
+        bulkMap.put(
+            new SingleValueKey(DEFAULT_TENANT, "bulk-replace-unknown"), new JSONDocument(node));
+
+        boolean result = flatCollection.bulkCreateOrReplace(bulkMap);
+
+        assertTrue(result);
+
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, "bulk-replace-unknown"),
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("ItemWithUnknown", rs.getString("item"));
+              assertEquals(300, rs.getInt("price"));
+            });
+      }
+
+      @Test
+      @DisplayName(
+          "Should ignore documents with unknown fields when IGNORE_DOCUMENT strategy for bulkCreateOrReplace")
+      void testBulkCreateOrReplaceIgnoreDocumentStrategy() throws Exception {
+        Collection collectionWithIgnoreStrategy =
+            getFlatCollectionWithStrategy(MissingColumnStrategy.IGNORE_DOCUMENT.toString());
+
+        Map<Key, Document> bulkMap = new LinkedHashMap<>();
+
+        // Document with unknown field - should be ignored
+        ObjectNode nodeWithUnknown = OBJECT_MAPPER.createObjectNode();
+        nodeWithUnknown.put("item", "ItemWithUnknown");
+        nodeWithUnknown.put("unknown_field", "should cause document to be ignored");
+        bulkMap.put(
+            new SingleValueKey(DEFAULT_TENANT, "ignore-replace-1"),
+            new JSONDocument(nodeWithUnknown));
+
+        // Valid document - should be inserted
+        ObjectNode validNode = OBJECT_MAPPER.createObjectNode();
+        validNode.put("item", "ValidItem");
+        validNode.put("price", 200);
+        bulkMap.put(
+            new SingleValueKey(DEFAULT_TENANT, "ignore-replace-2"), new JSONDocument(validNode));
+
+        boolean result = collectionWithIgnoreStrategy.bulkCreateOrReplace(bulkMap);
+
+        assertTrue(result);
+
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, "ignore-replace-1"), rs -> assertFalse(rs.next()));
+
+        queryAndAssert(
+            new SingleValueKey(DEFAULT_TENANT, "ignore-replace-2"),
+            rs -> {
+              assertTrue(rs.next());
+              assertEquals("ValidItem", rs.getString("item"));
+              assertEquals(200, rs.getInt("price"));
+            });
+      }
+
+      @Test
+      @DisplayName("Should bulk createOrReplace and return older documents with JSONB and arrays")
+      void testBulkCreateOrReplaceReturnOlderDocuments() throws Exception {
+        String docId1 = "bulk-replace-return-1";
+        String docId2 = "bulk-replace-return-2";
+
+        String initial1Json =
+            readFileFromResource("create/bulk_replace_initial_doc1.json").orElseThrow();
+        String initial2Json =
+            readFileFromResource("create/bulk_replace_initial_doc2.json").orElseThrow();
+        String updated1Json =
+            readFileFromResource("create/bulk_replace_updated_doc1.json").orElseThrow();
+        String updated2Json =
+            readFileFromResource("create/bulk_replace_updated_doc2.json").orElseThrow();
+
+        flatCollection.createOrReplace(
+            new SingleValueKey(DEFAULT_TENANT, docId1), new JSONDocument(initial1Json));
+        flatCollection.createOrReplace(
+            new SingleValueKey(DEFAULT_TENANT, docId2), new JSONDocument(initial2Json));
+
+        Map<Key, Document> bulkMap = new LinkedHashMap<>();
+        bulkMap.put(new SingleValueKey(DEFAULT_TENANT, docId1), new JSONDocument(updated1Json));
+        bulkMap.put(new SingleValueKey(DEFAULT_TENANT, docId2), new JSONDocument(updated2Json));
+
+        // Get older documents before replacement
+        CloseableIterator<Document> olderDocs =
+            flatCollection.bulkCreateOrReplaceReturnOlderDocuments(bulkMap);
+
+        // Collect older documents
+        Map<String, JsonNode> olderDocsMap = new HashMap<>();
+        while (olderDocs.hasNext()) {
+          Document doc = olderDocs.next();
+          JsonNode json = OBJECT_MAPPER.readTree(doc.toJson());
+          olderDocsMap.put(json.get("id").asText(), json);
+        }
+        olderDocs.close();
+
+        // Verify we got the older documents with original values including JSONB and arrays
+        String key1 = new SingleValueKey(DEFAULT_TENANT, docId1).toString();
+        String key2 = new SingleValueKey(DEFAULT_TENANT, docId2).toString();
+        assertEquals(2, olderDocsMap.size());
+        assertTrue(olderDocsMap.containsKey(key1));
+        assertTrue(olderDocsMap.containsKey(key2));
+
+        // Verify doc1 original values
+        JsonNode expectedDoc1 = OBJECT_MAPPER.readTree(initial1Json);
+        JsonNode oldDoc1 = olderDocsMap.get(key1);
+        assertEquals(expectedDoc1, oldDoc1);
+
+        // Verify doc2 original values
+        JsonNode expectedDoc2 = OBJECT_MAPPER.readTree(initial2Json);
+        JsonNode oldDoc2 = olderDocsMap.get(key2);
+        assertEquals(expectedDoc2, oldDoc2);
+
+        // Verify the documents were actually replaced with new values
+        String expectedResult1Json =
+            readFileFromResource("expected/bulk_replace_result_doc1.json").orElseThrow();
+        String expectedResult2Json =
+            readFileFromResource("expected/bulk_replace_result_doc2.json").orElseThrow();
+
+        Query query1 =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(
+                            new SingleValueKey(DEFAULT_TENANT, docId1).toString())))
+                .build();
+        try (CloseableIterator<Document> iter = flatCollection.find(query1)) {
+          assertTrue(iter.hasNext());
+          JsonNode actualDoc1 = OBJECT_MAPPER.readTree(iter.next().toJson());
+          JsonNode expectedResultDoc1 = OBJECT_MAPPER.readTree(expectedResult1Json);
+          assertEquals(expectedResultDoc1, actualDoc1);
+        }
+
+        Query query2 =
+            Query.builder()
+                .setFilter(
+                    RelationalExpression.of(
+                        IdentifierExpression.of("id"),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(
+                            new SingleValueKey(DEFAULT_TENANT, docId2).toString())))
+                .build();
+        try (CloseableIterator<Document> iter = flatCollection.find(query2)) {
+          assertTrue(iter.hasNext());
+          JsonNode actualDoc2 = OBJECT_MAPPER.readTree(iter.next().toJson());
+          JsonNode expectedResultDoc2 = OBJECT_MAPPER.readTree(expectedResult2Json);
+          assertEquals(expectedResultDoc2, actualDoc2);
+        }
+      }
+
+      @Test
+      @DisplayName(
+          "Should return empty iterator for empty map in bulkCreateOrReplaceReturnOlderDocuments")
+      void testBulkCreateOrReplaceReturnOlderDocumentsEmptyMap() throws Exception {
+        CloseableIterator<Document> result =
+            flatCollection.bulkCreateOrReplaceReturnOlderDocuments(Collections.emptyMap());
+        assertFalse(result.hasNext());
+        result.close();
+      }
+
+      @Test
+      @DisplayName(
+          "Should return empty iterator for null map in bulkCreateOrReplaceReturnOlderDocuments")
+      void testBulkCreateOrReplaceReturnOlderDocumentsNullMap() throws Exception {
+        CloseableIterator<Document> result =
+            flatCollection.bulkCreateOrReplaceReturnOlderDocuments(null);
+        assertFalse(result.hasNext());
+        result.close();
       }
     }
   }
@@ -3075,13 +3404,195 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
   }
 
   @Nested
-  @DisplayName("Drop Operations")
-  class DropTests {
+  @DisplayName("Key-Specific Bulk Update Operations")
+  class KeySpecificBulkUpdateTests {
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for drop")
-    void testDrop() {
-      assertThrows(UnsupportedOperationException.class, () -> flatCollection.drop());
+    @DisplayName("Should update multiple keys with all operator types in a single batch")
+    void testBulkUpdateAllOperatorTypes() throws Exception {
+      Map<Key, java.util.Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
+      updates.put(
+          rawKey("1"),
+          List.of(
+              SubDocumentUpdate.of("item", "UpdatedSoap"),
+              SubDocumentUpdate.builder()
+                  .subDocument("price")
+                  .operator(UpdateOperator.ADD)
+                  .subDocumentValue(SubDocumentValue.of(5))
+                  .build(),
+              SubDocumentUpdate.builder()
+                  .subDocument("props.brand")
+                  .operator(UpdateOperator.SET)
+                  .subDocumentValue(SubDocumentValue.of("NewBrand"))
+                  .build()));
+
+      updates.put(
+          rawKey("3"),
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("props.brand")
+                  .operator(UpdateOperator.UNSET)
+                  .build(),
+              SubDocumentUpdate.builder()
+                  .subDocument("tags")
+                  .operator(UpdateOperator.APPEND_TO_LIST)
+                  .subDocumentValue(SubDocumentValue.of(new String[] {"newTag1", "newTag2"}))
+                  .build()));
+
+      updates.put(
+          rawKey("5"),
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("tags")
+                  .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
+                  .subDocumentValue(SubDocumentValue.of(new String[] {"hygiene", "uniqueTag"}))
+                  .build()));
+
+      updates.put(
+          rawKey("6"),
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("tags")
+                  .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                  .subDocumentValue(SubDocumentValue.of(new String[] {"plastic"}))
+                  .build()));
+
+      BulkUpdateResult result = flatCollection.bulkUpdate(updates, UpdateOptions.builder().build());
+
+      assertEquals(4, result.getUpdatedCount());
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("1"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        assertEquals("UpdatedSoap", json.get("item").asText());
+        assertEquals(15, json.get("price").asInt()); // 10 + 5
+        assertEquals("NewBrand", json.get("props").get("brand").asText());
+        assertEquals("M", json.get("props").get("size").asText()); // preserved
+      }
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("3"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        assertFalse(json.get("props").has("brand"));
+        assertEquals("L", json.get("props").get("size").asText()); // preserved
+        JsonNode tagsNode = json.get("tags");
+        assertEquals(6, tagsNode.size()); // Original 4 + 2 new
+      }
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("5"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        JsonNode tagsNode = json.get("tags");
+        assertEquals(4, tagsNode.size()); // Original 3 + 1 new unique
+        Set<String> tags = new HashSet<>();
+        tagsNode.forEach(n -> tags.add(n.asText()));
+        assertTrue(tags.contains("uniqueTag"));
+      }
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("6"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        JsonNode tagsNode = json.get("tags");
+        assertEquals(2, tagsNode.size()); // grooming, essential remain
+        Set<String> tags = new HashSet<>();
+        tagsNode.forEach(n -> tags.add(n.asText()));
+        assertFalse(tags.contains("plastic"));
+      }
     }
+
+    @Test
+    @DisplayName("Should handle edge cases: empty map, null map, non-existent keys")
+    void testBulkUpdateEdgeCases() throws Exception {
+      UpdateOptions options = UpdateOptions.builder().build();
+
+      // Empty map
+      assertEquals(0, flatCollection.bulkUpdate(new HashMap<>(), options).getUpdatedCount());
+
+      // Null map
+      Map<Key, java.util.Collection<SubDocumentUpdate>> nullUpdates = null;
+      assertEquals(0, flatCollection.bulkUpdate(nullUpdates, options).getUpdatedCount());
+
+      // Non-existent key
+      Map<Key, java.util.Collection<SubDocumentUpdate>> nonExistent = new LinkedHashMap<>();
+      nonExistent.put(rawKey("non-existent"), List.of(SubDocumentUpdate.of("item", "X")));
+      assertEquals(0, flatCollection.bulkUpdate(nonExistent, options).getUpdatedCount());
+    }
+
+    // Creates a key with raw ID (matching test data format)
+    private Key rawKey(String id) {
+      return Key.from(id);
+    }
+
+    private Query queryById(String id) {
+      return Query.builder()
+          .setFilter(
+              RelationalExpression.of(
+                  IdentifierExpression.of("id"), RelationalOperator.EQ, ConstantExpression.of(id)))
+          .build();
+    }
+  }
+
+  private static void executeInsertStatements() {
+    PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+    try {
+      String jsonContent = readFileFromResource(INSERT_STATEMENTS_FILE).orElseThrow();
+      JsonNode rootNode = OBJECT_MAPPER.readTree(jsonContent);
+      JsonNode statementsNode = rootNode.get("statements");
+
+      if (statementsNode == null || !statementsNode.isArray()) {
+        throw new RuntimeException("Invalid JSON format: 'statements' array not found");
+      }
+
+      try (Connection connection = pgDatastore.getPostgresClient()) {
+        for (JsonNode statementNode : statementsNode) {
+          String statement = statementNode.asText().trim();
+          if (!statement.isEmpty()) {
+            try (PreparedStatement preparedStatement = connection.prepareStatement(statement)) {
+              preparedStatement.executeUpdate();
+            } catch (Exception e) {
+              LOGGER.error("Failed to execute INSERT statement: {}", e.getMessage(), e);
+              throw e;
+            }
+          }
+        }
+      }
+      LOGGER.info("Inserted initial data into: {}", FLAT_COLLECTION_NAME);
+    } catch (Exception e) {
+      LOGGER.error("Failed to execute INSERT statements: {}", e.getMessage(), e);
+    }
+  }
+
+  private static Collection getFlatCollectionWithStrategy(String strategy) {
+    String postgresConnectionUrl =
+        String.format("jdbc:postgresql://localhost:%s/", postgresContainer.getMappedPort(5432));
+
+    Map<String, String> configWithStrategy = new HashMap<>();
+    configWithStrategy.put("url", postgresConnectionUrl);
+    configWithStrategy.put("user", "postgres");
+    configWithStrategy.put("password", "postgres");
+    configWithStrategy.put("customParams.missingColumnStrategy", strategy);
+
+    Datastore datastoreWithStrategy =
+        DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(configWithStrategy));
+
+    return datastoreWithStrategy.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
+  }
+
+  private void queryAndAssert(Key key, ResultSetConsumer consumer) throws Exception {
+    PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+    try (Connection conn = pgDatastore.getPostgresClient();
+        PreparedStatement ps =
+            conn.prepareStatement(
+                String.format(
+                    "SELECT * FROM \"%s\" WHERE \"id\" = '%s'", FLAT_COLLECTION_NAME, key));
+        ResultSet rs = ps.executeQuery()) {
+      consumer.accept(rs);
+    }
+  }
+
+  @FunctionalInterface
+  interface ResultSetConsumer {
+
+    void accept(ResultSet rs) throws Exception;
   }
 }

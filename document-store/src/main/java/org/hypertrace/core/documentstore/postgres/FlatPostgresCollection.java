@@ -25,8 +25,19 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -56,6 +67,7 @@ import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.filter.nonjson.field.PostgresDataType;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FlatPostgresFieldTransformer;
 import org.hypertrace.core.documentstore.postgres.query.v1.transformer.LegacyFilterToQueryFilterTransformer;
+import org.hypertrace.core.documentstore.postgres.query.v1.transformer.LegacyQueryToV2QueryTransformer;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddToListIfAbsentParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAddValueParser;
 import org.hypertrace.core.documentstore.postgres.update.parser.PostgresAppendToListParser;
@@ -132,7 +144,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     this.lastUpdatedTsColumn = lastUpdatedTs;
 
     if (this.createdTsColumn == null || this.lastUpdatedTsColumn == null) {
-      LOGGER.warn(
+      LOGGER.debug(
           "timestampFields config not set properly for collection '{}'. "
               + "createdTsColumn: {}, lastUpdatedTsColumn: {}. "
               + "Configure via collectionConfigs.{}.timestampFields {{ created = \"<col>\", lastUpdated = \"<col>\" }}",
@@ -171,6 +183,14 @@ public class FlatPostgresCollection extends PostgresCollection {
       final org.hypertrace.core.documentstore.query.Query query) {
     PostgresQueryParser queryParser = createParser(query);
     return queryWithParser(query, queryParser);
+  }
+
+  @Override
+  public CloseableIterator<Document> search(org.hypertrace.core.documentstore.Query query) {
+    LegacyQueryToV2QueryTransformer transformer =
+        new LegacyQueryToV2QueryTransformer(schemaRegistry, tableIdentifier.getTableName());
+    Query v2Query = transformer.transform(query);
+    return query(v2Query, QueryOptions.builder().build());
   }
 
   @Override
@@ -226,8 +246,8 @@ public class FlatPostgresCollection extends PostgresCollection {
             tableIdentifier, PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkForTable));
     try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
       preparedStatement.setString(1, key.toString());
-      preparedStatement.executeUpdate();
-      return true;
+      int rowsDeleted = preparedStatement.executeUpdate();
+      return rowsDeleted > 0;
     } catch (SQLException e) {
       LOGGER.error("SQLException deleting document. key: {}", key, e);
     }
@@ -370,8 +390,9 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
 
       // Build the bulk upsert SQL with all columns
+      // Use COALESCE to preserve existing values when a document doesn't have a column
       List<String> columnList = new ArrayList<>(allColumns);
-      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false);
+      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false, true);
       LOGGER.debug("Bulk upsert SQL: {}", sql);
 
       try (Connection conn = client.getPooledConnection();
@@ -419,6 +440,150 @@ public class FlatPostgresCollection extends PostgresCollection {
     return false;
   }
 
+  @Override
+  public boolean bulkCreateOrReplace(Map<Key, Document> documents) {
+    if (documents == null || documents.isEmpty()) {
+      return true;
+    }
+
+    String tableName = tableIdentifier.getTableName();
+    String pkColumn = getPKForTable(tableName);
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+    PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+
+    try {
+      // Parse all documents and collect the union of all columns from documents
+      Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
+      Set<String> docColumns = new LinkedHashSet<>();
+      docColumns.add(quotedPkColumn);
+
+      List<Key> ignoredDocuments = new ArrayList<>();
+      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+        List<String> skippedFields = new ArrayList<>();
+        TypedDocument parsed = parseDocument(entry.getValue(), tableName, skippedFields);
+
+        // Handle IGNORE_DOCUMENT strategy: skip docs with unknown fields
+        if (missingColumnStrategy == MissingColumnStrategy.IGNORE_DOCUMENT
+            && !skippedFields.isEmpty()) {
+          ignoredDocuments.add(entry.getKey());
+          continue;
+        }
+
+        parsed.add(quotedPkColumn, entry.getKey().toString(), pkType, false);
+        parsedDocuments.put(entry.getKey(), parsed);
+        docColumns.addAll(parsed.getColumns());
+      }
+
+      if (!ignoredDocuments.isEmpty()) {
+        LOGGER.info(
+            "bulkCreateOrReplace: Ignored {} documents due to IGNORE_DOCUMENT strategy. Keys: {}",
+            ignoredDocuments.size(),
+            ignoredDocuments);
+      }
+
+      // If all documents were ignored, return true (nothing to do)
+      if (parsedDocuments.isEmpty()) {
+        return true;
+      }
+
+      // Get all table columns for the replace semantics (missing cols set to DEFAULT)
+      List<String> allTableColumns =
+          schemaRegistry.getSchema(tableName).values().stream()
+              .map(PostgresColumnMetadata::getName)
+              .map(PostgresUtils::wrapFieldNamesWithDoubleQuotes)
+              .collect(Collectors.toList());
+
+      // Build the bulk createOrReplace SQL - uses all table columns with DEFAULT for missing
+      List<String> docColumnList = new ArrayList<>(docColumns);
+      String sql = buildCreateOrReplaceSql(allTableColumns, docColumnList, quotedPkColumn);
+      LOGGER.debug("Bulk createOrReplace SQL: {}", sql);
+
+      try (Connection conn = client.getPooledConnection();
+          PreparedStatement ps = conn.prepareStatement(sql)) {
+
+        for (Map.Entry<Key, TypedDocument> entry : parsedDocuments.entrySet()) {
+          TypedDocument parsed = entry.getValue();
+          int index = 1;
+
+          for (String column : docColumnList) {
+            if (parsed.getColumns().contains(column)) {
+              setParameter(
+                  conn,
+                  ps,
+                  index++,
+                  parsed.getValue(column),
+                  parsed.getType(column),
+                  parsed.isArray(column));
+            } else {
+              ps.setObject(index++, null);
+            }
+          }
+          ps.addBatch();
+        }
+
+        int[] results = ps.executeBatch();
+        if (LOGGER.isDebugEnabled()) {
+          LOGGER.debug("Bulk createOrReplace results: {}", Arrays.toString(results));
+        }
+        return true;
+      }
+
+    } catch (BatchUpdateException e) {
+      LOGGER.error("BatchUpdateException in bulkCreateOrReplace", e);
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException in bulkCreateOrReplace. SQLState: {} Error Code: {}",
+          e.getSQLState(),
+          e.getErrorCode(),
+          e);
+    } catch (Exception e) {
+      LOGGER.error("IOException in bulkCreateOrReplace. documents: {}", documents, e);
+    }
+    return false;
+  }
+
+  @Override
+  public CloseableIterator<Document> bulkCreateOrReplaceReturnOlderDocuments(
+      Map<Key, Document> documents) throws IOException {
+    if (documents == null || documents.isEmpty()) {
+      return CloseableIterator.emptyIterator();
+    }
+
+    String tableName = tableIdentifier.getTableName();
+    String pkColumn = getPKForTable(tableName);
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+    PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+
+    Connection connection = null;
+    try {
+      connection = client.getPooledConnection();
+
+      PreparedStatement preparedStatement =
+          getPreparedStatementForQuery(documents, quotedPkColumn, connection, pkType);
+
+      ResultSet resultSet = preparedStatement.executeQuery();
+
+      boolean replaceResult = bulkCreateOrReplace(documents);
+      if (!replaceResult) {
+        closeConnection(connection);
+        throw new IOException("bulkCreateOrReplace failed");
+      }
+
+      // note that connection will be closed after the iterator is used by the client
+      return new PostgresCollection.PostgresResultIteratorWithBasicTypes(
+          resultSet, connection, DocumentType.FLAT);
+
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in bulkCreateOrReplaceReturnOlderDocuments", e);
+      closeConnection(connection);
+      throw new IOException("Could not bulk createOrReplace the documents.", e);
+    } catch (Exception e) {
+      LOGGER.error("Exception in bulkCreateOrReplaceReturnOlderDocuments", e);
+      closeConnection(connection);
+      throw new IOException("Could not bulk createOrReplace the documents.", e);
+    }
+  }
+
   /**
    * Builds a PostgreSQL upsert SQL statement with merge semantics.
    *
@@ -432,6 +597,24 @@ public class FlatPostgresCollection extends PostgresCollection {
    */
   private String buildMergeUpsertSql(
       List<String> columns, String pkColumn, boolean includeReturning) {
+    return buildMergeUpsertSql(columns, pkColumn, includeReturning, false);
+  }
+
+  /**
+   * Builds a PostgreSQL upsert SQL statement with merge semantics.
+   *
+   * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
+   * columns in the provided list are updated on conflict (merge behavior).
+   *
+   * @param columns List of quoted column names to include
+   * @param pkColumn The quoted primary key column name
+   * @param includeReturning If true, adds RETURNING clause to detect insert vs update
+   * @param useCoalesce If true, uses COALESCE(EXCLUDED.col, table.col) to preserve existing values
+   *     when the new value is NULL
+   * @return The upsert SQL statement
+   */
+  private String buildMergeUpsertSql(
+      List<String> columns, String pkColumn, boolean includeReturning, boolean useCoalesce) {
     String columnList = String.join(", ", columns);
     String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
 
@@ -440,13 +623,29 @@ public class FlatPostgresCollection extends PostgresCollection {
             ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
             : null;
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col. Exclude createdTsColumn from updates
-    // to preserve original creation time
+    // Build SET clause for non-PK columns.
+    // If useCoalesce is true, use COALESCE(EXCLUDED.col, table.col) to preserve existing values
+    // when the new value is NULL (for bulk upsert merge semantics).
+    // Exclude createdTsColumn from updates to preserve original creation time.
     String setClause =
         columns.stream()
             .filter(col -> !col.equals(pkColumn))
             .filter(col -> !col.equals(quotedCreatedTs))
-            .map(col -> col + " = EXCLUDED." + col)
+            .map(
+                col -> {
+                  if (useCoalesce) {
+                    return col
+                        + " = COALESCE(EXCLUDED."
+                        + col
+                        + ", "
+                        + tableIdentifier
+                        + "."
+                        + col
+                        + ")";
+                  } else {
+                    return col + " = EXCLUDED." + col;
+                  }
+                })
             .collect(Collectors.joining(", "));
 
     String sql =
@@ -523,6 +722,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public void drop() {
+    // Table management(create/alter/drop) should be outside the collection.
     throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
   }
 
@@ -707,6 +907,109 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
+  @Override
+  public BulkUpdateResult bulkUpdate(
+      Map<Key, Collection<SubDocumentUpdate>> updates, UpdateOptions updateOptions)
+      throws IOException {
+
+    if (updates == null || updates.isEmpty()) {
+      return new BulkUpdateResult(0);
+    }
+
+    Preconditions.checkArgument(updateOptions != null, "UpdateOptions cannot be NULL");
+
+    String tableName = tableIdentifier.getTableName();
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(getPKForTable(tableName));
+
+    Set<Key> updatedKeys = new HashSet<>();
+
+    try (Connection connection = client.getPooledConnection()) {
+      for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
+        Key key = entry.getKey();
+        Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
+
+        if (keyUpdates == null || keyUpdates.isEmpty()) {
+          continue;
+        }
+
+        try {
+          boolean updated = updateSingleKey(connection, key, keyUpdates, tableName, quotedPkColumn);
+          if (updated) {
+            updatedKeys.add(key);
+          }
+        } catch (Exception e) {
+          LOGGER.warn("Failed to update key {}: {}", key, e.getMessage());
+          // Continue with other keys - no cross-key atomicity
+        }
+      }
+    } catch (SQLException e) {
+      throw new IOException("Failed to get connection for bulk update", e);
+    }
+
+    return new BulkUpdateResult(updatedKeys.size());
+  }
+
+  private boolean updateSingleKey(
+      Connection connection,
+      Key key,
+      Collection<SubDocumentUpdate> keyUpdates,
+      String tableName,
+      String quotedPkColumn)
+      throws IOException, SQLException {
+
+    updateValidator.validate(keyUpdates);
+    Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
+
+    return executeKeyUpdate(
+        connection, key, keyUpdates, tableName, quotedPkColumn, resolvedColumns);
+  }
+
+  private boolean executeKeyUpdate(
+      Connection connection,
+      Key key,
+      java.util.Collection<SubDocumentUpdate> keyUpdates,
+      String tableName,
+      String quotedPkColumn,
+      Map<String, String> resolvedColumns)
+      throws SQLException {
+
+    List<String> setFragments = new ArrayList<>();
+    List<Object> params = new ArrayList<>();
+
+    boolean hasUpdates =
+        buildSetClauseFragments(
+            connection, keyUpdates, tableName, resolvedColumns, setFragments, params);
+
+    if (!hasUpdates) {
+      return false;
+    }
+
+    // Add lastUpdatedTime to the same UPDATE statement
+    if (lastUpdatedTsColumn != null) {
+      setFragments.add(String.format("\"%s\" = ?", lastUpdatedTsColumn));
+      params.add(new Timestamp(System.currentTimeMillis()));
+    }
+
+    // Build and execute UPDATE SQL for this key
+    String sql =
+        String.format(
+            "UPDATE %s SET %s WHERE %s = ?",
+            tableIdentifier, String.join(", ", setFragments), quotedPkColumn);
+
+    params.add(key.toString());
+
+    LOGGER.debug("Executing key update SQL: {}", sql);
+
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+      int idx = 1;
+      for (Object param : params) {
+        ps.setObject(idx++, param);
+      }
+      int rowsUpdated = ps.executeUpdate();
+      return rowsUpdated > 0;
+    }
+  }
+
   /**
    * Validates all updates and resolves column names.
    *
@@ -825,6 +1128,56 @@ public class FlatPostgresCollection extends PostgresCollection {
     String filterClause = filterParser.buildFilterClause();
     Params filterParams = filterParser.getParamsBuilder().build();
 
+    List<String> setFragments = new ArrayList<>();
+    List<Object> params = new ArrayList<>();
+
+    boolean hasUpdates =
+        buildSetClauseFragments(
+            connection, updates, tableName, resolvedColumns, setFragments, params);
+
+    if (!hasUpdates) {
+      LOGGER.warn("All update paths were skipped - no valid columns to update");
+      return;
+    }
+
+    // Build final UPDATE SQL
+    String sql =
+        String.format(
+            "UPDATE %s SET %s %s", tableIdentifier, String.join(", ", setFragments), filterClause);
+
+    LOGGER.debug("Executing update SQL: {}", sql);
+
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+      int idx = 1;
+      for (Object param : params) {
+        ps.setObject(idx++, param);
+      }
+      for (Object param : filterParams.getObjectParams().values()) {
+        ps.setObject(idx++, param);
+      }
+      int rowsUpdated = ps.executeUpdate();
+      LOGGER.debug("Rows updated: {}", rowsUpdated);
+    } catch (SQLException e) {
+      LOGGER.error("Failed to execute update. SQL: {}, SQLState: {}", sql, e.getSQLState(), e);
+      throw e;
+    }
+  }
+
+  /**
+   * Builds SET clause fragments for an UPDATE statement by grouping updates by column and chaining
+   * nested JSONB updates.
+   *
+   * @return true if at least one valid update fragment was built, false otherwise
+   */
+  private boolean buildSetClauseFragments(
+      Connection connection,
+      Collection<SubDocumentUpdate> updates,
+      String tableName,
+      Map<String, String> resolvedColumns,
+      List<String> setFragments,
+      List<Object> params)
+      throws SQLException {
+
     // Group updates by column to handle multiple nested updates to the same JSONB column
     Map<String, List<SubDocumentUpdate>> updatesByColumn = new LinkedHashMap<>();
     for (SubDocumentUpdate update : updates) {
@@ -837,9 +1190,9 @@ public class FlatPostgresCollection extends PostgresCollection {
       updatesByColumn.computeIfAbsent(columnName, k -> new ArrayList<>()).add(update);
     }
 
-    // Build SET clause fragments - one per column
-    List<String> setFragments = new ArrayList<>();
-    List<Object> params = new ArrayList<>();
+    if (updatesByColumn.isEmpty()) {
+      return false;
+    }
 
     for (Map.Entry<String, List<SubDocumentUpdate>> entry : updatesByColumn.entrySet()) {
       String columnName = entry.getKey();
@@ -906,33 +1259,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
     }
 
-    // If all updates were skipped, nothing to do
-    if (setFragments.isEmpty()) {
-      LOGGER.warn("All update paths were skipped - no valid columns to update");
-      return;
-    }
-
-    // Build final UPDATE SQL
-    String sql =
-        String.format(
-            "UPDATE %s SET %s %s", tableIdentifier, String.join(", ", setFragments), filterClause);
-
-    LOGGER.debug("Executing update SQL: {}", sql);
-
-    try (PreparedStatement ps = connection.prepareStatement(sql)) {
-      int idx = 1;
-      for (Object param : params) {
-        ps.setObject(idx++, param);
-      }
-      for (Object param : filterParams.getObjectParams().values()) {
-        ps.setObject(idx++, param);
-      }
-      int rowsUpdated = ps.executeUpdate();
-      LOGGER.debug("Rows updated: {}", rowsUpdated);
-    } catch (SQLException e) {
-      LOGGER.error("Failed to execute update. SQL: {}, SQLState: {}", sql, e.getSQLState(), e);
-      throw e;
-    }
+    return !setFragments.isEmpty();
   }
 
   /*isRetry: Whether this is a retry attempt*/

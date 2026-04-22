@@ -469,6 +469,183 @@ class FlatPostgresCollectionTest {
   }
 
   @Nested
+  @DisplayName("delete(Key) Exception Handling Tests")
+  class DeleteKeyExceptionTests {
+
+    @Test
+    @DisplayName("Should return false when prepareStatement throws SQLException")
+    void testDeleteReturnsFalseWhenPrepareStatementFails() throws Exception {
+      Key key = Key.from("test-key");
+
+      when(mockSchemaRegistry.getPrimaryKeyColumn(COLLECTION_NAME)).thenReturn(Optional.of("id"));
+      when(mockClient.getConnection()).thenReturn(mockConnection);
+      when(mockConnection.prepareStatement(anyString()))
+          .thenThrow(new SQLException("Statement preparation failed"));
+
+      boolean result = flatPostgresCollection.delete(key);
+
+      assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Should return false when executeUpdate throws SQLException")
+    void testDeleteReturnsFalseWhenExecuteUpdateFails() throws Exception {
+      Key key = Key.from("test-key");
+
+      when(mockSchemaRegistry.getPrimaryKeyColumn(COLLECTION_NAME)).thenReturn(Optional.of("id"));
+      when(mockClient.getConnection()).thenReturn(mockConnection);
+      when(mockConnection.prepareStatement(anyString())).thenReturn(mockPreparedStatement);
+      when(mockPreparedStatement.executeUpdate()).thenThrow(new SQLException("Execute failed"));
+
+      boolean result = flatPostgresCollection.delete(key);
+
+      assertFalse(result);
+    }
+  }
+
+  @Nested
+  @DisplayName("bulkCreateOrReplace Exception Handling Tests")
+  class BulkCreateOrReplaceExceptionTests {
+
+    @Test
+    @DisplayName("Should return false on BatchUpdateException")
+    void testBulkCreateOrReplaceReturnsFalseOnBatchUpdateException() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+      Map<Key, Document> documents = Map.of(key, document);
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCreateOrReplaceMocks(schema);
+
+      java.sql.BatchUpdateException batchException =
+          new java.sql.BatchUpdateException("Batch failed", new int[] {});
+      when(mockPreparedStatement.executeBatch()).thenThrow(batchException);
+
+      boolean result = flatPostgresCollection.bulkCreateOrReplace(documents);
+
+      assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Should return false on SQLException")
+    void testBulkCreateOrReplaceReturnsFalseOnSQLException() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+      Map<Key, Document> documents = Map.of(key, document);
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCreateOrReplaceMocks(schema);
+
+      SQLException sqlException = new SQLException("Connection failed", "08001", 1001);
+      when(mockPreparedStatement.executeBatch()).thenThrow(sqlException);
+
+      boolean result = flatPostgresCollection.bulkCreateOrReplace(documents);
+
+      assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("Should return false on generic Exception")
+    void testBulkCreateOrReplaceReturnsFalseOnGenericException() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+      Map<Key, Document> documents = Map.of(key, document);
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCreateOrReplaceMocks(schema);
+
+      RuntimeException runtimeException = new RuntimeException("Unexpected error");
+      when(mockPreparedStatement.executeBatch()).thenThrow(runtimeException);
+
+      boolean result = flatPostgresCollection.bulkCreateOrReplace(documents);
+
+      assertFalse(result);
+    }
+  }
+
+  @Nested
+  @DisplayName("bulkCreateOrReplaceReturnOlderDocuments Exception Handling Tests")
+  class BulkCreateOrReplaceReturnOlderDocumentsExceptionTests {
+
+    @Mock private java.sql.Array mockSqlArray;
+
+    private void setupBulkCreateOrReplaceReturnOlderDocsMocks(
+        Map<String, PostgresColumnMetadata> schema) throws SQLException {
+      when(mockSchemaRegistry.getPrimaryKeyColumn(COLLECTION_NAME)).thenReturn(Optional.of("id"));
+      when(mockClient.getPooledConnection()).thenReturn(mockConnection);
+      when(mockConnection.prepareStatement(anyString())).thenReturn(mockPreparedStatement);
+      when(mockConnection.createArrayOf(anyString(), any())).thenReturn(mockSqlArray);
+    }
+
+    @Test
+    @DisplayName("Should throw IOException on SQLException from getPooledConnection")
+    void testBulkCreateOrReplaceReturnOlderDocumentsThrowsOnSQLException() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+      Map<Key, Document> documents = Map.of(key, document);
+
+      when(mockSchemaRegistry.getPrimaryKeyColumn(COLLECTION_NAME)).thenReturn(Optional.of("id"));
+      SQLException sqlException = new SQLException("Connection failed", "08001", 1001);
+      when(mockClient.getPooledConnection()).thenThrow(sqlException);
+
+      IOException thrown =
+          assertThrows(
+              IOException.class,
+              () -> flatPostgresCollection.bulkCreateOrReplaceReturnOlderDocuments(documents));
+
+      assertTrue(thrown.getMessage().contains("Could not bulk createOrReplace"));
+      assertEquals(sqlException, thrown.getCause());
+    }
+
+    @Test
+    @DisplayName("Should throw IOException on SQLException from executeQuery")
+    void testBulkCreateOrReplaceReturnOlderDocumentsThrowsOnExecuteQuerySQLException()
+        throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+      Map<Key, Document> documents = Map.of(key, document);
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupBulkCreateOrReplaceReturnOlderDocsMocks(schema);
+
+      SQLException sqlException = new SQLException("Query failed", "42000", 1002);
+      when(mockPreparedStatement.executeQuery()).thenThrow(sqlException);
+
+      IOException thrown =
+          assertThrows(
+              IOException.class,
+              () -> flatPostgresCollection.bulkCreateOrReplaceReturnOlderDocuments(documents));
+
+      assertTrue(thrown.getMessage().contains("Could not bulk createOrReplace"));
+      assertEquals(sqlException, thrown.getCause());
+      verify(mockConnection).close();
+    }
+
+    @Test
+    @DisplayName("Should throw IOException on generic Exception")
+    void testBulkCreateOrReplaceReturnOlderDocumentsThrowsOnGenericException() throws Exception {
+      Key key = Key.from("test-key");
+      Document document = new JSONDocument("{\"item\": \"Test\", \"price\": 100}");
+      Map<Key, Document> documents = Map.of(key, document);
+
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupBulkCreateOrReplaceReturnOlderDocsMocks(schema);
+
+      RuntimeException runtimeException = new RuntimeException("Unexpected error");
+      when(mockPreparedStatement.executeQuery()).thenThrow(runtimeException);
+
+      IOException thrown =
+          assertThrows(
+              IOException.class,
+              () -> flatPostgresCollection.bulkCreateOrReplaceReturnOlderDocuments(documents));
+
+      assertTrue(thrown.getMessage().contains("Could not bulk createOrReplace"));
+      assertEquals(runtimeException, thrown.getCause());
+      verify(mockConnection).close();
+    }
+  }
+
+  @Nested
   @DisplayName("convertTimestampForType Tests")
   class TimestampCoversionTests {
 
