@@ -392,7 +392,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       // Build the bulk upsert SQL with all columns
       // Use COALESCE to preserve existing values when a document doesn't have a column
       List<String> columnList = new ArrayList<>(allColumns);
-      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false, true);
+      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false);
       LOGGER.debug("Bulk upsert SQL: {}", sql);
 
       try (Connection conn = client.getPooledConnection();
@@ -590,31 +590,13 @@ public class FlatPostgresCollection extends PostgresCollection {
    * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
    * columns in the provided list are updated on conflict (merge behavior).
    *
-   * @param columns List of quoted column names to include
-   * @param pkColumn The quoted primary key column name
+   * @param columns          List of quoted column names to include
+   * @param pkColumn         The quoted primary key column name
    * @param includeReturning If true, adds RETURNING clause to detect insert vs update
    * @return The upsert SQL statement
    */
   private String buildMergeUpsertSql(
       List<String> columns, String pkColumn, boolean includeReturning) {
-    return buildMergeUpsertSql(columns, pkColumn, includeReturning, false);
-  }
-
-  /**
-   * Builds a PostgreSQL upsert SQL statement with merge semantics.
-   *
-   * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
-   * columns in the provided list are updated on conflict (merge behavior).
-   *
-   * @param columns List of quoted column names to include
-   * @param pkColumn The quoted primary key column name
-   * @param includeReturning If true, adds RETURNING clause to detect insert vs update
-   * @param useCoalesce If true, uses COALESCE(EXCLUDED.col, table.col) to preserve existing values
-   *     when the new value is NULL
-   * @return The upsert SQL statement
-   */
-  private String buildMergeUpsertSql(
-      List<String> columns, String pkColumn, boolean includeReturning, boolean useCoalesce) {
     String columnList = String.join(", ", columns);
     String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
 
@@ -632,20 +614,14 @@ public class FlatPostgresCollection extends PostgresCollection {
             .filter(col -> !col.equals(pkColumn))
             .filter(col -> !col.equals(quotedCreatedTs))
             .map(
-                col -> {
-                  if (useCoalesce) {
-                    return col
-                        + " = COALESCE(EXCLUDED."
-                        + col
-                        + ", "
-                        + tableIdentifier
-                        + "."
-                        + col
-                        + ")";
-                  } else {
-                    return col + " = EXCLUDED." + col;
-                  }
-                })
+                col -> col
+                    + " = COALESCE(EXCLUDED."
+                    + col
+                    + ", "
+                    + tableIdentifier
+                    + "."
+                    + col
+                    + ")")
             .collect(Collectors.joining(", "));
 
     String sql =
@@ -1014,7 +990,7 @@ public class FlatPostgresCollection extends PostgresCollection {
    * Validates all updates and resolves column names.
    *
    * @return Map of path -> columnName for all resolved columns. For example: customAttributes.props
-   *     -> customAttributes (since customAttributes is the top-level JSONB col)
+   * -> customAttributes (since customAttributes is the top-level JSONB col)
    */
   private Map<String, String> resolvePathsToColumns(
       Collection<SubDocumentUpdate> updates, String tableName) {
@@ -1087,7 +1063,9 @@ public class FlatPostgresCollection extends PostgresCollection {
     return Optional.empty();
   }
 
-  /** Extracts the nested JSONB path from a full path given the resolved column name. */
+  /**
+   * Extracts the nested JSONB path from a full path given the resolved column name.
+   */
   private String[] getNestedPath(String fullPath, String columnName) {
     if (fullPath.equals(columnName)) {
       return new String[0];
@@ -1492,9 +1470,9 @@ public class FlatPostgresCollection extends PostgresCollection {
    * <p>Unlike {@link #createOrReplaceWithRetry}, this method does NOT reset missing columns to
    * their default values.
    *
-   * @param key The document key
+   * @param key      The document key
    * @param document The document to upsert
-   * @param isRetry Whether this is a retry attempt after schema refresh
+   * @param isRetry  Whether this is a retry attempt after schema refresh
    * @return true if a new document was created, false if an existing document was updated
    */
   private boolean upsertWithRetry(Key key, Document document, boolean isRetry) throws IOException {
@@ -1510,12 +1488,16 @@ public class FlatPostgresCollection extends PostgresCollection {
       PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
       parsed.add(quotedPkColumn, key.toString(), pkType, false);
 
-      List<String> docColumns = parsed.getColumns();
+      List<String> tableColumns =
+          schemaRegistry.getSchema(tableName).values().stream()
+              .map(PostgresColumnMetadata::getName)
+              .map(PostgresUtils::wrapFieldNamesWithDoubleQuotes)
+              .collect(Collectors.toList());
 
-      String sql = buildUpsertSql(docColumns, quotedPkColumn);
+      String sql = buildUpsertSql(tableColumns, quotedPkColumn);
       LOGGER.debug("Upsert (merge) SQL: {}", sql);
 
-      return executeUpsert(sql, parsed);
+      return executeUpsert(sql, tableColumns, parsed);
 
     } catch (PSQLException e) {
       return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
@@ -1528,29 +1510,31 @@ public class FlatPostgresCollection extends PostgresCollection {
   /**
    * Builds a PostgreSQL upsert SQL statement with merge semantics.
    *
-   * <p>This method constructs an atomic upsert query that:
+   * <p>Uses ALL table columns so the SQL text is stable across calls (depends only on the table
+   * schema, not the document shape). This allows the PgJDBC driver to promote it to a server-side
+   * prepared statement after {@code prepareThreshold} executions on the same connection, enabling
+   * Postgres query-plan reuse.
    *
-   * <ul>
-   *   <li>Inserts a new row if no conflict on the primary key
-   *   <li>If the row with that PK already exists, only updates columns present in the document
-   *   <li>Columns NOT in the document retain their existing values (merge behavior)
-   * </ul>
+   * <p>Columns absent from the document are bound as {@code NULL}; the {@code COALESCE} in the SET
+   * clause then preserves their existing values.
    *
    * <p><b>Generated SQL pattern:</b>
    *
    * <pre>{@code
-   * INSERT INTO table (col1, col2, pk_col)
+   * INSERT INTO table (all_col1, all_col2, pk_col)
    * VALUES (?, ?, ?)
-   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2
+   * ON CONFLICT (pk_col) DO UPDATE
+   *   SET all_col1 = COALESCE(EXCLUDED.all_col1, table.all_col1),
+   *       all_col2 = COALESCE(EXCLUDED.all_col2, table.all_col2)
    * RETURNING (xmax = 0) AS is_insert
    * }</pre>
    *
-   * @param docColumns columns present in the document
-   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @param allTableColumns all quoted column names in the table
+   * @param pkColumn        The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
-  private String buildUpsertSql(List<String> docColumns, String pkColumn) {
-    return buildMergeUpsertSql(docColumns, pkColumn, true);
+  private String buildUpsertSql(List<String> allTableColumns, String pkColumn) {
+    return buildMergeUpsertSql(allTableColumns, pkColumn, true);
   }
 
   /**
@@ -1589,8 +1573,8 @@ public class FlatPostgresCollection extends PostgresCollection {
    * </ul>
    *
    * @param allTableColumns all cols present in the table
-   * @param docColumns cols present in the document
-   * @param pkColumn The quoted primary key column name used for conflict detection
+   * @param docColumns      cols present in the document
+   * @param pkColumn        The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
   private String buildCreateOrReplaceSql(
@@ -1626,18 +1610,24 @@ public class FlatPostgresCollection extends PostgresCollection {
         tableIdentifier, columnList, placeholders, pkColumn, setClause);
   }
 
-  private boolean executeUpsert(String sql, TypedDocument parsed) throws SQLException {
+  private boolean executeUpsert(String sql, List<String> allColumns, TypedDocument parsed)
+      throws SQLException {
     try (Connection conn = client.getPooledConnection();
         PreparedStatement ps = conn.prepareStatement(sql)) {
       int index = 1;
-      for (String column : parsed.getColumns()) {
-        setParameter(
-            conn,
-            ps,
-            index++,
-            parsed.getValue(column),
-            parsed.getType(column),
-            parsed.isArray(column));
+      Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
+      for (String column : allColumns) {
+        if (parsedColumns.contains(column)) {
+          setParameter(
+              conn,
+              ps,
+              index++,
+              parsed.getValue(column),
+              parsed.getType(column),
+              parsed.isArray(column));
+        } else {
+          ps.setObject(index++, null);
+        }
       }
       try (ResultSet rs = ps.executeQuery()) {
         return rs.next();
@@ -1645,7 +1635,9 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
-  /** Returns true if INSERT, false if UPDATE. */
+  /**
+   * Returns true if INSERT, false if UPDATE.
+   */
   private boolean executeUpsertReturningIsInsert(String sql, TypedDocument parsed)
       throws SQLException {
     try (Connection conn = client.getPooledConnection();
