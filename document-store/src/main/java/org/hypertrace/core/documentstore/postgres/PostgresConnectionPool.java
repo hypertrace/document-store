@@ -22,48 +22,43 @@ class PostgresConnectionPool {
   private static final String VALIDATION_QUERY = "SELECT 1";
   private static final Duration VALIDATION_QUERY_TIMEOUT = Duration.ofSeconds(5);
 
-  // data source for pools with auto-commits enabled
-  private final PoolingDataSource<PoolableConnection> regularDataSource;
-  // data source for pools with auto-commits disabled. This is used for transactional operations
-  // that manage their own commit logic
-  private final PoolingDataSource<PoolableConnection> transactionalDataSource;
+  // Single pool with autoCommit=true by default. Transactional connections flip autoCommit
+  // to false on borrow; DBCP2 resets it back when the connection is returned to the pool.
+  private final PoolingDataSource<PoolableConnection> dataSource;
 
   PostgresConnectionPool(final PostgresConnectionConfig config) {
-    this.regularDataSource = createPooledDataSource(config, true);
-    this.transactionalDataSource = createPooledDataSource(config, false);
+    this.dataSource = createPooledDataSource(config);
   }
 
   /**
-   * Get a connection from the regular pool with autoCommit=true. Use for read-only queries that
-   * don't need manual transaction management.
+   * Get a connection with autoCommit=true (pool default). Use for simple queries that don't need
+   * manual transaction management.
    */
   public Connection getConnection() throws SQLException {
-    return regularDataSource.getConnection();
+    return dataSource.getConnection();
   }
 
   /**
-   * Get a connection from the transactional pool with autoCommit=false. Use for operations that
-   * require manual transaction management (commit/rollback).
+   * Get a connection with autoCommit=false for manual transaction management (commit/rollback).
+   * When the connection is closed/returned to the pool, DBCP2 automatically resets autoCommit back
+   * to the pool default (true).
    */
   public Connection getTransactionalConnection() throws SQLException {
-    return transactionalDataSource.getConnection();
+    Connection conn = dataSource.getConnection();
+    conn.setAutoCommit(false);
+    return conn;
   }
 
   public void close() {
     try {
-      regularDataSource.close();
+      dataSource.close();
     } catch (final SQLException e) {
-      log.warn("Unable to close regular Postgres connection pool", e);
-    }
-    try {
-      transactionalDataSource.close();
-    } catch (final SQLException e) {
-      log.warn("Unable to close transactional Postgres connection pool", e);
+      log.warn("Unable to close Postgres connection pool", e);
     }
   }
 
   private PoolingDataSource<PoolableConnection> createPooledDataSource(
-      final PostgresConnectionConfig config, final boolean autoCommit) {
+      final PostgresConnectionConfig config) {
     final ConnectionFactory connectionFactory =
         new DriverManagerConnectionFactory(config.toConnectionString(), config.buildProperties());
     final PoolableConnectionFactory poolableConnectionFactory =
@@ -73,7 +68,7 @@ class PostgresConnectionPool {
 
     final ConnectionPoolConfig poolConfig = config.connectionPoolConfig();
     setPoolProperties(connectionPool, poolConfig);
-    setFactoryProperties(poolableConnectionFactory, connectionPool, autoCommit);
+    setFactoryProperties(poolableConnectionFactory, connectionPool);
 
     return new PoolingDataSource<>(connectionPool);
   }
@@ -100,13 +95,12 @@ class PostgresConnectionPool {
 
   private void setFactoryProperties(
       PoolableConnectionFactory poolableConnectionFactory,
-      GenericObjectPool<PoolableConnection> connectionPool,
-      boolean autoCommit) {
+      GenericObjectPool<PoolableConnection> connectionPool) {
     poolableConnectionFactory.setPool(connectionPool);
     poolableConnectionFactory.setValidationQuery(VALIDATION_QUERY);
     poolableConnectionFactory.setValidationQueryTimeout((int) VALIDATION_QUERY_TIMEOUT.toSeconds());
     poolableConnectionFactory.setDefaultReadOnly(false);
-    poolableConnectionFactory.setDefaultAutoCommit(autoCommit);
+    poolableConnectionFactory.setDefaultAutoCommit(true);
     poolableConnectionFactory.setDefaultTransactionIsolation(TRANSACTION_READ_COMMITTED);
     poolableConnectionFactory.setPoolStatements(false);
   }
