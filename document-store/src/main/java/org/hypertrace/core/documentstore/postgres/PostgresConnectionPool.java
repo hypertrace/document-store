@@ -90,7 +90,7 @@ class PostgresConnectionPool {
     connectionPool.setMaxWaitMillis(poolConfig.connectionAccessTimeout().toMillis());
     connectionPool.setAbandonedConfig(abandonedConfig);
     log.debug(
-        "Connection pool properties - maxTotal: {}, maxIdle: {}, minIdle: {}, maxWaitMillis: {}, connectionSurrenderTimeout: {}",
+        "Postgres connection pool properties - maxTotal: {}, maxIdle: {}, minIdle: {}, maxWaitMillis: {}, connectionSurrenderTimeout: {}",
         connectionPool.getMaxTotal(),
         connectionPool.getMaxIdle(),
         connectionPool.getMinIdle(),
