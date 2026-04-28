@@ -35,7 +35,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
   private static final String CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
   private static final String CONNECTION_SURRENDER_TIMEOUT_KEY = "connectionSurrenderTimeout";
   private static final String MAX_IDLE_PERCENT_KEY = "maxIdlePercent";
-  private static final String MIN_IDLE_PERCENT_KEY = "minIdelPercent";
+  private static final String MIN_IDLE_PERCENT_KEY = "minIdlePercent";
   private static final String AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
   private static final String DATA_FRESHNESS_KEY = "dataFreshness";
   private static final String QUERY_TIMEOUT_KEY = "queryTimeout";

@@ -33,7 +33,7 @@ public class TypesafeConfigDatastoreConfigExtractor {
   private static final String DEFAULT_CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
   private static final String DEFAULT_CONNECTION_IDLE_TIME_KEY = "connectionIdleTime";
   private static final String DEFAULT_MAX_IDLE_PERCENT_KEY = "maxIdlePercent";
-  private static final String DEFAULT_MIN_IDLE_PERCENT_KEY = "minIdelPercent";
+  private static final String DEFAULT_MIN_IDLE_PERCENT_KEY = "minIdlePercent";
   private static final String DEFAULT_AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
   private static final String DEFAULT_DATA_FRESHNESS_KEY = "dataFreshness";
   private static final String DEFAULT_QUERY_TIMEOUT_KEY = "queryTimeout";
