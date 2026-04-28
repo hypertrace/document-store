@@ -176,16 +176,61 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     }
 
     @Test
-    @DisplayName("Should throw UnsupportedOperationException for upsertAndReturn")
-    void testUpsertAndReturn() {
-      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
-      objectNode.put("_id", 100);
-      objectNode.put("item", "NewItem");
-      Document document = new JSONDocument(objectNode);
-      Key key = new SingleValueKey("default", "100");
+    @DisplayName("Should upsert new document and return it")
+    void testUpsertAndReturnNewDocument() throws Exception {
+      String docId = generateDocId("test");
 
-      assertThrows(
-          UnsupportedOperationException.class, () -> flatCollection.upsertAndReturn(key, document));
+      ObjectNode objectNode = OBJECT_MAPPER.createObjectNode();
+      objectNode.put("id", docId);
+      objectNode.put("item", "NewItem");
+      objectNode.put("price", 99);
+      Document document = new JSONDocument(objectNode);
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      Document returned = flatCollection.upsertAndReturn(key, document);
+
+      assertNotNull(returned);
+
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("NewItem", rs.getString("item"));
+            assertEquals(99, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("Should upsert existing document and return it")
+    void testUpsertAndReturnExistingDocument() throws Exception {
+      String docId = generateDocId("test");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      // Create initial document
+      ObjectNode initialNode = OBJECT_MAPPER.createObjectNode();
+      initialNode.put("id", docId);
+      initialNode.put("item", "Original");
+      initialNode.put("price", 100);
+      flatCollection.upsert(key, new JSONDocument(initialNode));
+
+      // Upsert again with updated fields
+      ObjectNode updatedNode = OBJECT_MAPPER.createObjectNode();
+      updatedNode.put("id", docId);
+      updatedNode.put("item", "Updated");
+      updatedNode.put("price", 200);
+      Document updatedDoc = new JSONDocument(updatedNode);
+
+      Document returned = flatCollection.upsertAndReturn(key, updatedDoc);
+
+      assertNotNull(returned);
+
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Updated", rs.getString("item"));
+            assertEquals(200, rs.getInt("price"));
+          });
     }
   }
 
