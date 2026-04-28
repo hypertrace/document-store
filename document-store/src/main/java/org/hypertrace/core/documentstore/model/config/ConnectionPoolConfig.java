@@ -16,6 +16,12 @@ import lombok.experimental.Accessors;
 public class ConnectionPoolConfig {
   @NonNull @Nonnegative @Builder.Default Integer maxConnections = 16;
 
+  // max idle connections as a percentage of max connections; -1 means pin to maxConnections
+  @NonNull @Builder.Default Integer maxIdlePercent = -1;
+
+  // min idle connections as a percentage of max connections; -1 means pin to maxConnections
+  @NonNull @Builder.Default Integer minIdlePercent = -1;
+
   // Time duration to wait for obtaining a connection from the pool
   @NonNull @Builder.Default Duration connectionAccessTimeout = Duration.ofSeconds(10);
 

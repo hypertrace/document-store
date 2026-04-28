@@ -32,6 +32,8 @@ public class TypesafeConfigDatastoreConfigExtractor {
   private static final String DEFAULT_MAX_POOL_SIZE_KEY = "maxPoolSize";
   private static final String DEFAULT_CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
   private static final String DEFAULT_CONNECTION_IDLE_TIME_KEY = "connectionIdleTime";
+  private static final String DEFAULT_MAX_IDLE_PERCENT_KEY = "maxIdlePercent";
+  private static final String DEFAULT_MIN_IDLE_PERCENT_KEY = "minIdelPercent";
   private static final String DEFAULT_AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
   private static final String DEFAULT_DATA_FRESHNESS_KEY = "dataFreshness";
   private static final String DEFAULT_QUERY_TIMEOUT_KEY = "queryTimeout";
@@ -84,6 +86,8 @@ public class TypesafeConfigDatastoreConfigExtractor {
         .poolMaxConnectionsKey(DEFAULT_MAX_POOL_SIZE_KEY)
         .poolConnectionAccessTimeoutKey(DEFAULT_CONNECTION_ACCESS_TIMEOUT_KEY)
         .poolConnectionSurrenderTimeoutKey(DEFAULT_CONNECTION_IDLE_TIME_KEY)
+        .poolMaxIdlePercentKey(DEFAULT_MAX_IDLE_PERCENT_KEY)
+        .poolMinIdlePercentKey(DEFAULT_MIN_IDLE_PERCENT_KEY)
         .aggregationPipelineMode(DEFAULT_AGGREGATION_PIPELINE_MODE_KEY)
         .dataFreshnessKey(DEFAULT_DATA_FRESHNESS_KEY)
         .queryTimeoutKey(DEFAULT_QUERY_TIMEOUT_KEY)
@@ -224,6 +228,20 @@ public class TypesafeConfigDatastoreConfigExtractor {
       @NonNull final String key) {
     if (config.hasPath(key)) {
       connectionPoolConfigBuilder.connectionSurrenderTimeout(config.getDuration(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolMaxIdlePercentKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.maxIdlePercent(config.getInt(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolMinIdlePercentKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.minIdlePercent(config.getInt(key));
     }
     return this;
   }

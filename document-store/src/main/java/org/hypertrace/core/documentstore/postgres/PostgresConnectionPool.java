@@ -84,13 +84,18 @@ class PostgresConnectionPool {
     final AbandonedConfig abandonedConfig = getAbandonedConfig(poolConfig);
     final int maxConnections = poolConfig.maxConnections();
     connectionPool.setMaxTotal(maxConnections);
-    // max idle connections are 20% of max connections
-    connectionPool.setMaxIdle(getPercentOf(20, maxConnections));
-    // min idle connections are 10% of max connections
-    connectionPool.setMinIdle(getPercentOf(10, maxConnections));
+    connectionPool.setMaxIdle(getIdleCount(poolConfig.maxIdlePercent(), maxConnections));
+    connectionPool.setMinIdle(getIdleCount(poolConfig.minIdlePercent(), maxConnections));
     connectionPool.setBlockWhenExhausted(true);
     connectionPool.setMaxWaitMillis(poolConfig.connectionAccessTimeout().toMillis());
     connectionPool.setAbandonedConfig(abandonedConfig);
+    log.debug(
+        "Connection pool properties - maxTotal: {}, maxIdle: {}, minIdle: {}, maxWaitMillis: {}, connectionSurrenderTimeout: {}",
+        connectionPool.getMaxTotal(),
+        connectionPool.getMaxIdle(),
+        connectionPool.getMinIdle(),
+        connectionPool.getMaxWaitMillis(),
+        poolConfig.connectionSurrenderTimeout());
   }
 
   private void setFactoryProperties(
@@ -115,7 +120,10 @@ class PostgresConnectionPool {
     return abandonedConfig;
   }
 
-  private int getPercentOf(final int percent, final int maxConnections) {
+  private int getIdleCount(final int percent, final int maxConnections) {
+    if (percent < 0) {
+      return maxConnections;
+    }
     final int value = (maxConnections * percent) / 100;
     return Math.max(value, 1);
   }
