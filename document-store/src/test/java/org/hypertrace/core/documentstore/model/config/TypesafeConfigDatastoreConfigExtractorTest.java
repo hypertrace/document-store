@@ -34,6 +34,8 @@ class TypesafeConfigDatastoreConfigExtractorTest {
   private static final String MAX_CONNECTIONS_KEY = "maxConnectionsKey";
   private static final String CONNECTION_ACCESS_TIMEOUT_KEY = "connectionAccessTimeout";
   private static final String CONNECTION_SURRENDER_TIMEOUT_KEY = "connectionSurrenderTimeout";
+  private static final String MAX_IDLE_PERCENT_KEY = "maxIdlePercent";
+  private static final String MIN_IDLE_PERCENT_KEY = "minIdelPercent";
   private static final String AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
   private static final String DATA_FRESHNESS_KEY = "dataFreshness";
   private static final String QUERY_TIMEOUT_KEY = "queryTimeout";
@@ -52,6 +54,8 @@ class TypesafeConfigDatastoreConfigExtractorTest {
   private static final int maxConnections = 7;
   private static final Duration accessTimeout = Duration.ofSeconds(67);
   private static final Duration surrenderTimeout = Duration.ofSeconds(56);
+  private static final int maxIdlePercent = 30;
+  private static final int minIdlePercent = 15;
   private static final AggregatePipelineMode aggregatePipelineMode = SORT_OPTIMIZED_IF_POSSIBLE;
   private static final DataFreshness dataFreshness = NEAR_REALTIME_FRESHNESS;
   private static final Duration queryTimeout = Duration.ofSeconds(45);
@@ -421,6 +425,66 @@ class TypesafeConfigDatastoreConfigExtractorTest {
     assertTrue(collectionConfig.get().getTimestampFields().isPresent());
     assertFalse(collectionConfig.get().getTimestampFields().get().getCreated().isPresent());
     assertFalse(collectionConfig.get().getTimestampFields().get().getLastUpdated().isPresent());
+  }
+
+  @Test
+  void testDefaultIdlePercentValues() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig)
+            TypesafeConfigDatastoreConfigExtractor.from(buildConfigMap(), DatabaseType.POSTGRES)
+                .hostKey(HOST_KEY)
+                .portKey(PORT_KEY)
+                .databaseKey(DATABASE_KEY)
+                .usernameKey(USER_KEY)
+                .passwordKey(PASSWORD_KEY)
+                .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
+                .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
+                .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
+                .extract()
+                .connectionConfig();
+
+    final ConnectionPoolConfig poolConfig = config.connectionPoolConfig();
+    assertEquals(-1, poolConfig.maxIdlePercent());
+    assertEquals(-1, poolConfig.minIdlePercent());
+  }
+
+  @Test
+  void testCustomIdlePercentValues() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig)
+            TypesafeConfigDatastoreConfigExtractor.from(
+                    buildConfigMapWithIdlePercent(), DatabaseType.POSTGRES)
+                .hostKey(HOST_KEY)
+                .portKey(PORT_KEY)
+                .databaseKey(DATABASE_KEY)
+                .usernameKey(USER_KEY)
+                .passwordKey(PASSWORD_KEY)
+                .poolMaxConnectionsKey(MAX_CONNECTIONS_KEY)
+                .poolConnectionAccessTimeoutKey(CONNECTION_ACCESS_TIMEOUT_KEY)
+                .poolConnectionSurrenderTimeoutKey(CONNECTION_SURRENDER_TIMEOUT_KEY)
+                .poolMaxIdlePercentKey(MAX_IDLE_PERCENT_KEY)
+                .poolMinIdlePercentKey(MIN_IDLE_PERCENT_KEY)
+                .extract()
+                .connectionConfig();
+
+    final ConnectionPoolConfig poolConfig = config.connectionPoolConfig();
+    assertEquals(maxIdlePercent, poolConfig.maxIdlePercent());
+    assertEquals(minIdlePercent, poolConfig.minIdlePercent());
+  }
+
+  private Config buildConfigMapWithIdlePercent() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(HOST_KEY, host),
+            entry(PORT_KEY, port),
+            entry(DATABASE_KEY, database),
+            entry(USER_KEY, user),
+            entry(PASSWORD_KEY, password),
+            entry(MAX_CONNECTIONS_KEY, maxConnections),
+            entry(CONNECTION_ACCESS_TIMEOUT_KEY, accessTimeout),
+            entry(CONNECTION_SURRENDER_TIMEOUT_KEY, surrenderTimeout),
+            entry(MAX_IDLE_PERCENT_KEY, maxIdlePercent),
+            entry(MIN_IDLE_PERCENT_KEY, minIdlePercent)));
   }
 
   private Config buildConfigMap() {
