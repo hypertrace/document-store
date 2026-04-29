@@ -877,7 +877,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     Set<Key> updatedKeys = new HashSet<>();
 
-    long now = System.currentTimeMillis();
+    long batchUpdateTimestamp = System.currentTimeMillis();
 
     try (Connection connection = client.getPooledConnection()) {
       for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
@@ -890,7 +890,8 @@ public class FlatPostgresCollection extends PostgresCollection {
 
         try {
           boolean updated =
-              updateSingleKey(connection, key, keyUpdates, tableName, quotedPkColumn, now);
+              updateSingleKey(
+                  connection, key, keyUpdates, tableName, quotedPkColumn, batchUpdateTimestamp);
           if (updated) {
             updatedKeys.add(key);
           }
@@ -912,14 +913,20 @@ public class FlatPostgresCollection extends PostgresCollection {
       Collection<SubDocumentUpdate> keyUpdates,
       String tableName,
       String quotedPkColumn,
-      long epochMillis)
+      long keyUpdateTimestamp)
       throws IOException, SQLException {
 
     updateValidator.validate(keyUpdates);
     Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
 
     return executeKeyUpdate(
-        connection, key, keyUpdates, tableName, quotedPkColumn, resolvedColumns, epochMillis);
+        connection,
+        key,
+        keyUpdates,
+        tableName,
+        quotedPkColumn,
+        resolvedColumns,
+        keyUpdateTimestamp);
   }
 
   private boolean executeKeyUpdate(
@@ -1350,7 +1357,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     Optional<PostgresColumnMetadata> colMeta =
         schemaRegistry.getColumnOrRefresh(tableName, lastUpdatedTsColumn);
     if (colMeta.isEmpty()) {
-      LOGGER.debug(
+      LOGGER.warn(
           "lastUpdatedTsColumn '{}' not found in schema for table '{}'",
           lastUpdatedTsColumn,
           tableName);
