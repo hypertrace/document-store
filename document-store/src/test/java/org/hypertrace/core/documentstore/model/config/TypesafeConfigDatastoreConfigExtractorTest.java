@@ -444,8 +444,8 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                 .connectionConfig();
 
     final ConnectionPoolConfig poolConfig = config.connectionPoolConfig();
-    assertEquals(-1, poolConfig.maxIdlePercent());
-    assertEquals(-1, poolConfig.minIdlePercent());
+    assertEquals(20, poolConfig.maxIdlePercent());
+    assertEquals(10, poolConfig.minIdlePercent());
   }
 
   @Test
