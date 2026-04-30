@@ -60,6 +60,23 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
   @BeforeAll
   public static void init() throws IOException {
     initPostgres();
+
+    // Recreate datastore with timestamp config for the flat collection
+    String postgresConnectionUrl =
+        String.format("jdbc:postgresql://localhost:%s/", postgresContainer.getMappedPort(5432));
+    Map<String, String> configMap = new HashMap<>();
+    configMap.put("url", postgresConnectionUrl);
+    configMap.put("user", "postgres");
+    configMap.put("password", "postgres");
+    configMap.put(
+        "postgres.collectionConfigs." + FLAT_COLLECTION_NAME + ".timestampFields.created",
+        "created_at");
+    configMap.put(
+        "postgres.collectionConfigs." + FLAT_COLLECTION_NAME + ".timestampFields.lastUpdated",
+        "last_updated");
+    postgresDatastore =
+        DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(configMap));
+
     LOGGER.info("Postgres datastore initialized: {}", postgresDatastore.listCollections());
 
     createFlatCollectionSchema((PostgresDatastore) postgresDatastore, FLAT_COLLECTION_NAME);
@@ -191,6 +208,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
 
   @Nested
   class BulkUpsertTests {
+
     @Test
     @DisplayName("Should bulk upsert multiple new documents")
     void testBulkUpsertNewDocuments() throws Exception {
@@ -1442,6 +1460,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
 
     @Nested
     class BulkCreateOrReplaceTests {
+
       @Test
       @DisplayName("Should bulk createOrReplace multiple new documents")
       void testBulkCreateOrReplaceNewDocuments() throws Exception {
@@ -1728,11 +1747,15 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         // Verify doc1 original values
         JsonNode expectedDoc1 = OBJECT_MAPPER.readTree(initial1Json);
         JsonNode oldDoc1 = olderDocsMap.get(key1);
+        ((ObjectNode) oldDoc1).remove("created_at");
+        ((ObjectNode) oldDoc1).remove("last_updated");
         assertEquals(expectedDoc1, oldDoc1);
 
         // Verify doc2 original values
         JsonNode expectedDoc2 = OBJECT_MAPPER.readTree(initial2Json);
         JsonNode oldDoc2 = olderDocsMap.get(key2);
+        ((ObjectNode) oldDoc2).remove("created_at");
+        ((ObjectNode) oldDoc2).remove("last_updated");
         assertEquals(expectedDoc2, oldDoc2);
 
         // Verify the documents were actually replaced with new values
@@ -1753,6 +1776,8 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         try (CloseableIterator<Document> iter = flatCollection.find(query1)) {
           assertTrue(iter.hasNext());
           JsonNode actualDoc1 = OBJECT_MAPPER.readTree(iter.next().toJson());
+          ((ObjectNode) actualDoc1).remove("created_at");
+          ((ObjectNode) actualDoc1).remove("last_updated");
           JsonNode expectedResultDoc1 = OBJECT_MAPPER.readTree(expectedResult1Json);
           assertEquals(expectedResultDoc1, actualDoc1);
         }
@@ -1769,6 +1794,8 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         try (CloseableIterator<Document> iter = flatCollection.find(query2)) {
           assertTrue(iter.hasNext());
           JsonNode actualDoc2 = OBJECT_MAPPER.readTree(iter.next().toJson());
+          ((ObjectNode) actualDoc2).remove("created_at");
+          ((ObjectNode) actualDoc2).remove("last_updated");
           JsonNode expectedResultDoc2 = OBJECT_MAPPER.readTree(expectedResult2Json);
           assertEquals(expectedResultDoc2, actualDoc2);
         }
@@ -2246,6 +2273,8 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
           // test
           expectedJson.remove("date");
           resultJson.remove("date");
+          resultJson.remove("created_at");
+          resultJson.remove("last_updated");
 
           assertEquals(expectedJson, resultJson);
         }
@@ -2625,6 +2654,8 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
           JsonNode resultJson = OBJECT_MAPPER.readTree(results.next().toJson());
 
           ((ObjectNode) resultJson).remove("id");
+          ((ObjectNode) resultJson).remove("created_at");
+          ((ObjectNode) resultJson).remove("last_updated");
           assertEquals(expectedJson, resultJson);
         }
 
@@ -3529,6 +3560,257 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
               RelationalExpression.of(
                   IdentifierExpression.of("id"), RelationalOperator.EQ, ConstantExpression.of(id)))
           .build();
+    }
+  }
+
+  @Nested
+  @DisplayName("LastUpdateTime Timestamp Tests")
+  class LastUpdateTimeTests {
+
+    @Test
+    @DisplayName("upsert should set lastUpdateTime on insert")
+    void testUpsertSetsLastUpdateTimeOnInsert() throws Exception {
+      String docId = generateDocId("ts-upsert");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "TimestampItem");
+      node.put("price", 100);
+
+      flatCollection.upsert(key, new JSONDocument(node));
+
+      assertLastUpdatedIsSet(key);
+    }
+
+    @Test
+    @DisplayName("upsert should update lastUpdateTime on update")
+    void testUpsertUpdatesLastUpdateTimeOnUpdate() throws Exception {
+      String docId = generateDocId("ts-upsert-upd");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "Original");
+      node.put("price", 100);
+      flatCollection.upsert(key, new JSONDocument(node));
+
+      long afterInsert = getLastUpdatedEpoch(key);
+      assertTrue(afterInsert > 0);
+
+      Thread.sleep(50);
+
+      ObjectNode updateNode = OBJECT_MAPPER.createObjectNode();
+      updateNode.put("item", "Updated");
+      flatCollection.upsert(key, new JSONDocument(updateNode));
+
+      long afterUpdate = getLastUpdatedEpoch(key);
+      assertTrue(afterUpdate > afterInsert);
+    }
+
+    @Test
+    @DisplayName("create should set lastUpdateTime")
+    void testCreateSetsLastUpdateTime() throws Exception {
+      String docId = generateDocId("ts-create");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "CreatedItem");
+      node.put("price", 50);
+
+      flatCollection.create(key, new JSONDocument(node));
+
+      assertLastUpdatedIsSet(key);
+    }
+
+    @Test
+    @DisplayName("createOrReplace should set lastUpdateTime on insert")
+    void testCreateOrReplaceSetsLastUpdateTimeOnInsert() throws Exception {
+      String docId = generateDocId("ts-cor-insert");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "CORItem");
+      node.put("price", 75);
+
+      flatCollection.createOrReplace(key, new JSONDocument(node));
+
+      assertLastUpdatedIsSet(key);
+    }
+
+    @Test
+    @DisplayName("createOrReplace should update lastUpdateTime on replace")
+    void testCreateOrReplaceUpdatesLastUpdateTimeOnReplace() throws Exception {
+      String docId = generateDocId("ts-cor-replace");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "Original");
+      node.put("price", 100);
+      flatCollection.createOrReplace(key, new JSONDocument(node));
+
+      long afterInsert = getLastUpdatedEpoch(key);
+      assertTrue(afterInsert > 0);
+
+      Thread.sleep(50);
+
+      ObjectNode replaceNode = OBJECT_MAPPER.createObjectNode();
+      replaceNode.put("item", "Replaced");
+      replaceNode.put("price", 200);
+      flatCollection.createOrReplace(key, new JSONDocument(replaceNode));
+
+      long afterReplace = getLastUpdatedEpoch(key);
+      assertTrue(afterReplace > afterInsert);
+    }
+
+    @Test
+    @DisplayName("bulkUpsert should set lastUpdateTime")
+    void testBulkUpsertSetsLastUpdateTime() throws Exception {
+      String docId = generateDocId("ts-bulk-upsert");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      Map<Key, Document> bulkMap = new LinkedHashMap<>();
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "BulkItem");
+      node.put("price", 100);
+      bulkMap.put(key, new JSONDocument(node));
+
+      flatCollection.bulkUpsert(bulkMap);
+
+      assertLastUpdatedIsSet(key);
+    }
+
+    @Test
+    @DisplayName("bulkCreateOrReplace should set lastUpdateTime")
+    void testBulkCreateOrReplaceSetsLastUpdateTime() throws Exception {
+      String docId = generateDocId("ts-bulk-cor");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      Map<Key, Document> bulkMap = new LinkedHashMap<>();
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "BulkCORItem");
+      node.put("price", 100);
+      bulkMap.put(key, new JSONDocument(node));
+
+      flatCollection.bulkCreateOrReplace(bulkMap);
+
+      assertLastUpdatedIsSet(key);
+    }
+
+    @Test
+    @DisplayName("update(Query, SubDocumentUpdates) should update lastUpdateTime")
+    void testQueryBasedUpdateSetsLastUpdateTime() throws Exception {
+      String docId = generateDocId("ts-update-query");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "QueryUpdateItem");
+      node.put("price", 100);
+      flatCollection.create(key, new JSONDocument(node));
+
+      long afterInsert = getLastUpdatedEpoch(key);
+      assertTrue(afterInsert > 0);
+
+      Thread.sleep(50);
+
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of(key.toString())))
+              .build();
+
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 999));
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
+
+      flatCollection.update(query, updates, options);
+
+      long afterUpdate = getLastUpdatedEpoch(key);
+      assertTrue(afterUpdate > afterInsert);
+    }
+
+    @Test
+    @DisplayName("bulkUpdate(Query, SubDocumentUpdates) should update lastUpdateTime")
+    void testQueryBasedBulkUpdateSetsLastUpdateTime() throws Exception {
+      String docId = generateDocId("ts-bulkupdate-query");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "BulkQueryUpdateItem");
+      node.put("price", 100);
+      flatCollection.create(key, new JSONDocument(node));
+
+      long afterInsert = getLastUpdatedEpoch(key);
+      assertTrue(afterInsert > 0);
+
+      Thread.sleep(50);
+
+      Query query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("id"),
+                      RelationalOperator.EQ,
+                      ConstantExpression.of(key.toString())))
+              .build();
+
+      List<SubDocumentUpdate> updates = List.of(SubDocumentUpdate.of("price", 888));
+      UpdateOptions options =
+          UpdateOptions.builder().returnDocumentType(ReturnDocumentType.NONE).build();
+
+      CloseableIterator<Document> iter = flatCollection.bulkUpdate(query, updates, options);
+      iter.close();
+
+      long afterUpdate = getLastUpdatedEpoch(key);
+      assertTrue(afterUpdate > afterInsert);
+    }
+
+    @Test
+    @DisplayName("bulkUpdate(Map<Key, Updates>) should update lastUpdateTime")
+    void testKeyBasedBulkUpdateSetsLastUpdateTime() throws Exception {
+      String docId = generateDocId("ts-bulkupdate-key");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "KeyBulkUpdateItem");
+      node.put("price", 100);
+      flatCollection.upsert(key, new JSONDocument(node));
+
+      long afterInsert = getLastUpdatedEpoch(key);
+      assertTrue(afterInsert > 0);
+
+      Thread.sleep(50);
+
+      Map<Key, java.util.Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
+      updates.put(key, List.of(SubDocumentUpdate.of("price", 777)));
+
+      flatCollection.bulkUpdate(updates, UpdateOptions.builder().build());
+
+      long afterUpdate = getLastUpdatedEpoch(key);
+      assertTrue(afterUpdate > afterInsert);
+    }
+
+    private void assertLastUpdatedIsSet(Key key) throws Exception {
+      long lastUpdated = getLastUpdatedEpoch(key);
+      assertTrue(lastUpdated > 0, "last_updated should be set, but was 0 (null)");
+    }
+
+    private long getLastUpdatedEpoch(Key key) throws Exception {
+      PostgresDatastore pgDatastore = (PostgresDatastore) postgresDatastore;
+      try (Connection conn = pgDatastore.getPostgresClient();
+          PreparedStatement ps =
+              conn.prepareStatement(
+                  String.format(
+                      "SELECT \"last_updated\" FROM \"%s\" WHERE \"id\" = '%s'",
+                      FLAT_COLLECTION_NAME, key));
+          ResultSet rs = ps.executeQuery()) {
+        if (rs.next()) {
+          java.sql.Timestamp ts = rs.getTimestamp("last_updated");
+          return ts != null ? ts.getTime() : 0;
+        }
+        return 0;
+      }
     }
   }
 
