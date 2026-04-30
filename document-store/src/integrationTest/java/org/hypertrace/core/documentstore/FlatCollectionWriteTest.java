@@ -3532,6 +3532,124 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
     }
 
     @Test
+    @DisplayName(
+        "Should efficiently batch updates across multiple key groups with complex operations")
+    void testBulkUpdateMultipleGroupsComplexOperations() throws Exception {
+      Map<Key, java.util.Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
+
+      // ===== Group 1: Top-level primitive + top-level array (3 keys: 1, 5, 8) =====
+      // All have item="Soap" - these should be batched together
+      // This tests: SET on primitive field, APPEND_TO_LIST on array field
+      List<SubDocumentUpdate> group1Updates =
+          List.of(
+              SubDocumentUpdate.of("price", 99), // SET operator (top-level primitive)
+              SubDocumentUpdate.builder()
+                  .subDocument("tags")
+                  .operator(UpdateOperator.APPEND_TO_LIST)
+                  .subDocumentValue(SubDocumentValue.of(new String[] {"updated-tag", "batch-test"}))
+                  .build()); // APPEND_TO_LIST on top-level array
+
+      updates.put(rawKey("1"), group1Updates);
+      updates.put(rawKey("5"), group1Updates);
+      updates.put(rawKey("8"), group1Updates);
+
+      // ===== Group 2: Nested JSONB updates (2 keys: 3, 7) =====
+      // Both have props - these should be batched together
+      // This tests: SET on nested JSONB fields
+      List<SubDocumentUpdate> group2Updates =
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("props.brand")
+                  .operator(UpdateOperator.SET)
+                  .subDocumentValue(SubDocumentValue.of("PremiumBrand"))
+                  .build(), // SET on nested JSONB primitive
+              SubDocumentUpdate.builder()
+                  .subDocument("props.size")
+                  .operator(UpdateOperator.SET)
+                  .subDocumentValue(SubDocumentValue.of("XL"))
+                  .build()); // SET on another nested field
+
+      updates.put(rawKey("3"), group2Updates);
+      updates.put(rawKey("7"), group2Updates);
+
+      // ===== Group 3: ADD operator + REMOVE_ALL_FROM_LIST (2 keys: 2, 6) =====
+      // Both have quantity and tags - these should be batched together
+      // This tests: ADD on numeric field, REMOVE_ALL_FROM_LIST on array
+      List<SubDocumentUpdate> group3Updates =
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("quantity")
+                  .operator(UpdateOperator.ADD)
+                  .subDocumentValue(SubDocumentValue.of(100))
+                  .build(), // ADD to numeric field
+              SubDocumentUpdate.builder()
+                  .subDocument("tags")
+                  .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                  .subDocumentValue(SubDocumentValue.of(new String[] {"glass", "plastic"}))
+                  .build()); // REMOVE_ALL_FROM_LIST
+
+      updates.put(rawKey("2"), group3Updates);
+      updates.put(rawKey("6"), group3Updates);
+
+      // Execute bulk update - should have 3 groups with 2-3 keys each
+      BulkUpdateResult result = flatCollection.bulkUpdate(updates, UpdateOptions.builder().build());
+
+      // Total unique keys: 1, 2, 3, 5, 6, 7, 8 = 7 keys
+      assertEquals(7, result.getUpdatedCount(), "Should update 7 rows");
+
+      // Verify keys 1, 5, 8 have Group 1 updates (top-level primitive + array)
+      for (String id : List.of("1", "5", "8")) {
+        try (CloseableIterator<Document> iter = flatCollection.find(queryById(id))) {
+          assertTrue(iter.hasNext());
+          JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+          assertEquals(99, json.get("price").asInt(), "Key " + id + " price should be 99");
+          JsonNode tags = json.get("tags");
+          List<String> tagList = new ArrayList<>();
+          tags.forEach(t -> tagList.add(t.asText()));
+          assertTrue(
+              tagList.contains("updated-tag"), "Key " + id + " should contain 'updated-tag'");
+          assertTrue(tagList.contains("batch-test"), "Key " + id + " should contain 'batch-test'");
+        }
+      }
+
+      // Verify keys 3, 7 have Group 2 updates (nested JSONB)
+      for (String id : List.of("3", "7")) {
+        try (CloseableIterator<Document> iter = flatCollection.find(queryById(id))) {
+          assertTrue(iter.hasNext());
+          JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+          JsonNode props = json.get("props");
+          assertNotNull(props, "Key " + id + " should have props");
+          assertEquals(
+              "PremiumBrand",
+              props.get("brand").asText(),
+              "Key " + id + " brand should be updated");
+          assertEquals("XL", props.get("size").asText(), "Key " + id + " size should be XL");
+        }
+      }
+
+      // Verify keys 2, 6 have Group 3 updates (ADD + REMOVE_ALL_FROM_LIST)
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("2"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        assertEquals(101, json.get("quantity").asInt()); // 1 + 100
+        JsonNode tags = json.get("tags");
+        List<String> tagList = new ArrayList<>();
+        tags.forEach(t -> tagList.add(t.asText()));
+        assertFalse(tagList.contains("glass"), "Key 2 should not have 'glass' tag");
+      }
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("6"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        assertEquals(105, json.get("quantity").asInt()); // 5 + 100
+        JsonNode tags = json.get("tags");
+        List<String> tagList = new ArrayList<>();
+        tags.forEach(t -> tagList.add(t.asText()));
+        assertFalse(tagList.contains("plastic"), "Key 6 should not have 'plastic' tag");
+      }
+    }
+
+    @Test
     @DisplayName("Should handle edge cases: empty map, null map, non-existent keys")
     void testBulkUpdateEdgeCases() throws Exception {
       UpdateOptions options = UpdateOptions.builder().build();

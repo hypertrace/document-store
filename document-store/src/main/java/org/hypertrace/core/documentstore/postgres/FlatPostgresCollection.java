@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -874,59 +875,34 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     String tableName = tableIdentifier.getTableName();
     String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(getPKForTable(tableName));
-
-    Set<Key> updatedKeys = new HashSet<>();
-
     long batchUpdateTimestamp = System.currentTimeMillis();
 
+    // Group keys by their "SQL shape" (same update operations)
+    Map<String, KeyUpdateGroup> keyGroups = groupKeysByUpdateShape(updates, tableName);
+
+    int totalUpdated = 0;
+
     try (Connection connection = client.getPooledConnection()) {
-      for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
-        Key key = entry.getKey();
-        Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
-
-        if (keyUpdates == null || keyUpdates.isEmpty()) {
-          continue;
-        }
-
+      // Execute one multi-row UPDATE per group (or fallback to single-key if group size = 1)
+      for (Map.Entry<String, KeyUpdateGroup> entry : keyGroups.entrySet()) {
         try {
-          boolean updated =
-              updateSingleKey(
-                  connection, key, keyUpdates, tableName, quotedPkColumn, batchUpdateTimestamp);
-          if (updated) {
-            updatedKeys.add(key);
-          }
+          int updated =
+              executeBatchUpdate(
+                  connection, entry.getValue(), tableName, quotedPkColumn, batchUpdateTimestamp);
+          totalUpdated += updated;
         } catch (Exception e) {
-          LOGGER.warn("Failed to update key {}: {}", key, e.getMessage());
-          // Continue with other keys - no cross-key atomicity
+          LOGGER.warn(
+              "Failed to update key group (size: {}): {}",
+              entry.getValue().getKeys().size(),
+              e.getMessage());
+          // Continue with other groups - no cross-group atomicity
         }
       }
     } catch (SQLException e) {
       throw new IOException("Failed to get connection for bulk update", e);
     }
 
-    return new BulkUpdateResult(updatedKeys.size());
-  }
-
-  private boolean updateSingleKey(
-      Connection connection,
-      Key key,
-      Collection<SubDocumentUpdate> keyUpdates,
-      String tableName,
-      String quotedPkColumn,
-      long keyUpdateTimestamp)
-      throws IOException, SQLException {
-
-    updateValidator.validate(keyUpdates);
-    Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
-
-    return executeKeyUpdate(
-        connection,
-        key,
-        keyUpdates,
-        tableName,
-        quotedPkColumn,
-        resolvedColumns,
-        keyUpdateTimestamp);
+    return new BulkUpdateResult(totalUpdated);
   }
 
   private boolean executeKeyUpdate(
@@ -969,6 +945,178 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
       int rowsUpdated = ps.executeUpdate();
       return rowsUpdated > 0;
+    }
+  }
+
+  /**
+   * Groups keys that have identical update operations together. Keys with the same "shape" can be
+   * updated in a single multi-row statement.
+   */
+  private Map<String, KeyUpdateGroup> groupKeysByUpdateShape(
+      Map<Key, Collection<SubDocumentUpdate>> updates, String tableName) {
+
+    Map<String, KeyUpdateGroup> groups = new LinkedHashMap<>();
+
+    for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
+      Key key = entry.getKey();
+      Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
+
+      if (keyUpdates == null || keyUpdates.isEmpty()) {
+        continue;
+      }
+
+      try {
+        updateValidator.validate(keyUpdates);
+        Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
+
+        String shapeKey = computeUpdateShapeKey(keyUpdates, resolvedColumns);
+
+        groups
+            .computeIfAbsent(shapeKey, k -> new KeyUpdateGroup(resolvedColumns))
+            .addKeyWithUpdates(key, keyUpdates);
+
+      } catch (Exception e) {
+        LOGGER.warn("Failed to group key {}: {}", key, e.getMessage());
+      }
+    }
+
+    return groups;
+  }
+
+  private String computeUpdateShapeKey(
+      Collection<SubDocumentUpdate> updates, Map<String, String> resolvedColumns) {
+
+    List<SubDocumentUpdate> sorted = new ArrayList<>(updates);
+    sorted.sort(Comparator.comparing(u -> u.getSubDocument().getPath()));
+
+    StringBuilder sb = new StringBuilder();
+    for (SubDocumentUpdate update : sorted) {
+      String path = update.getSubDocument().getPath();
+      String column = resolvedColumns.get(path);
+      sb.append(column)
+          .append(":")
+          .append(update.getOperator())
+          .append(":")
+          .append(path)
+          .append(";");
+    }
+
+    return sb.toString();
+  }
+
+  /**
+   * Executes a batch UPDATE for all keys in the group using JDBC batching. All keys in the group
+   * share the same SQL structure, so we can use a single PreparedStatement.
+   */
+  private int executeBatchUpdate(
+      Connection connection,
+      KeyUpdateGroup keyGroup,
+      String tableName,
+      String quotedPkColumn,
+      long epochMillis)
+      throws SQLException {
+
+    List<Key> keys = keyGroup.getKeys();
+    List<Collection<SubDocumentUpdate>> allKeyUpdates = keyGroup.getKeyUpdates();
+    Map<String, String> resolvedColumns = keyGroup.getResolvedColumns();
+
+    // Use the first key's updates to build the SQL template
+    Collection<SubDocumentUpdate> templateUpdates = allKeyUpdates.get(0);
+    List<String> setFragments = new ArrayList<>();
+    List<Object> templateParams = new ArrayList<>();
+
+    boolean hasUpdates =
+        buildSetClauseFragments(
+            connection, templateUpdates, tableName, resolvedColumns, setFragments, templateParams);
+
+    if (!hasUpdates) {
+      return 0;
+    }
+
+    appendLastUpdatedTimestamp(setFragments, templateParams, tableName, epochMillis);
+
+    // Build UPDATE SQL (same for all keys in this group)
+    String sql =
+        String.format(
+            "UPDATE %s SET %s WHERE %s = ?",
+            tableIdentifier, String.join(", ", setFragments), quotedPkColumn);
+
+    LOGGER.debug("Executing batch update SQL: {} for {} keys", sql, keys.size());
+
+    // Use JDBC batching to execute all updates in one round-trip
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+      for (int i = 0; i < keys.size(); i++) {
+        Key key = keys.get(i);
+        Collection<SubDocumentUpdate> keyUpdates = allKeyUpdates.get(i);
+
+        // Build parameters for this specific key
+        List<String> keySetFragments = new ArrayList<>();
+        List<Object> keyParams = new ArrayList<>();
+        buildSetClauseFragments(
+            connection, keyUpdates, tableName, resolvedColumns, keySetFragments, keyParams);
+
+        // Add timestamp parameter
+        if (lastUpdatedTsColumn != null) {
+          Optional<PostgresColumnMetadata> colMeta =
+              schemaRegistry.getColumnOrRefresh(tableName, lastUpdatedTsColumn);
+          if (colMeta.isPresent()) {
+            Object timestampValue =
+                convertTimestampForType(epochMillis, colMeta.get().getPostgresType());
+            keyParams.add(timestampValue);
+          }
+        }
+
+        // Bind parameters for this key
+        int idx = 1;
+        for (Object param : keyParams) {
+          ps.setObject(idx++, param);
+        }
+        ps.setObject(idx, key.toString()); // WHERE clause parameter
+
+        ps.addBatch();
+      }
+
+      int[] results = ps.executeBatch();
+      int totalUpdated = 0;
+      for (int result : results) {
+        if (result > 0) {
+          totalUpdated++;
+        }
+      }
+
+      LOGGER.debug("Batch update affected {} rows out of {} keys", totalUpdated, keys.size());
+      return totalUpdated;
+    } catch (SQLException e) {
+      LOGGER.warn("Failed to execute batch update. SQL: {}, Error: {}", sql, e.getMessage());
+      throw e;
+    }
+  }
+
+  /** Holds a group of keys that share the same update shape. */
+  private static class KeyUpdateGroup {
+    private final Map<String, String> resolvedColumns;
+    private final List<Key> keys = new ArrayList<>();
+    private final List<Collection<SubDocumentUpdate>> keyUpdates = new ArrayList<>();
+
+    KeyUpdateGroup(Map<String, String> resolvedColumns) {
+      this.resolvedColumns = resolvedColumns;
+    }
+
+    void addKeyWithUpdates(Key key, Collection<SubDocumentUpdate> updates) {
+      keys.add(key);
+      keyUpdates.add(updates);
+    }
+
+    Map<String, String> getResolvedColumns() {
+      return resolvedColumns;
+    }
+
+    List<Key> getKeys() {
+      return keys;
+    }
+
+    List<Collection<SubDocumentUpdate>> getKeyUpdates() {
+      return keyUpdates;
     }
   }
 
