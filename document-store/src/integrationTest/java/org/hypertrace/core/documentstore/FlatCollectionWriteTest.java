@@ -208,6 +208,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
 
   @Nested
   class BulkUpsertTests {
+
     @Test
     @DisplayName("Should bulk upsert multiple new documents")
     void testBulkUpsertNewDocuments() throws Exception {
@@ -1459,6 +1460,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
 
     @Nested
     class BulkCreateOrReplaceTests {
+
       @Test
       @DisplayName("Should bulk createOrReplace multiple new documents")
       void testBulkCreateOrReplaceNewDocuments() throws Exception {
@@ -3592,7 +3594,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       flatCollection.upsert(key, new JSONDocument(node));
 
       long afterInsert = getLastUpdatedEpoch(key);
-      assertTrue(afterInsert > 0, "lastUpdateTime should be set after insert");
+      assertTrue(afterInsert > 0);
 
       Thread.sleep(50);
 
@@ -3601,7 +3603,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       flatCollection.upsert(key, new JSONDocument(updateNode));
 
       long afterUpdate = getLastUpdatedEpoch(key);
-      assertTrue(afterUpdate > afterInsert, "lastUpdateTime should increase after upsert update");
+      assertTrue(afterUpdate > afterInsert);
     }
 
     @Test
@@ -3656,9 +3658,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       flatCollection.createOrReplace(key, new JSONDocument(replaceNode));
 
       long afterReplace = getLastUpdatedEpoch(key);
-      assertTrue(
-          afterReplace > afterInsert,
-          "lastUpdateTime should increase after createOrReplace update");
+      assertTrue(afterReplace > afterInsert);
     }
 
     @Test
@@ -3727,13 +3727,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       flatCollection.update(query, updates, options);
 
       long afterUpdate = getLastUpdatedEpoch(key);
-      assertTrue(
-          afterUpdate > afterInsert,
-          "lastUpdateTime should increase after query-based update. "
-              + "afterInsert="
-              + afterInsert
-              + ", afterUpdate="
-              + afterUpdate);
+      assertTrue(afterUpdate > afterInsert);
     }
 
     @Test
@@ -3769,13 +3763,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       iter.close();
 
       long afterUpdate = getLastUpdatedEpoch(key);
-      assertTrue(
-          afterUpdate > afterInsert,
-          "lastUpdateTime should increase after query-based bulkUpdate. "
-              + "afterInsert="
-              + afterInsert
-              + ", afterUpdate="
-              + afterUpdate);
+      assertTrue(afterUpdate > afterInsert);
     }
 
     @Test
@@ -3800,13 +3788,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
       flatCollection.bulkUpdate(updates, UpdateOptions.builder().build());
 
       long afterUpdate = getLastUpdatedEpoch(key);
-      assertTrue(
-          afterUpdate > afterInsert,
-          "lastUpdateTime should increase after key-based bulkUpdate. "
-              + "afterInsert="
-              + afterInsert
-              + ", afterUpdate="
-              + afterUpdate);
+      assertTrue(afterUpdate > afterInsert);
     }
 
     private void assertLastUpdatedIsSet(Key key) throws Exception {
