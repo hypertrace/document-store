@@ -883,6 +883,8 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     Set<Key> updatedKeys = new HashSet<>();
 
+    long batchUpdateTimestamp = System.currentTimeMillis();
+
     try (Connection connection = client.getPooledConnection()) {
       for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
         Key key = entry.getKey();
@@ -893,7 +895,9 @@ public class FlatPostgresCollection extends PostgresCollection {
         }
 
         try {
-          boolean updated = updateSingleKey(connection, key, keyUpdates, tableName, quotedPkColumn);
+          boolean updated =
+              updateSingleKey(
+                  connection, key, keyUpdates, tableName, quotedPkColumn, batchUpdateTimestamp);
           if (updated) {
             updatedKeys.add(key);
           }
@@ -914,14 +918,21 @@ public class FlatPostgresCollection extends PostgresCollection {
       Key key,
       Collection<SubDocumentUpdate> keyUpdates,
       String tableName,
-      String quotedPkColumn)
+      String quotedPkColumn,
+      long keyUpdateTimestamp)
       throws IOException, SQLException {
 
     updateValidator.validate(keyUpdates);
     Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
 
     return executeKeyUpdate(
-        connection, key, keyUpdates, tableName, quotedPkColumn, resolvedColumns);
+        connection,
+        key,
+        keyUpdates,
+        tableName,
+        quotedPkColumn,
+        resolvedColumns,
+        keyUpdateTimestamp);
   }
 
   private boolean executeKeyUpdate(
@@ -930,7 +941,8 @@ public class FlatPostgresCollection extends PostgresCollection {
       java.util.Collection<SubDocumentUpdate> keyUpdates,
       String tableName,
       String quotedPkColumn,
-      Map<String, String> resolvedColumns)
+      Map<String, String> resolvedColumns,
+      long epochMillis)
       throws SQLException {
 
     List<String> setFragments = new ArrayList<>();
@@ -944,11 +956,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       return false;
     }
 
-    // Add lastUpdatedTime to the same UPDATE statement
-    if (lastUpdatedTsColumn != null) {
-      setFragments.add(String.format("\"%s\" = ?", lastUpdatedTsColumn));
-      params.add(new Timestamp(System.currentTimeMillis()));
-    }
+    appendLastUpdatedTimestamp(setFragments, params, tableName, epochMillis);
 
     // Build and execute UPDATE SQL for this key
     String sql =
@@ -1099,6 +1107,8 @@ public class FlatPostgresCollection extends PostgresCollection {
       LOGGER.warn("All update paths were skipped - no valid columns to update");
       return;
     }
+
+    appendLastUpdatedTimestamp(setFragments, params, tableName, System.currentTimeMillis());
 
     // Build final UPDATE SQL
     String sql =
@@ -1336,6 +1346,35 @@ public class FlatPostgresCollection extends PostgresCollection {
    *   <li>TEXT: ISO-8601 string
    * </ul>
    */
+  /**
+   * Appends a SET fragment and parameter for the lastUpdatedTsColumn to the given lists. Used by
+   * SubDocumentUpdate-based write methods (executeUpdate, executeKeyUpdate) to ensure
+   * lastUpdateTime is always updated. The value is type-aware based on the column's schema type.
+   *
+   * @param epochMillis the timestamp to use, allowing callers to share a single timestamp across a
+   *     batch
+   */
+  private void appendLastUpdatedTimestamp(
+      List<String> setFragments, List<Object> params, String tableName, long epochMillis) {
+    if (lastUpdatedTsColumn == null) {
+      return;
+    }
+
+    Optional<PostgresColumnMetadata> colMeta =
+        schemaRegistry.getColumnOrRefresh(tableName, lastUpdatedTsColumn);
+    if (colMeta.isEmpty()) {
+      LOGGER.warn(
+          "lastUpdatedTsColumn '{}' not found in schema for table '{}'",
+          lastUpdatedTsColumn,
+          tableName);
+      return;
+    }
+
+    Object value = convertTimestampForType(epochMillis, colMeta.get().getPostgresType());
+    setFragments.add(String.format("\"%s\" = ?", lastUpdatedTsColumn));
+    params.add(value);
+  }
+
   private void addTimestampFields(TypedDocument typedDocument, String tableName) {
     long now = System.currentTimeMillis();
 
