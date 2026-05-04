@@ -429,6 +429,70 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         }
       }
     }
+
+    @ParameterizedTest(name = "{0}: upsertAndReturn new document")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testUpsertAndReturnNewDoc(String storeName) throws Exception {
+      String docId = generateDocId("upsert-return-new");
+      Key key = createKey(docId);
+
+      Collection collection = getCollection(storeName);
+
+      Document document = createTestDocument(docId);
+      Document returned = collection.upsertAndReturn(key, document);
+
+      assertNotNull(returned);
+
+      Query query = buildQueryById(docId);
+      try (CloseableIterator<Document> iterator = collection.find(query)) {
+        assertTrue(iterator.hasNext());
+        Document retrievedDoc = iterator.next();
+        JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
+
+        assertEquals("TestItem", json.get("item").asText());
+        assertEquals(100, json.get("price").asInt());
+        assertEquals(50, json.get("quantity").asInt());
+      }
+    }
+
+    @ParameterizedTest(name = "{0}: upsertAndReturn existing document")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testUpsertAndReturnExistingDoc(String storeName) throws Exception {
+      String docId = generateDocId("upsert-return-existing");
+      Key key = createKey(docId);
+
+      Collection collection = getCollection(storeName);
+
+      // First insert
+      Document initialDoc = createTestDocument(docId);
+      collection.upsert(key, initialDoc);
+
+      // Upsert again with partial fields
+      ObjectNode partialNode = OBJECT_MAPPER.createObjectNode();
+      partialNode.put("id", getKeyString(docId));
+      partialNode.put("item", "UpdatedItem");
+      partialNode.put("price", 999);
+      Document partialDoc = new JSONDocument(partialNode);
+
+      Document returned = collection.upsertAndReturn(key, partialDoc);
+
+      assertNotNull(returned);
+
+      // Verify the document was updated in the store
+      Query query = buildQueryById(docId);
+      try (CloseableIterator<Document> iterator = collection.find(query)) {
+        assertTrue(iterator.hasNext());
+        Document retrievedDoc = iterator.next();
+        JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
+
+        assertEquals("UpdatedItem", json.get("item").asText());
+        assertEquals(999, json.get("price").asInt());
+
+        // Merge semantics: non-updated fields preserved
+        assertEquals(50, json.get("quantity").asInt());
+        assertTrue(json.get("in_stock").asBoolean());
+      }
+    }
   }
 
   @Nested

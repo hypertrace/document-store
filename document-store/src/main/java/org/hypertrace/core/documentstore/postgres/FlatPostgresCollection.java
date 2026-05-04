@@ -218,7 +218,13 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    try {
+      boolean upsert = upsert(key, document);
+      return upsert ? document : null;
+    } catch (IOException e) {
+      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      throw e;
+    }
   }
 
   @Override
