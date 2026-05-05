@@ -1,0 +1,39 @@
+document-store/src/main/java/org/hypertrace/core/documentstore/postgres/PostgresConnectionPool.java
+  human 102-105
+---
+{
+  "attestations": [
+    {
+      "entries": [
+        {
+          "accepted_lines": 4,
+          "added_lines": 4,
+          "deleted_lines": 0,
+          "hash": "human",
+          "lines": "102-105",
+          "overridden_lines": 0
+        }
+      ],
+      "file": "document-store/src/main/java/org/hypertrace/core/documentstore/postgres/PostgresConnectionPool.java"
+    }
+  ],
+  "base_commit_sha": "daf5ccbb0b955e03cf10b542444d4bb35c7a2bc7",
+  "branch": "main",
+  "commit_sha": "e3cabb0ba913f5a932d76654ba381a9480502d59",
+  "commit_time": "2026-05-05T13:57:57+05:30",
+  "commit_type": "direct_commit",
+  "git_ai_version": "1.4.2",
+  "prompts": {
+    "human": {
+      "accepted_lines": 4,
+      "agent_id": null,
+      "human_author": "Prashant Pandey <prashant.pandey@harness.io>",
+      "messages": [],
+      "overriden_lines": 0,
+      "total_additions": 4,
+      "total_deletions": 0
+    }
+  },
+  "repo": "git@github.com:hypertrace/document-store.git",
+  "schema_version": "authorship/3.0.0"
+}
