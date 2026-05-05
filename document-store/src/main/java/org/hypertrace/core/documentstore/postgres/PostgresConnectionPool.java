@@ -1,7 +1,5 @@
 package org.hypertrace.core.documentstore.postgres;
 
-import static java.sql.Connection.TRANSACTION_READ_COMMITTED;
-
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Duration;
@@ -101,7 +99,10 @@ class PostgresConnectionPool {
     poolableConnectionFactory.setValidationQueryTimeout((int) VALIDATION_QUERY_TIMEOUT.toSeconds());
     poolableConnectionFactory.setDefaultReadOnly(false);
     poolableConnectionFactory.setDefaultAutoCommit(true);
-    poolableConnectionFactory.setDefaultTransactionIsolation(TRANSACTION_READ_COMMITTED);
+    // Note: We intentionally do NOT call setDefaultTransactionIsolation() here.
+    // PostgreSQL defaults to READ_COMMITTED, which is what we want. Setting it explicitly
+    // causes DBCP2 to execute "SHOW TRANSACTION ISOLATION LEVEL" on every connection borrow
+    // (via PgConnection.getTransactionIsolation()), adding unnecessary overhead.
     poolableConnectionFactory.setPoolStatements(false);
   }
 
