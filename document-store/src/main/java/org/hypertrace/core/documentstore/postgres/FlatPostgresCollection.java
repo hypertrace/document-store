@@ -1122,9 +1122,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       for (Object param : params) {
         ps.setObject(idx++, param);
       }
-      for (Object param : filterParams.getObjectParams().values()) {
-        ps.setObject(idx++, param);
-      }
+      filterParams.bindTo(connection, ps, idx);
       int rowsUpdated = ps.executeUpdate();
       LOGGER.debug("Rows updated: {}", rowsUpdated);
     } catch (SQLException e) {
