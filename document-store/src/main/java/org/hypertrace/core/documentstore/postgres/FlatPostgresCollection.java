@@ -219,7 +219,13 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    try {
+      boolean upsert = upsert(key, document);
+      return upsert ? document : null;
+    } catch (IOException e) {
+      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      throw e;
+    }
   }
 
   @Override
@@ -1264,9 +1270,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       for (Object param : params) {
         ps.setObject(idx++, param);
       }
-      for (Object param : filterParams.getObjectParams().values()) {
-        ps.setObject(idx++, param);
-      }
+      filterParams.bindTo(connection, ps, idx);
       int rowsUpdated = ps.executeUpdate();
       LOGGER.debug("Rows updated: {}", rowsUpdated);
     } catch (SQLException e) {
