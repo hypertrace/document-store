@@ -2290,15 +2290,15 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.of("rating", 4.5f),
                 SubDocumentUpdate.of("weight", 123.456),
                 // Case 2: Top-level arrays
-                SubDocumentUpdate.of("tags", new String[] {"tag4", "tag5", "tag6"}),
-                SubDocumentUpdate.of("numbers", new Integer[] {10, 20, 30}),
-                SubDocumentUpdate.of("scores", new Double[] {1.1, 2.2, 3.3}),
-                SubDocumentUpdate.of("flags", new Boolean[] {true, false, true}),
+                SubDocumentUpdate.of("tags", new String[]{"tag4", "tag5", "tag6"}),
+                SubDocumentUpdate.of("numbers", new Integer[]{10, 20, 30}),
+                SubDocumentUpdate.of("scores", new Double[]{1.1, 2.2, 3.3}),
+                SubDocumentUpdate.of("flags", new Boolean[]{true, false, true}),
                 // Case 3 & 4: One nested path in JSONB (props) - tests nested primitive
                 SubDocumentUpdate.of("props.brand", "NewBrand"),
                 // Use 'sales' JSONB column for nested array test
                 SubDocumentUpdate.of(
-                    "sales.regions", SubDocumentValue.of(new String[] {"US", "EU", "APAC"})));
+                    "sales.regions", SubDocumentValue.of(new String[]{"US", "EU", "APAC"})));
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
@@ -2510,7 +2510,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.of("props.size", "XL"),
                 SubDocumentUpdate.of("props.newField", "newValue"),
                 SubDocumentUpdate.of(
-                    "props.owners", SubDocumentValue.of(new String[] {"owner1", "owner2"})));
+                    "props.owners", SubDocumentValue.of(new String[]{"owner1", "owner2"})));
 
         UpdateOptions options =
             UpdateOptions.builder().returnDocumentType(ReturnDocumentType.AFTER_UPDATE).build();
@@ -2818,7 +2818,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("price")
                     .operator(UpdateOperator.ADD)
-                    .subDocumentValue(SubDocumentValue.of(new Integer[] {1, 2, 3}))
+                    .subDocumentValue(SubDocumentValue.of(new Integer[]{1, 2, 3}))
                     .build());
 
         UpdateOptions options =
@@ -2865,19 +2865,19 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"newTag1", "newTag2"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"newTag1", "newTag2"}))
                     .build(),
                 // Nested JSONB array: append to existing props.colors
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"green", "yellow"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"green", "yellow"}))
                     .build(),
                 // Nested JSONB: append to non-existent array (creates it)
                 SubDocumentUpdate.builder()
                     .subDocument("sales.regions")
                     .operator(UpdateOperator.APPEND_TO_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"US", "EU"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"US", "EU"}))
                     .build());
 
         UpdateOptions options =
@@ -2956,13 +2956,13 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"existing1", "newTag"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"existing1", "newTag"}))
                     .build(),
                 // Nested JSONB: 'red' exists, 'green' is new → adds only 'green'
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"red", "green"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"red", "green"}))
                     .build());
 
         UpdateOptions options =
@@ -3033,13 +3033,13 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
                 SubDocumentUpdate.builder()
                     .subDocument("tags")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"tag1"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"tag1"}))
                     .build(),
                 // Nested JSONB: remove 'red' and 'blue' → leaves green
                 SubDocumentUpdate.builder()
                     .subDocument("props.colors")
                     .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                    .subDocumentValue(SubDocumentValue.of(new String[] {"red", "blue"}))
+                    .subDocumentValue(SubDocumentValue.of(new String[]{"red", "blue"}))
                     .build());
 
         UpdateOptions options =
@@ -3512,7 +3512,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
               SubDocumentUpdate.builder()
                   .subDocument("tags")
                   .operator(UpdateOperator.APPEND_TO_LIST)
-                  .subDocumentValue(SubDocumentValue.of(new String[] {"newTag1", "newTag2"}))
+                  .subDocumentValue(SubDocumentValue.of(new String[]{"newTag1", "newTag2"}))
                   .build()));
 
       updates.put(
@@ -3521,7 +3521,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
               SubDocumentUpdate.builder()
                   .subDocument("tags")
                   .operator(UpdateOperator.ADD_TO_LIST_IF_ABSENT)
-                  .subDocumentValue(SubDocumentValue.of(new String[] {"hygiene", "uniqueTag"}))
+                  .subDocumentValue(SubDocumentValue.of(new String[]{"hygiene", "uniqueTag"}))
                   .build()));
 
       updates.put(
@@ -3530,7 +3530,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
               SubDocumentUpdate.builder()
                   .subDocument("tags")
                   .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                  .subDocumentValue(SubDocumentValue.of(new String[] {"plastic"}))
+                  .subDocumentValue(SubDocumentValue.of(new String[]{"plastic"}))
                   .build()));
 
       BulkUpdateResult result = flatCollection.bulkUpdate(updates, UpdateOptions.builder().build());
@@ -3591,7 +3591,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
               SubDocumentUpdate.builder()
                   .subDocument("tags")
                   .operator(UpdateOperator.APPEND_TO_LIST)
-                  .subDocumentValue(SubDocumentValue.of(new String[] {"updated-tag", "batch-test"}))
+                  .subDocumentValue(SubDocumentValue.of(new String[]{"updated-tag", "batch-test"}))
                   .build()); // APPEND_TO_LIST on top-level array
 
       updates.put(rawKey("1"), group1Updates);
@@ -3630,7 +3630,7 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
               SubDocumentUpdate.builder()
                   .subDocument("tags")
                   .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
-                  .subDocumentValue(SubDocumentValue.of(new String[] {"glass", "plastic"}))
+                  .subDocumentValue(SubDocumentValue.of(new String[]{"glass", "plastic"}))
                   .build()); // REMOVE_ALL_FROM_LIST
 
       updates.put(rawKey("2"), group3Updates);
@@ -3691,6 +3691,52 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         List<String> tagList = new ArrayList<>();
         tags.forEach(t -> tagList.add(t.asText()));
         assertFalse(tagList.contains("plastic"), "Key 6 should not have 'plastic' tag");
+      }
+    }
+
+    @Test
+    @DisplayName(
+        "Should batch keys whose update shape matches by column:operator:path but whose value "
+            + "arrays differ in length (nested JSONB REMOVE_ALL_FROM_LIST)")
+    void testBulkUpdateSameShapeDifferentParamCardinality() throws Exception {
+      Map<Key, java.util.Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
+
+      updates.put(
+          rawKey("1"),
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("props.colors")
+                  .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                  .subDocumentValue(SubDocumentValue.of(new String[]{"Blue"}))
+                  .build()));
+
+      updates.put(
+          rawKey("5"),
+          List.of(
+              SubDocumentUpdate.builder()
+                  .subDocument("props.colors")
+                  .operator(UpdateOperator.REMOVE_ALL_FROM_LIST)
+                  .subDocumentValue(SubDocumentValue.of(new String[]{"Orange", "Blue"}))
+                  .build()));
+
+      BulkUpdateResult result = flatCollection.bulkUpdate(updates, UpdateOptions.builder().build());
+
+      assertEquals(2, result.getUpdatedCount());
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("1"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        JsonNode colors = json.get("props").get("colors");
+        List<String> colorList = new ArrayList<>();
+        colors.forEach(c -> colorList.add(c.asText()));
+        assertEquals(List.of("Green"), colorList);
+      }
+
+      try (CloseableIterator<Document> iter = flatCollection.find(queryById("5"))) {
+        assertTrue(iter.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(iter.next().toJson());
+        JsonNode colors = json.get("props").get("colors");
+        assertEquals(0, colors.size());
       }
     }
 

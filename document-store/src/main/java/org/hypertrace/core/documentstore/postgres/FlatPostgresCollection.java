@@ -28,7 +28,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -98,6 +97,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       "Write operations are not supported for flat collections yet!";
   private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
   private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
+  private static final String SHAPE_KEY_DELIMITER = "\u0001";
 
   private static final Map<UpdateOperator, PostgresUpdateOperationParser> UPDATE_PARSER_MAP =
       Map.ofEntries(
@@ -883,12 +883,13 @@ public class FlatPostgresCollection extends PostgresCollection {
     String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(getPKForTable(tableName));
     long batchUpdateTimestamp = System.currentTimeMillis();
 
-    // Group keys by their "SQL shape" (same update operations)
-    Map<String, KeyUpdateGroup> keyGroups = groupKeysByUpdateShape(updates, tableName);
-
     int totalUpdated = 0;
 
     try (Connection connection = client.getPooledConnection()) {
+      // Group keys by their "SQL shape" (same SET-clause fragments AND param count)
+      Map<String, KeyUpdateGroup> keyGroups =
+          groupKeysByUpdateShape(connection, updates, tableName);
+
       // Execute one multi-row UPDATE per group (or fallback to single-key if group size = 1)
       for (Map.Entry<String, KeyUpdateGroup> entry : keyGroups.entrySet()) {
         try {
@@ -955,11 +956,14 @@ public class FlatPostgresCollection extends PostgresCollection {
   }
 
   /**
-   * Groups keys that have identical update operations together. Keys with the same "shape" can be
-   * updated in a single multi-row statement.
+   * Groups keys that produce identical SET-clause SQL together. Two keys share a shape only if
+   * {@code buildSetClauseFragments} renders the exact same fragment list and the same number of
+   * bind parameters — required because {@code executeBatchUpdate} reuses one PreparedStatement per
+   * group. Operators whose generated SQL or placeholder count varies with the input value (e.g.,
+   * nested-JSONB REMOVE_ALL_FROM_LIST emitting 1+N placeholders) will land in distinct groups.
    */
   private Map<String, KeyUpdateGroup> groupKeysByUpdateShape(
-      Map<Key, Collection<SubDocumentUpdate>> updates, String tableName) {
+      Connection connection, Map<Key, Collection<SubDocumentUpdate>> updates, String tableName) {
 
     Map<String, KeyUpdateGroup> groups = new LinkedHashMap<>();
 
@@ -975,11 +979,20 @@ public class FlatPostgresCollection extends PostgresCollection {
         updateValidator.validate(keyUpdates);
         Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
 
-        String shapeKey = computeUpdateShapeKey(keyUpdates, resolvedColumns);
+        List<String> setFragments = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
+        boolean hasUpdates =
+            buildSetClauseFragments(
+                connection, keyUpdates, tableName, resolvedColumns, setFragments, params);
+        if (!hasUpdates) {
+          continue;
+        }
+
+        String shapeKey = computeUpdateShapeKey(setFragments, params.size());
 
         groups
-            .computeIfAbsent(shapeKey, k -> new KeyUpdateGroup(resolvedColumns))
-            .addKeyWithUpdates(key, keyUpdates);
+            .computeIfAbsent(shapeKey, k -> new KeyUpdateGroup(resolvedColumns, setFragments))
+            .addKeyWithParams(key, params);
 
       } catch (Exception e) {
         LOGGER.warn("Failed to group key {}: {}", key, e.getMessage());
@@ -989,30 +1002,14 @@ public class FlatPostgresCollection extends PostgresCollection {
     return groups;
   }
 
-  private String computeUpdateShapeKey(
-      Collection<SubDocumentUpdate> updates, Map<String, String> resolvedColumns) {
-
-    List<SubDocumentUpdate> sorted = new ArrayList<>(updates);
-    sorted.sort(Comparator.comparing(u -> u.getSubDocument().getPath()));
-
-    StringBuilder sb = new StringBuilder();
-    for (SubDocumentUpdate update : sorted) {
-      String path = update.getSubDocument().getPath();
-      String column = resolvedColumns.get(path);
-      sb.append(column)
-          .append(":")
-          .append(update.getOperator())
-          .append(":")
-          .append(path)
-          .append(";");
-    }
-
-    return sb.toString();
+  private String computeUpdateShapeKey(List<String> setFragments, int paramCount) {
+    return paramCount + "|" + String.join(SHAPE_KEY_DELIMITER, setFragments);
   }
 
   /**
-   * Executes a batch UPDATE for all keys in the group using JDBC batching. All keys in the group
-   * share the same SQL structure, so we can use a single PreparedStatement.
+   * Executes a batch UPDATE for all keys in the group using JDBC batching. The group's setFragments
+   * and per-key params were rendered during grouping, so all keys here are guaranteed to share the
+   * same SQL and placeholder count.
    */
   private int executeBatchUpdate(
       Connection connection,
@@ -1023,25 +1020,12 @@ public class FlatPostgresCollection extends PostgresCollection {
       throws SQLException {
 
     List<Key> keys = keyGroup.getKeys();
-    List<Collection<SubDocumentUpdate>> allKeyUpdates = keyGroup.getKeyUpdates();
-    Map<String, String> resolvedColumns = keyGroup.getResolvedColumns();
+    List<List<Object>> allKeyParams = keyGroup.getKeyParams();
 
-    // Use the first key's updates to build the SQL template
-    Collection<SubDocumentUpdate> templateUpdates = allKeyUpdates.get(0);
-    List<String> setFragments = new ArrayList<>();
-    List<Object> templateParams = new ArrayList<>();
+    List<String> setFragments = new ArrayList<>(keyGroup.getSetFragments());
+    List<Object> timestampParam = new ArrayList<>();
+    appendLastUpdatedTimestamp(setFragments, timestampParam, tableName, epochMillis);
 
-    boolean hasUpdates =
-        buildSetClauseFragments(
-            connection, templateUpdates, tableName, resolvedColumns, setFragments, templateParams);
-
-    if (!hasUpdates) {
-      return 0;
-    }
-
-    appendLastUpdatedTimestamp(setFragments, templateParams, tableName, epochMillis);
-
-    // Build UPDATE SQL (same for all keys in this group)
     String sql =
         String.format(
             "UPDATE %s SET %s WHERE %s = ?",
@@ -1049,36 +1033,16 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     LOGGER.debug("Executing batch update SQL: {} for {} keys", sql, keys.size());
 
-    // Use JDBC batching to execute all updates in one round-trip
     try (PreparedStatement ps = connection.prepareStatement(sql)) {
       for (int i = 0; i < keys.size(); i++) {
-        Key key = keys.get(i);
-        Collection<SubDocumentUpdate> keyUpdates = allKeyUpdates.get(i);
-
-        // Build parameters for this specific key
-        List<String> keySetFragments = new ArrayList<>();
-        List<Object> keyParams = new ArrayList<>();
-        buildSetClauseFragments(
-            connection, keyUpdates, tableName, resolvedColumns, keySetFragments, keyParams);
-
-        // Add timestamp parameter
-        if (lastUpdatedTsColumn != null) {
-          Optional<PostgresColumnMetadata> colMeta =
-              schemaRegistry.getColumnOrRefresh(tableName, lastUpdatedTsColumn);
-          if (colMeta.isPresent()) {
-            Object timestampValue =
-                convertTimestampForType(epochMillis, colMeta.get().getPostgresType());
-            keyParams.add(timestampValue);
-          }
-        }
-
-        // Bind parameters for this key
         int idx = 1;
-        for (Object param : keyParams) {
+        for (Object param : allKeyParams.get(i)) {
           ps.setObject(idx++, param);
         }
-        ps.setObject(idx, key.toString()); // WHERE clause parameter
-
+        for (Object param : timestampParam) {
+          ps.setObject(idx++, param);
+        }
+        ps.setObject(idx, keys.get(i).toString()); // WHERE clause parameter
         ps.addBatch();
       }
 
@@ -1098,31 +1062,41 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
-  /** Holds a group of keys that share the same update shape. */
+  /**
+   * Holds a group of keys that share the same SET-clause SQL. {@code setFragments} is rendered once
+   * during grouping; {@code keyParams} stores the bind values for each key in lockstep with {@code
+   * keys}.
+   */
   private static class KeyUpdateGroup {
     private final Map<String, String> resolvedColumns;
+    private final List<String> setFragments;
     private final List<Key> keys = new ArrayList<>();
-    private final List<Collection<SubDocumentUpdate>> keyUpdates = new ArrayList<>();
+    private final List<List<Object>> keyParams = new ArrayList<>();
 
-    KeyUpdateGroup(Map<String, String> resolvedColumns) {
+    KeyUpdateGroup(Map<String, String> resolvedColumns, List<String> setFragments) {
       this.resolvedColumns = resolvedColumns;
+      this.setFragments = setFragments;
     }
 
-    void addKeyWithUpdates(Key key, Collection<SubDocumentUpdate> updates) {
+    void addKeyWithParams(Key key, List<Object> params) {
       keys.add(key);
-      keyUpdates.add(updates);
+      keyParams.add(params);
     }
 
     Map<String, String> getResolvedColumns() {
       return resolvedColumns;
     }
 
+    List<String> getSetFragments() {
+      return setFragments;
+    }
+
     List<Key> getKeys() {
       return keys;
     }
 
-    List<Collection<SubDocumentUpdate>> getKeyUpdates() {
-      return keyUpdates;
+    List<List<Object>> getKeyParams() {
+      return keyParams;
     }
   }
 
