@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -49,6 +50,7 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
+import org.hypertrace.core.documentstore.ReturnOptions;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
@@ -699,6 +701,357 @@ public class FlatPostgresCollection extends PostgresCollection {
   @Override
   public Document createOrReplaceAndReturn(Key key, Document document) throws IOException {
     throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+  }
+
+  /**
+   * Create-or-replace that returns the BEFORE/AFTER/BOTH/NONE document(s) in a single round-trip
+   * using a CTE.
+   *
+   * <p>Result list ordering:
+   *
+   * <ul>
+   *   <li>{@link ReturnOptions#NONE}: empty list
+   *   <li>{@link ReturnOptions#AFTER}: {@code [after]} (always 1 element since upsert always
+   *       produces a row)
+   *   <li>{@link ReturnOptions#BEFORE}: {@code []} on insert, {@code [before]} on update
+   *   <li>{@link ReturnOptions#BOTH}: {@code [after]} on insert, {@code [after, before]} on update
+   *       (after is always present and listed first)
+   * </ul>
+   */
+  @Override
+  public List<Document> createOrReplaceAndReturn(
+      final Key key, final Document document, final ReturnOptions returnOptions)
+      throws IOException {
+    Preconditions.checkArgument(returnOptions != null, "returnOptions cannot be null");
+    return createOrReplaceAndReturnWithRetry(key, document, returnOptions, false);
+  }
+
+  private List<Document> createOrReplaceAndReturnWithRetry(
+      Key key, Document document, ReturnOptions returnOptions, boolean isRetry) throws IOException {
+    String tableName = tableIdentifier.getTableName();
+    List<String> skippedFields = new ArrayList<>();
+
+    try {
+      TypedDocument parsed = parseDocument(document, tableName, skippedFields);
+
+      String pkColumn = getPKForTable(tableName);
+      String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+      PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+      parsed.add(quotedPkColumn, key.toString(), pkType, false);
+
+      List<String> allColumns = getAllQuotedColumns(tableName);
+
+      String sql = buildCreateOrReplaceAndReturnSql(allColumns, quotedPkColumn, returnOptions);
+      LOGGER.debug("CreateOrReplaceAndReturn SQL ({}): {}", returnOptions, sql);
+
+      try (Connection conn = client.getPooledConnection();
+          PreparedStatement ps = conn.prepareStatement(sql)) {
+        int index = 1;
+
+        // BEFORE/BOTH: prepend pk bind for the `before` CTE SELECT
+        if (returnOptions == ReturnOptions.BEFORE || returnOptions == ReturnOptions.BOTH) {
+          setParameter(conn, ps, index++, key.toString(), pkType, false);
+        }
+
+        // INSERT values: bind every table column in order, NULL for those absent from the doc
+        Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
+        for (String column : allColumns) {
+          if (parsedColumns.contains(column)) {
+            setParameter(
+                conn,
+                ps,
+                index++,
+                parsed.getValue(column),
+                parsed.getType(column),
+                parsed.isArray(column));
+          } else {
+            ps.setObject(index++, null);
+          }
+        }
+
+        try (ResultSet rs = ps.executeQuery()) {
+          if (returnOptions == ReturnOptions.NONE) {
+            // Drain to ensure the upsert executed; discard rows.
+            while (rs.next()) {
+              // no-op
+            }
+            return Collections.emptyList();
+          }
+
+          PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
+              new PostgresCollection.PostgresResultIteratorWithBasicTypes(rs, DocumentType.FLAT);
+          List<Document> results = new ArrayList<>(2);
+          while (iterator.hasNext()) {
+            results.add(iterator.next());
+          }
+          return results;
+        }
+      }
+    } catch (PSQLException e) {
+      if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
+        LOGGER.info(
+            "Schema mismatch detected during createOrReplaceAndReturn (SQLState: {}), refreshing schema and retrying. key: {}",
+            e.getSQLState(),
+            key);
+        schemaRegistry.invalidate(tableName);
+        return createOrReplaceAndReturnWithRetry(key, document, returnOptions, true);
+      }
+      LOGGER.error(
+          "SQLException in createOrReplaceAndReturn. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    } catch (SQLException e) {
+      LOGGER.error(
+          "SQLException in createOrReplaceAndReturn. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  /**
+   * Builds a single-statement CTE that performs the upsert and returns BEFORE/AFTER/BOTH rows.
+   *
+   * <p>PostgreSQL guarantees all sub-statements in a {@code WITH} clause execute against the same
+   * pre-statement snapshot, so the {@code before} CTE cannot see the row written by {@code
+   * upserted} — even though both reference the same table. This gives us the pre-image and
+   * post-image atomically in one round-trip.
+   *
+   * <p>Result rows use the same column shape as {@code SELECT *} so the existing {@link
+   * PostgresCollection.PostgresResultIteratorWithBasicTypes} parses them with no special handling.
+   * AFTER rows always come first (when present) so callers can map list position to semantics.
+   */
+  private String buildCreateOrReplaceAndReturnSql(
+      List<String> allTableColumns, String pkColumn, ReturnOptions returnOptions) {
+    String columnList = String.join(", ", allTableColumns);
+    String placeholders =
+        String.join(", ", allTableColumns.stream().map(c -> "?").toArray(String[]::new));
+
+    String quotedCreatedTs =
+        createdTsColumn != null
+            ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
+            : null;
+
+    String setClause =
+        allTableColumns.stream()
+            .filter(col -> !col.equals(pkColumn))
+            .filter(col -> !col.equals(quotedCreatedTs))
+            .map(col -> col + " = EXCLUDED." + col)
+            .collect(Collectors.joining(", "));
+
+    String upsertSql =
+        String.format(
+            "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING *",
+            tableIdentifier, columnList, placeholders, pkColumn, setClause);
+
+    switch (returnOptions) {
+      case NONE:
+      case AFTER:
+        return String.format("WITH upserted AS (%s) SELECT * FROM upserted", upsertSql);
+      case BEFORE:
+        return String.format(
+            "WITH before AS (SELECT * FROM %s WHERE %s = ?), upserted AS (%s) "
+                + "SELECT * FROM before",
+            tableIdentifier, pkColumn, upsertSql);
+      case BOTH:
+        return String.format(
+            "WITH before AS (SELECT * FROM %s WHERE %s = ?), upserted AS (%s) "
+                + "SELECT * FROM upserted UNION ALL SELECT * FROM before",
+            tableIdentifier, pkColumn, upsertSql);
+      default:
+        throw new IllegalArgumentException("Unsupported ReturnOptions: " + returnOptions);
+    }
+  }
+
+  /**
+   * Bulk create-or-replace returning BEFORE/AFTER/BOTH/NONE rows in a single round-trip.
+   *
+   * <p>Uses a single CTE statement combining the BEFORE snapshot SELECT and a multi-row INSERT...ON
+   * CONFLICT...DO UPDATE...RETURNING *. Postgres snapshot semantics guarantee the BEFORE CTE sees
+   * pre-statement state, even when both CTEs reference the same table.
+   *
+   * <p>Result list contents (rows include the primary-key column so callers can group by key):
+   *
+   * <ul>
+   *   <li>{@link ReturnOptions#NONE}: empty list
+   *   <li>{@link ReturnOptions#AFTER}: every upserted row, size = {@code parsedDocuments.size()}
+   *   <li>{@link ReturnOptions#BEFORE}: pre-image rows for keys that already existed
+   *   <li>{@link ReturnOptions#BOTH}: AFTER rows first, then BEFORE rows
+   * </ul>
+   */
+  @Override
+  public List<Document> bulkCreateOrReplaceAndReturn(
+      Map<Key, Document> documents, ReturnOptions returnOptions) throws IOException {
+    Preconditions.checkArgument(returnOptions != null, "returnOptions cannot be null");
+    if (documents == null || documents.isEmpty()) {
+      return Collections.emptyList();
+    }
+    return bulkCreateOrReplaceAndReturnWithRetry(documents, returnOptions, false);
+  }
+
+  private List<Document> bulkCreateOrReplaceAndReturnWithRetry(
+      Map<Key, Document> documents, ReturnOptions returnOptions, boolean isRetry)
+      throws IOException {
+    String tableName = tableIdentifier.getTableName();
+    String pkColumn = getPKForTable(tableName);
+    String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+    PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+
+    try {
+      Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
+      List<Key> ignoredDocuments = new ArrayList<>();
+      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+        List<String> skippedFields = new ArrayList<>();
+        TypedDocument parsed = parseDocument(entry.getValue(), tableName, skippedFields);
+
+        if (missingColumnStrategy == MissingColumnStrategy.IGNORE_DOCUMENT
+            && !skippedFields.isEmpty()) {
+          ignoredDocuments.add(entry.getKey());
+          continue;
+        }
+
+        parsed.add(quotedPkColumn, entry.getKey().toString(), pkType, false);
+        parsedDocuments.put(entry.getKey(), parsed);
+      }
+
+      if (!ignoredDocuments.isEmpty()) {
+        LOGGER.info(
+            "bulkCreateOrReplaceAndReturn: Ignored {} documents due to IGNORE_DOCUMENT strategy. Keys: {}",
+            ignoredDocuments.size(),
+            ignoredDocuments);
+      }
+
+      if (parsedDocuments.isEmpty()) {
+        return Collections.emptyList();
+      }
+
+      List<String> allTableColumns = getAllQuotedColumns(tableName);
+      int rowCount = parsedDocuments.size();
+
+      String sql =
+          buildBulkCreateOrReplaceAndReturnSql(
+              allTableColumns, quotedPkColumn, returnOptions, rowCount);
+      LOGGER.debug("BulkCreateOrReplaceAndReturn SQL ({}): {}", returnOptions, sql);
+
+      try (Connection conn = client.getPooledConnection();
+          PreparedStatement ps = conn.prepareStatement(sql)) {
+        int index = 1;
+
+        // BEFORE/BOTH: prepend the pk-array bind for the `before` CTE SELECT
+        if (returnOptions == ReturnOptions.BEFORE || returnOptions == ReturnOptions.BOTH) {
+          String[] keyArray =
+              parsedDocuments.keySet().stream().map(Key::toString).toArray(String[]::new);
+          Array sqlArray = conn.createArrayOf(pkType.getSqlType(), keyArray);
+          ps.setArray(index++, sqlArray);
+        }
+
+        // INSERT VALUES rows: bind each doc's columns in declared order, NULL for absent ones
+        for (TypedDocument parsed : parsedDocuments.values()) {
+          Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
+          for (String column : allTableColumns) {
+            if (parsedColumns.contains(column)) {
+              setParameter(
+                  conn,
+                  ps,
+                  index++,
+                  parsed.getValue(column),
+                  parsed.getType(column),
+                  parsed.isArray(column));
+            } else {
+              ps.setObject(index++, null);
+            }
+          }
+        }
+
+        try (ResultSet rs = ps.executeQuery()) {
+          if (returnOptions == ReturnOptions.NONE) {
+            // Drain to ensure the upsert executed; discard rows.
+            while (rs.next()) {
+              // no-op
+            }
+            return Collections.emptyList();
+          }
+
+          PostgresCollection.PostgresResultIteratorWithBasicTypes iterator =
+              new PostgresCollection.PostgresResultIteratorWithBasicTypes(rs, DocumentType.FLAT);
+          List<Document> results = new ArrayList<>(rowCount * 2);
+          while (iterator.hasNext()) {
+            results.add(iterator.next());
+          }
+          return results;
+        }
+      }
+    } catch (PSQLException e) {
+      if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
+        LOGGER.info(
+            "Schema mismatch detected during bulkCreateOrReplaceAndReturn (SQLState: {}), refreshing schema and retrying. size: {}",
+            e.getSQLState(),
+            documents.size());
+        schemaRegistry.invalidate(tableName);
+        return bulkCreateOrReplaceAndReturnWithRetry(documents, returnOptions, true);
+      }
+      LOGGER.error("SQLException in bulkCreateOrReplaceAndReturn. size: {}", documents.size(), e);
+      throw new IOException(e);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in bulkCreateOrReplaceAndReturn. size: {}", documents.size(), e);
+      throw new IOException(e);
+    }
+  }
+
+  /**
+   * Builds a CTE statement that performs a multi-row upsert and returns BEFORE/AFTER/BOTH rows.
+   *
+   * <p>The {@code before} CTE selects pre-statement rows for the supplied keys via {@code pk =
+   * ANY(?)}; the {@code upserted} CTE runs a multi-row {@code INSERT...VALUES (...), (...), ...}
+   * with {@code ON CONFLICT...DO UPDATE...RETURNING *}. PostgreSQL guarantees both CTEs share the
+   * pre-statement snapshot.
+   */
+  private String buildBulkCreateOrReplaceAndReturnSql(
+      List<String> allTableColumns, String pkColumn, ReturnOptions returnOptions, int rowCount) {
+    String columnList = String.join(", ", allTableColumns);
+    String singleRowPlaceholders =
+        "("
+            + String.join(", ", allTableColumns.stream().map(c -> "?").toArray(String[]::new))
+            + ")";
+    StringBuilder valuesBuilder = new StringBuilder();
+    for (int i = 0; i < rowCount; i++) {
+      if (i > 0) {
+        valuesBuilder.append(", ");
+      }
+      valuesBuilder.append(singleRowPlaceholders);
+    }
+
+    String quotedCreatedTs =
+        createdTsColumn != null
+            ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
+            : null;
+
+    String setClause =
+        allTableColumns.stream()
+            .filter(col -> !col.equals(pkColumn))
+            .filter(col -> !col.equals(quotedCreatedTs))
+            .map(col -> col + " = EXCLUDED." + col)
+            .collect(Collectors.joining(", "));
+
+    String upsertSql =
+        String.format(
+            "INSERT INTO %s (%s) VALUES %s ON CONFLICT (%s) DO UPDATE SET %s RETURNING *",
+            tableIdentifier, columnList, valuesBuilder.toString(), pkColumn, setClause);
+
+    switch (returnOptions) {
+      case NONE:
+      case AFTER:
+        return String.format("WITH upserted AS (%s) SELECT * FROM upserted", upsertSql);
+      case BEFORE:
+        return String.format(
+            "WITH before AS (SELECT * FROM %s WHERE %s = ANY(?)), upserted AS (%s) "
+                + "SELECT * FROM before",
+            tableIdentifier, pkColumn, upsertSql);
+      case BOTH:
+        return String.format(
+            "WITH before AS (SELECT * FROM %s WHERE %s = ANY(?)), upserted AS (%s) "
+                + "SELECT * FROM upserted UNION ALL SELECT * FROM before",
+            tableIdentifier, pkColumn, upsertSql);
+      default:
+        throw new IllegalArgumentException("Unsupported ReturnOptions: " + returnOptions);
+    }
   }
 
   @Override

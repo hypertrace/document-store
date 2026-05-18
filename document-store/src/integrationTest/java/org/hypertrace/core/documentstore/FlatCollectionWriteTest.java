@@ -1168,6 +1168,356 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
   }
 
   @Nested
+  @DisplayName("CreateOrReplaceAndReturn With ReturnOptions")
+  class CreateOrReplaceAndReturnWithOptionsTests {
+
+    @Test
+    @DisplayName("NONE: should create new document and return empty list")
+    void testReturnNone_OnInsert() throws Exception {
+      String docId = generateDocId("cor-return-none-insert");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "NoneInsert");
+      node.put("price", 10);
+      Document doc = new JSONDocument(node);
+
+      List<Document> result = flatCollection.createOrReplaceAndReturn(key, doc, ReturnOptions.NONE);
+
+      assertNotNull(result);
+      assertTrue(result.isEmpty());
+
+      // Verify the upsert still happened
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("NoneInsert", rs.getString("item"));
+            assertEquals(10, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("NONE: should replace existing document and return empty list")
+    void testReturnNone_OnUpdate() throws Exception {
+      String docId = generateDocId("cor-return-none-update");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+      initial.put("item", "InitialItem");
+      initial.put("price", 100);
+      flatCollection.createOrReplace(key, new JSONDocument(initial));
+
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "UpdatedItem");
+      updated.put("price", 200);
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(
+              key, new JSONDocument(updated), ReturnOptions.NONE);
+
+      assertNotNull(result);
+      assertTrue(result.isEmpty());
+
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("UpdatedItem", rs.getString("item"));
+            assertEquals(200, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("AFTER: should return new document on insert (1 element)")
+    void testReturnAfter_OnInsert() throws Exception {
+      String docId = generateDocId("cor-return-after-insert");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "AfterInsert");
+      node.put("price", 50);
+      node.put("quantity", 7);
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(key, new JSONDocument(node), ReturnOptions.AFTER);
+
+      assertEquals(1, result.size());
+
+      JsonNode after = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      assertEquals("AfterInsert", after.get("item").asText());
+      assertEquals(50, after.get("price").asInt());
+      assertEquals(7, after.get("quantity").asInt());
+    }
+
+    @Test
+    @DisplayName("AFTER: should return replaced document on update (1 element)")
+    void testReturnAfter_OnUpdate() throws Exception {
+      String docId = generateDocId("cor-return-after-update");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+      initial.put("item", "OriginalItem");
+      initial.put("price", 100);
+      flatCollection.createOrReplace(key, new JSONDocument(initial));
+
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "ReplacedItem");
+      updated.put("quantity", 99);
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(
+              key, new JSONDocument(updated), ReturnOptions.AFTER);
+
+      assertEquals(1, result.size());
+
+      JsonNode after = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      assertEquals("ReplacedItem", after.get("item").asText());
+      assertEquals(99, after.get("quantity").asInt());
+      // createOrReplace has full-replace semantics, so price should be NULL/absent
+      assertTrue(after.get("price") == null || after.get("price").isNull());
+    }
+
+    @Test
+    @DisplayName("BEFORE: should return empty list on insert (no prior row)")
+    void testReturnBefore_OnInsert() throws Exception {
+      String docId = generateDocId("cor-return-before-insert");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "BeforeInsertItem");
+      node.put("price", 25);
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(
+              key, new JSONDocument(node), ReturnOptions.BEFORE);
+
+      assertNotNull(result);
+      assertTrue(result.isEmpty());
+
+      // Verify upsert still happened
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("BeforeInsertItem", rs.getString("item"));
+            assertEquals(25, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("BEFORE: should return prior document on update (1 element)")
+    void testReturnBefore_OnUpdate() throws Exception {
+      String docId = generateDocId("cor-return-before-update");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+      initial.put("item", "PriorItem");
+      initial.put("price", 100);
+      initial.put("quantity", 5);
+      flatCollection.createOrReplace(key, new JSONDocument(initial));
+
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "NewItem");
+      updated.put("price", 200);
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(
+              key, new JSONDocument(updated), ReturnOptions.BEFORE);
+
+      assertEquals(1, result.size());
+
+      // Returned document should reflect the PRIOR state, not the new one
+      JsonNode before = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      assertEquals("PriorItem", before.get("item").asText());
+      assertEquals(100, before.get("price").asInt());
+      assertEquals(5, before.get("quantity").asInt());
+
+      // Verify the upsert took effect in the table
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("NewItem", rs.getString("item"));
+            assertEquals(200, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("BOTH: should return [after] on insert (1 element)")
+    void testReturnBoth_OnInsert() throws Exception {
+      String docId = generateDocId("cor-return-both-insert");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode node = OBJECT_MAPPER.createObjectNode();
+      node.put("item", "BothInsertItem");
+      node.put("price", 77);
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(key, new JSONDocument(node), ReturnOptions.BOTH);
+
+      // On insert: only the AFTER row is present (no prior row exists)
+      assertEquals(1, result.size());
+      JsonNode after = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      assertEquals("BothInsertItem", after.get("item").asText());
+      assertEquals(77, after.get("price").asInt());
+    }
+
+    @Test
+    @DisplayName("BOTH: should return [after, before] on update (after first)")
+    void testReturnBoth_OnUpdate() throws Exception {
+      String docId = generateDocId("cor-return-both-update");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+      initial.put("item", "BothPrior");
+      initial.put("price", 11);
+      initial.put("quantity", 22);
+      flatCollection.createOrReplace(key, new JSONDocument(initial));
+
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "BothNew");
+      updated.put("price", 33);
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(
+              key, new JSONDocument(updated), ReturnOptions.BOTH);
+
+      assertEquals(2, result.size());
+
+      // Per contract: AFTER is first, BEFORE is second
+      JsonNode after = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      assertEquals("BothNew", after.get("item").asText());
+      assertEquals(33, after.get("price").asInt());
+
+      JsonNode before = OBJECT_MAPPER.readTree(result.get(1).toJson());
+      assertEquals("BothPrior", before.get("item").asText());
+      assertEquals(11, before.get("price").asInt());
+      assertEquals(22, before.get("quantity").asInt());
+    }
+
+    @Test
+    @DisplayName("BOTH: AFTER and BEFORE rows must be on the same key")
+    void testReturnBoth_KeyConsistency() throws Exception {
+      String docId = generateDocId("cor-return-both-keycheck");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+      String expectedId = key.toString();
+
+      ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+      initial.put("item", "Initial");
+      flatCollection.createOrReplace(key, new JSONDocument(initial));
+
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "Updated");
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(
+              key, new JSONDocument(updated), ReturnOptions.BOTH);
+
+      assertEquals(2, result.size());
+      JsonNode after = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      JsonNode before = OBJECT_MAPPER.readTree(result.get(1).toJson());
+      assertEquals(expectedId, after.get("id").asText());
+      assertEquals(expectedId, before.get("id").asText());
+    }
+
+    @Test
+    @DisplayName("BOTH: should handle JSONB fields in both before and after rows")
+    void testReturnBoth_WithJsonbField() throws Exception {
+      String docId = generateDocId("cor-return-both-jsonb");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode initialProps = OBJECT_MAPPER.createObjectNode();
+      initialProps.put("color", "red");
+      initialProps.put("size", "small");
+      ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+      initial.put("item", "JsonbItem");
+      initial.set("props", initialProps);
+      flatCollection.createOrReplace(key, new JSONDocument(initial));
+
+      ObjectNode updatedProps = OBJECT_MAPPER.createObjectNode();
+      updatedProps.put("color", "blue");
+      updatedProps.put("weight", 4.2);
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "JsonbItemNew");
+      updated.set("props", updatedProps);
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(
+              key, new JSONDocument(updated), ReturnOptions.BOTH);
+
+      assertEquals(2, result.size());
+
+      JsonNode after = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      JsonNode afterProps = after.get("props");
+      assertEquals("blue", afterProps.get("color").asText());
+      assertEquals(4.2, afterProps.get("weight").asDouble(), 0.01);
+
+      JsonNode before = OBJECT_MAPPER.readTree(result.get(1).toJson());
+      JsonNode beforeProps = before.get("props");
+      assertEquals("red", beforeProps.get("color").asText());
+      assertEquals("small", beforeProps.get("size").asText());
+    }
+
+    @Test
+    @DisplayName("Atomicity: BEFORE row reflects pre-statement snapshot, not post-write state")
+    void testReturnBefore_SnapshotIsolation() throws Exception {
+      // This is the core correctness guarantee: even though INSERT...ON CONFLICT...DO UPDATE
+      // and the SELECT-before CTE reference the same table, PG's WITH-clause snapshot semantics
+      // guarantee `before` cannot see what `upserted` is writing.
+      String docId = generateDocId("cor-return-before-snapshot");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+      initial.put("item", "SnapshotOriginal");
+      initial.put("price", 1);
+      flatCollection.createOrReplace(key, new JSONDocument(initial));
+
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "SnapshotNew");
+      updated.put("price", 2);
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(
+              key, new JSONDocument(updated), ReturnOptions.BEFORE);
+
+      assertEquals(1, result.size());
+      JsonNode before = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      // BEFORE must reflect the original row, not the just-written row
+      assertEquals("SnapshotOriginal", before.get("item").asText());
+      assertEquals(1, before.get("price").asInt());
+    }
+
+    @Test
+    @DisplayName("AFTER on update has full-replace semantics (unspecified columns become NULL)")
+    void testReturnAfter_FullReplaceSemantics() throws Exception {
+      String docId = generateDocId("cor-return-after-replace");
+      Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+
+      ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+      initial.put("item", "Original");
+      initial.put("price", 100);
+      initial.put("quantity", 50);
+      flatCollection.createOrReplace(key, new JSONDocument(initial));
+
+      // Only specify item; price and quantity must be cleared on the AFTER row
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "ReplacedOnly");
+
+      List<Document> result =
+          flatCollection.createOrReplaceAndReturn(
+              key, new JSONDocument(updated), ReturnOptions.AFTER);
+
+      assertEquals(1, result.size());
+      JsonNode after = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      assertEquals("ReplacedOnly", after.get("item").asText());
+      // price and quantity must NOT carry over
+      assertTrue(after.get("price") == null || after.get("price").isNull());
+      assertTrue(after.get("quantity") == null || after.get("quantity").isNull());
+    }
+  }
+
+  @Nested
   @DisplayName("BulkCreateOrReplace Operations")
   class BulkCreateOrReplaceTests {
 
@@ -1264,6 +1614,265 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
             assertEquals(3, numbers.length);
             assertEquals(10, numbers[0]);
           });
+    }
+  }
+
+  @Nested
+  @DisplayName("BulkCreateOrReplaceAndReturn With ReturnOptions")
+  class BulkCreateOrReplaceAndReturnWithOptionsTests {
+
+    private Map<String, JsonNode> indexById(List<Document> docs) throws Exception {
+      Map<String, JsonNode> byId = new HashMap<>();
+      for (Document d : docs) {
+        JsonNode node = OBJECT_MAPPER.readTree(d.toJson());
+        byId.put(node.get("id").asText(), node);
+      }
+      return byId;
+    }
+
+    @Test
+    @DisplayName("NONE: returns empty list and still upserts every row")
+    void testBulkReturnNone() throws Exception {
+      Key k1 = new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-none-1"));
+      Key k2 = new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-none-2"));
+
+      ObjectNode d1 = OBJECT_MAPPER.createObjectNode();
+      d1.put("item", "noneA");
+      d1.put("price", 1);
+      ObjectNode d2 = OBJECT_MAPPER.createObjectNode();
+      d2.put("item", "noneB");
+      d2.put("price", 2);
+
+      Map<Key, Document> bulk = new LinkedHashMap<>();
+      bulk.put(k1, new JSONDocument(d1));
+      bulk.put(k2, new JSONDocument(d2));
+
+      List<Document> result = flatCollection.bulkCreateOrReplaceAndReturn(bulk, ReturnOptions.NONE);
+
+      assertNotNull(result);
+      assertTrue(result.isEmpty());
+
+      queryAndAssert(
+          k1,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("noneA", rs.getString("item"));
+          });
+      queryAndAssert(
+          k2,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("noneB", rs.getString("item"));
+          });
+    }
+
+    @Test
+    @DisplayName("AFTER: returns one row per upserted doc with new state")
+    void testBulkReturnAfter_MixedInsertAndUpdate() throws Exception {
+      // Pre-existing doc that will be updated
+      Key existingKey =
+          new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-after-existing"));
+      ObjectNode existing = OBJECT_MAPPER.createObjectNode();
+      existing.put("item", "afterPrior");
+      existing.put("price", 10);
+      flatCollection.createOrReplace(existingKey, new JSONDocument(existing));
+
+      Key newKey = new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-after-new"));
+
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "afterUpdated");
+      updated.put("price", 99);
+      ObjectNode fresh = OBJECT_MAPPER.createObjectNode();
+      fresh.put("item", "afterFresh");
+      fresh.put("price", 7);
+
+      Map<Key, Document> bulk = new LinkedHashMap<>();
+      bulk.put(existingKey, new JSONDocument(updated));
+      bulk.put(newKey, new JSONDocument(fresh));
+
+      List<Document> result =
+          flatCollection.bulkCreateOrReplaceAndReturn(bulk, ReturnOptions.AFTER);
+
+      assertEquals(2, result.size());
+      Map<String, JsonNode> byId = indexById(result);
+      assertEquals("afterUpdated", byId.get(existingKey.toString()).get("item").asText());
+      assertEquals(99, byId.get(existingKey.toString()).get("price").asInt());
+      assertEquals("afterFresh", byId.get(newKey.toString()).get("item").asText());
+      assertEquals(7, byId.get(newKey.toString()).get("price").asInt());
+    }
+
+    @Test
+    @DisplayName("BEFORE: returns only pre-images of keys that already existed")
+    void testBulkReturnBefore_MixedInsertAndUpdate() throws Exception {
+      Key existingKey =
+          new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-before-existing"));
+      ObjectNode existing = OBJECT_MAPPER.createObjectNode();
+      existing.put("item", "beforePrior");
+      existing.put("price", 50);
+      flatCollection.createOrReplace(existingKey, new JSONDocument(existing));
+
+      Key newKey = new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-before-new"));
+
+      ObjectNode replace = OBJECT_MAPPER.createObjectNode();
+      replace.put("item", "beforeNew");
+      replace.put("price", 51);
+      ObjectNode fresh = OBJECT_MAPPER.createObjectNode();
+      fresh.put("item", "beforeFresh");
+      fresh.put("price", 1);
+
+      Map<Key, Document> bulk = new LinkedHashMap<>();
+      bulk.put(existingKey, new JSONDocument(replace));
+      bulk.put(newKey, new JSONDocument(fresh));
+
+      List<Document> result =
+          flatCollection.bulkCreateOrReplaceAndReturn(bulk, ReturnOptions.BEFORE);
+
+      // Only the pre-existing row contributes a BEFORE doc.
+      assertEquals(1, result.size());
+      JsonNode before = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      assertEquals(existingKey.toString(), before.get("id").asText());
+      assertEquals("beforePrior", before.get("item").asText());
+      assertEquals(50, before.get("price").asInt());
+
+      // Verify both rows are now in their new state in the table.
+      queryAndAssert(
+          existingKey,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("beforeNew", rs.getString("item"));
+            assertEquals(51, rs.getInt("price"));
+          });
+      queryAndAssert(
+          newKey,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("beforeFresh", rs.getString("item"));
+            assertEquals(1, rs.getInt("price"));
+          });
+    }
+
+    @Test
+    @DisplayName("BOTH: returns AFTER rows for all keys plus BEFORE rows for keys that existed")
+    void testBulkReturnBoth_MixedInsertAndUpdate() throws Exception {
+      Key existingKey = new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-both-existing"));
+      ObjectNode existing = OBJECT_MAPPER.createObjectNode();
+      existing.put("item", "bothPrior");
+      existing.put("price", 11);
+      flatCollection.createOrReplace(existingKey, new JSONDocument(existing));
+
+      Key newKey = new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-both-new"));
+
+      ObjectNode replace = OBJECT_MAPPER.createObjectNode();
+      replace.put("item", "bothNew");
+      replace.put("price", 22);
+      ObjectNode fresh = OBJECT_MAPPER.createObjectNode();
+      fresh.put("item", "bothFresh");
+      fresh.put("price", 33);
+
+      Map<Key, Document> bulk = new LinkedHashMap<>();
+      bulk.put(existingKey, new JSONDocument(replace));
+      bulk.put(newKey, new JSONDocument(fresh));
+
+      List<Document> result = flatCollection.bulkCreateOrReplaceAndReturn(bulk, ReturnOptions.BOTH);
+
+      // 2 AFTER rows + 1 BEFORE row (only existingKey had a prior row)
+      assertEquals(3, result.size());
+
+      // AFTER rows come first per JavaDoc — first 2 entries.
+      Map<String, JsonNode> afterById = indexById(result.subList(0, 2));
+      assertEquals("bothNew", afterById.get(existingKey.toString()).get("item").asText());
+      assertEquals(22, afterById.get(existingKey.toString()).get("price").asInt());
+      assertEquals("bothFresh", afterById.get(newKey.toString()).get("item").asText());
+      assertEquals(33, afterById.get(newKey.toString()).get("price").asInt());
+
+      // BEFORE row last
+      JsonNode before = OBJECT_MAPPER.readTree(result.get(2).toJson());
+      assertEquals(existingKey.toString(), before.get("id").asText());
+      assertEquals("bothPrior", before.get("item").asText());
+      assertEquals(11, before.get("price").asInt());
+    }
+
+    @Test
+    @DisplayName("BOTH: handles JSONB columns in both AFTER and BEFORE rows")
+    void testBulkReturnBoth_JsonbColumn() throws Exception {
+      Key key = new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-both-jsonb"));
+      ObjectNode initialProps = OBJECT_MAPPER.createObjectNode();
+      initialProps.put("color", "red");
+      ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+      initial.put("item", "jsonbPrior");
+      initial.set("props", initialProps);
+      flatCollection.createOrReplace(key, new JSONDocument(initial));
+
+      ObjectNode updatedProps = OBJECT_MAPPER.createObjectNode();
+      updatedProps.put("color", "blue");
+      updatedProps.put("size", "large");
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("item", "jsonbNew");
+      updated.set("props", updatedProps);
+
+      Map<Key, Document> bulk = new LinkedHashMap<>();
+      bulk.put(key, new JSONDocument(updated));
+
+      List<Document> result = flatCollection.bulkCreateOrReplaceAndReturn(bulk, ReturnOptions.BOTH);
+
+      assertEquals(2, result.size());
+      JsonNode after = OBJECT_MAPPER.readTree(result.get(0).toJson());
+      JsonNode before = OBJECT_MAPPER.readTree(result.get(1).toJson());
+
+      assertEquals("jsonbNew", after.get("item").asText());
+      assertEquals("blue", after.get("props").get("color").asText());
+      assertEquals("large", after.get("props").get("size").asText());
+
+      assertEquals("jsonbPrior", before.get("item").asText());
+      assertEquals("red", before.get("props").get("color").asText());
+    }
+
+    @Test
+    @DisplayName("Atomicity: BEFORE rows reflect pre-statement snapshot, not post-write state")
+    void testBulkReturnBefore_SnapshotIsolation() throws Exception {
+      Key k1 = new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-before-snap-1"));
+      Key k2 = new SingleValueKey(DEFAULT_TENANT, generateDocId("bulk-cor-before-snap-2"));
+
+      ObjectNode prior1 = OBJECT_MAPPER.createObjectNode();
+      prior1.put("item", "snapOriginal1");
+      prior1.put("price", 100);
+      flatCollection.createOrReplace(k1, new JSONDocument(prior1));
+
+      ObjectNode prior2 = OBJECT_MAPPER.createObjectNode();
+      prior2.put("item", "snapOriginal2");
+      prior2.put("price", 200);
+      flatCollection.createOrReplace(k2, new JSONDocument(prior2));
+
+      ObjectNode replace1 = OBJECT_MAPPER.createObjectNode();
+      replace1.put("item", "snapNew1");
+      replace1.put("price", 1);
+      ObjectNode replace2 = OBJECT_MAPPER.createObjectNode();
+      replace2.put("item", "snapNew2");
+      replace2.put("price", 2);
+
+      Map<Key, Document> bulk = new LinkedHashMap<>();
+      bulk.put(k1, new JSONDocument(replace1));
+      bulk.put(k2, new JSONDocument(replace2));
+
+      List<Document> result =
+          flatCollection.bulkCreateOrReplaceAndReturn(bulk, ReturnOptions.BEFORE);
+
+      assertEquals(2, result.size());
+      Map<String, JsonNode> byId = indexById(result);
+      assertEquals("snapOriginal1", byId.get(k1.toString()).get("item").asText());
+      assertEquals(100, byId.get(k1.toString()).get("price").asInt());
+      assertEquals("snapOriginal2", byId.get(k2.toString()).get("item").asText());
+      assertEquals(200, byId.get(k2.toString()).get("price").asInt());
+    }
+
+    @Test
+    @DisplayName("Empty/null input returns empty list")
+    void testBulkReturnAll_EmptyInput() throws Exception {
+      assertTrue(flatCollection.bulkCreateOrReplaceAndReturn(null, ReturnOptions.BOTH).isEmpty());
+      assertTrue(
+          flatCollection
+              .bulkCreateOrReplaceAndReturn(new LinkedHashMap<>(), ReturnOptions.AFTER)
+              .isEmpty());
     }
   }
 

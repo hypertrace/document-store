@@ -308,6 +308,62 @@ public interface Collection {
   Document createOrReplaceAndReturn(final Key key, final Document document) throws IOException;
 
   /**
+   * Atomically create-or-replace and return BEFORE/AFTER/BOTH/NONE document(s) in a single
+   * round-trip.
+   *
+   * <p>Result list ordering:
+   *
+   * <ul>
+   *   <li>{@link ReturnOptions#NONE}: empty list
+   *   <li>{@link ReturnOptions#AFTER}: {@code [after]} — always 1 element since upsert always
+   *       produces a row
+   *   <li>{@link ReturnOptions#BEFORE}: {@code []} on insert (no prior row), {@code [before]} on
+   *       update
+   *   <li>{@link ReturnOptions#BOTH}: {@code [after]} on insert, {@code [after, before]} on update
+   *       — after is always present and listed first
+   * </ul>
+   *
+   * @param key Unique key of the document in the collection
+   * @param document The document to be created/replaced
+   * @param returnOptions Which version(s) of the document to return
+   * @return The requested document(s) per the contract above
+   * @throws IOException If the operation could not be performed
+   */
+  default List<Document> createOrReplaceAndReturn(
+      final Key key, final Document document, ReturnOptions returnOptions) throws IOException {
+    throw new UnsupportedOperationException(
+        "createOrReplaceAndReturn with return options is not supported");
+  }
+
+  /**
+   * Atomic batch create-or-replace returning BEFORE/AFTER/BOTH/NONE document(s) in a single
+   * round-trip.
+   *
+   * <p>Result list contents (each document includes the primary-key column so callers can group by
+   * key):
+   *
+   * <ul>
+   *   <li>{@link ReturnOptions#NONE}: empty list
+   *   <li>{@link ReturnOptions#AFTER}: every upserted row (size = {@code documents.size()})
+   *   <li>{@link ReturnOptions#BEFORE}: pre-image rows for keys that already existed (≤ {@code
+   *       documents.size()} entries)
+   *   <li>{@link ReturnOptions#BOTH}: AFTER rows first, then BEFORE rows
+   * </ul>
+   *
+   * <p>Order within each group is not guaranteed; callers must index by primary-key.
+   *
+   * @param documents Map of key to document to create or replace
+   * @param returnOptions Which version(s) of the documents to return
+   * @return The requested documents per the contract above
+   * @throws IOException If the operation could not be performed
+   */
+  default List<Document> bulkCreateOrReplaceAndReturn(
+      Map<Key, Document> documents, ReturnOptions returnOptions) throws IOException {
+    throw new UnsupportedOperationException(
+        "bulkCreateOrReplaceAndReturn with return options is not supported");
+  }
+
+  /**
    * Updates existing documents if the corresponding Filter condition evaluates to true
    *
    * @param documents to be updated in bulk
