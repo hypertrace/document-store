@@ -6296,6 +6296,126 @@ public class DocStoreQueryV1Test {
             }
           });
     }
+
+    // The tests below exercise the legacy search() path against Postgres top-level array columns.
+    // Before the IdentifierExpressionFactory fix, the legacy v1 -> v2 transformer dropped column
+    // type information, so filters on text[] / integer[] / double precision[] columns rendered
+    // SQL that Postgres rejected at execution time (e.g. "tags IN (?)" with a text RHS against a
+    // text[] column). With the fix, the transformer now emits an ArrayIdentifierExpression with
+    // the correct element type, so the Postgres parsers generate array-aware SQL (&&, @>, =).
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithInOnTextArrayColumn(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withFilter(
+                  new org.hypertrace.core.documentstore.Filter(
+                      org.hypertrace.core.documentstore.Filter.Op.IN,
+                      "tags",
+                      List.of("hygiene", "grooming")));
+
+      Iterator<Document> results = flatCollection.search(legacyQuery);
+      int count = 0;
+      while (results.hasNext()) {
+        results.next();
+        count++;
+      }
+      // ids 1, 5, 8 (hygiene) + ids 6, 7 (grooming) = 5 docs whose tags array overlaps the filter
+      assertEquals(5, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithInOnIntegerArrayColumn(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withFilter(
+                  new org.hypertrace.core.documentstore.Filter(
+                      org.hypertrace.core.documentstore.Filter.Op.IN, "numbers", List.of(1, 10)));
+
+      Iterator<Document> results = flatCollection.search(legacyQuery);
+      int count = 0;
+      while (results.hasNext()) {
+        results.next();
+        count++;
+      }
+      // numbers containing 1: ids 1, 4, 8; containing 10: ids 2, 3, 7, 8
+      // -> union = ids 1, 2, 3, 4, 7, 8
+      assertEquals(6, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithInOnDoubleArrayColumn(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withFilter(
+                  new org.hypertrace.core.documentstore.Filter(
+                      org.hypertrace.core.documentstore.Filter.Op.IN, "scores", List.of(3.0, 5.0)));
+
+      Iterator<Document> results = flatCollection.search(legacyQuery);
+      int count = 0;
+      while (results.hasNext()) {
+        results.next();
+        count++;
+      }
+      // scores containing 5.0: id 4 ({5.0, 10.0}) + id 8 ({2.5, 5.0});
+      // scores containing 3.0: id 7 ({3.0}) -> union = ids 4, 7, 8
+      assertEquals(3, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithEqOnTextArrayColumnReturnsArrayElementMembership(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Legacy EQ on a top-level array column with a scalar RHS resolves to array-element
+      // membership semantics (any tag == "hygiene") via the typed parsers wired up by the
+      // factory. Without the fix this produced "tags = ?" which Postgres rejects against text[].
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withFilter(
+                  new org.hypertrace.core.documentstore.Filter(
+                      org.hypertrace.core.documentstore.Filter.Op.EQ, "tags", "hygiene"));
+
+      Iterator<Document> results = flatCollection.search(legacyQuery);
+      int count = 0;
+      while (results.hasNext()) {
+        results.next();
+        count++;
+      }
+      // ids 1, 5, 8 all have "hygiene" in their tags array
+      assertEquals(3, count);
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithScalarColumnsStillUseTypedScalarIdentifier(String dataStoreName) {
+      // Sanity check: the factory must NOT promote scalar columns to ArrayIdentifierExpression.
+      // Scalar EQ on an INTEGER column should continue to work after the fix.
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withFilter(
+                  new org.hypertrace.core.documentstore.Filter(
+                      org.hypertrace.core.documentstore.Filter.Op.EQ, "price", 10));
+
+      Iterator<Document> results = flatCollection.search(legacyQuery);
+      int count = 0;
+      while (results.hasNext()) {
+        results.next();
+        count++;
+      }
+      // ids 1 and 8 both have price = 10
+      assertEquals(2, count);
+    }
   }
 
   @Nested
