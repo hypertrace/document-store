@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -13,9 +14,11 @@ import java.util.Optional;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.commons.SchemaRegistry;
+import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.DataType;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
 import org.hypertrace.core.documentstore.query.Query;
@@ -307,6 +310,147 @@ class LegacyQueryToV2QueryTransformerTest {
       assertTrue(result.getPagination().isPresent());
       assertEquals(50, result.getPagination().get().getLimit());
       assertEquals(10, result.getPagination().get().getOffset());
+    }
+  }
+
+  /**
+   * Tests that verify the transformer wraps directly-resolved columns in <em>typed</em> identifier
+   * expressions (so downstream Postgres parsers can emit array-aware SQL like {@code col && ?},
+   * {@code col @> ARRAY[?]::int8[]}, {@code col = ANY(?)}) when the {@link PostgresColumnMetadata}
+   * carries a non-UNSPECIFIED canonical type.
+   *
+   * <p>Each test fixes a known column shape via Mockito stubbing and asserts the resulting
+   * expression's runtime class and (for arrays) element type.
+   */
+  @Nested
+  class TypedAndArrayColumnIdentifiers {
+
+    @Test
+    void textArrayColumn_inFilter_buildsArrayIdentifierWithStringElementType() {
+      RelationalExpression rel = transformLeafFilter("labels", DataType.STRING, true);
+
+      assertTrue(
+          rel.getLhs() instanceof ArrayIdentifierExpression,
+          "text[] column should be wrapped as ArrayIdentifierExpression");
+      ArrayIdentifierExpression arr = (ArrayIdentifierExpression) rel.getLhs();
+      assertEquals("labels", arr.getName());
+      assertEquals(DataType.STRING, arr.getElementDataType());
+    }
+
+    @Test
+    void bigintArrayColumn_inFilter_buildsArrayIdentifierWithLongElementType() {
+      RelationalExpression rel = transformLeafFilter("sensitivity", DataType.LONG, true);
+
+      ArrayIdentifierExpression arr = (ArrayIdentifierExpression) rel.getLhs();
+      assertEquals(DataType.LONG, arr.getElementDataType());
+    }
+
+    @Test
+    void doublePrecisionArrayColumn_inFilter_buildsArrayIdentifierWithDoubleElementType() {
+      RelationalExpression rel = transformLeafFilter("riskScores", DataType.DOUBLE, true);
+
+      ArrayIdentifierExpression arr = (ArrayIdentifierExpression) rel.getLhs();
+      assertEquals(DataType.DOUBLE, arr.getElementDataType());
+    }
+
+    @Test
+    void scalarTextColumn_inFilter_buildsTypedScalarIdentifier() {
+      RelationalExpression rel = transformLeafFilter("status", DataType.STRING, false);
+
+      assertTrue(rel.getLhs() instanceof IdentifierExpression);
+      // Scalar typed identifier is NOT an ArrayIdentifierExpression.
+      assertFalse(rel.getLhs() instanceof ArrayIdentifierExpression);
+      IdentifierExpression id = (IdentifierExpression) rel.getLhs();
+      assertEquals("status", id.getName());
+      assertEquals(DataType.STRING, id.getDataType());
+    }
+
+    @Test
+    void scalarBigintColumn_inFilter_buildsTypedScalarIdentifierWithLongType() {
+      RelationalExpression rel = transformLeafFilter("statusCode", DataType.LONG, false);
+
+      IdentifierExpression id = (IdentifierExpression) rel.getLhs();
+      assertEquals(DataType.LONG, id.getDataType());
+    }
+
+    @Test
+    void unspecifiedTypeColumn_inFilter_fallsBackToUntypedIdentifier() {
+      // No canonical type stubbed -> Mockito returns null, transformer must fall back to untyped.
+      PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
+      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "legacyCol"))
+          .thenReturn(Optional.of(columnMeta));
+
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "legacyCol", "x");
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query().withFilter(legacyFilter);
+
+      Query result = transformer.transform(legacyQuery);
+
+      RelationalExpression rel = (RelationalExpression) result.getFilter().orElseThrow();
+      assertTrue(rel.getLhs() instanceof IdentifierExpression);
+      assertFalse(rel.getLhs() instanceof ArrayIdentifierExpression);
+      assertEquals(DataType.UNSPECIFIED, ((IdentifierExpression) rel.getLhs()).getDataType());
+    }
+
+    @Test
+    void jsonColumn_directlySelected_doesNotGetWrappedAsTypedScalar() {
+      // JSON columns are handled separately via JsonIdentifierExpression elsewhere; the factory
+      // must NOT promote them to typed scalar IdentifierExpression.
+      PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
+      when(columnMeta.getCanonicalType()).thenReturn(DataType.JSON);
+      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "props"))
+          .thenReturn(Optional.of(columnMeta));
+
+      Filter legacyFilter = new Filter(Filter.Op.EQ, "props", "x");
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query().withFilter(legacyFilter);
+
+      Query result = transformer.transform(legacyQuery);
+
+      RelationalExpression rel = (RelationalExpression) result.getFilter().orElseThrow();
+      assertEquals(DataType.UNSPECIFIED, ((IdentifierExpression) rel.getLhs()).getDataType());
+    }
+
+    @Test
+    void textArrayColumn_inSelection_buildsArrayIdentifierExpression() {
+      // Verifies the LegacyQueryToV2QueryTransformer.createIdentifierExpression path used for
+      // selections/orderBy (separate code site from the filter path above).
+      PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
+      when(columnMeta.getCanonicalType()).thenReturn(DataType.STRING);
+      when(columnMeta.isArray()).thenReturn(true);
+      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "labels"))
+          .thenReturn(Optional.of(columnMeta));
+
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query().withSelection("labels");
+
+      Query result = transformer.transform(legacyQuery);
+
+      assertEquals(1, result.getSelections().size());
+      SelectionSpec spec = result.getSelections().get(0);
+      assertTrue(spec.getExpression() instanceof ArrayIdentifierExpression);
+      ArrayIdentifierExpression arr = (ArrayIdentifierExpression) spec.getExpression();
+      assertEquals(DataType.STRING, arr.getElementDataType());
+    }
+
+    /**
+     * Stubs a column with the given canonical type / array-ness, then runs a single-leaf EQ filter
+     * on it through the transformer and returns the resulting v2 {@link RelationalExpression}.
+     */
+    private RelationalExpression transformLeafFilter(
+        String columnName, DataType canonicalType, boolean isArray) {
+      PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
+      when(columnMeta.getCanonicalType()).thenReturn(canonicalType);
+      when(columnMeta.isArray()).thenReturn(isArray);
+      when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, columnName))
+          .thenReturn(Optional.of(columnMeta));
+
+      Filter legacyFilter = new Filter(Filter.Op.EQ, columnName, "any");
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query().withFilter(legacyFilter);
+
+      Query result = transformer.transform(legacyQuery);
+      return (RelationalExpression) result.getFilter().orElseThrow();
     }
   }
 }
