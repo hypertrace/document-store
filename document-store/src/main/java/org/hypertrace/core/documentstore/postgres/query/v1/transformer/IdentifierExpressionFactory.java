@@ -5,38 +5,10 @@ import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpressi
 import org.hypertrace.core.documentstore.expression.impl.DataType;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 
-/**
- * Builds typed {@link IdentifierExpression}s (or {@link ArrayIdentifierExpression}s for array
- * columns) from {@link ColumnMetadata}. Used by the legacy-query transformers so that downstream
- * Postgres parsers can emit array-aware SQL for typed and array-typed columns:
- *
- * <ul>
- *   <li>{@code IN} &rarr; {@code col && ?} with a typed {@code java.sql.Array} parameter (for array
- *       columns) or {@code col = ANY(?)} (for scalar typed columns)
- *   <li>{@code CONTAINS}&rarr; {@code col @> ARRAY[?]::<elem>[]} (typed cast)
- *   <li>{@code NEQ} &rarr; routed through the top-level array equality parser when the LHS reaches
- *       the parser as an {@link ArrayIdentifierExpression}
- * </ul>
- *
- * <p>Falls back to an untyped {@code IdentifierExpression} when type information is missing,
- * UNSPECIFIED, or {@code JSON} (JSON columns are handled separately via {@code
- * JsonIdentifierExpression} paths), preserving backward-compatible behavior for callers that have
- * not yet wired column type metadata into their {@code SchemaRegistry}.
- */
 final class IdentifierExpressionFactory {
 
   private IdentifierExpressionFactory() {}
 
-  /**
-   * Creates a typed identifier expression for a directly-resolved column.
-   *
-   * @param name the column name to use as the identifier
-   * @param column the column metadata describing the column's canonical type and array-ness; if
-   *     {@code null} or carrying no usable type information, returns an untyped identifier
-   * @return an {@link ArrayIdentifierExpression} for array columns with a known element type, a
-   *     typed {@link IdentifierExpression} for scalar columns with a known type, or an untyped
-   *     {@link IdentifierExpression} otherwise
-   */
   static IdentifierExpression createIdentifierFromColumn(
       final String name, final ColumnMetadata column) {
     if (column == null) {
