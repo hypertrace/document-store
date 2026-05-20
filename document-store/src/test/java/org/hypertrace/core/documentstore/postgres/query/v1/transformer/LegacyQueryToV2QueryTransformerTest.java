@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -11,6 +12,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
 import java.util.Optional;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.OrderBy;
@@ -428,5 +430,28 @@ class LegacyQueryToV2QueryTransformerTest {
           .setFilter(RelationalExpression.of(lhs, EQ, ConstantExpression.of("any")))
           .build();
     }
+  }
+
+  @Test
+  void inferJsonFieldTypeListOfStringsYieldsStringNotStringArray() {
+    PostgresColumnMetadata propsMeta = mock(PostgresColumnMetadata.class);
+    when(propsMeta.getCanonicalType()).thenReturn(DataType.JSON);
+    when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "props.brand")).thenReturn(Optional.empty());
+    when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "props")).thenReturn(Optional.of(propsMeta));
+
+    org.hypertrace.core.documentstore.Query legacyQuery =
+        new org.hypertrace.core.documentstore.Query()
+            .withFilter(new Filter(Filter.Op.IN, "props.brand", List.of("Dettol", "Lifebuoy")));
+
+    Query expected =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    // STRING (not STRING_ARRAY) -- documents the legacy-API gap.
+                    JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                    IN,
+                    ConstantExpression.ofStrings(List.of("Dettol", "Lifebuoy"))))
+            .build();
+    assertEquals(expected, transformer.transform(legacyQuery));
   }
 }
