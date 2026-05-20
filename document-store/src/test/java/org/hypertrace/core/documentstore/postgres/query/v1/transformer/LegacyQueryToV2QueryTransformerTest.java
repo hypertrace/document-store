@@ -1,10 +1,11 @@
 package org.hypertrace.core.documentstore.postgres.query.v1.transformer;
 
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
+import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -15,15 +16,16 @@ import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.OrderBy;
 import org.hypertrace.core.documentstore.commons.SchemaRegistry;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.DataType;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.JsonFieldType;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
-import org.hypertrace.core.documentstore.expression.operators.SortOrder;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
+import org.hypertrace.core.documentstore.query.Pagination;
 import org.hypertrace.core.documentstore.query.Query;
-import org.hypertrace.core.documentstore.query.SelectionSpec;
-import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -44,28 +46,15 @@ class LegacyQueryToV2QueryTransformerTest {
   class TransformNullOrEmptyQuery {
 
     @Test
-    void transformNullQuery_returnsEmptyV2Query() {
-      Query result = transformer.transform(null);
-
-      assertNotNull(result);
-      assertTrue(result.getSelections().isEmpty());
-      assertTrue(result.getFilter().isEmpty());
-      assertTrue(result.getSorts().isEmpty());
-      assertTrue(result.getPagination().isEmpty());
+    void transformNullQueryReturnsEmptyV2Query() {
+      assertEquals(Query.builder().build(), transformer.transform(null));
     }
 
     @Test
-    void transformEmptyQuery_returnsEmptyV2Query() {
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query();
-
-      Query result = transformer.transform(legacyQuery);
-
-      assertNotNull(result);
-      assertTrue(result.getSelections().isEmpty());
-      assertTrue(result.getFilter().isEmpty());
-      assertTrue(result.getSorts().isEmpty());
-      assertTrue(result.getPagination().isEmpty());
+    void transformEmptyQueryReturnsEmptyV2Query() {
+      assertEquals(
+          Query.builder().build(),
+          transformer.transform(new org.hypertrace.core.documentstore.Query()));
     }
   }
 
@@ -73,7 +62,8 @@ class LegacyQueryToV2QueryTransformerTest {
   class TransformSelections {
 
     @Test
-    void transformDirectColumnSelection_createsIdentifierExpression() {
+    void transformDirectColumnSelectionCreatesIdentifierExpression() {
+      // Stubbed column has no canonical type -> factory yields a bare IdentifierExpression.
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
       when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "status"))
           .thenReturn(Optional.of(columnMeta));
@@ -81,16 +71,14 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withSelection("status");
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertEquals(1, result.getSelections().size());
-      SelectionSpec spec = result.getSelections().get(0);
-      assertTrue(spec.getExpression() instanceof IdentifierExpression);
-      assertEquals("status", ((IdentifierExpression) spec.getExpression()).getName());
+      Query expected = Query.builder().addSelection(IdentifierExpression.of("status")).build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
-    void transformJsonbPathSelection_createsJsonIdentifierExpression() {
+    void transformJsonbPathSelectionCreatesJsonIdentifierExpression() {
+      // "customAttr" resolves to a JSON column; ".myField" becomes the JSON path. Selections
+      // default JsonFieldType to STRING (no value available to infer from).
       PostgresColumnMetadata jsonbColumnMeta = mock(PostgresColumnMetadata.class);
       when(jsonbColumnMeta.getCanonicalType()).thenReturn(DataType.JSON);
       when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "customAttr.myField"))
@@ -101,19 +89,16 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withSelection("customAttr.myField");
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertEquals(1, result.getSelections().size());
-      SelectionSpec spec = result.getSelections().get(0);
-      assertTrue(spec.getExpression() instanceof JsonIdentifierExpression);
-      JsonIdentifierExpression jsonExpr = (JsonIdentifierExpression) spec.getExpression();
-      assertEquals("customAttr", jsonExpr.getColumnName());
-      assertEquals(1, jsonExpr.getJsonPath().size());
-      assertEquals("myField", jsonExpr.getJsonPath().get(0));
+      Query expected =
+          Query.builder()
+              .addSelection(
+                  JsonIdentifierExpression.of("customAttr", JsonFieldType.STRING, "myField"))
+              .build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
-    void transformMultipleSelections_createsMultipleExpressions() {
+    void transformMultipleSelectionsCreatesMultipleExpressions() {
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
       when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "col1"))
           .thenReturn(Optional.of(columnMeta));
@@ -123,13 +108,16 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withSelection("col1").withSelection("col2");
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertEquals(2, result.getSelections().size());
+      Query expected =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("col1"))
+              .addSelection(IdentifierExpression.of("col2"))
+              .build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
-    void transformNullFieldName_throwsException() {
+    void transformNullFieldNameThrowsException() {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query();
       legacyQuery.addSelection(null);
@@ -142,7 +130,7 @@ class LegacyQueryToV2QueryTransformerTest {
   class TransformOrderBy {
 
     @Test
-    void transformAscendingOrderBy_createsSortWithAscOrder() {
+    void transformAscendingOrderByCreatesSortWithAscOrder() {
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
       when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "createdAt"))
           .thenReturn(Optional.of(columnMeta));
@@ -150,16 +138,12 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withOrderBy(new OrderBy("createdAt", true));
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertEquals(1, result.getSorts().size());
-      SortingSpec sortSpec = result.getSorts().get(0);
-      assertEquals(SortOrder.ASC, sortSpec.getOrder());
-      assertTrue(sortSpec.getExpression() instanceof IdentifierExpression);
+      Query expected = Query.builder().addSort(IdentifierExpression.of("createdAt"), ASC).build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
-    void transformDescendingOrderBy_createsSortWithDescOrder() {
+    void transformDescendingOrderByCreatesSortWithDescOrder() {
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
       when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "updatedAt"))
           .thenReturn(Optional.of(columnMeta));
@@ -168,15 +152,12 @@ class LegacyQueryToV2QueryTransformerTest {
           new org.hypertrace.core.documentstore.Query()
               .withOrderBy(new OrderBy("updatedAt", false));
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertEquals(1, result.getSorts().size());
-      SortingSpec sortSpec = result.getSorts().get(0);
-      assertEquals(SortOrder.DESC, sortSpec.getOrder());
+      Query expected = Query.builder().addSort(IdentifierExpression.of("updatedAt"), DESC).build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
-    void transformJsonbPathOrderBy_createsJsonIdentifierExpression() {
+    void transformJsonbPathOrderByCreatesJsonIdentifierExpression() {
       PostgresColumnMetadata jsonbColumnMeta = mock(PostgresColumnMetadata.class);
       when(jsonbColumnMeta.getCanonicalType()).thenReturn(DataType.JSON);
       when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "props.priority"))
@@ -188,11 +169,11 @@ class LegacyQueryToV2QueryTransformerTest {
           new org.hypertrace.core.documentstore.Query()
               .withOrderBy(new OrderBy("props.priority", true));
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertEquals(1, result.getSorts().size());
-      SortingSpec sortSpec = result.getSorts().get(0);
-      assertTrue(sortSpec.getExpression() instanceof JsonIdentifierExpression);
+      Query expected =
+          Query.builder()
+              .addSort(JsonIdentifierExpression.of("props", JsonFieldType.STRING, "priority"), ASC)
+              .build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
   }
 
@@ -200,47 +181,41 @@ class LegacyQueryToV2QueryTransformerTest {
   class TransformPagination {
 
     @Test
-    void transformLimitOnly_createsPaginationWithZeroOffset() {
+    void transformLimitOnlyCreatesPaginationWithZeroOffset() {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withLimit(10);
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertTrue(result.getPagination().isPresent());
-      assertEquals(10, result.getPagination().get().getLimit());
-      assertEquals(0, result.getPagination().get().getOffset());
+      Query expected =
+          Query.builder().setPagination(Pagination.builder().offset(0).limit(10).build()).build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
-    void transformLimitAndOffset_createsPaginationWithBoth() {
+    void transformLimitAndOffsetCreatesPaginationWithBoth() {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withLimit(20).withOffset(5);
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertTrue(result.getPagination().isPresent());
-      assertEquals(20, result.getPagination().get().getLimit());
-      assertEquals(5, result.getPagination().get().getOffset());
+      Query expected =
+          Query.builder().setPagination(Pagination.builder().offset(5).limit(20).build()).build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
-    void transformNegativeLimit_noPagination() {
+    void transformNegativeLimitNoPagination() {
+      // Negative limits are dropped silently; nothing else is set, so the result is an empty
+      // v2 Query.
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withLimit(-1);
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertTrue(result.getPagination().isEmpty());
+      assertEquals(Query.builder().build(), transformer.transform(legacyQuery));
     }
 
     @Test
-    void transformNullLimit_noPagination() {
+    void transformNullLimitNoPagination() {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query();
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertTrue(result.getPagination().isEmpty());
+      assertEquals(Query.builder().build(), transformer.transform(legacyQuery));
     }
   }
 
@@ -248,7 +223,7 @@ class LegacyQueryToV2QueryTransformerTest {
   class TransformFilter {
 
     @Test
-    void transformSimpleEqFilter_createsRelationalExpression() {
+    void transformSimpleEqFilterCreatesRelationalExpression() {
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
       when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "status"))
           .thenReturn(Optional.of(columnMeta));
@@ -257,13 +232,17 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withFilter(legacyFilter);
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertTrue(result.getFilter().isPresent());
+      Query expected =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("status"), EQ, ConstantExpression.of("active")))
+              .build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
-    void transformCompositeAndFilter_createsLogicalExpression() {
+    void transformCompositeAndFilterCreatesLogicalExpression() {
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
       when(schemaRegistry.getColumnOrRefresh(anyString(), anyString()))
           .thenReturn(Optional.of(columnMeta));
@@ -277,9 +256,16 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withFilter(compositeFilter);
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertTrue(result.getFilter().isPresent());
+      Query expected =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.and(
+                      RelationalExpression.of(
+                          IdentifierExpression.of("status"), EQ, ConstantExpression.of("active")),
+                      RelationalExpression.of(
+                          IdentifierExpression.of("count"), GT, ConstantExpression.of(10))))
+              .build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
   }
 
@@ -287,7 +273,7 @@ class LegacyQueryToV2QueryTransformerTest {
   class TransformCompleteQuery {
 
     @Test
-    void transformCompleteQuery_allComponentsTransformed() {
+    void transformCompleteQueryAllComponentsTransformed() {
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
       when(schemaRegistry.getColumnOrRefresh(eq(TABLE_NAME), anyString()))
           .thenReturn(Optional.of(columnMeta));
@@ -302,14 +288,17 @@ class LegacyQueryToV2QueryTransformerTest {
               .withLimit(50)
               .withOffset(10);
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertEquals(2, result.getSelections().size());
-      assertTrue(result.getFilter().isPresent());
-      assertEquals(1, result.getSorts().size());
-      assertTrue(result.getPagination().isPresent());
-      assertEquals(50, result.getPagination().get().getLimit());
-      assertEquals(10, result.getPagination().get().getOffset());
+      Query expected =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("id"))
+              .addSelection(IdentifierExpression.of("name"))
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("status"), EQ, ConstantExpression.of("active")))
+              .addSort(IdentifierExpression.of("createdAt"), DESC)
+              .setPagination(Pagination.builder().offset(10).limit(50).build())
+              .build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
   }
 
@@ -327,50 +316,32 @@ class LegacyQueryToV2QueryTransformerTest {
 
     @Test
     void textArrayColumnInFilterBuildsArrayIdentifierWithStringElementType() {
-      RelationalExpression rel = transformLeafFilter("labels", DataType.STRING, true);
-
-      assertTrue(
-          rel.getLhs() instanceof ArrayIdentifierExpression,
-          "text[] column should be wrapped as ArrayIdentifierExpression");
-      ArrayIdentifierExpression arr = (ArrayIdentifierExpression) rel.getLhs();
-      assertEquals("labels", arr.getName());
-      assertEquals(DataType.STRING, arr.getElementDataType());
+      Query expected = leafEqFilterQuery(ArrayIdentifierExpression.ofStrings("labels"));
+      assertEquals(expected, transformLeafFilter("labels", DataType.STRING, true));
     }
 
     @Test
     void bigintArrayColumnInFilterBuildsArrayIdentifierWithLongElementType() {
-      RelationalExpression rel = transformLeafFilter("sensitivity", DataType.LONG, true);
-
-      ArrayIdentifierExpression arr = (ArrayIdentifierExpression) rel.getLhs();
-      assertEquals(DataType.LONG, arr.getElementDataType());
+      Query expected = leafEqFilterQuery(ArrayIdentifierExpression.ofLongs("sensitivity"));
+      assertEquals(expected, transformLeafFilter("sensitivity", DataType.LONG, true));
     }
 
     @Test
     void doublePrecisionArrayColumnInFilterBuildsArrayIdentifierWithDoubleElementType() {
-      RelationalExpression rel = transformLeafFilter("riskScores", DataType.DOUBLE, true);
-
-      ArrayIdentifierExpression arr = (ArrayIdentifierExpression) rel.getLhs();
-      assertEquals(DataType.DOUBLE, arr.getElementDataType());
+      Query expected = leafEqFilterQuery(ArrayIdentifierExpression.ofDoubles("riskScores"));
+      assertEquals(expected, transformLeafFilter("riskScores", DataType.DOUBLE, true));
     }
 
     @Test
     void scalarTextColumnInFilterBuildsTypedScalarIdentifier() {
-      RelationalExpression rel = transformLeafFilter("status", DataType.STRING, false);
-
-      assertTrue(rel.getLhs() instanceof IdentifierExpression);
-      // Scalar typed identifier is NOT an ArrayIdentifierExpression.
-      assertFalse(rel.getLhs() instanceof ArrayIdentifierExpression);
-      IdentifierExpression id = (IdentifierExpression) rel.getLhs();
-      assertEquals("status", id.getName());
-      assertEquals(DataType.STRING, id.getDataType());
+      Query expected = leafEqFilterQuery(IdentifierExpression.ofString("status"));
+      assertEquals(expected, transformLeafFilter("status", DataType.STRING, false));
     }
 
     @Test
     void scalarBigintColumnInFilterBuildsTypedScalarIdentifierWithLongType() {
-      RelationalExpression rel = transformLeafFilter("statusCode", DataType.LONG, false);
-
-      IdentifierExpression id = (IdentifierExpression) rel.getLhs();
-      assertEquals(DataType.LONG, id.getDataType());
+      Query expected = leafEqFilterQuery(IdentifierExpression.ofLong("statusCode"));
+      assertEquals(expected, transformLeafFilter("statusCode", DataType.LONG, false));
     }
 
     @Test
@@ -384,12 +355,13 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withFilter(legacyFilter);
 
-      Query result = transformer.transform(legacyQuery);
-
-      RelationalExpression rel = (RelationalExpression) result.getFilter().orElseThrow();
-      assertTrue(rel.getLhs() instanceof IdentifierExpression);
-      assertFalse(rel.getLhs() instanceof ArrayIdentifierExpression);
-      assertEquals(DataType.UNSPECIFIED, ((IdentifierExpression) rel.getLhs()).getDataType());
+      Query expected =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("legacyCol"), EQ, ConstantExpression.of("x")))
+              .build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
@@ -405,10 +377,13 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withFilter(legacyFilter);
 
-      Query result = transformer.transform(legacyQuery);
-
-      RelationalExpression rel = (RelationalExpression) result.getFilter().orElseThrow();
-      assertEquals(DataType.UNSPECIFIED, ((IdentifierExpression) rel.getLhs()).getDataType());
+      Query expected =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("props"), EQ, ConstantExpression.of("x")))
+              .build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
     @Test
@@ -424,21 +399,12 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withSelection("labels");
 
-      Query result = transformer.transform(legacyQuery);
-
-      assertEquals(1, result.getSelections().size());
-      SelectionSpec spec = result.getSelections().get(0);
-      assertTrue(spec.getExpression() instanceof ArrayIdentifierExpression);
-      ArrayIdentifierExpression arr = (ArrayIdentifierExpression) spec.getExpression();
-      assertEquals(DataType.STRING, arr.getElementDataType());
+      Query expected =
+          Query.builder().addSelection(ArrayIdentifierExpression.ofStrings("labels")).build();
+      assertEquals(expected, transformer.transform(legacyQuery));
     }
 
-    /**
-     * Stubs a column with the given canonical type / array-ness, then runs a single-leaf EQ filter
-     * on it through the transformer and returns the resulting v2 {@link RelationalExpression}.
-     */
-    private RelationalExpression transformLeafFilter(
-        String columnName, DataType canonicalType, boolean isArray) {
+    private Query transformLeafFilter(String columnName, DataType canonicalType, boolean isArray) {
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
       when(columnMeta.getCanonicalType()).thenReturn(canonicalType);
       when(columnMeta.isArray()).thenReturn(isArray);
@@ -449,8 +415,18 @@ class LegacyQueryToV2QueryTransformerTest {
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query().withFilter(legacyFilter);
 
-      Query result = transformer.transform(legacyQuery);
-      return (RelationalExpression) result.getFilter().orElseThrow();
+      return transformer.transform(legacyQuery);
+    }
+
+    /**
+     * Builds the expected v2 Query for a single-leaf {@code EQ <lhs> "any"} filter -- the shape
+     * produced by {@link #transformLeafFilter}.
+     */
+    private Query leafEqFilterQuery(
+        org.hypertrace.core.documentstore.expression.type.SelectTypeExpression lhs) {
+      return Query.builder()
+          .setFilter(RelationalExpression.of(lhs, EQ, ConstantExpression.of("any")))
+          .build();
     }
   }
 }
