@@ -326,7 +326,7 @@ class LegacyQueryToV2QueryTransformerTest {
   class TypedAndArrayColumnIdentifiers {
 
     @Test
-    void textArrayColumn_inFilter_buildsArrayIdentifierWithStringElementType() {
+    void textArrayColumnInFilterBuildsArrayIdentifierWithStringElementType() {
       RelationalExpression rel = transformLeafFilter("labels", DataType.STRING, true);
 
       assertTrue(
@@ -338,7 +338,7 @@ class LegacyQueryToV2QueryTransformerTest {
     }
 
     @Test
-    void bigintArrayColumn_inFilter_buildsArrayIdentifierWithLongElementType() {
+    void bigintArrayColumnInFilterBuildsArrayIdentifierWithLongElementType() {
       RelationalExpression rel = transformLeafFilter("sensitivity", DataType.LONG, true);
 
       ArrayIdentifierExpression arr = (ArrayIdentifierExpression) rel.getLhs();
@@ -346,7 +346,7 @@ class LegacyQueryToV2QueryTransformerTest {
     }
 
     @Test
-    void doublePrecisionArrayColumn_inFilter_buildsArrayIdentifierWithDoubleElementType() {
+    void doublePrecisionArrayColumnInFilterBuildsArrayIdentifierWithDoubleElementType() {
       RelationalExpression rel = transformLeafFilter("riskScores", DataType.DOUBLE, true);
 
       ArrayIdentifierExpression arr = (ArrayIdentifierExpression) rel.getLhs();
@@ -354,7 +354,7 @@ class LegacyQueryToV2QueryTransformerTest {
     }
 
     @Test
-    void scalarTextColumn_inFilter_buildsTypedScalarIdentifier() {
+    void scalarTextColumnInFilterBuildsTypedScalarIdentifier() {
       RelationalExpression rel = transformLeafFilter("status", DataType.STRING, false);
 
       assertTrue(rel.getLhs() instanceof IdentifierExpression);
@@ -366,7 +366,7 @@ class LegacyQueryToV2QueryTransformerTest {
     }
 
     @Test
-    void scalarBigintColumn_inFilter_buildsTypedScalarIdentifierWithLongType() {
+    void scalarBigintColumnInFilterBuildsTypedScalarIdentifierWithLongType() {
       RelationalExpression rel = transformLeafFilter("statusCode", DataType.LONG, false);
 
       IdentifierExpression id = (IdentifierExpression) rel.getLhs();
@@ -374,7 +374,7 @@ class LegacyQueryToV2QueryTransformerTest {
     }
 
     @Test
-    void unspecifiedTypeColumn_inFilter_fallsBackToUntypedIdentifier() {
+    void unspecifiedTypeColumnInFilterFallsBackToUntypedIdentifier() {
       // No canonical type stubbed -> Mockito returns null, transformer must fall back to untyped.
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
       when(schemaRegistry.getColumnOrRefresh(TABLE_NAME, "legacyCol"))
@@ -393,7 +393,7 @@ class LegacyQueryToV2QueryTransformerTest {
     }
 
     @Test
-    void jsonColumn_directlySelected_doesNotGetWrappedAsTypedScalar() {
+    void jsonColumnDirectlySelectedDoesNotGetWrappedAsTypedScalar() {
       // JSON columns are handled separately via JsonIdentifierExpression elsewhere; the factory
       // must NOT promote them to typed scalar IdentifierExpression.
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
@@ -412,7 +412,7 @@ class LegacyQueryToV2QueryTransformerTest {
     }
 
     @Test
-    void textArrayColumn_inSelection_buildsArrayIdentifierExpression() {
+    void textArrayColumnInSelectionBuildsArrayIdentifierExpression() {
       // Verifies the LegacyQueryToV2QueryTransformer.createIdentifierExpression path used for
       // selections/orderBy (separate code site from the filter path above).
       PostgresColumnMetadata columnMeta = mock(PostgresColumnMetadata.class);
