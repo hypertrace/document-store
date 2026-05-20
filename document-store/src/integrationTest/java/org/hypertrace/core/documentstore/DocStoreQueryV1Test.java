@@ -5975,217 +5975,40 @@ public class DocStoreQueryV1Test {
   @Nested
   class FlatCollectionLegacySearchMethod {
 
+    /** Collects the `id` field from every document in the iterator, in iteration order. */
+    private List<String> collectIds(Iterator<Document> iterator) throws JsonProcessingException {
+      ObjectMapper mapper = new ObjectMapper();
+      List<String> ids = new ArrayList<>();
+      while (iterator.hasNext()) {
+        ids.add(mapper.readTree(iterator.next().toJson()).get("id").asText());
+      }
+      return ids;
+    }
+
+    private List<String> assertLegacyV2Parity(
+        Collection flatCollection,
+        org.hypertrace.core.documentstore.Query legacyQuery,
+        Query v2Query)
+        throws JsonProcessingException {
+      List<String> legacyIds = collectIds(flatCollection.search(legacyQuery));
+      List<String> v2Ids = collectIds(flatCollection.find(v2Query));
+      assertEquals(new HashSet<>(legacyIds), new HashSet<>(v2Ids));
+      assertEquals(legacyIds.size(), v2Ids.size());
+      return legacyIds;
+    }
+
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithNoFilter(String dataStoreName) {
+    void testSearchWithNoFilter(String dataStoreName) throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
-      // Test legacy search() method with no filter - should return all documents
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query();
+      Query v2Query = Query.builder().build();
 
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        results.next();
-        count++;
-      }
-      assertEquals(10, count); // All 10 documents in flat collection
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithEqFilter(String dataStoreName) throws JsonProcessingException {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test legacy search() with EQ filter on scalar column
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query()
-              .withFilter(
-                  new org.hypertrace.core.documentstore.Filter(
-                      org.hypertrace.core.documentstore.Filter.Op.EQ, "item", "Soap"));
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        Document doc = results.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        assertEquals("Soap", json.get("item").asText());
-        count++;
-      }
-      assertEquals(3, count); // 3 Soap items (IDs 1, 5, 8)
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithInFilter(String dataStoreName) {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test legacy search() with IN filter
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query()
-              .withFilter(
-                  new org.hypertrace.core.documentstore.Filter(
-                      org.hypertrace.core.documentstore.Filter.Op.IN,
-                      "item",
-                      List.of("Soap", "Mirror")));
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        results.next();
-        count++;
-      }
-      assertEquals(4, count); // 3 Soap + 1 Mirror = 4
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithNumericFilter(String dataStoreName) throws JsonProcessingException {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test legacy search() with GT filter on integer column
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query()
-              .withFilter(
-                  new org.hypertrace.core.documentstore.Filter(
-                      org.hypertrace.core.documentstore.Filter.Op.GT, "price", 15));
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        Document doc = results.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        assertTrue(json.get("price").asInt() > 15);
-        count++;
-      }
-      assertTrue(count > 0);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithCompositeAndFilter(String dataStoreName) throws JsonProcessingException {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test legacy search() with composite AND filter
-      org.hypertrace.core.documentstore.Filter itemFilter =
-          new org.hypertrace.core.documentstore.Filter(
-              org.hypertrace.core.documentstore.Filter.Op.EQ, "item", "Soap");
-      org.hypertrace.core.documentstore.Filter priceFilter =
-          new org.hypertrace.core.documentstore.Filter(
-              org.hypertrace.core.documentstore.Filter.Op.GTE, "price", 10);
-
-      org.hypertrace.core.documentstore.Filter compositeFilter =
-          new org.hypertrace.core.documentstore.Filter();
-      compositeFilter.setOp(org.hypertrace.core.documentstore.Filter.Op.AND);
-      compositeFilter.setChildFilters(
-          new org.hypertrace.core.documentstore.Filter[] {itemFilter, priceFilter});
-
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query().withFilter(compositeFilter);
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        Document doc = results.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        assertEquals("Soap", json.get("item").asText());
-        assertTrue(json.get("price").asInt() >= 10);
-        count++;
-      }
-      assertTrue(count > 0);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithOrderBy(String dataStoreName) throws JsonProcessingException {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test legacy search() with ORDER BY
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query()
-              .withOrderBy(new OrderBy("price", true)); // ASC
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int previousPrice = Integer.MIN_VALUE;
-      int count = 0;
-      while (results.hasNext()) {
-        Document doc = results.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        int currentPrice = json.get("price").asInt();
-        assertTrue(currentPrice >= previousPrice, "Results should be sorted by price ASC");
-        previousPrice = currentPrice;
-        count++;
-      }
-      assertEquals(10, count);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithPagination(String dataStoreName) {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test legacy search() with LIMIT and OFFSET
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query().withLimit(3).withOffset(2);
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        results.next();
-        count++;
-      }
-      assertEquals(3, count); // Should return exactly 3 documents
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithSelections(String dataStoreName) throws JsonProcessingException {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test legacy search() with selections
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query()
-              .withSelection("item")
-              .withSelection("price")
-              .withLimit(5);
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        Document doc = results.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        // Should have item and price fields
-        assertNotNull(json.get("item"));
-        assertNotNull(json.get("price"));
-        count++;
-      }
-      assertEquals(5, count);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithJsonbFilter(String dataStoreName) throws JsonProcessingException {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test legacy search() with filter on JSONB nested field (props.brand)
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query()
-              .withFilter(
-                  new org.hypertrace.core.documentstore.Filter(
-                      org.hypertrace.core.documentstore.Filter.Op.EQ, "props.brand", "Dettol"));
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        Document doc = results.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        JsonNode props = json.get("props");
-        assertNotNull(props);
-        assertEquals("Dettol", props.get("brand").asText());
-        count++;
-      }
-      assertEquals(1, count); // Only 1 document with brand=Dettol
+      // no filter, so should return all documents
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(10, ids.size());
     }
 
     @ParameterizedTest
@@ -6193,87 +6016,62 @@ public class DocStoreQueryV1Test {
     void testSearchCompleteQuery(String dataStoreName) throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
-      // Test legacy search() with filter, orderBy, selections, and pagination
+      org.hypertrace.core.documentstore.Filter itemFilter =
+          new org.hypertrace.core.documentstore.Filter(
+              org.hypertrace.core.documentstore.Filter.Op.EQ, "item", "Soap");
+      org.hypertrace.core.documentstore.Filter priceFilter =
+          new org.hypertrace.core.documentstore.Filter(
+              org.hypertrace.core.documentstore.Filter.Op.GT, "price", 5);
+      org.hypertrace.core.documentstore.Filter quantityFilter =
+          new org.hypertrace.core.documentstore.Filter(
+              org.hypertrace.core.documentstore.Filter.Op.IN, "quantity", List.of(2, 5));
+
+      org.hypertrace.core.documentstore.Filter compositeFilter =
+          new org.hypertrace.core.documentstore.Filter();
+      compositeFilter.setOp(org.hypertrace.core.documentstore.Filter.Op.AND);
+      compositeFilter.setChildFilters(
+          new org.hypertrace.core.documentstore.Filter[] {itemFilter, priceFilter, quantityFilter});
+
+      // Both queries explicitly select `id` so the parity helper can compare by id.
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query()
-              .withFilter(
-                  new org.hypertrace.core.documentstore.Filter(
-                      org.hypertrace.core.documentstore.Filter.Op.GTE, "price", 5))
+              .withFilter(compositeFilter)
+              .withSelection("id")
               .withSelection("item")
               .withSelection("price")
               .withOrderBy(new OrderBy("price", false)) // DESC
-              .withLimit(5)
-              .withOffset(0);
+              .withLimit(2)
+              .withOffset(1);
 
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int previousPrice = Integer.MAX_VALUE;
-      int count = 0;
-      while (results.hasNext()) {
-        Document doc = results.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        int currentPrice = json.get("price").asInt();
-        assertTrue(currentPrice >= 5, "Price should be >= 5");
-        assertTrue(currentPrice <= previousPrice, "Results should be sorted by price DESC");
-        previousPrice = currentPrice;
-        count++;
-      }
-      assertEquals(5, count);
-    }
+      Query v2Query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"), EQ, ConstantExpression.of("Soap")))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("price"), GT, ConstantExpression.of(5)))
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("quantity"),
+                              IN,
+                              ConstantExpression.ofNumbers(List.of(2, 5))))
+                      .build())
+              .addSelection(IdentifierExpression.of("id"))
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(IdentifierExpression.of("price"))
+              .addSort(IdentifierExpression.of("price"), DESC)
+              .setPagination(Pagination.builder().limit(2).offset(1).build())
+              .build();
 
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithFilterSelectionsOrderByAndOffset(String dataStoreName)
-        throws JsonProcessingException {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test covering: filter, selections, orderBy, and offset (pagination)
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query()
-              .withFilter(
-                  new org.hypertrace.core.documentstore.Filter(
-                      org.hypertrace.core.documentstore.Filter.Op.GTE, "price", 5))
-              .withSelection("item")
-              .withSelection("price")
-              .withOrderBy(new OrderBy("price", true)) // ASC
-              .withLimit(3)
-              .withOffset(1); // Skip first result
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      int previousPrice = Integer.MIN_VALUE;
-      while (results.hasNext()) {
-        Document doc = results.next();
-        JsonNode json = new ObjectMapper().readTree(doc.toJson());
-        assertTrue(json.has("item"));
-        assertTrue(json.has("price"));
-        int price = json.get("price").asInt();
-        assertTrue(price >= previousPrice); // ASC order
-        previousPrice = price;
-        count++;
-      }
-      assertEquals(3, count);
-    }
-
-    @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithNullFilterEmptySelectionsNoOrderBy(String dataStoreName) {
-      Collection flatCollection = getFlatCollection(dataStoreName);
-
-      // Test covering null/empty branches:
-      // - No filter (null filter path)
-      // - No selections (empty selections path)
-      // - No orderBy (empty orderBys path)
-      // - Limit without offset (offset defaults to 0)
-      org.hypertrace.core.documentstore.Query legacyQuery =
-          new org.hypertrace.core.documentstore.Query().withLimit(5);
-
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        results.next();
-        count++;
-      }
-      assertEquals(5, count);
+      // Pre-pagination matches: id 1 (Soap, price 10, qty 2), id 5 (Soap, price 20, qty 5),
+      // id 8 (Soap, price 10, qty 5). Sorted by price DESC: id 5, then (id 1, id 8) tied at 10.
+      // limit=2, offset=1 -> 2 docs from the tail of the sorted set.
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(2, ids.size());
     }
 
     @ParameterizedTest
@@ -6281,12 +6079,12 @@ public class DocStoreQueryV1Test {
     void testSearchWithUnknownFieldFallback(String dataStoreName) {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
+      // Both legacy and v2 entry points must fail when the query references unknown columns.
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query()
               .withSelection("nonexistent_field")
               .withOrderBy(new OrderBy("another_unknown", true))
               .withLimit(1);
-
       assertThrows(
           Exception.class,
           () -> {
@@ -6295,17 +6093,26 @@ public class DocStoreQueryV1Test {
               results.next();
             }
           });
+
+      Query v2Query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("nonexistent_field"))
+              .addSort(IdentifierExpression.of("another_unknown"), ASC)
+              .setPagination(Pagination.builder().limit(1).offset(0).build())
+              .build();
+      assertThrows(
+          Exception.class,
+          () -> {
+            Iterator<Document> results = flatCollection.find(v2Query);
+            while (results.hasNext()) {
+              results.next();
+            }
+          });
     }
 
-    // The tests below exercise the legacy search() path against Postgres top-level array columns.
-    // Before the IdentifierExpressionFactory fix, the legacy v1 -> v2 transformer dropped column
-    // type information, so filters on text[] / integer[] / double precision[] columns rendered
-    // SQL that Postgres rejected at execution time (e.g. "tags IN (?)" with a text RHS against a
-    // text[] column). With the fix, the transformer now emits an ArrayIdentifierExpression with
-    // the correct element type, so the Postgres parsers generate array-aware SQL (&&, @>, =).
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithInOnTextArrayColumn(String dataStoreName) {
+    void testSearchWithInOnTextArrayColumn(String dataStoreName) throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
       org.hypertrace.core.documentstore.Query legacyQuery =
@@ -6316,19 +6123,23 @@ public class DocStoreQueryV1Test {
                       "tags",
                       List.of("hygiene", "grooming")));
 
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        results.next();
-        count++;
-      }
+      Query v2Query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.ofStrings("tags"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("hygiene", "grooming"))))
+              .build();
+
       // ids 1, 5, 8 (hygiene) + ids 6, 7 (grooming) = 5 docs whose tags array overlaps the filter
-      assertEquals(5, count);
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(5, ids.size());
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithInOnIntegerArrayColumn(String dataStoreName) {
+    void testSearchWithInOnIntegerArrayColumn(String dataStoreName) throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
       org.hypertrace.core.documentstore.Query legacyQuery =
@@ -6337,20 +6148,24 @@ public class DocStoreQueryV1Test {
                   new org.hypertrace.core.documentstore.Filter(
                       org.hypertrace.core.documentstore.Filter.Op.IN, "numbers", List.of(1, 10)));
 
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        results.next();
-        count++;
-      }
+      Query v2Query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.ofInts("numbers"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(1, 10))))
+              .build();
+
       // numbers containing 1: ids 1, 4, 8; containing 10: ids 2, 3, 7, 8
       // -> union = ids 1, 2, 3, 4, 7, 8
-      assertEquals(6, count);
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(6, ids.size());
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithInOnDoubleArrayColumn(String dataStoreName) {
+    void testSearchWithInOnDoubleArrayColumn(String dataStoreName) throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
       org.hypertrace.core.documentstore.Query legacyQuery =
@@ -6359,62 +6174,210 @@ public class DocStoreQueryV1Test {
                   new org.hypertrace.core.documentstore.Filter(
                       org.hypertrace.core.documentstore.Filter.Op.IN, "scores", List.of(3.0, 5.0)));
 
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        results.next();
-        count++;
-      }
+      Query v2Query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.ofDoubles("scores"),
+                      IN,
+                      ConstantExpression.ofNumbers(List.of(3.0, 5.0))))
+              .build();
+
       // scores containing 5.0: id 4 ({5.0, 10.0}) + id 8 ({2.5, 5.0});
       // scores containing 3.0: id 7 ({3.0}) -> union = ids 4, 7, 8
-      assertEquals(3, count);
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(3, ids.size());
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithEqOnTextArrayColumnReturnsArrayElementMembership(String dataStoreName) {
+    void testSearchWithEqOnTextArrayColumnReturnsArrayElementMembership(String dataStoreName)
+        throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
-      // Legacy EQ on a top-level array column with a scalar RHS resolves to array-element
-      // membership semantics (any tag == "hygiene") via the typed parsers wired up by the
-      // factory. Without the fix this produced "tags = ?" which Postgres rejects against text[].
+      // Legacy EQ on a top-level array column with a scalar RHS is internally rewritten by
+      // IdentifierExpressionFactory to ArrayIdentifierExpression.ofStrings("tags") + EQ, which
+      // the v2 parser resolves to array-element membership ('hygiene' = ANY(tags)).
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query()
               .withFilter(
                   new org.hypertrace.core.documentstore.Filter(
                       org.hypertrace.core.documentstore.Filter.Op.EQ, "tags", "hygiene"));
 
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        results.next();
-        count++;
-      }
+      Query v2Query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      ArrayIdentifierExpression.ofStrings("tags"),
+                      EQ,
+                      ConstantExpression.of("hygiene")))
+              .build();
+
       // ids 1, 5, 8 all have "hygiene" in their tags array
-      assertEquals(3, count);
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(Set.of("1", "5", "8"), new HashSet<>(ids));
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testSearchWithScalarColumnsStillUseTypedScalarIdentifier(String dataStoreName) {
-      // Sanity check: the factory must NOT promote scalar columns to ArrayIdentifierExpression.
-      // Scalar EQ on an INTEGER column should continue to work after the fix.
+    void testSearchWithInOnNestedJsonbStringField(String dataStoreName)
+        throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
       org.hypertrace.core.documentstore.Query legacyQuery =
           new org.hypertrace.core.documentstore.Query()
               .withFilter(
                   new org.hypertrace.core.documentstore.Filter(
-                      org.hypertrace.core.documentstore.Filter.Op.EQ, "price", 10));
+                      org.hypertrace.core.documentstore.Filter.Op.IN,
+                      "props.brand",
+                      List.of("Dettol", "Lifebuoy")));
 
-      Iterator<Document> results = flatCollection.search(legacyQuery);
-      int count = 0;
-      while (results.hasNext()) {
-        results.next();
-        count++;
-      }
-      // ids 1 and 8 both have price = 10
-      assertEquals(2, count);
+      Query v2Query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("Dettol", "Lifebuoy"))))
+              .build();
+
+      // id=1 (Dettol) + id=5 (Lifebuoy) = 2 docs
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(2, ids.size());
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithLikeOnNestedJsonbStringField(String dataStoreName)
+        throws JsonProcessingException {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // The v2 LIKE operator emits a case-insensitive Postgres regex match (`lhs ~* ?`), so the
+      // value is treated as a regex, not a SQL LIKE pattern.
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withFilter(
+                  new org.hypertrace.core.documentstore.Filter(
+                      org.hypertrace.core.documentstore.Filter.Op.LIKE, "props.brand", "^Sun"));
+
+      Query v2Query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      LIKE,
+                      ConstantExpression.of("^Sun")))
+              .build();
+
+      // Only id=3 has props.brand starting with "Sun" ("Sunsilk")
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(1, ids.size());
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithEqOnDeeplyNestedJsonbStringField(String dataStoreName)
+        throws JsonProcessingException {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withFilter(
+                  new org.hypertrace.core.documentstore.Filter(
+                      org.hypertrace.core.documentstore.Filter.Op.EQ,
+                      "props.seller.address.city",
+                      "Mumbai"));
+
+      Query v2Query =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of(
+                          "props", JsonFieldType.STRING, "seller", "address", "city"),
+                      EQ,
+                      ConstantExpression.of("Mumbai")))
+              .build();
+
+      // ids 1 and 3 both have props.seller.address.city = "Mumbai"
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(2, ids.size());
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchWithCompositeAndFilterIncludingNestedJsonbField(String dataStoreName)
+        throws JsonProcessingException {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      // Composite filter mixing a top-level scalar column and a nested JSONB string path:
+      // price >= 15 AND props.size = "S"
+      org.hypertrace.core.documentstore.Filter priceFilter =
+          new org.hypertrace.core.documentstore.Filter(
+              org.hypertrace.core.documentstore.Filter.Op.GTE, "price", 15);
+      org.hypertrace.core.documentstore.Filter sizeFilter =
+          new org.hypertrace.core.documentstore.Filter(
+              org.hypertrace.core.documentstore.Filter.Op.EQ, "props.size", "S");
+
+      org.hypertrace.core.documentstore.Filter compositeFilter =
+          new org.hypertrace.core.documentstore.Filter();
+      compositeFilter.setOp(org.hypertrace.core.documentstore.Filter.Op.AND);
+      compositeFilter.setChildFilters(
+          new org.hypertrace.core.documentstore.Filter[] {priceFilter, sizeFilter});
+
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query().withFilter(compositeFilter);
+
+      Query v2Query =
+          Query.builder()
+              .setFilter(
+                  LogicalExpression.builder()
+                      .operator(AND)
+                      .operand(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("price"), GTE, ConstantExpression.of(15)))
+                      .operand(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", JsonFieldType.STRING, "size"),
+                              EQ,
+                              ConstantExpression.of("S")))
+                      .build())
+              .build();
+
+      // id=5 (Lifebuoy, price=20, size=S) is the only match
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(1, ids.size());
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testSearchSelectsNestedJsonbStringAndStringArrayFields(String dataStoreName)
+        throws JsonProcessingException {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      org.hypertrace.core.documentstore.Query legacyQuery =
+          new org.hypertrace.core.documentstore.Query()
+              .withSelection("id")
+              .withSelection("props.brand")
+              .withSelection("props.colors")
+              .withFilter(
+                  new org.hypertrace.core.documentstore.Filter(
+                      org.hypertrace.core.documentstore.Filter.Op.EQ, "props.brand", "Dettol"));
+
+      Query v2Query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("id"))
+              .addSelection(JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"))
+              .addSelection(JsonIdentifierExpression.of("props", JsonFieldType.STRING, "colors"))
+              .setFilter(
+                  RelationalExpression.of(
+                      JsonIdentifierExpression.of("props", JsonFieldType.STRING, "brand"),
+                      EQ,
+                      ConstantExpression.of("Dettol")))
+              .build();
+
+      // Only id=1 has props.brand = "Dettol"
+      List<String> ids = assertLegacyV2Parity(flatCollection, legacyQuery, v2Query);
+      assertEquals(1, ids.size());
     }
   }
 

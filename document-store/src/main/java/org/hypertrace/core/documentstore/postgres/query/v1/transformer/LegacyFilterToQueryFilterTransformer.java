@@ -137,7 +137,7 @@ public class LegacyFilterToQueryFilterTransformer {
       return JsonIdentifierExpression.of(columnName, fieldType, jsonPath);
     }
 
-    // Fallback: treat as direct column (will fail at query time if column doesn't exist)
+    // Fallback: treat as direct column
     return IdentifierExpression.of(fieldName);
   }
 

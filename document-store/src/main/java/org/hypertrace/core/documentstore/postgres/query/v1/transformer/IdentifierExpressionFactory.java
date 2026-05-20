@@ -15,8 +15,6 @@ final class IdentifierExpressionFactory {
       return IdentifierExpression.of(name);
     }
     final DataType type = column.getCanonicalType();
-    // JSON columns are accessed via JsonIdentifierExpression paths elsewhere; do not wrap them as
-    // typed scalar identifiers here.
     if (type == null || type == DataType.UNSPECIFIED || type == DataType.JSON) {
       return IdentifierExpression.of(name);
     }
