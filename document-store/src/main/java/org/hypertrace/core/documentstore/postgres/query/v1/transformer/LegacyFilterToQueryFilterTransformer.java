@@ -108,8 +108,11 @@ public class LegacyFilterToQueryFilterTransformer {
    * <p>Uses the schema registry to determine if a field is:
    *
    * <ul>
-   *   <li>A direct column → IdentifierExpression
-   *   <li>A JSONB nested path → JsonIdentifierExpression with inferred field type
+   *   <li>A direct column &rarr; typed {@link IdentifierExpression} (or {@link
+   *       org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression} for array
+   *       columns) when the schema carries usable type info, falling back to an untyped {@code
+   *       IdentifierExpression} otherwise
+   *   <li>A JSONB nested path &rarr; {@link JsonIdentifierExpression} with inferred field type
    * </ul>
    */
   private SelectTypeExpression createIdentifierExpression(
@@ -119,8 +122,10 @@ public class LegacyFilterToQueryFilterTransformer {
     }
 
     // Check if the full path is a direct column
-    if (schemaRegistry.getColumnOrRefresh(tableName, fieldName).isPresent()) {
-      return IdentifierExpression.of(fieldName);
+    Optional<? extends ColumnMetadata> directColumn =
+        schemaRegistry.getColumnOrRefresh(tableName, fieldName);
+    if (directColumn.isPresent()) {
+      return IdentifierExpressionFactory.createIdentifierFromColumn(fieldName, directColumn.get());
     }
 
     // Try to find a JSONB column prefix
@@ -132,7 +137,7 @@ public class LegacyFilterToQueryFilterTransformer {
       return JsonIdentifierExpression.of(columnName, fieldType, jsonPath);
     }
 
-    // Fallback: treat as direct column (will fail at query time if column doesn't exist)
+    // Fallback: treat as direct column
     return IdentifierExpression.of(fieldName);
   }
 
