@@ -105,8 +105,11 @@ public class LegacyQueryToV2QueryTransformer {
    * <p>Uses the schema registry to determine if a field is:
    *
    * <ul>
-   *   <li>A direct column → IdentifierExpression
-   *   <li>A JSONB nested path → JsonIdentifierExpression with STRING type (default for
+   *   <li>A direct column &rarr; typed {@link IdentifierExpression} (or {@link
+   *       org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression} for array
+   *       columns) when the schema carries usable type info, falling back to an untyped {@code
+   *       IdentifierExpression} otherwise
+   *   <li>A JSONB nested path &rarr; {@link JsonIdentifierExpression} with STRING type (default for
    *       selections/orderBy since we don't have a value to infer type from)
    * </ul>
    *
@@ -119,8 +122,10 @@ public class LegacyQueryToV2QueryTransformer {
         fieldName != null && !fieldName.isEmpty(), "Field name cannot be null or empty");
 
     // Check if the full path is a direct column
-    if (schemaRegistry.getColumnOrRefresh(tableName, fieldName).isPresent()) {
-      return IdentifierExpression.of(fieldName);
+    Optional<? extends ColumnMetadata> directColumn =
+        schemaRegistry.getColumnOrRefresh(tableName, fieldName);
+    if (directColumn.isPresent()) {
+      return IdentifierExpressionFactory.createIdentifierFromColumn(fieldName, directColumn.get());
     }
 
     // Try to find a JSONB column prefix
