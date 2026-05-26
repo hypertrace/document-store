@@ -11,6 +11,7 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.options.WriteAndReturnOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 
 /** Interface spec for common operations on a collection of documents */
@@ -306,6 +307,76 @@ public interface Collection {
    * @throws IOException If the operation could not be performed
    */
   Document createOrReplaceAndReturn(final Key key, final Document document) throws IOException;
+
+  /**
+   * Create-or-replace and return BEFORE/AFTER/BOTH document image(s) for the given key.
+   *
+   * <p>Atomicity is controlled by {@link WriteAndReturnOptions#isAtomic()}:
+   *
+   * <ul>
+   *   <li>{@code atomic = true} (default): the write and the BEFORE/AFTER capture occur in a single
+   *       round-trip; returned images reflect exactly the row this call wrote.
+   *   <li>{@code atomic = false}: implementations MAY use separate SELECT and INSERT statements.
+   *       Under concurrent writers the BEFORE image may not correspond to the row replaced by this
+   *       call and the AFTER image may reflect a later writer's value.
+   * </ul>
+   *
+   * <p>Return contract:
+   *
+   * <ul>
+   *   <li>{@link ReturnOptions#NONE}: {@link Optional#empty()}.
+   *   <li>Otherwise: an {@link Optional} populated with a {@link WriteAndReturnResult} whose {@code
+   *       key} matches the input key. The {@code before} and {@code after} fields are populated per
+   *       {@link WriteAndReturnResult}.
+   * </ul>
+   *
+   * @param key Unique key of the document in the collection
+   * @param document The document to be created/replaced
+   * @param options Return-image selection and atomicity preference. Must not be {@code null}.
+   * @return Optional result; empty for {@link ReturnOptions#NONE}.
+   * @throws IOException If the operation could not be performed
+   */
+  default Optional<WriteAndReturnResult> createOrReplaceAndReturn(
+      final Key key, final Document document, final WriteAndReturnOptions options)
+      throws IOException {
+    throw new UnsupportedOperationException(
+        "createOrReplaceAndReturn with options is not supported");
+  }
+
+  /**
+   * Batch create-or-replace returning BEFORE/AFTER/BOTH document image(s) per input key.
+   *
+   * <p>Atomicity is controlled by {@link WriteAndReturnOptions#isAtomic()}:
+   *
+   * <ul>
+   *   <li>{@code atomic = true} (default): the write and the BEFORE/AFTER capture occur in a single
+   *       round-trip; returned images reflect exactly the rows this call wrote.
+   *   <li>{@code atomic = false}: implementations MAY use separate SELECT and INSERT statements.
+   *       Per-row consistency between BEFORE/AFTER and what this call wrote is not guaranteed under
+   *       concurrent writers.
+   * </ul>
+   *
+   * <p>Return contract:
+   *
+   * <ul>
+   *   <li>{@link ReturnOptions#NONE}: empty list.
+   *   <li>Otherwise: one {@link WriteAndReturnResult} per upserted input key, in input order
+   *       (i.e. the iteration order of {@code documents}). Entries skipped due to {@link
+   *       org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#IGNORE_DOCUMENT}
+   *       are omitted. Each entry's {@code before} / {@code after} fields are populated per {@link
+   *       WriteAndReturnResult}.
+   * </ul>
+   *
+   * @param documents Map of key to document to create or replace
+   * @param options Return-image selection and atomicity preference. Must not be {@code null}.
+   * @return One result per upserted input key (empty for {@link ReturnOptions#NONE})
+   * @throws IOException If the operation could not be performed
+   */
+  default List<WriteAndReturnResult> bulkCreateOrReplaceAndReturn(
+      Map<Key, Document> documents, WriteAndReturnOptions options) throws IOException {
+    throw new UnsupportedOperationException(
+        "bulkCreateOrReplaceAndReturn with options is not supported");
+  }
 
   /**
    * Updates existing documents if the corresponding Filter condition evaluates to true
