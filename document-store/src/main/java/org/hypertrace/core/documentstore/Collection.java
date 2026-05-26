@@ -14,17 +14,14 @@ import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.options.WriteAndReturnOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 
-/**
- * Interface spec for common operations on a collection of documents
- */
+/** Interface spec for common operations on a collection of documents */
 public interface Collection {
 
   /**
    * Upsert (create a new doc or update if one already exists) the given document into the doc
    * store.
    *
-   * <p>Note: This method ensures that all the fields defined in the `Document` are set/created.
-   * How
+   * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
    * the existing fields are modified is implementation specific. For example, upserting <code> {
    * "foo2": "bar2" }
    * </code> if a document <code>
@@ -32,10 +29,10 @@ public interface Collection {
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
    * the "foo1" field is implementation specific
    *
-   * @param key      Unique key of the document in the collection.
+   * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
    * @return True if this operation resulted in an update of an existing document or creation of a
-   * new document.
+   *     new document.
    * @deprecated Use {@link #createOrReplace} for a consistent behavior.
    */
   @Deprecated(forRemoval = true)
@@ -45,8 +42,7 @@ public interface Collection {
    * Upsert (create a new doc or update if one already exists) the given document into the doc
    * store.
    *
-   * <p>Note: This method ensures that all the fields defined in the `Document` are set/created.
-   * How
+   * <p>Note: This method ensures that all the fields defined in the `Document` are set/created. How
    * the existing fields are modified is implementation specific. For example, upserting <code> {
    * "foo2": "bar2" }
    * </code> if a document <code>
@@ -54,7 +50,7 @@ public interface Collection {
    * </code> already exists would ensure that "foo2" is set the value of "bar2" and what happens to
    * the "foo1" field is implementation specific
    *
-   * @param key      Unique key of the document in the collection.
+   * @param key Unique key of the document in the collection.
    * @param document Document to be upserted.
    * @return Returns the updated document regardless if an update occurred
    * @deprecated Use {@link #createOrReplaceAndReturn} for a consistent behavior.
@@ -65,12 +61,12 @@ public interface Collection {
   /**
    * Update a sub document
    *
-   * @param key         Unique key of the document in the collection.
-   * @param subDocPath  Path to the sub document that needs to be updated
+   * @param key Unique key of the document in the collection.
+   * @param subDocPath Path to the sub document that needs to be updated
    * @param subDocument Sub document that needs to be updated at the above path
-   * @deprecated use
-   * {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query, java.util.Collection,
-   * org.hypertrace.core.documentstore.model.options.UpdateOptions)}} instead.
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
   @Deprecated(forRemoval = true)
   boolean updateSubDoc(Key key, String subDocPath, Document subDocument);
@@ -80,9 +76,9 @@ public interface Collection {
    *
    * @param documents contains the mapping of key and the corresponding sub doc update queries
    * @return the update count or -1 if there is any exception
-   * @deprecated use
-   * {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query, java.util.Collection,
-   * org.hypertrace.core.documentstore.model.options.UpdateOptions)}} instead.
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
   @Deprecated(forRemoval = true)
   BulkUpdateResult bulkUpdateSubDocs(Map<Key, Map<String, Document>> documents) throws Exception;
@@ -92,9 +88,9 @@ public interface Collection {
    *
    * @param request bullk array value update request
    * @return the bulk update result
-   * @deprecated use
-   * {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query, java.util.Collection,
-   * org.hypertrace.core.documentstore.model.options.UpdateOptions)}} instead.
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
   @Deprecated(forRemoval = true)
   BulkUpdateResult bulkOperationOnArrayValue(BulkArrayValueUpdateRequest request) throws Exception;
@@ -105,19 +101,19 @@ public interface Collection {
    * @param query filter to query matching documents
    * @return {@link CloseableIterator} of matching documents
    * @deprecated Use {@link #query(org.hypertrace.core.documentstore.query.Query, QueryOptions)}
-   * instead
+   *     instead
    */
   @Deprecated(forRemoval = true)
   CloseableIterator<Document> search(Query query);
 
   /**
-   * Find the documents matching the query. Note that this method is a generic version of
-   * {@link #search(Query)}
+   * Find the documents matching the query. Note that this method is a generic version of {@link
+   * #search(Query)}
    *
    * @param query The query definition to find
    * @return {@link CloseableIterator} of matching documents
    * @deprecated Use {@link #query(org.hypertrace.core.documentstore.query.Query, QueryOptions)}
-   * instead
+   *     instead
    */
   @Deprecated(forRemoval = true)
   CloseableIterator<Document> find(final org.hypertrace.core.documentstore.query.Query query);
@@ -136,7 +132,7 @@ public interface Collection {
   /**
    * Query the documents conforming to the query specification.
    *
-   * @param query        The query specification
+   * @param query The query specification
    * @param queryOptions The query options
    * @return {@link CloseableIterator} of matching documents
    */
@@ -169,12 +165,12 @@ public interface Collection {
   /**
    * Deletes a sub document
    *
-   * @param key        Unique key of the document in the collection
+   * @param key Unique key of the document in the collection
    * @param subDocPath Path to the sub document that needs to be updated
    * @return True if the sub document was deleted
-   * @deprecated use
-   * {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query, java.util.Collection,
-   * org.hypertrace.core.documentstore.model.options.UpdateOptions)}} instead.
+   * @deprecated use {@link #bulkUpdate(org.hypertrace.core.documentstore.query.Query,
+   *     java.util.Collection, org.hypertrace.core.documentstore.model.options.UpdateOptions)}}
+   *     instead.
    */
   @Deprecated(forRemoval = true)
   boolean deleteSubDoc(Key key, String subDocPath);
@@ -193,7 +189,7 @@ public interface Collection {
 
   /**
    * @return the total number of documents matching the query applying the filters passed, and
-   * ignoring offset and limit
+   *     ignoring offset and limit
    */
   long total(Query query);
 
@@ -213,7 +209,7 @@ public interface Collection {
    * version of {@link #count()}, {@link #count(org.hypertrace.core.documentstore.query.Query)} and
    * {@link #total(Query)}
    *
-   * @param query        The query definition whose result-set size is to be determined
+   * @param query The query definition whose result-set size is to be determined
    * @param queryOptions The query options to be used while fetching the results
    * @return The number of documents conforming to the input query
    */
@@ -234,25 +230,23 @@ public interface Collection {
   CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException;
 
-  /**
-   * Drops a collections
-   */
+  /** Drops a collections */
   void drop();
 
   /**
    * Create a new document if one doesn't violate any unique constraints (including the unique key
    * constraint)
    *
-   * @param key      Unique key of the document in the collection.
+   * @param key Unique key of the document in the collection.
    * @param document Document to be created.
    * @return an instance of {@link CreateResult}
    * @throws DuplicateDocumentException if either
-   *                                    <ul>
-   *                                      <li>a document with the given key already exists or
-   *                                      <li>the given document violates an unique constraint
-   *                                    </ul>
-   * @throws IOException                if there was any other exception while creating the
-   *                                    document
+   *     <ul>
+   *       <li>a document with the given key already exists or
+   *       <li>the given document violates an unique constraint
+   *     </ul>
+   *
+   * @throws IOException if there was any other exception while creating the document
    */
   CreateResult create(Key key, Document document) throws DuplicateDocumentException, IOException;
 
@@ -260,10 +254,10 @@ public interface Collection {
    * Atomically create a new document if the key does not exist in the collection or, replace the
    * existing document if the key exists in the collection
    *
-   * @param key      Unique key of the document in the collection.
+   * @param key Unique key of the document in the collection.
    * @param document The document to be created/replaced
    * @return true if this operation resulted in the creation of a new document. false if an existing
-   * document was replaced.
+   *     document was replaced.
    * @throws IOException If the operation could not be performed
    */
   boolean createOrReplace(final Key key, final Document document) throws IOException;
@@ -272,16 +266,15 @@ public interface Collection {
    * Bulk createOrReplace with no atomicity guarantee. It partial documents succeed, the operation
    * is not rolled back. It's possible that certain document are ignored, if they contain columns
    * that are not present in the table's schema. This happens when the missingColumnStrategy is
-   * configured to
-   * {@link org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#IGNORE_DOCUMENT}.
-   * If it's configured to
-   * {@link org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#SKIP}, then that
-   * column is skipped (but the document is still created/replaced). If it's configured to be
-   * {@link org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#THROW}, the entire
-   * batch fails.
+   * configured to {@link
+   * org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#IGNORE_DOCUMENT}. If it's
+   * configured to {@link
+   * org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#SKIP}, then that column
+   * is skipped (but the document is still created/replaced). If it's configured to be {@link
+   * org.hypertrace.core.documentstore.model.options.MissingColumnStrategy#THROW}, the entire batch
+   * fails.
    *
-   * <p>Semantically, if the document already exists, each column is replaced with its new value
-   * (or
+   * <p>Semantically, if the document already exists, each column is replaced with its new value (or
    * to its default value if not specified). Note that no merge happens. For example, if the
    * original row contains "tag" : {"k1": "v1"} and the new row contains "tag" : {"k2": "v2"}, then
    * the final row will be "tag" : {"k2": "v2"}
@@ -308,7 +301,7 @@ public interface Collection {
    * Atomically create a new document if the key does not exist in the collection or, replace the
    * existing document if the key exists in the collection and return the created/replaced document
    *
-   * @param key      Unique key of the document in the collection.
+   * @param key Unique key of the document in the collection.
    * @param document The document to be created/replaced
    * @return The created/replaced document
    * @throws IOException If the operation could not be performed
@@ -328,9 +321,9 @@ public interface Collection {
    *       call and the AFTER image may reflect a later writer's value.
    * </ul>
    *
-   * @param key      Unique key of the document in the collection
+   * @param key Unique key of the document in the collection
    * @param document The document to be created/replaced
-   * @param options  Return-image selection and atomicity preference. Must not be {@code null}.
+   * @param options Return-image selection and atomicity preference. Must not be {@code null}.
    * @return Optional result; empty for {@link ReturnOptions#NONE}.
    * @throws IOException If the operation could not be performed
    */
@@ -355,7 +348,7 @@ public interface Collection {
    * </ul>
    *
    * @param documents Map of key to document to create or replace
-   * @param options   Return-image selection and atomicity preference. Must not be {@code null}.
+   * @param options Return-image selection and atomicity preference. Must not be {@code null}.
    * @return One result per upserted input key (empty for {@link ReturnOptions#NONE})
    * @throws IOException If the operation could not be performed
    */
@@ -377,8 +370,8 @@ public interface Collection {
    * Update an existing document if condition is evaluated to true. Condition will help in providing
    * optimistic locking support for concurrency update.
    *
-   * @param key       Unique key of the document in the collection.
-   * @param document  Document to be updated.
+   * @param key Unique key of the document in the collection.
+   * @param document Document to be updated.
    * @param condition Filter condition to be evaluated if present, on success update the document
    * @return an instance of {@link UpdateResult}
    */
@@ -393,24 +386,23 @@ public interface Collection {
    *   <li>returns the document (if exists) including the fields selected in the query
    * </ol>
    *
-   * @param query         The query specifying the desired filter and sorting criteria along with
-   *                      the necessary selections
-   * @param updates       The collection of sub-document updates to be performed atomically in any
-   *                      order.
+   * @param query The query specifying the desired filter and sorting criteria along with the
+   *     necessary selections
+   * @param updates The collection of sub-document updates to be performed atomically in any order.
    * @param updateOptions Options for updating/returning the document
    * @return The old (before update) or new (after update) document optional if one exists and
-   * requested, otherwise an empty optional.
+   *     requested, otherwise an empty optional.
    * @throws IOException if there was any error in updating/fetching the document or argument
-   *                     validation failed (like no updates passed)
+   *     validation failed (like no updates passed)
    * @implSpec The definition of an update here is
-   * <ol>
-   *   <li>The existing sub-documents will be updated
-   *   <li>New sub-documents will be created if they do not exist
-   *   <li>None of the existing sub-documents will be removed
-   * </ol>
-   * <p>If more than one update is modifying the same hierarchy (e.g.: a->b and a->b->c), should
-   * throw an {@link IOException} since the order of application of the updates is an
-   * implementation detail to avoid non-compatible results.
+   *     <ol>
+   *       <li>The existing sub-documents will be updated
+   *       <li>New sub-documents will be created if they do not exist
+   *       <li>None of the existing sub-documents will be removed
+   *     </ol>
+   *     <p>If more than one update is modifying the same hierarchy (e.g.: a->b and a->b->c), should
+   *     throw an {@link IOException} since the order of application of the updates is an
+   *     implementation detail to avoid non-compatible results.
    */
   Optional<Document> update(
       final org.hypertrace.core.documentstore.query.Query query,
@@ -434,22 +426,22 @@ public interface Collection {
    * filter is <strong>one of the scenarios</strong> when the updated documents and the returned
    * documents would match.
    *
-   * @param query         The query to be executed. Also, contains the filter for updating
-   * @param updates       The collection of sub-document updates to be performed in any order
+   * @param query The query to be executed. Also, contains the filter for updating
+   * @param updates The collection of sub-document updates to be performed in any order
    * @param updateOptions Options for updating/returning the document
    * @return A closeable iterator to the old (before update) or new (after update) documents if
-   * requested, otherwise an empty iterator.
+   *     requested, otherwise an empty iterator.
    * @throws IOException if there was any error in updating/fetching the documents or argument
-   *                     validation failed (like no updates passed)
+   *     validation failed (like no updates passed)
    * @implSpec The definition of an update here is
-   * <ol>
-   *   <li>The existing sub-documents will be updated
-   *   <li>New sub-documents will be created if they do not exist
-   *   <li>None of the existing sub-documents will be removed
-   * </ol>
-   * <p>If more than one update is modifying the same hierarchy (e.g.: a->b and a->b->c), should
-   * throw an {@link IOException} since the order of application of the updates is an
-   * implementation detail to avoid non-compatible results.
+   *     <ol>
+   *       <li>The existing sub-documents will be updated
+   *       <li>New sub-documents will be created if they do not exist
+   *       <li>None of the existing sub-documents will be removed
+   *     </ol>
+   *     <p>If more than one update is modifying the same hierarchy (e.g.: a->b and a->b->c), should
+   *     throw an {@link IOException} since the order of application of the updates is an
+   *     implementation detail to avoid non-compatible results.
    */
   CloseableIterator<Document> bulkUpdate(
       final org.hypertrace.core.documentstore.query.Query query,
@@ -494,8 +486,8 @@ public interface Collection {
    * BulkUpdateResult result = collection.bulkUpdate(updates, UpdateOptions.builder().build());
    * }</pre>
    *
-   * @param updates       Map of Key to Collection of SubDocumentUpdate operations. Each key's
-   *                      updates are applied atomically, but no cross-key atomicity is guaranteed.
+   * @param updates Map of Key to Collection of SubDocumentUpdate operations. Each key's updates are
+   *     applied atomically, but no cross-key atomicity is guaranteed.
    * @param updateOptions Options for the update operation
    * @return BulkUpdateResult containing the count of successfully updated documents
    * @throws IOException if the update operation fails
