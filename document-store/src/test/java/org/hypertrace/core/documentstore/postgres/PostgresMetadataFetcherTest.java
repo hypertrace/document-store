@@ -29,52 +29,56 @@ class PostgresMetadataFetcherTest {
 
   @Mock private PostgresClient client;
   @Mock private Connection connection;
-  @Mock private PreparedStatement columnsPreparedStatement;
-  @Mock private PreparedStatement pkPreparedStatement;
-  @Mock private ResultSet columnsResultSet;
-  @Mock private ResultSet pkResultSet;
+  @Mock private PreparedStatement preparedStatement;
+  @Mock private ResultSet resultSet;
 
   private PostgresMetadataFetcher fetcher;
 
   private static final String DISCOVERY_SQL =
-      "SELECT column_name, udt_name, is_nullable "
-          + "FROM information_schema.columns "
-          + "WHERE table_schema = 'public' AND table_name = ?";
-
-  private static final String PRIMARY_KEY_SQL =
-      "SELECT a.attname as column_name "
-          + "FROM pg_index i "
-          + "JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey) "
-          + "WHERE i.indrelid = ?::regclass AND i.indisprimary";
+      "SELECT a.attname AS column_name, "
+          + "t.typname AS udt_name, "
+          + "NOT a.attnotnull AS is_nullable, "
+          + "COALESCE(pk.is_pk, false) AS is_primary_key "
+          + "FROM pg_attribute a "
+          + "JOIN pg_class c ON a.attrelid = c.oid "
+          + "JOIN pg_namespace n ON c.relnamespace = n.oid "
+          + "JOIN pg_type t ON a.atttypid = t.oid "
+          + "LEFT JOIN ( "
+          + "  SELECT a2.attname, true AS is_pk "
+          + "  FROM pg_index i "
+          + "  JOIN pg_attribute a2 ON a2.attrelid = i.indrelid AND a2.attnum = ANY(i.indkey) "
+          + "  WHERE i.indisprimary "
+          + ") pk ON pk.attname = a.attname "
+          + "WHERE c.relname = ? "
+          + "AND n.nspname = 'public' "
+          + "AND a.attnum > 0 "
+          + "AND NOT a.attisdropped";
 
   @BeforeEach
   void setUp() throws SQLException {
     when(client.getPooledConnection()).thenReturn(connection);
-    when(connection.prepareStatement(DISCOVERY_SQL)).thenReturn(columnsPreparedStatement);
-    when(connection.prepareStatement(PRIMARY_KEY_SQL)).thenReturn(pkPreparedStatement);
-    when(columnsPreparedStatement.executeQuery()).thenReturn(columnsResultSet);
-    when(pkPreparedStatement.executeQuery()).thenReturn(pkResultSet);
-    // Default: no primary keys
-    when(pkResultSet.next()).thenReturn(false);
+    when(connection.prepareStatement(DISCOVERY_SQL)).thenReturn(preparedStatement);
+    when(preparedStatement.executeQuery()).thenReturn(resultSet);
     fetcher = new PostgresMetadataFetcher(client);
   }
 
   @Test
   void fetchReturnsEmptyMapForTableWithNoColumns() throws SQLException {
-    when(columnsResultSet.next()).thenReturn(false);
+    when(resultSet.next()).thenReturn(false);
 
     Map<String, PostgresColumnMetadata> result = fetcher.fetch(TEST_TABLE);
 
     assertTrue(result.isEmpty());
-    verify(columnsPreparedStatement).setString(1, TEST_TABLE);
+    verify(preparedStatement).setString(1, TEST_TABLE);
   }
 
   @Test
   void fetchReturnsSingleColumn() throws SQLException {
-    when(columnsResultSet.next()).thenReturn(true, false);
-    when(columnsResultSet.getString("column_name")).thenReturn("id");
-    when(columnsResultSet.getString("udt_name")).thenReturn("int4");
-    when(columnsResultSet.getString("is_nullable")).thenReturn("NO");
+    when(resultSet.next()).thenReturn(true, false);
+    when(resultSet.getString("column_name")).thenReturn("id");
+    when(resultSet.getString("udt_name")).thenReturn("int4");
+    when(resultSet.getBoolean("is_nullable")).thenReturn(false);
+    when(resultSet.getBoolean("is_primary_key")).thenReturn(false);
 
     Map<String, PostgresColumnMetadata> result = fetcher.fetch(TEST_TABLE);
 
@@ -89,10 +93,11 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchReturnsMultipleColumns() throws SQLException {
-    when(columnsResultSet.next()).thenReturn(true, true, true, false);
-    when(columnsResultSet.getString("column_name")).thenReturn("id", "name", "price");
-    when(columnsResultSet.getString("udt_name")).thenReturn("int8", "text", "float8");
-    when(columnsResultSet.getString("is_nullable")).thenReturn("NO", "YES", "YES");
+    when(resultSet.next()).thenReturn(true, true, true, false);
+    when(resultSet.getString("column_name")).thenReturn("id", "name", "price");
+    when(resultSet.getString("udt_name")).thenReturn("int8", "text", "float8");
+    when(resultSet.getBoolean("is_nullable")).thenReturn(false, true, true);
+    when(resultSet.getBoolean("is_primary_key")).thenReturn(false, false, false);
 
     Map<String, PostgresColumnMetadata> result = fetcher.fetch(TEST_TABLE);
 
@@ -119,7 +124,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsInt4ToInteger() throws SQLException {
-    setupSingleColumnResult("col", "int4", "NO");
+    setupSingleColumnResult("col", "int4", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -129,7 +134,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsInt2ToInteger() throws SQLException {
-    setupSingleColumnResult("col", "int2", "NO");
+    setupSingleColumnResult("col", "int2", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -139,7 +144,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsInt8ToLong() throws SQLException {
-    setupSingleColumnResult("col", "int8", "NO");
+    setupSingleColumnResult("col", "int8", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -149,7 +154,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsFloat4ToFloat() throws SQLException {
-    setupSingleColumnResult("col", "float4", "NO");
+    setupSingleColumnResult("col", "float4", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -159,7 +164,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsFloat8ToDouble() throws SQLException {
-    setupSingleColumnResult("col", "float8", "NO");
+    setupSingleColumnResult("col", "float8", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -169,7 +174,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsNumericToDouble() throws SQLException {
-    setupSingleColumnResult("col", "numeric", "NO");
+    setupSingleColumnResult("col", "numeric", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -179,7 +184,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsBoolToBoolean() throws SQLException {
-    setupSingleColumnResult("col", "bool", "NO");
+    setupSingleColumnResult("col", "bool", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -189,7 +194,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsTextToString() throws SQLException {
-    setupSingleColumnResult("col", "text", "NO");
+    setupSingleColumnResult("col", "text", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -199,7 +204,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsVarcharToString() throws SQLException {
-    setupSingleColumnResult("col", "varchar", "NO");
+    setupSingleColumnResult("col", "varchar", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -209,7 +214,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsBpcharToString() throws SQLException {
-    setupSingleColumnResult("col", "bpchar", "NO");
+    setupSingleColumnResult("col", "bpchar", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -219,7 +224,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsUuidToString() throws SQLException {
-    setupSingleColumnResult("col", "uuid", "NO");
+    setupSingleColumnResult("col", "uuid", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -229,7 +234,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsJsonbToJson() throws SQLException {
-    setupSingleColumnResult("col", "jsonb", "NO");
+    setupSingleColumnResult("col", "jsonb", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -239,7 +244,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsTimestamptzToTimestamptz() throws SQLException {
-    setupSingleColumnResult("col", "timestamptz", "NO");
+    setupSingleColumnResult("col", "timestamptz", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -249,7 +254,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsDateToDate() throws SQLException {
-    setupSingleColumnResult("col", "date", "NO");
+    setupSingleColumnResult("col", "date", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -259,7 +264,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsUnknownTypeToUnspecified() throws SQLException {
-    setupSingleColumnResult("col", "unknown_type", "NO");
+    setupSingleColumnResult("col", "unknown_type", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -269,7 +274,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsNullUdtNameToUnspecified() throws SQLException {
-    setupSingleColumnResult("col", null, "NO");
+    setupSingleColumnResult("col", null, false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -279,7 +284,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchHandlesNullableColumn() throws SQLException {
-    setupSingleColumnResult("col", "text", "YES");
+    setupSingleColumnResult("col", "text", true);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -288,7 +293,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchHandlesNonNullableColumn() throws SQLException {
-    setupSingleColumnResult("col", "text", "NO");
+    setupSingleColumnResult("col", "text", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -297,7 +302,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchHandlesCaseInsensitiveUdtName() throws SQLException {
-    setupSingleColumnResult("col", "INT4", "NO");
+    setupSingleColumnResult("col", "INT4", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -307,7 +312,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchThrowsRuntimeExceptionOnSqlException() throws SQLException {
-    when(columnsPreparedStatement.executeQuery()).thenThrow(new SQLException("Connection failed"));
+    when(preparedStatement.executeQuery()).thenThrow(new SQLException("Connection failed"));
 
     RuntimeException exception =
         assertThrows(RuntimeException.class, () -> fetcher.fetch(TEST_TABLE));
@@ -318,7 +323,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsTextArrayToStringArray() throws SQLException {
-    setupSingleColumnResult("col", "_text", "NO");
+    setupSingleColumnResult("col", "_text", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -329,7 +334,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsInt4ArrayToIntegerArray() throws SQLException {
-    setupSingleColumnResult("col", "_int4", "NO");
+    setupSingleColumnResult("col", "_int4", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -340,7 +345,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsInt8ArrayToLongArray() throws SQLException {
-    setupSingleColumnResult("col", "_int8", "NO");
+    setupSingleColumnResult("col", "_int8", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -351,7 +356,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsFloat8ArrayToDoubleArray() throws SQLException {
-    setupSingleColumnResult("col", "_float8", "NO");
+    setupSingleColumnResult("col", "_float8", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -362,7 +367,7 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchMapsBoolArrayToBooleanArray() throws SQLException {
-    setupSingleColumnResult("col", "_bool", "NO");
+    setupSingleColumnResult("col", "_bool", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
@@ -373,18 +378,19 @@ class PostgresMetadataFetcherTest {
 
   @Test
   void fetchReturnsIsArrayFalseForNonArrayTypes() throws SQLException {
-    setupSingleColumnResult("col", "text", "NO");
+    setupSingleColumnResult("col", "text", false);
 
     PostgresColumnMetadata meta = fetcher.fetch(TEST_TABLE).get("col");
 
     assertFalse(meta.isArray());
   }
 
-  private void setupSingleColumnResult(String colName, String udtName, String isNullable)
+  private void setupSingleColumnResult(String colName, String udtName, boolean isNullable)
       throws SQLException {
-    when(columnsResultSet.next()).thenReturn(true, false);
-    when(columnsResultSet.getString("column_name")).thenReturn(colName);
-    when(columnsResultSet.getString("udt_name")).thenReturn(udtName);
-    when(columnsResultSet.getString("is_nullable")).thenReturn(isNullable);
+    when(resultSet.next()).thenReturn(true, false);
+    when(resultSet.getString("column_name")).thenReturn(colName);
+    when(resultSet.getString("udt_name")).thenReturn(udtName);
+    when(resultSet.getBoolean("is_nullable")).thenReturn(isNullable);
+    when(resultSet.getBoolean("is_primary_key")).thenReturn(false);
   }
 }
