@@ -15,5 +15,7 @@ CREATE TABLE "%s" (
     "big_number" BIGINT,
     "rating" REAL,
     "created_date" DATE,
-    "weight" DOUBLE PRECISION
+    "weight" DOUBLE PRECISION,
+    "created_at" TIMESTAMPTZ,
+    "last_updated" TIMESTAMPTZ
 );

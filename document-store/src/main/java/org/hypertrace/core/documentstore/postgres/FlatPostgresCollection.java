@@ -32,7 +32,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -219,7 +218,13 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   @Override
   public Document upsertAndReturn(Key key, Document document) throws IOException {
-    throw new UnsupportedOperationException(WRITE_NOT_SUPPORTED);
+    try {
+      boolean upsert = upsert(key, document);
+      return upsert ? document : null;
+    } catch (IOException e) {
+      LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
+      throw e;
+    }
   }
 
   @Override
@@ -354,11 +359,8 @@ public class FlatPostgresCollection extends PostgresCollection {
     PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
 
     try {
-      // Parse all documents and collect the union of all columns. This is because we can have
-      // different docs with different sets of cols, so we do this to create a single upsert SQL
+      // Parse all documents
       Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
-      Set<String> allColumns = new LinkedHashSet<>();
-      allColumns.add(quotedPkColumn);
 
       List<Key> ignoredDocuments = new ArrayList<>();
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
@@ -374,7 +376,6 @@ public class FlatPostgresCollection extends PostgresCollection {
 
         parsed.add(quotedPkColumn, entry.getKey().toString(), pkType, false);
         parsedDocuments.put(entry.getKey(), parsed);
-        allColumns.addAll(parsed.getColumns());
       }
 
       if (!ignoredDocuments.isEmpty()) {
@@ -389,10 +390,9 @@ public class FlatPostgresCollection extends PostgresCollection {
         return true;
       }
 
-      // Build the bulk upsert SQL with all columns
-      // Use COALESCE to preserve existing values when a document doesn't have a column
-      List<String> columnList = new ArrayList<>(allColumns);
-      String sql = buildMergeUpsertSql(columnList, quotedPkColumn, false, true);
+      List<String> allTableColumns = getAllQuotedColumns(tableName);
+
+      String sql = buildUpsertSql(allTableColumns, quotedPkColumn, false);
       LOGGER.debug("Bulk upsert SQL: {}", sql);
 
       try (Connection conn = client.getPooledConnection();
@@ -400,10 +400,11 @@ public class FlatPostgresCollection extends PostgresCollection {
 
         for (Map.Entry<Key, TypedDocument> entry : parsedDocuments.entrySet()) {
           TypedDocument parsed = entry.getValue();
+          Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
           int index = 1;
 
-          for (String column : columnList) {
-            if (parsed.getColumns().contains(column)) {
+          for (String column : allTableColumns) {
+            if (parsedColumns.contains(column)) {
               setParameter(
                   conn,
                   ps,
@@ -452,10 +453,8 @@ public class FlatPostgresCollection extends PostgresCollection {
     PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
 
     try {
-      // Parse all documents and collect the union of all columns from documents
+      // Parse all documents
       Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
-      Set<String> docColumns = new LinkedHashSet<>();
-      docColumns.add(quotedPkColumn);
 
       List<Key> ignoredDocuments = new ArrayList<>();
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
@@ -471,7 +470,6 @@ public class FlatPostgresCollection extends PostgresCollection {
 
         parsed.add(quotedPkColumn, entry.getKey().toString(), pkType, false);
         parsedDocuments.put(entry.getKey(), parsed);
-        docColumns.addAll(parsed.getColumns());
       }
 
       if (!ignoredDocuments.isEmpty()) {
@@ -486,16 +484,10 @@ public class FlatPostgresCollection extends PostgresCollection {
         return true;
       }
 
-      // Get all table columns for the replace semantics (missing cols set to DEFAULT)
-      List<String> allTableColumns =
-          schemaRegistry.getSchema(tableName).values().stream()
-              .map(PostgresColumnMetadata::getName)
-              .map(PostgresUtils::wrapFieldNamesWithDoubleQuotes)
-              .collect(Collectors.toList());
+      List<String> allTableColumns = getAllQuotedColumns(tableName);
 
-      // Build the bulk createOrReplace SQL - uses all table columns with DEFAULT for missing
-      List<String> docColumnList = new ArrayList<>(docColumns);
-      String sql = buildCreateOrReplaceSql(allTableColumns, docColumnList, quotedPkColumn);
+      // Build the bulk createOrReplace SQL - stable shape using all table columns
+      String sql = buildCreateOrReplaceSql(allTableColumns, quotedPkColumn);
       LOGGER.debug("Bulk createOrReplace SQL: {}", sql);
 
       try (Connection conn = client.getPooledConnection();
@@ -503,10 +495,11 @@ public class FlatPostgresCollection extends PostgresCollection {
 
         for (Map.Entry<Key, TypedDocument> entry : parsedDocuments.entrySet()) {
           TypedDocument parsed = entry.getValue();
+          Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
           int index = 1;
 
-          for (String column : docColumnList) {
-            if (parsed.getColumns().contains(column)) {
+          for (String column : allTableColumns) {
+            if (parsedColumns.contains(column)) {
               setParameter(
                   conn,
                   ps,
@@ -595,26 +588,7 @@ public class FlatPostgresCollection extends PostgresCollection {
    * @param includeReturning If true, adds RETURNING clause to detect insert vs update
    * @return The upsert SQL statement
    */
-  private String buildMergeUpsertSql(
-      List<String> columns, String pkColumn, boolean includeReturning) {
-    return buildMergeUpsertSql(columns, pkColumn, includeReturning, false);
-  }
-
-  /**
-   * Builds a PostgreSQL upsert SQL statement with merge semantics.
-   *
-   * <p>Generates: INSERT ... ON CONFLICT DO UPDATE SET col = EXCLUDED.col for each column. Only
-   * columns in the provided list are updated on conflict (merge behavior).
-   *
-   * @param columns List of quoted column names to include
-   * @param pkColumn The quoted primary key column name
-   * @param includeReturning If true, adds RETURNING clause to detect insert vs update
-   * @param useCoalesce If true, uses COALESCE(EXCLUDED.col, table.col) to preserve existing values
-   *     when the new value is NULL
-   * @return The upsert SQL statement
-   */
-  private String buildMergeUpsertSql(
-      List<String> columns, String pkColumn, boolean includeReturning, boolean useCoalesce) {
+  private String buildUpsertSql(List<String> columns, String pkColumn, boolean includeReturning) {
     String columnList = String.join(", ", columns);
     String placeholders = String.join(", ", columns.stream().map(c -> "?").toArray(String[]::new));
 
@@ -623,29 +597,15 @@ public class FlatPostgresCollection extends PostgresCollection {
             ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
             : null;
 
-    // Build SET clause for non-PK columns.
-    // If useCoalesce is true, use COALESCE(EXCLUDED.col, table.col) to preserve existing values
-    // when the new value is NULL (for bulk upsert merge semantics).
-    // Exclude createdTsColumn from updates to preserve original creation time.
+    // Build SET clause for non-PK, non-createdTs columns using COALESCE(EXCLUDED.col, table.col)
+    // to preserve existing values when the incoming value is NULL (merge semantics).
     String setClause =
         columns.stream()
             .filter(col -> !col.equals(pkColumn))
             .filter(col -> !col.equals(quotedCreatedTs))
             .map(
-                col -> {
-                  if (useCoalesce) {
-                    return col
-                        + " = COALESCE(EXCLUDED."
-                        + col
-                        + ", "
-                        + tableIdentifier
-                        + "."
-                        + col
-                        + ")";
-                  } else {
-                    return col + " = EXCLUDED." + col;
-                  }
-                })
+                col ->
+                    col + " = COALESCE(EXCLUDED." + col + ", " + tableIdentifier + "." + col + ")")
             .collect(Collectors.joining(", "));
 
     String sql =
@@ -923,6 +883,8 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     Set<Key> updatedKeys = new HashSet<>();
 
+    long batchUpdateTimestamp = System.currentTimeMillis();
+
     try (Connection connection = client.getPooledConnection()) {
       for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
         Key key = entry.getKey();
@@ -933,7 +895,9 @@ public class FlatPostgresCollection extends PostgresCollection {
         }
 
         try {
-          boolean updated = updateSingleKey(connection, key, keyUpdates, tableName, quotedPkColumn);
+          boolean updated =
+              updateSingleKey(
+                  connection, key, keyUpdates, tableName, quotedPkColumn, batchUpdateTimestamp);
           if (updated) {
             updatedKeys.add(key);
           }
@@ -954,14 +918,21 @@ public class FlatPostgresCollection extends PostgresCollection {
       Key key,
       Collection<SubDocumentUpdate> keyUpdates,
       String tableName,
-      String quotedPkColumn)
+      String quotedPkColumn,
+      long keyUpdateTimestamp)
       throws IOException, SQLException {
 
     updateValidator.validate(keyUpdates);
     Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
 
     return executeKeyUpdate(
-        connection, key, keyUpdates, tableName, quotedPkColumn, resolvedColumns);
+        connection,
+        key,
+        keyUpdates,
+        tableName,
+        quotedPkColumn,
+        resolvedColumns,
+        keyUpdateTimestamp);
   }
 
   private boolean executeKeyUpdate(
@@ -970,7 +941,8 @@ public class FlatPostgresCollection extends PostgresCollection {
       java.util.Collection<SubDocumentUpdate> keyUpdates,
       String tableName,
       String quotedPkColumn,
-      Map<String, String> resolvedColumns)
+      Map<String, String> resolvedColumns,
+      long epochMillis)
       throws SQLException {
 
     List<String> setFragments = new ArrayList<>();
@@ -984,11 +956,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       return false;
     }
 
-    // Add lastUpdatedTime to the same UPDATE statement
-    if (lastUpdatedTsColumn != null) {
-      setFragments.add(String.format("\"%s\" = ?", lastUpdatedTsColumn));
-      params.add(new Timestamp(System.currentTimeMillis()));
-    }
+    appendLastUpdatedTimestamp(setFragments, params, tableName, epochMillis);
 
     // Build and execute UPDATE SQL for this key
     String sql =
@@ -1140,6 +1108,8 @@ public class FlatPostgresCollection extends PostgresCollection {
       return;
     }
 
+    appendLastUpdatedTimestamp(setFragments, params, tableName, System.currentTimeMillis());
+
     // Build final UPDATE SQL
     String sql =
         String.format(
@@ -1152,9 +1122,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       for (Object param : params) {
         ps.setObject(idx++, param);
       }
-      for (Object param : filterParams.getObjectParams().values()) {
-        ps.setObject(idx++, param);
-      }
+      filterParams.bindTo(connection, ps, idx);
       int rowsUpdated = ps.executeUpdate();
       LOGGER.debug("Rows updated: {}", rowsUpdated);
     } catch (SQLException e) {
@@ -1376,6 +1344,35 @@ public class FlatPostgresCollection extends PostgresCollection {
    *   <li>TEXT: ISO-8601 string
    * </ul>
    */
+  /**
+   * Appends a SET fragment and parameter for the lastUpdatedTsColumn to the given lists. Used by
+   * SubDocumentUpdate-based write methods (executeUpdate, executeKeyUpdate) to ensure
+   * lastUpdateTime is always updated. The value is type-aware based on the column's schema type.
+   *
+   * @param epochMillis the timestamp to use, allowing callers to share a single timestamp across a
+   *     batch
+   */
+  private void appendLastUpdatedTimestamp(
+      List<String> setFragments, List<Object> params, String tableName, long epochMillis) {
+    if (lastUpdatedTsColumn == null) {
+      return;
+    }
+
+    Optional<PostgresColumnMetadata> colMeta =
+        schemaRegistry.getColumnOrRefresh(tableName, lastUpdatedTsColumn);
+    if (colMeta.isEmpty()) {
+      LOGGER.warn(
+          "lastUpdatedTsColumn '{}' not found in schema for table '{}'",
+          lastUpdatedTsColumn,
+          tableName);
+      return;
+    }
+
+    Object value = convertTimestampForType(epochMillis, colMeta.get().getPostgresType());
+    setFragments.add(String.format("\"%s\" = ?", lastUpdatedTsColumn));
+    params.add(value);
+  }
+
   private void addTimestampFields(TypedDocument typedDocument, String tableName) {
     long now = System.currentTimeMillis();
 
@@ -1465,17 +1462,12 @@ public class FlatPostgresCollection extends PostgresCollection {
       PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
       parsed.add(quotedPkColumn, key.toString(), pkType, false);
 
-      List<String> docColumns = parsed.getColumns();
-      List<String> allColumns =
-          schemaRegistry.getSchema(tableName).values().stream()
-              .map(PostgresColumnMetadata::getName)
-              .map(PostgresUtils::wrapFieldNamesWithDoubleQuotes)
-              .collect(Collectors.toList());
+      List<String> allColumns = getAllQuotedColumns(tableName);
 
-      String sql = buildCreateOrReplaceSql(allColumns, docColumns, quotedPkColumn);
+      String sql = buildCreateOrReplaceSql(allColumns, quotedPkColumn);
       LOGGER.debug("CreateOrReplace SQL: {}", sql);
 
-      return executeUpsertReturningIsInsert(sql, parsed);
+      return executeUpsertReturningIsInsert(sql, allColumns, parsed);
 
     } catch (PSQLException e) {
       return handlePSQLExceptionForCreateOrReplace(e, key, document, tableName, isRetry);
@@ -1510,12 +1502,12 @@ public class FlatPostgresCollection extends PostgresCollection {
       PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
       parsed.add(quotedPkColumn, key.toString(), pkType, false);
 
-      List<String> docColumns = parsed.getColumns();
+      List<String> allColumns = getAllQuotedColumns(tableName);
 
-      String sql = buildUpsertSql(docColumns, quotedPkColumn);
+      String sql = buildUpsertSql(allColumns, quotedPkColumn);
       LOGGER.debug("Upsert (merge) SQL: {}", sql);
 
-      return executeUpsert(sql, parsed);
+      return executeUpsert(sql, allColumns, parsed);
 
     } catch (PSQLException e) {
       return handlePSQLExceptionForUpsert(e, key, document, tableName, isRetry);
@@ -1528,97 +1520,76 @@ public class FlatPostgresCollection extends PostgresCollection {
   /**
    * Builds a PostgreSQL upsert SQL statement with merge semantics.
    *
-   * <p>This method constructs an atomic upsert query that:
+   * <p>Uses ALL table columns so the SQL text is stable across calls (depends only on the table
+   * schema, not the document shape). This allows the PgJDBC driver to promote it to a server-side
+   * prepared statement after {@code prepareThreshold} executions on the same connection, enabling
+   * Postgres query-plan reuse.
    *
-   * <ul>
-   *   <li>Inserts a new row if no conflict on the primary key
-   *   <li>If the row with that PK already exists, only updates columns present in the document
-   *   <li>Columns NOT in the document retain their existing values (merge behavior)
-   * </ul>
+   * <p>Columns absent from the document are bound as {@code NULL}; the {@code COALESCE} in the SET
+   * clause then preserves their existing values.
    *
    * <p><b>Generated SQL pattern:</b>
    *
    * <pre>{@code
-   * INSERT INTO table (col1, col2, pk_col)
+   * INSERT INTO table (all_col1, all_col2, pk_col)
    * VALUES (?, ?, ?)
-   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2
+   * ON CONFLICT (pk_col) DO UPDATE
+   *   SET all_col1 = COALESCE(EXCLUDED.all_col1, table.all_col1),
+   *       all_col2 = COALESCE(EXCLUDED.all_col2, table.all_col2)
    * RETURNING (xmax = 0) AS is_insert
    * }</pre>
    *
-   * @param docColumns columns present in the document
+   * @param allTableColumns all quoted column names in the table
    * @param pkColumn The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
-  private String buildUpsertSql(List<String> docColumns, String pkColumn) {
-    return buildMergeUpsertSql(docColumns, pkColumn, true);
+  private String buildUpsertSql(List<String> allTableColumns, String pkColumn) {
+    return buildUpsertSql(allTableColumns, pkColumn, true);
   }
 
   /**
-   * Builds a PostgreSQL upsert (INSERT ... ON CONFLICT DO UPDATE) SQL statement.
+   * Builds a PostgreSQL upsert (INSERT ... ON CONFLICT DO UPDATE) SQL statement with full-replace
+   * semantics.
    *
-   * <p>This method constructs an atomic upsert query that:
+   * <p>Uses ALL table columns so the SQL text is stable across calls (depends only on the table
+   * schema, not the document shape). This allows the PgJDBC driver to promote it to a server-side
+   * prepared statement after {@code prepareThreshold} executions on the same connection, enabling
+   * Postgres query-plan reuse.
    *
-   * <ul>
-   *   <li>Inserts a new row if no conflict on the primary key
-   *   <li>If the row with that PK already exists, it is replaced in entirety. Cols not present in
-   *       the latest upsert are set to their default values (as defined in the schema)
-   * </ul>
+   * <p>Columns absent from the document are bound as {@code NULL} by the caller; the straight
+   * {@code EXCLUDED.col} in the SET clause then overwrites existing values with NULL, achieving
+   * full-replace semantics.
    *
    * <p><b>Generated SQL pattern:</b>
    *
    * <pre>{@code
-   * INSERT INTO table (col1, col2,, col3, pk_col)
+   * INSERT INTO table (all_col1, all_col2, pk_col)
    * VALUES (?, ?, ?)
-   * ON CONFLICT (pk_col) DO UPDATE SET col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, col3 = DEFAULT
+   * ON CONFLICT (pk_col) DO UPDATE
+   *   SET all_col1 = EXCLUDED.all_col1,
+   *       all_col2 = EXCLUDED.all_col2
    * RETURNING (xmax = 0) AS is_insert
    * }</pre>
    *
-   * <p><b>The EXCLUDED table:</b> In PostgreSQL's ON CONFLICT clause, {@code EXCLUDED} is a special
-   * table that references the row that would have been inserted (the "proposed" row). This allows
-   * us to update existing rows with the new values without re-specifying them.
-   *
-   * <p><b>The RETURNING clause:</b> {@code (xmax = 0) AS is_insert} is a PostgreSQL trick to
-   * determine if the operation was an INSERT or UPDATE:
-   *
-   * <ul>
-   *   <li>{@code xmax} is a system column that stores the transaction ID of the deleting/updating
-   *       transaction
-   *   <li>For a freshly inserted row, {@code xmax = 0} (no prior transaction modified it)
-   *   <li>For an updated row, {@code xmax != 0} (the UPDATE sets it to the current transaction ID)
-   *   <li>Thus, {@code is_insert = true} means INSERT, {@code is_insert = false} means UPDATE
-   * </ul>
-   *
-   * @param allTableColumns all cols present in the table
-   * @param docColumns cols present in the document
+   * @param allTableColumns all quoted column names present in the table
    * @param pkColumn The quoted primary key column name used for conflict detection
    * @return The complete upsert SQL statement with placeholders for values
    */
-  private String buildCreateOrReplaceSql(
-      List<String> allTableColumns, List<String> docColumns, String pkColumn) {
-    String columnList = String.join(", ", docColumns);
+  private String buildCreateOrReplaceSql(List<String> allTableColumns, String pkColumn) {
+    String columnList = String.join(", ", allTableColumns);
     String placeholders =
-        String.join(", ", docColumns.stream().map(c -> "?").toArray(String[]::new));
-    Set<String> docColumnsSet = new HashSet<>(docColumns);
+        String.join(", ", allTableColumns.stream().map(c -> "?").toArray(String[]::new));
 
-    // Build SET clause for non-PK columns: col = EXCLUDED.col
-    // Exclude createdTsColumn from updates to preserve original creation time
     String quotedCreatedTs =
         createdTsColumn != null
             ? PostgresUtils.wrapFieldNamesWithDoubleQuotes(createdTsColumn)
             : null;
-    // Build SET clause for non-PK columns.
+
     String setClause =
         allTableColumns.stream()
             .filter(col -> !col.equals(pkColumn))
             .filter(col -> !col.equals(quotedCreatedTs))
-            .map(
-                col -> {
-                  if (docColumnsSet.contains(col)) {
-                    return col + " = EXCLUDED." + col;
-                  } else {
-                    return col + " = DEFAULT";
-                  }
-                })
+            .map(col -> col + " = EXCLUDED." + col)
             .collect(Collectors.joining(", "));
 
     return String.format(
@@ -1626,39 +1597,55 @@ public class FlatPostgresCollection extends PostgresCollection {
         tableIdentifier, columnList, placeholders, pkColumn, setClause);
   }
 
-  private boolean executeUpsert(String sql, TypedDocument parsed) throws SQLException {
-    try (Connection conn = client.getPooledConnection();
-        PreparedStatement ps = conn.prepareStatement(sql)) {
-      int index = 1;
-      for (String column : parsed.getColumns()) {
-        setParameter(
-            conn,
-            ps,
-            index++,
-            parsed.getValue(column),
-            parsed.getType(column),
-            parsed.isArray(column));
-      }
-      try (ResultSet rs = ps.executeQuery()) {
-        return rs.next();
+  private boolean executeUpsert(String sql, List<String> allColumns, TypedDocument parsed)
+      throws SQLException {
+    long ta = System.nanoTime();
+    try (Connection conn = client.getPooledConnection()) {
+      long tb = System.nanoTime();
+      try (PreparedStatement ps = conn.prepareStatement(sql)) {
+        int index = 1;
+        Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
+        for (String column : allColumns) {
+          if (parsedColumns.contains(column)) {
+            setParameter(
+                conn,
+                ps,
+                index++,
+                parsed.getValue(column),
+                parsed.getType(column),
+                parsed.isArray(column));
+          } else {
+            ps.setObject(index++, null);
+          }
+        }
+        try (ResultSet rs = ps.executeQuery()) {
+          boolean result = rs.next();
+          long tc = System.nanoTime();
+          return result;
+        }
       }
     }
   }
 
   /** Returns true if INSERT, false if UPDATE. */
-  private boolean executeUpsertReturningIsInsert(String sql, TypedDocument parsed)
-      throws SQLException {
+  private boolean executeUpsertReturningIsInsert(
+      String sql, List<String> allColumns, TypedDocument parsed) throws SQLException {
     try (Connection conn = client.getPooledConnection();
         PreparedStatement ps = conn.prepareStatement(sql)) {
       int index = 1;
-      for (String column : parsed.getColumns()) {
-        setParameter(
-            conn,
-            ps,
-            index++,
-            parsed.getValue(column),
-            parsed.getType(column),
-            parsed.isArray(column));
+      Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
+      for (String column : allColumns) {
+        if (parsedColumns.contains(column)) {
+          setParameter(
+              conn,
+              ps,
+              index++,
+              parsed.getValue(column),
+              parsed.getType(column),
+              parsed.isArray(column));
+        } else {
+          ps.setObject(index++, null);
+        }
       }
       try (ResultSet rs = ps.executeQuery()) {
         if (rs.next()) {
@@ -1732,6 +1719,13 @@ public class FlatPostgresCollection extends PostgresCollection {
         .getColumnOrRefresh(tableName, pkColumn)
         .map(PostgresColumnMetadata::getPostgresType)
         .orElse(PostgresDataType.TEXT);
+  }
+
+  private List<String> getAllQuotedColumns(String tableName) {
+    return schemaRegistry.getSchema(tableName).values().stream()
+        .map(PostgresColumnMetadata::getName)
+        .map(PostgresUtils::wrapFieldNamesWithDoubleQuotes)
+        .collect(Collectors.toList());
   }
 
   /**

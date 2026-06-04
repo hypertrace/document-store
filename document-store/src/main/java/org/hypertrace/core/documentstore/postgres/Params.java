@@ -1,5 +1,9 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import java.sql.Array;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 import lombok.Getter;
@@ -24,6 +28,21 @@ public class Params {
 
   public Map<Integer, Object> getObjectParams() {
     return objectParams;
+  }
+
+  public int bindTo(Connection connection, PreparedStatement ps, int startIndex)
+      throws SQLException {
+    int idx = startIndex;
+    for (Object value : objectParams.values()) {
+      if (value instanceof ArrayParam) {
+        ArrayParam arrayParam = (ArrayParam) value;
+        Array sqlArray = connection.createArrayOf(arrayParam.getSqlType(), arrayParam.getValues());
+        ps.setArray(idx++, sqlArray);
+      } else {
+        ps.setObject(idx++, value);
+      }
+    }
+    return idx;
   }
 
   public static Builder newBuilder() {

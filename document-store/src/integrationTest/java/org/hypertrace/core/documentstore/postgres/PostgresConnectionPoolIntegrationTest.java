@@ -74,10 +74,13 @@ public class PostgresConnectionPoolIntegrationTest {
 
   @Test
   public void testGetTransactionalConnection() throws SQLException {
-    final PostgresConnectionConfig config = createTestConfig();
+    final PostgresConnectionConfig config = createTestConfig(1);
     final PostgresConnectionPool pool = new PostgresConnectionPool(config);
 
+    Connection transactionalConnection;
+
     try (final Connection connection = pool.getTransactionalConnection()) {
+      transactionalConnection = connection;
       assertNotNull(connection);
       assertFalse(
           connection.getAutoCommit(), "Transactional connection should have autoCommit=false");
@@ -92,6 +95,12 @@ public class PostgresConnectionPoolIntegrationTest {
 
       // Verify we can commit manually
       connection.commit();
+    }
+
+    try (final Connection connection = pool.getConnection()) {
+      // validate that after the connection was returned back to the pool earlier, auto-commit was
+      // reset successfully
+      assertTrue(connection.getAutoCommit());
     }
 
     pool.close();
@@ -266,6 +275,23 @@ public class PostgresConnectionPoolIntegrationTest {
             .connectionPoolConfig(
                 ConnectionPoolConfig.builder()
                     .maxConnections(5)
+                    .connectionAccessTimeout(Duration.ofSeconds(10))
+                    .connectionSurrenderTimeout(Duration.ofSeconds(30))
+                    .build())
+            .build();
+  }
+
+  private static PostgresConnectionConfig createTestConfig(int maxConnections) {
+    return (PostgresConnectionConfig)
+        ConnectionConfig.builder()
+            .type(DatabaseType.POSTGRES)
+            .addEndpoint(Endpoint.builder().host(host).port(port).build())
+            .database("postgres")
+            .credentials(
+                ConnectionCredentials.builder().username("postgres").password("postgres").build())
+            .connectionPoolConfig(
+                ConnectionPoolConfig.builder()
+                    .maxConnections(maxConnections)
                     .connectionAccessTimeout(Duration.ofSeconds(10))
                     .connectionSurrenderTimeout(Duration.ofSeconds(30))
                     .build())
