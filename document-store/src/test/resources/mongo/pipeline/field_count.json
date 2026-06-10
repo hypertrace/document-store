@@ -3,15 +3,13 @@
     "$group": {
       "_id": null,
       "total": {
-        "$push": "$path"
+        "$sum": 1
       }
     }
   },
   {
     "$project": {
-      "total": {
-        "$size": "$total"
-      }
+      "total": "$total"
     }
   }
 ]

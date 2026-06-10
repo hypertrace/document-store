@@ -30,7 +30,6 @@ final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionPars
               put(SUM, "$sum");
               put(MIN, "$min");
               put(MAX, "$max");
-              put(COUNT, "$push");
               put(LAST, "$last");
             }
           });
@@ -47,6 +46,15 @@ final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionPars
 
   Map<String, Object> parse(final AggregateExpression expression) {
     AggregationOperator operator = expression.getAggregator();
+
+    // MongoDB has no native COUNT accumulator. Implement COUNT as $sum: 1, which increments a
+    // counter per document, instead of collecting every value into an array via $push (followed
+    // by $size). The $push approach materializes one array element per matching document, which is
+    // memory-intensive, can spill to disk, and fails with a BSON 16MB error for very large groups.
+    if (operator == COUNT) {
+      return Map.of("$sum", 1);
+    }
+
     String key = KEY_MAP.get(operator);
 
     if (key == null) {
