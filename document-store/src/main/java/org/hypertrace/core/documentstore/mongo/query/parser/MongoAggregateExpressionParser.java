@@ -12,9 +12,11 @@ import static org.hypertrace.core.documentstore.expression.operators.Aggregation
 import static org.hypertrace.core.documentstore.mongo.MongoUtils.getUnsupportedOperationException;
 
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import lombok.NoArgsConstructor;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.operators.AggregationOperator;
 import org.hypertrace.core.documentstore.parser.SelectTypeExpressionVisitor;
 
@@ -30,7 +32,6 @@ final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionPars
               put(SUM, "$sum");
               put(MIN, "$min");
               put(MAX, "$max");
-              put(COUNT, "$push");
               put(LAST, "$last");
             }
           });
@@ -47,17 +48,37 @@ final class MongoAggregateExpressionParser extends MongoSelectTypeExpressionPars
 
   Map<String, Object> parse(final AggregateExpression expression) {
     AggregationOperator operator = expression.getAggregator();
-    String key = KEY_MAP.get(operator);
-
-    if (key == null) {
-      throw getUnsupportedOperationException(operator);
-    }
 
     SelectTypeExpressionVisitor parser =
         new MongoIdentifierPrefixingParser(
             new MongoIdentifierExpressionParser(
                 new MongoAggregateExpressionParser(
                     new MongoFunctionExpressionParser(new MongoConstantExpressionParser()))));
+
+    // MongoDB has no native COUNT accumulator. Implement COUNT with $sum instead of collecting
+    // every value into an array via $push (followed by $size). The $push approach materializes one
+    // array element per matching document, which is memory-intensive and can spill to disk.
+    //
+    // The previous $push semantics are preserved:
+    //  - COUNT(<constant>) counts every document in the group (i.e. COUNT(*)).
+    //  - COUNT(<field/expr>) counts only documents where the operand is present (not missing),
+    //    matching $push, which skips missing values. ($type returns "missing" for absent fields.)
+    if (operator == COUNT) {
+      if (expression.getExpression() instanceof ConstantExpression) {
+        return Map.of("$sum", 1);
+      }
+
+      Object operand = expression.getExpression().accept(parser);
+      return Map.of(
+          "$sum",
+          Map.of("$cond", List.of(Map.of("$ne", List.of(Map.of("$type", operand), "missing")), 1, 0)));
+    }
+
+    String key = KEY_MAP.get(operator);
+
+    if (key == null) {
+      throw getUnsupportedOperationException(operator);
+    }
 
     Object value = expression.getExpression().accept(parser);
     return Map.of(key, value);

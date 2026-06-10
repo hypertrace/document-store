@@ -2,16 +2,14 @@
   {
     "$group": {
       "total": {
-        "$push": 1
+        "$sum": 1
       },
       "_id": null
     }
   },
   {
     "$project": {
-      "total": {
-        "$size": "$total"
-      }
+      "total": "$total"
     }
   },
   {

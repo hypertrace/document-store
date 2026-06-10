@@ -3,15 +3,26 @@
     "$group": {
       "_id": null,
       "total": {
-        "$push": "$path"
+        "$sum": {
+          "$cond": [
+            {
+              "$ne": [
+                {
+                  "$type": "$path"
+                },
+                "missing"
+              ]
+            },
+            1,
+            0
+          ]
+        }
       }
     }
   },
   {
     "$project": {
-      "total": {
-        "$size": "$total"
-      }
+      "total": "$total"
     }
   }
 ]
