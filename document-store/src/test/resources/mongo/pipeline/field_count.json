@@ -3,7 +3,20 @@
     "$group": {
       "_id": null,
       "total": {
-        "$sum": 1
+        "$sum": {
+          "$cond": [
+            {
+              "$ne": [
+                {
+                  "$type": "$path"
+                },
+                "missing"
+              ]
+            },
+            1,
+            0
+          ]
+        }
       }
     }
   },
