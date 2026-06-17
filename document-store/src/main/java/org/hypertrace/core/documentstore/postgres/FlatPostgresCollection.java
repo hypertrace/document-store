@@ -97,6 +97,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       "Write operations are not supported for flat collections yet!";
   private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
   private static final String DEFAULT_PRIMARY_KEY_COLUMN = "key";
+  private static final String SHAPE_KEY_DELIMITER = "\u0001";
 
   private static final Map<UpdateOperator, PostgresUpdateOperationParser> UPDATE_PARSER_MAP =
       Map.ofEntries(
@@ -880,59 +881,35 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     String tableName = tableIdentifier.getTableName();
     String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(getPKForTable(tableName));
-
-    Set<Key> updatedKeys = new HashSet<>();
-
     long batchUpdateTimestamp = System.currentTimeMillis();
 
+    int totalUpdated = 0;
+
     try (Connection connection = client.getPooledConnection()) {
-      for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
-        Key key = entry.getKey();
-        Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
+      // Group keys by their "SQL shape" (same SET-clause fragments AND param count)
+      Map<String, KeyUpdateGroup> keyGroups =
+          groupKeysByUpdateShape(connection, updates, tableName);
 
-        if (keyUpdates == null || keyUpdates.isEmpty()) {
-          continue;
-        }
-
+      // Execute one multi-row UPDATE per group (or fallback to single-key if group size = 1)
+      for (Map.Entry<String, KeyUpdateGroup> entry : keyGroups.entrySet()) {
         try {
-          boolean updated =
-              updateSingleKey(
-                  connection, key, keyUpdates, tableName, quotedPkColumn, batchUpdateTimestamp);
-          if (updated) {
-            updatedKeys.add(key);
-          }
+          int updated =
+              executeBatchUpdate(
+                  connection, entry.getValue(), tableName, quotedPkColumn, batchUpdateTimestamp);
+          totalUpdated += updated;
         } catch (Exception e) {
-          LOGGER.warn("Failed to update key {}: {}", key, e.getMessage());
-          // Continue with other keys - no cross-key atomicity
+          LOGGER.warn(
+              "Failed to update key group (size: {}): {}",
+              entry.getValue().getKeys().size(),
+              e.getMessage());
+          // Continue with other groups - no cross-group atomicity
         }
       }
     } catch (SQLException e) {
       throw new IOException("Failed to get connection for bulk update", e);
     }
 
-    return new BulkUpdateResult(updatedKeys.size());
-  }
-
-  private boolean updateSingleKey(
-      Connection connection,
-      Key key,
-      Collection<SubDocumentUpdate> keyUpdates,
-      String tableName,
-      String quotedPkColumn,
-      long keyUpdateTimestamp)
-      throws IOException, SQLException {
-
-    updateValidator.validate(keyUpdates);
-    Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
-
-    return executeKeyUpdate(
-        connection,
-        key,
-        keyUpdates,
-        tableName,
-        quotedPkColumn,
-        resolvedColumns,
-        keyUpdateTimestamp);
+    return new BulkUpdateResult(totalUpdated);
   }
 
   private boolean executeKeyUpdate(
@@ -975,6 +952,151 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
       int rowsUpdated = ps.executeUpdate();
       return rowsUpdated > 0;
+    }
+  }
+
+  /**
+   * Groups keys that produce identical SET-clause SQL together. Two keys share a shape only if
+   * {@code buildSetClauseFragments} renders the exact same fragment list and the same number of
+   * bind parameters — required because {@code executeBatchUpdate} reuses one PreparedStatement per
+   * group. Operators whose generated SQL or placeholder count varies with the input value (e.g.,
+   * nested-JSONB REMOVE_ALL_FROM_LIST emitting 1+N placeholders) will land in distinct groups.
+   */
+  private Map<String, KeyUpdateGroup> groupKeysByUpdateShape(
+      Connection connection, Map<Key, Collection<SubDocumentUpdate>> updates, String tableName) {
+
+    Map<String, KeyUpdateGroup> groups = new LinkedHashMap<>();
+
+    for (Map.Entry<Key, Collection<SubDocumentUpdate>> entry : updates.entrySet()) {
+      Key key = entry.getKey();
+      Collection<SubDocumentUpdate> keyUpdates = entry.getValue();
+
+      if (keyUpdates == null || keyUpdates.isEmpty()) {
+        continue;
+      }
+
+      try {
+        updateValidator.validate(keyUpdates);
+        Map<String, String> resolvedColumns = resolvePathsToColumns(keyUpdates, tableName);
+
+        List<String> setFragments = new ArrayList<>();
+        List<Object> params = new ArrayList<>();
+        boolean hasUpdates =
+            buildSetClauseFragments(
+                connection, keyUpdates, tableName, resolvedColumns, setFragments, params);
+        if (!hasUpdates) {
+          continue;
+        }
+
+        String shapeKey = computeUpdateShapeKey(setFragments, params.size());
+
+        groups
+            .computeIfAbsent(shapeKey, k -> new KeyUpdateGroup(resolvedColumns, setFragments))
+            .addKeyWithParams(key, params);
+
+      } catch (Exception e) {
+        LOGGER.warn("Failed to group key {}: {}", key, e.getMessage());
+      }
+    }
+
+    return groups;
+  }
+
+  private String computeUpdateShapeKey(List<String> setFragments, int paramCount) {
+    return paramCount + "|" + String.join(SHAPE_KEY_DELIMITER, setFragments);
+  }
+
+  /**
+   * Executes a batch UPDATE for all keys in the group using JDBC batching. The group's setFragments
+   * and per-key params were rendered during grouping, so all keys here are guaranteed to share the
+   * same SQL and placeholder count.
+   */
+  private int executeBatchUpdate(
+      Connection connection,
+      KeyUpdateGroup keyGroup,
+      String tableName,
+      String quotedPkColumn,
+      long epochMillis)
+      throws SQLException {
+
+    List<Key> keys = keyGroup.getKeys();
+    List<List<Object>> allKeyParams = keyGroup.getKeyParams();
+
+    List<String> setFragments = new ArrayList<>(keyGroup.getSetFragments());
+    List<Object> timestampParam = new ArrayList<>();
+    appendLastUpdatedTimestamp(setFragments, timestampParam, tableName, epochMillis);
+
+    String sql =
+        String.format(
+            "UPDATE %s SET %s WHERE %s = ?",
+            tableIdentifier, String.join(", ", setFragments), quotedPkColumn);
+
+    LOGGER.debug("Executing batch update SQL: {} for {} keys", sql, keys.size());
+
+    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+      for (int i = 0; i < keys.size(); i++) {
+        int idx = 1;
+        for (Object param : allKeyParams.get(i)) {
+          ps.setObject(idx++, param);
+        }
+        for (Object param : timestampParam) {
+          ps.setObject(idx++, param);
+        }
+        ps.setObject(idx, keys.get(i).toString()); // WHERE clause parameter
+        ps.addBatch();
+      }
+
+      int[] results = ps.executeBatch();
+      int totalUpdated = 0;
+      for (int result : results) {
+        if (result > 0) {
+          totalUpdated++;
+        }
+      }
+
+      LOGGER.debug("Batch update affected {} rows out of {} keys", totalUpdated, keys.size());
+      return totalUpdated;
+    } catch (SQLException e) {
+      LOGGER.warn("Failed to execute batch update. SQL: {}, Error: {}", sql, e.getMessage());
+      throw e;
+    }
+  }
+
+  /**
+   * Holds a group of keys that share the same SET-clause SQL. {@code setFragments} is rendered once
+   * during grouping; {@code keyParams} stores the bind values for each key in lockstep with {@code
+   * keys}.
+   */
+  private static class KeyUpdateGroup {
+    private final Map<String, String> resolvedColumns;
+    private final List<String> setFragments;
+    private final List<Key> keys = new ArrayList<>();
+    private final List<List<Object>> keyParams = new ArrayList<>();
+
+    KeyUpdateGroup(Map<String, String> resolvedColumns, List<String> setFragments) {
+      this.resolvedColumns = resolvedColumns;
+      this.setFragments = setFragments;
+    }
+
+    void addKeyWithParams(Key key, List<Object> params) {
+      keys.add(key);
+      keyParams.add(params);
+    }
+
+    Map<String, String> getResolvedColumns() {
+      return resolvedColumns;
+    }
+
+    List<String> getSetFragments() {
+      return setFragments;
+    }
+
+    List<Key> getKeys() {
+      return keys;
+    }
+
+    List<List<Object>> getKeyParams() {
+      return keyParams;
     }
   }
 
