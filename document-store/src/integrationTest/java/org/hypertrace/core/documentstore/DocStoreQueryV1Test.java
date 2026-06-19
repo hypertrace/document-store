@@ -928,44 +928,47 @@ public class DocStoreQueryV1Test {
     datastore.createCollection(collectionName, null);
     Collection collection = datastore.getCollection(collectionName);
 
-    collection.upsert(
-        new SingleValueKey(TENANT_ID, "three"),
-        new JSONDocument("{\"item\":\"three\",\"tags\":[\"a\",\"b\",\"c\"]}"));
-    collection.upsert(
-        new SingleValueKey(TENANT_ID, "one"),
-        new JSONDocument("{\"item\":\"one\",\"tags\":[\"x\"]}"));
-    // Document intentionally missing the "tags" field; LENGTH must resolve to 0 instead of failing
-    collection.upsert(
-        new SingleValueKey(TENANT_ID, "none"), new JSONDocument("{\"item\":\"none\"}"));
+    try {
+      collection.upsert(
+          new SingleValueKey(TENANT_ID, "three"),
+          new JSONDocument("{\"item\":\"three\",\"tags\":[\"a\",\"b\",\"c\"]}"));
+      collection.upsert(
+          new SingleValueKey(TENANT_ID, "one"),
+          new JSONDocument("{\"item\":\"one\",\"tags\":[\"x\"]}"));
+      // Document intentionally missing the "tags" field; LENGTH must resolve to 0 instead of
+      // failing
+      collection.upsert(
+          new SingleValueKey(TENANT_ID, "none"), new JSONDocument("{\"item\":\"none\"}"));
 
-    Query query =
-        Query.builder()
-            .addSelection(IdentifierExpression.of("item"))
-            .addSelection(
-                FunctionExpression.builder()
-                    .operator(LENGTH)
-                    .operand(IdentifierExpression.of("tags"))
-                    .build(),
-                "tag_count")
-            .addSort(IdentifierExpression.of("tag_count"), ASC)
-            .build();
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("item"))
+              .addSelection(
+                  FunctionExpression.builder()
+                      .operator(LENGTH)
+                      .operand(IdentifierExpression.of("tags"))
+                      .build(),
+                  "tag_count")
+              .addSort(IdentifierExpression.of("tag_count"), ASC)
+              .build();
 
-    Iterator<Document> resultDocs = collection.aggregate(query);
-    List<Map<String, Object>> results = new ArrayList<>();
-    while (resultDocs.hasNext()) {
-      results.add(Utils.convertDocumentToMap(resultDocs.next()));
+      Iterator<Document> resultDocs = collection.aggregate(query);
+      List<Map<String, Object>> results = new ArrayList<>();
+      while (resultDocs.hasNext()) {
+        results.add(Utils.convertDocumentToMap(resultDocs.next()));
+      }
+
+      assertEquals(3, results.size());
+      // Document without the "tags" field counts as 0 and sorts first in ascending order
+      assertEquals("none", results.get(0).get("item"));
+      assertEquals(0, ((Number) results.get(0).get("tag_count")).intValue());
+      assertEquals("one", results.get(1).get("item"));
+      assertEquals(1, ((Number) results.get(1).get("tag_count")).intValue());
+      assertEquals("three", results.get(2).get("item"));
+      assertEquals(3, ((Number) results.get(2).get("tag_count")).intValue());
+    } finally {
+      datastore.deleteCollection(collectionName);
     }
-
-    assertEquals(3, results.size());
-    // Document without the "tags" field counts as 0 and sorts first in ascending order
-    assertEquals("none", results.get(0).get("item"));
-    assertEquals(0, ((Number) results.get(0).get("tag_count")).intValue());
-    assertEquals("one", results.get(1).get("item"));
-    assertEquals(1, ((Number) results.get(1).get("tag_count")).intValue());
-    assertEquals("three", results.get(2).get("item"));
-    assertEquals(3, ((Number) results.get(2).get("tag_count")).intValue());
-
-    datastore.deleteCollection(collectionName);
   }
 
   @ParameterizedTest
