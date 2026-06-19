@@ -920,7 +920,7 @@ public class DocStoreQueryV1Test {
   }
 
   @ParameterizedTest
-  @ArgumentsSource(MongoProvider.class)
+  @ArgumentsSource(AllProvider.class)
   public void testSortByListSizeWithMissingField(String dataStoreName) throws IOException {
     Datastore datastore = datastoreMap.get(dataStoreName);
     String collectionName = "list_size_sort_collection";
