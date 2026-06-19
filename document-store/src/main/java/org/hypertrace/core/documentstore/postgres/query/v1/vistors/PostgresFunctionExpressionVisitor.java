@@ -100,7 +100,10 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
       return String.format(
           "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", parsedExpression, ARRAY_DIMENSION);
     }
-    return String.format("COALESCE( jsonb_array_length( %s ), 0 )", parsedExpression);
+    return String.format(
+        "jsonb_array_length( CASE WHEN jsonb_typeof( %s ) = 'array' THEN %s"
+            + " ELSE '[]'::jsonb END )",
+        parsedExpression, parsedExpression);
   }
 
   private String getParsedExpression(final SelectTypeExpression expression) {
