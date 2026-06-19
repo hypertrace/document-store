@@ -89,12 +89,12 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
     Optional<String> resolvedSelection =
         identifier.map(v -> getPostgresQueryParser().getPgSelections().get(v));
     if (resolvedSelection.isPresent()) {
-      // Operand resolved to a prior selection (e.g. ARRAY_AGG) which produces a native PG array.
       return String.format(
           "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", resolvedSelection.get(), ARRAY_DIMENSION);
     }
-    // Raw jsonb field access — use jsonb_array_length which operates on jsonb arrays directly.
-    String parsedExpression = operand.accept(selectTypeExpressionVisitor);
+    PostgresFieldIdentifierExpressionVisitor jsonbVisitor =
+        new PostgresFieldIdentifierExpressionVisitor(getPostgresQueryParser());
+    String parsedExpression = operand.accept(jsonbVisitor);
     return String.format("COALESCE( jsonb_array_length( %s ), 0 )", parsedExpression);
   }
 
