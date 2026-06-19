@@ -51,7 +51,10 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
     if (numArgs == 1) {
       String parsedExpression = getParsedExpression(expression.getOperands().get(0));
       return expression.getOperator().equals(FunctionOperator.LENGTH)
-          ? String.format("ARRAY_LENGTH( %s, %s )", parsedExpression, ARRAY_DIMENSION)
+          // COALESCE so that LENGTH of an absent/empty array resolves to 0 instead of NULL, keeping
+          // parity with the Mongo backend ($ifNull) behaviour.
+          ? String.format(
+              "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", parsedExpression, ARRAY_DIMENSION)
           : String.format("%s( %s )", expression.getOperator(), parsedExpression);
     }
 

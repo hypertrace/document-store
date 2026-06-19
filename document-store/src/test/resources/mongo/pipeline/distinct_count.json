@@ -19,7 +19,12 @@
   {
     "$project": {
       "section_count": {
-        "$size": "$section_count"
+        "$size": {
+          "$ifNull": [
+            "$section_count",
+            []
+          ]
+        }
       }
     }
   }
