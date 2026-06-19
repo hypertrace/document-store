@@ -49,13 +49,11 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
     }
 
     if (numArgs == 1) {
+      if (expression.getOperator().equals(FunctionOperator.LENGTH)) {
+        return buildLengthExpression(expression.getOperands().get(0));
+      }
       String parsedExpression = getParsedExpression(expression.getOperands().get(0));
-      return expression.getOperator().equals(FunctionOperator.LENGTH)
-          // COALESCE so that LENGTH of an absent/empty array resolves to 0 instead of NULL, keeping
-          // parity with the Mongo backend ($ifNull) behaviour.
-          ? String.format(
-              "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", parsedExpression, ARRAY_DIMENSION)
-          : String.format("%s( %s )", expression.getOperator(), parsedExpression);
+      return String.format("%s( %s )", expression.getOperator(), parsedExpression);
     }
 
     Collector<String, ?, String> collector =
@@ -84,6 +82,20 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
     }
     throw new UnsupportedOperationException(
         String.format("Query operation:%s not supported", operator));
+  }
+
+  private String buildLengthExpression(final SelectTypeExpression operand) {
+    Optional<String> identifier = Optional.ofNullable(operand.accept(identifierExpressionVisitor));
+    Optional<String> resolvedSelection =
+        identifier.map(v -> getPostgresQueryParser().getPgSelections().get(v));
+    if (resolvedSelection.isPresent()) {
+      // Operand resolved to a prior selection (e.g. ARRAY_AGG) which produces a native PG array.
+      return String.format(
+          "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", resolvedSelection.get(), ARRAY_DIMENSION);
+    }
+    // Raw jsonb field access — use jsonb_array_length which operates on jsonb arrays directly.
+    String parsedExpression = operand.accept(selectTypeExpressionVisitor);
+    return String.format("COALESCE( jsonb_array_length( %s ), 0 )", parsedExpression);
   }
 
   private String getParsedExpression(final SelectTypeExpression expression) {
