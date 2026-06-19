@@ -6,6 +6,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
@@ -92,9 +93,13 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
       return String.format(
           "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", resolvedSelection.get(), ARRAY_DIMENSION);
     }
-    PostgresFieldIdentifierExpressionVisitor jsonbVisitor =
+    PostgresFieldIdentifierExpressionVisitor fieldVisitor =
         new PostgresFieldIdentifierExpressionVisitor(getPostgresQueryParser());
-    String parsedExpression = operand.accept(jsonbVisitor);
+    String parsedExpression = operand.accept(fieldVisitor);
+    if (getPostgresQueryParser().getPgColTransformer().getDocumentType() == DocumentType.FLAT) {
+      return String.format(
+          "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", parsedExpression, ARRAY_DIMENSION);
+    }
     return String.format("COALESCE( jsonb_array_length( %s ), 0 )", parsedExpression);
   }
 
