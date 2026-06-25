@@ -11,7 +11,6 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
-import org.hypertrace.core.documentstore.postgres.query.v1.transformer.FieldToPgColumn;
 
 @NoArgsConstructor
 public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpressionVisitor {
@@ -94,12 +93,11 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
       return String.format(
           "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", resolvedSelection.get(), ARRAY_DIMENSION);
     }
-    if (isDirectColumn(operand)) {
-      PostgresFieldIdentifierExpressionVisitor fieldVisitor =
-          new PostgresFieldIdentifierExpressionVisitor(getPostgresQueryParser());
-      String parsedExpression = operand.accept(fieldVisitor);
-      return String.format(
-          "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", parsedExpression, ARRAY_DIMENSION);
+    if (operand instanceof IdentifierExpression) {
+      PostgresQueryParser parser = getPostgresQueryParser();
+      return parser
+          .getPgColTransformer()
+          .buildArrayLengthExpression(parser.transformField((IdentifierExpression) operand));
     }
     PostgresFieldIdentifierExpressionVisitor fieldVisitor =
         new PostgresFieldIdentifierExpressionVisitor(getPostgresQueryParser());
@@ -108,15 +106,6 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
         "jsonb_array_length( CASE WHEN jsonb_typeof( %s ) = 'array' THEN %s"
             + " ELSE '[]'::jsonb END )",
         parsedExpression, parsedExpression);
-  }
-
-  private boolean isDirectColumn(final SelectTypeExpression operand) {
-    if (operand instanceof IdentifierExpression) {
-      FieldToPgColumn fieldToPgColumn =
-          getPostgresQueryParser().transformField((IdentifierExpression) operand);
-      return fieldToPgColumn.getTransformedField() == null;
-    }
-    return false;
   }
 
   private String getParsedExpression(final SelectTypeExpression expression) {

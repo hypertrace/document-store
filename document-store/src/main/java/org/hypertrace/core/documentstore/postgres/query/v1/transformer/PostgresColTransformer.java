@@ -39,6 +39,16 @@ public interface PostgresColTransformer {
   String buildFieldAccessorWithoutCast(FieldToPgColumn fieldToPgColumn);
 
   /**
+   * Builds a SQL expression that computes the length of an array field, returning 0 for
+   * NULL/missing/empty arrays. Implementations choose between ARRAY_LENGTH (native PG arrays) and
+   * jsonb_array_length (JSONB arrays) based on the field's storage type.
+   *
+   * @param fieldToPgColumn The result of field transformation
+   * @return SQL expression computing the array length with NULL-safe handling
+   */
+  String buildArrayLengthExpression(FieldToPgColumn fieldToPgColumn);
+
+  /**
    * Returns the kind of document this transformer is handling - Flat vs nested
    *
    * @return the corresponding document type
