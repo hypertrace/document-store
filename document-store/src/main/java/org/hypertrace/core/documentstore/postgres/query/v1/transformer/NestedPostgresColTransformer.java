@@ -105,11 +105,8 @@ public class NestedPostgresColTransformer
 
   @Override
   public String buildArrayLengthExpression(FieldToPgColumn fieldToPgColumn) {
-    String fieldAccessor = buildFieldAccessorWithoutCast(fieldToPgColumn);
-    return String.format(
-        "jsonb_array_length( CASE WHEN jsonb_typeof( %s ) = 'array' THEN %s"
-            + " ELSE '[]'::jsonb END )",
-        fieldAccessor, fieldAccessor);
+    // Nested collections store every field inside the JSONB document column.
+    return PostgresUtils.prepareJsonbArrayLength(buildFieldAccessorWithoutCast(fieldToPgColumn));
   }
 
   @Override

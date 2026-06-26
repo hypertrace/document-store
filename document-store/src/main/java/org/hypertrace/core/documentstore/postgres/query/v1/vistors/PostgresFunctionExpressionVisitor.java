@@ -11,11 +11,11 @@ import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils;
 
 @NoArgsConstructor
 public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpressionVisitor {
 
-  private static final int ARRAY_DIMENSION = 1;
   private PostgresIdentifierExpressionVisitor identifierExpressionVisitor;
   private PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor;
 
@@ -51,7 +51,7 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
 
     if (numArgs == 1) {
       if (expression.getOperator().equals(FunctionOperator.LENGTH)) {
-        return buildLengthExpression(expression.getOperands().get(0));
+        return buildArrayLengthExpression(expression.getOperands().get(0));
       }
       String parsedExpression = getParsedExpression(expression.getOperands().get(0));
       return String.format("%s( %s )", expression.getOperator(), parsedExpression);
@@ -85,27 +85,22 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
         String.format("Query operation:%s not supported", operator));
   }
 
-  private String buildLengthExpression(final SelectTypeExpression operand) {
-    Optional<String> identifier = Optional.ofNullable(operand.accept(identifierExpressionVisitor));
-    Optional<String> resolvedSelection =
-        identifier.map(v -> getPostgresQueryParser().getPgSelections().get(v));
-    if (resolvedSelection.isPresent()) {
-      return String.format(
-          "COALESCE( ARRAY_LENGTH( %s, %s ), 0 )", resolvedSelection.get(), ARRAY_DIMENSION);
+  private String buildArrayLengthExpression(final SelectTypeExpression operand) {
+    PostgresQueryParser parser = getPostgresQueryParser();
+
+    // The operand is either a user-defined alias from a prior selection (e.g. ARRAY_AGG, which
+    // produces a native PG array) or a field identifier. Aliases are resolved against pgSelections.
+    String identifier = operand.accept(identifierExpressionVisitor);
+    String resolvedSelection = identifier != null ? parser.getPgSelections().get(identifier) : null;
+    if (resolvedSelection != null) {
+      return PostgresUtils.prepareArrayLength(resolvedSelection);
     }
-    if (operand instanceof IdentifierExpression) {
-      PostgresQueryParser parser = getPostgresQueryParser();
-      return parser
-          .getPgColTransformer()
-          .buildArrayLengthExpression(parser.transformField((IdentifierExpression) operand));
-    }
-    PostgresFieldIdentifierExpressionVisitor fieldVisitor =
-        new PostgresFieldIdentifierExpressionVisitor(getPostgresQueryParser());
-    String parsedExpression = operand.accept(fieldVisitor);
-    return String.format(
-        "jsonb_array_length( CASE WHEN jsonb_typeof( %s ) = 'array' THEN %s"
-            + " ELSE '[]'::jsonb END )",
-        parsedExpression, parsedExpression);
+
+    // A plain field identifier — let the transformer decide between ARRAY_LENGTH (native array) and
+    // jsonb_array_length (JSONB array) based on the field's storage layout.
+    return parser
+        .getPgColTransformer()
+        .buildArrayLengthExpression(parser.transformField((IdentifierExpression) operand));
   }
 
   private String getParsedExpression(final SelectTypeExpression expression) {

@@ -106,13 +106,11 @@ public class FlatPostgresFieldTransformer
   @Override
   public String buildArrayLengthExpression(FieldToPgColumn fieldToPgColumn) {
     String fieldAccessor = buildFieldAccessorWithoutCast(fieldToPgColumn);
-    if (fieldToPgColumn.getTransformedField() == null) {
-      return String.format("COALESCE( ARRAY_LENGTH( %s, 1 ), 0 )", fieldAccessor);
-    }
-    return String.format(
-        "jsonb_array_length( CASE WHEN jsonb_typeof( %s ) = 'array' THEN %s"
-            + " ELSE '[]'::jsonb END )",
-        fieldAccessor, fieldAccessor);
+    // A direct column (no JSON path) is a native PG array; otherwise it is a JSONB array nested in
+    // a JSONB column.
+    return fieldToPgColumn.getTransformedField() == null
+        ? PostgresUtils.prepareArrayLength(fieldAccessor)
+        : PostgresUtils.prepareJsonbArrayLength(fieldAccessor);
   }
 
   @Override
