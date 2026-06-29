@@ -81,14 +81,16 @@ class PostgresConnectionPool {
     connectionPool.setMinIdle(getIdleCount(poolConfig.minIdlePercent(), maxConnections));
     connectionPool.setBlockWhenExhausted(true);
     connectionPool.setMaxWaitMillis(poolConfig.connectionAccessTimeout().toMillis());
+    connectionPool.setTestOnBorrow(poolConfig.testOnBorrow());
     connectionPool.setAbandonedConfig(abandonedConfig);
     log.debug(
-        "Postgres connection pool properties - maxTotal: {}, maxIdle: {}, minIdle: {}, maxWaitMillis: {}, connectionSurrenderTimeout: {}",
+        "Postgres connection pool properties - maxTotal: {}, maxIdle: {}, minIdle: {}, maxWaitMillis: {}, connectionSurrenderTimeout: {}, testOnBorrow: {}",
         connectionPool.getMaxTotal(),
         connectionPool.getMaxIdle(),
         connectionPool.getMinIdle(),
         connectionPool.getMaxWaitMillis(),
-        poolConfig.connectionSurrenderTimeout());
+        poolConfig.connectionSurrenderTimeout(),
+        poolConfig.testOnBorrow());
   }
 
   private void setFactoryProperties(

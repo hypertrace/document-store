@@ -28,4 +28,7 @@ public class ConnectionPoolConfig {
 
   // Time duration to wait for surrendering an idle connection back to the pool
   @NonNull @Builder.Default Duration connectionSurrenderTimeout = Duration.ofMinutes(5);
+
+  // Whether to validate connections when borrowing from the pool
+  @NonNull @Builder.Default Boolean testOnBorrow = true;
 }
