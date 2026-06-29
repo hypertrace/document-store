@@ -985,7 +985,8 @@ public class DocStoreQueryV1Test {
             .addSelection(
                 FunctionExpression.builder()
                     .operator(LENGTH)
-                    .operand(JsonIdentifierExpression.of("props", "colors"))
+                    .operand(
+                        JsonIdentifierExpression.of("props", JsonFieldType.STRING_ARRAY, "colors"))
                     .build(),
                 "color_count")
             .addSort(IdentifierExpression.of("color_count"), DESC)
@@ -1009,6 +1010,45 @@ public class DocStoreQueryV1Test {
     assertEquals(1, ((Number) results.get(2).get("color_count")).intValue());
     // Remaining have 0 (empty array or NULL props)
     assertEquals(0, ((Number) results.get(3).get("color_count")).intValue());
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(PostgresProvider.class)
+  public void testSortByTopLevelArrayLengthInFlatCollection(String dataStoreName)
+      throws IOException {
+    Collection flatCollection = getFlatCollection(dataStoreName);
+
+    // "tags" is a native PG array column (TEXT[]) — a top-level field, not nested in a JSONB
+    // column.
+    // Test data: id=3 has 4 tags; id=1,2,4,5,6,7,8 have 3 tags; id=10 is empty {}; id=9 is NULL.
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("id"))
+            .addSelection(
+                FunctionExpression.builder()
+                    .operator(LENGTH)
+                    .operand(IdentifierExpression.of("tags"))
+                    .build(),
+                "tag_count")
+            .addSort(IdentifierExpression.of("tag_count"), ASC)
+            .addSort(IdentifierExpression.of("id"), ASC)
+            .build();
+
+    Iterator<Document> resultDocs = flatCollection.aggregate(query);
+    List<Map<String, Object>> results = new ArrayList<>();
+    while (resultDocs.hasNext()) {
+      results.add(Utils.convertDocumentToMap(resultDocs.next()));
+    }
+
+    assertEquals(10, results.size());
+    // NULL (id=9) and empty {} (id=10) both resolve to 0 and sort first (id ASC: "10" < "9").
+    assertEquals("10", results.get(0).get("id"));
+    assertEquals(0, ((Number) results.get(0).get("tag_count")).intValue());
+    assertEquals("9", results.get(1).get("id"));
+    assertEquals(0, ((Number) results.get(1).get("tag_count")).intValue());
+    // id=3 has the most tags (4) and sorts last.
+    assertEquals("3", results.get(9).get("id"));
+    assertEquals(4, ((Number) results.get(9).get("tag_count")).intValue());
   }
 
   @ParameterizedTest
