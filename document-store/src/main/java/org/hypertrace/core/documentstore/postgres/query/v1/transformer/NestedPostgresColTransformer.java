@@ -104,12 +104,6 @@ public class NestedPostgresColTransformer
   }
 
   @Override
-  public String buildArrayLengthExpression(FieldToPgColumn fieldToPgColumn) {
-    // Nested collections store every field inside the JSONB document column.
-    return PostgresUtils.prepareJsonbArrayLength(buildFieldAccessorWithoutCast(fieldToPgColumn));
-  }
-
-  @Override
   public DocumentType getDocumentType() {
     return DocumentType.NESTED;
   }

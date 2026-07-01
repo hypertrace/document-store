@@ -131,25 +131,6 @@ public class PostgresUtils {
     }
   }
 
-  /**
-   * Builds a NULL-safe length expression for a native PG array (e.g. {@code TEXT[]}). Returns 0 for
-   * a NULL or empty array.
-   */
-  public static String prepareArrayLength(final String arrayAccessor) {
-    return String.format("COALESCE( ARRAY_LENGTH( %s, 1 ), 0 )", arrayAccessor);
-  }
-
-  /**
-   * Builds a length expression for a JSONB value. The {@code jsonb_typeof} guard makes absent, JSON
-   * {@code null}, and non-array values resolve to 0 instead of erroring inside {@code
-   * jsonb_array_length}.
-   */
-  public static String prepareJsonbArrayLength(final String jsonbAccessor) {
-    return String.format(
-        "jsonb_array_length( CASE WHEN jsonb_typeof( %s ) = 'array' THEN %s ELSE '[]'::jsonb END )",
-        jsonbAccessor, jsonbAccessor);
-  }
-
   public static String prepareCastForFieldAccessor(String field, Object value) {
     String fmt = "CAST (%s AS %s)";
     Type type = getType(value);

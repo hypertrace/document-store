@@ -395,7 +395,7 @@ public class PostgresQueryParserTest {
 
     assertEquals(
         "SELECT ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)) AS \"qty_distinct\", "
-            + "COALESCE( ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ), 0 ) AS \"qty_distinct_length\" "
+            + "ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ) AS \"qty_distinct_length\" "
             + "FROM \"testCollection\" "
             + "WHERE CAST (document->>'price' AS NUMERIC) = ? "
             + "GROUP BY document->'item'",
@@ -435,10 +435,10 @@ public class PostgresQueryParserTest {
     assertEquals(
         "SELECT document->'item' AS \"item\", document->'price' AS \"price\", "
             + "ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)) AS \"quantities\", "
-            + "COALESCE( ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ), 0 ) AS \"num_quantities\" "
+            + "ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ) AS \"num_quantities\" "
             + "FROM \"testCollection\" "
             + "GROUP BY document->'item',document->'price' "
-            + "HAVING COALESCE( ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ), 0 ) = ? "
+            + "HAVING ARRAY_LENGTH( ARRAY_AGG(DISTINCT CAST (document->>'quantity' AS NUMERIC)), 1 ) = ? "
             + "ORDER BY document->'item' DESC NULLS LAST",
         sql);
 
