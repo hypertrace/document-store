@@ -17,4 +17,15 @@
     <packageUrl regex="true">^pkg:maven/org\.postgresql/postgresql@.*$</packageUrl>
     <vulnerabilityName>CVE-2020-21469</vulnerabilityName>
   </suppress>
+  <suppress until="2026-08-31Z">
+    <notes><![CDATA[
+   file name: jackson-databind-2.18.8.jar
+   GHSA-5jmj-h7xm-6q6v. Fixed upstream in 2.18.9/2.21.5/2.22.1/3.1.4, but none of those
+   artifacts are published to Maven Central yet, so we cannot bump.
+   Time-boxed suppression until the 2.18.9 patch release is available; remove this entry and
+   bump jackson-bom to 2.18.9 once it resolves.
+   ]]></notes>
+    <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
+    <cve>REPLACE_WITH_CVE_FROM_ADVISORY</cve>
+  </suppress>
 </suppressions> 
