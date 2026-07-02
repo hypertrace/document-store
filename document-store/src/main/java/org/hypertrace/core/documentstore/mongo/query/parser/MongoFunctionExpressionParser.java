@@ -69,6 +69,12 @@ public final class MongoFunctionExpressionParser extends MongoSelectTypeExpressi
 
     if (numArgs == 1) {
       Object value = expression.getOperands().get(0).accept(parser);
+      // $size fails when the operand resolves to a missing/absent (or null) field. Default such a
+      // value to an empty array so that LENGTH of an absent field is 0 instead of throwing an
+      // error.
+      if (operator == LENGTH) {
+        value = Map.of("$ifNull", List.of(value, List.of()));
+      }
       return Map.of(key, value);
     }
 

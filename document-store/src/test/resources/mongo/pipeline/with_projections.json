@@ -11,7 +11,12 @@
     "$project": {
       "name": 1,
       "total": {
-        "$size": "$total"
+        "$size": {
+          "$ifNull": [
+            "$total",
+            []
+          ]
+        }
       }
     }
   }
