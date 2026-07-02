@@ -26,6 +26,6 @@
    bump jackson-bom to 2.18.9 once it resolves.
    ]]></notes>
     <packageUrl regex="true">^pkg:maven/com\.fasterxml\.jackson\.core/jackson\-databind@.*$</packageUrl>
-    <cve>REPLACE_WITH_CVE_FROM_ADVISORY</cve>
+    <vulnerabilityName>CVE-2026-54515</vulnerabilityName>
   </suppress>
 </suppressions> 
