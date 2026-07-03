@@ -36,6 +36,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
   private static final String CONNECTION_SURRENDER_TIMEOUT_KEY = "connectionSurrenderTimeout";
   private static final String MAX_IDLE_PERCENT_KEY = "maxIdlePercent";
   private static final String MIN_IDLE_PERCENT_KEY = "minIdlePercent";
+  private static final String TEST_ON_BORROW_KEY = "testOnBorrow";
   private static final String AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
   private static final String DATA_FRESHNESS_KEY = "dataFreshness";
   private static final String QUERY_TIMEOUT_KEY = "queryTimeout";
@@ -470,6 +471,51 @@ class TypesafeConfigDatastoreConfigExtractorTest {
     final ConnectionPoolConfig poolConfig = config.connectionPoolConfig();
     assertEquals(maxIdlePercent, poolConfig.maxIdlePercent());
     assertEquals(minIdlePercent, poolConfig.minIdlePercent());
+  }
+
+  @Test
+  void testDefaultTestOnBorrowValue() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig)
+            TypesafeConfigDatastoreConfigExtractor.from(buildConfigMap(), DatabaseType.POSTGRES)
+                .hostKey(HOST_KEY)
+                .portKey(PORT_KEY)
+                .databaseKey(DATABASE_KEY)
+                .usernameKey(USER_KEY)
+                .passwordKey(PASSWORD_KEY)
+                .extract()
+                .connectionConfig();
+
+    assertEquals(true, config.connectionPoolConfig().testOnBorrow());
+  }
+
+  @Test
+  void testCustomTestOnBorrowValue() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig)
+            TypesafeConfigDatastoreConfigExtractor.from(
+                    buildConfigMapWithTestOnBorrow(), DatabaseType.POSTGRES)
+                .hostKey(HOST_KEY)
+                .portKey(PORT_KEY)
+                .databaseKey(DATABASE_KEY)
+                .usernameKey(USER_KEY)
+                .passwordKey(PASSWORD_KEY)
+                .poolTestOnBorrowKey(TEST_ON_BORROW_KEY)
+                .extract()
+                .connectionConfig();
+
+    assertEquals(false, config.connectionPoolConfig().testOnBorrow());
+  }
+
+  private Config buildConfigMapWithTestOnBorrow() {
+    return ConfigFactory.parseMap(
+        Map.ofEntries(
+            entry(HOST_KEY, host),
+            entry(PORT_KEY, port),
+            entry(DATABASE_KEY, database),
+            entry(USER_KEY, user),
+            entry(PASSWORD_KEY, password),
+            entry(TEST_ON_BORROW_KEY, false)));
   }
 
   private Config buildConfigMapWithIdlePercent() {
