@@ -41,12 +41,14 @@ public class PostgresConnectionConfig extends ConnectionConfig {
 
   private static final String SCHEMA_CACHE_EXPIRY_MS_KEY = "schemaCacheExpiryMs";
   private static final String SCHEMA_REFRESH_COOLDOWN_MS_KEY = "schemaRefreshCooldownMs";
+  private static final String MIN_SERVER_VERSION_KEY = "minServerVersion";
 
   @NonNull String applicationName;
   @NonNull ConnectionPoolConfig connectionPoolConfig;
   @NonNull Duration queryTimeout;
   @NonNull Duration schemaCacheExpiry;
   @NonNull Duration schemaRefreshCooldown;
+  @Nullable String minServerVersion;
   @NonNull Map<String, CollectionConfig> collectionConfigs;
 
   public static ConnectionConfigBuilder builder() {
@@ -72,6 +74,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     this.queryTimeout = queryTimeout;
     this.schemaCacheExpiry = extractSchemaCacheExpiry(customParameters);
     this.schemaRefreshCooldown = extractSchemaRefreshCooldown(customParameters);
+    this.minServerVersion = extractMinServerVersion(customParameters);
     this.collectionConfigs = collectionConfigs != null ? collectionConfigs : Collections.emptyMap();
   }
 
@@ -91,6 +94,10 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     }
 
     properties.setProperty(PGProperty.APPLICATION_NAME.getName(), applicationName());
+    Optional.ofNullable(minServerVersion)
+        .ifPresent(
+            version ->
+                properties.setProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName(), version));
 
     return properties;
   }
@@ -160,6 +167,13 @@ public class PostgresConnectionConfig extends ConnectionConfig {
         .map(Long::parseLong)
         .map(Duration::ofMillis)
         .orElse(DEFAULT_SCHEMA_REFRESH_COOLDOWN);
+  }
+
+  @Nullable
+  private static String extractMinServerVersion(final Map<String, String> customParameters) {
+    return Optional.ofNullable(customParameters.get(MIN_SERVER_VERSION_KEY))
+        .filter(not(String::isBlank))
+        .orElse(null);
   }
 
   public Optional<CollectionConfig> getCollectionConfig(String collectionName) {

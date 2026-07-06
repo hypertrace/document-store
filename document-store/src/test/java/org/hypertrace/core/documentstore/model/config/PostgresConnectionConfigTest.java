@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.model.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.time.Duration;
 import java.util.Properties;
@@ -117,5 +118,41 @@ class PostgresConnectionConfigTest {
 
     assertEquals(Duration.ofHours(2), config.schemaCacheExpiry());
     assertEquals(Duration.ofMinutes(15), config.schemaRefreshCooldown()); // default
+  }
+
+  @Test
+  void testMinServerVersionNotSetByDefault() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig) ConnectionConfig.builder().type(DatabaseType.POSTGRES).build();
+
+    assertNull(
+        config.buildProperties().getProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName()));
+  }
+
+  @Test
+  void testMinServerVersionFromCustomParameters() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig)
+            ConnectionConfig.builder()
+                .type(DatabaseType.POSTGRES)
+                .customParameter("minServerVersion", "9.0")
+                .build();
+
+    assertEquals(
+        "9.0",
+        config.buildProperties().getProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName()));
+  }
+
+  @Test
+  void testBlankMinServerVersionIsIgnored() {
+    final PostgresConnectionConfig config =
+        (PostgresConnectionConfig)
+            ConnectionConfig.builder()
+                .type(DatabaseType.POSTGRES)
+                .customParameter("minServerVersion", "   ")
+                .build();
+
+    assertNull(
+        config.buildProperties().getProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName()));
   }
 }
