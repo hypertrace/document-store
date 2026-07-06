@@ -17,6 +17,7 @@ import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import lombok.experimental.NonFinal;
+import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
@@ -24,12 +25,14 @@ import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.Endpoint;
 import org.postgresql.PGProperty;
 
+@Slf4j
 @Value
 @NonFinal
 @Accessors(fluent = true)
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class PostgresConnectionConfig extends ConnectionConfig {
+
   private static final ConnectionCredentials DEFAULT_CREDENTIALS =
       ConnectionCredentials.builder()
           .username(PostgresDefaults.DEFAULT_USER)
@@ -98,6 +101,15 @@ public class PostgresConnectionConfig extends ConnectionConfig {
         .ifPresent(
             version ->
                 properties.setProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName(), version));
+
+    log.debug(
+        "Postgres JDBC properties - {}={}, {}={}, {}={}",
+        PGProperty.USER.getName(),
+        properties.getProperty(PGProperty.USER.getName()),
+        PGProperty.APPLICATION_NAME.getName(),
+        properties.getProperty(PGProperty.APPLICATION_NAME.getName()),
+        PGProperty.ASSUME_MIN_SERVER_VERSION.getName(),
+        properties.getProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName()));
 
     return properties;
   }

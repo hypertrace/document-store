@@ -35,6 +35,18 @@ public class TypesafeConfigDatastoreConfigExtractor {
   private static final String DEFAULT_MAX_IDLE_PERCENT_KEY = "maxIdlePercent";
   private static final String DEFAULT_MIN_IDLE_PERCENT_KEY = "minIdlePercent";
   private static final String DEFAULT_TEST_ON_BORROW_KEY = "testOnBorrow";
+  private static final String DEFAULT_VALIDATION_QUERY_KEY = "validationQuery";
+  private static final String DEFAULT_VALIDATION_QUERY_TIMEOUT_KEY = "validationQueryTimeout";
+  private static final String DEFAULT_TEST_ON_CREATE_KEY = "testOnCreate";
+  private static final String DEFAULT_TEST_ON_RETURN_KEY = "testOnReturn";
+  private static final String DEFAULT_TEST_WHILE_IDLE_KEY = "testWhileIdle";
+  private static final String DEFAULT_TIME_BETWEEN_EVICTION_RUNS_KEY = "timeBetweenEvictionRuns";
+  private static final String DEFAULT_NUM_TESTS_PER_EVICTION_RUN_KEY = "numTestsPerEvictionRun";
+  private static final String DEFAULT_MIN_EVICTABLE_IDLE_TIME_KEY = "minEvictableIdleTime";
+  private static final String DEFAULT_SOFT_MIN_EVICTABLE_IDLE_TIME_KEY = "softMinEvictableIdleTime";
+  private static final String DEFAULT_MAX_CONN_LIFETIME_KEY = "maxConnLifetime";
+  private static final String DEFAULT_CONNECTION_INIT_SQLS_KEY = "connectionInitSqls";
+  private static final String DEFAULT_LIFO_KEY = "lifo";
   private static final String DEFAULT_AGGREGATION_PIPELINE_MODE_KEY = "aggregationPipelineMode";
   private static final String DEFAULT_DATA_FRESHNESS_KEY = "dataFreshness";
   private static final String DEFAULT_QUERY_TIMEOUT_KEY = "queryTimeout";
@@ -90,6 +102,18 @@ public class TypesafeConfigDatastoreConfigExtractor {
         .poolMaxIdlePercentKey(DEFAULT_MAX_IDLE_PERCENT_KEY)
         .poolMinIdlePercentKey(DEFAULT_MIN_IDLE_PERCENT_KEY)
         .poolTestOnBorrowKey(DEFAULT_TEST_ON_BORROW_KEY)
+        .poolValidationQueryKey(DEFAULT_VALIDATION_QUERY_KEY)
+        .poolValidationQueryTimeoutKey(DEFAULT_VALIDATION_QUERY_TIMEOUT_KEY)
+        .poolTestOnCreateKey(DEFAULT_TEST_ON_CREATE_KEY)
+        .poolTestOnReturnKey(DEFAULT_TEST_ON_RETURN_KEY)
+        .poolTestWhileIdleKey(DEFAULT_TEST_WHILE_IDLE_KEY)
+        .poolTimeBetweenEvictionRunsKey(DEFAULT_TIME_BETWEEN_EVICTION_RUNS_KEY)
+        .poolNumTestsPerEvictionRunKey(DEFAULT_NUM_TESTS_PER_EVICTION_RUN_KEY)
+        .poolMinEvictableIdleTimeKey(DEFAULT_MIN_EVICTABLE_IDLE_TIME_KEY)
+        .poolSoftMinEvictableIdleTimeKey(DEFAULT_SOFT_MIN_EVICTABLE_IDLE_TIME_KEY)
+        .poolMaxConnLifetimeKey(DEFAULT_MAX_CONN_LIFETIME_KEY)
+        .poolConnectionInitSqlsKey(DEFAULT_CONNECTION_INIT_SQLS_KEY)
+        .poolLifoKey(DEFAULT_LIFO_KEY)
         .aggregationPipelineMode(DEFAULT_AGGREGATION_PIPELINE_MODE_KEY)
         .dataFreshnessKey(DEFAULT_DATA_FRESHNESS_KEY)
         .queryTimeoutKey(DEFAULT_QUERY_TIMEOUT_KEY)
@@ -251,6 +275,96 @@ public class TypesafeConfigDatastoreConfigExtractor {
   public TypesafeConfigDatastoreConfigExtractor poolTestOnBorrowKey(@NonNull final String key) {
     if (config.hasPath(key)) {
       connectionPoolConfigBuilder.testOnBorrow(config.getBoolean(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolValidationQueryKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.validationQuery(config.getString(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolValidationQueryTimeoutKey(
+      @NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.validationQueryTimeout(config.getDuration(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolTestOnCreateKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.testOnCreate(config.getBoolean(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolTestOnReturnKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.testOnReturn(config.getBoolean(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolTestWhileIdleKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.testWhileIdle(config.getBoolean(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolTimeBetweenEvictionRunsKey(
+      @NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.timeBetweenEvictionRuns(config.getDuration(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolNumTestsPerEvictionRunKey(
+      @NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.numTestsPerEvictionRun(config.getInt(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolMinEvictableIdleTimeKey(
+      @NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.minEvictableIdleTime(config.getDuration(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolSoftMinEvictableIdleTimeKey(
+      @NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.softMinEvictableIdleTime(config.getDuration(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolMaxConnLifetimeKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.maxConnLifetime(config.getDuration(key));
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolConnectionInitSqlsKey(
+      @NonNull final String key) {
+    if (config.hasPath(key)) {
+      config.getStringList(key).forEach(connectionPoolConfigBuilder::connectionInitSql);
+    }
+    return this;
+  }
+
+  public TypesafeConfigDatastoreConfigExtractor poolLifoKey(@NonNull final String key) {
+    if (config.hasPath(key)) {
+      connectionPoolConfigBuilder.lifo(config.getBoolean(key));
     }
     return this;
   }
