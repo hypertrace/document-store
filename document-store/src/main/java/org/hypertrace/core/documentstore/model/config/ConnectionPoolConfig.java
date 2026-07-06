@@ -42,7 +42,8 @@ public class ConnectionPoolConfig {
 
   @Nullable Boolean testOnCreate;
 
-  @Nullable Boolean testOnBorrow;
+  // Setting this to false explictly since leaving it true by default has a non-trivial perf impact
+  @NonNull @Builder.Default Boolean testOnBorrow = false;
 
   @Nullable Boolean testOnReturn;
 

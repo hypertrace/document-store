@@ -79,9 +79,7 @@ class PostgresConnectionPool {
     if (poolConfig.testOnCreate() != null) {
       connectionPool.setTestOnCreate(poolConfig.testOnCreate());
     }
-    if (poolConfig.testOnBorrow() != null) {
-      connectionPool.setTestOnBorrow(poolConfig.testOnBorrow());
-    }
+    connectionPool.setTestOnBorrow(poolConfig.testOnBorrow());
     if (poolConfig.testOnReturn() != null) {
       connectionPool.setTestOnReturn(poolConfig.testOnReturn());
     }
