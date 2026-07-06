@@ -92,24 +92,22 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     final ConnectionCredentials credentials = credentials();
 
     if (credentials != null && !credentials.isEmpty()) {
-      properties.setProperty(PGProperty.USER.toString(), credentials.username());
-      properties.setProperty(PGProperty.PASSWORD.toString(), credentials.password());
+      properties.setProperty(PGProperty.USER.getName(), credentials.username());
+      properties.setProperty(PGProperty.PASSWORD.getName(), credentials.password());
     }
 
-    properties.setProperty(PGProperty.APPLICATION_NAME.toString(), applicationName());
+    properties.setProperty(PGProperty.APPLICATION_NAME.getName(), applicationName());
     Optional.ofNullable(minServerVersion)
         .ifPresent(
             version ->
-                properties.setProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.toString(), version));
+                properties.setProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName(), version));
 
     log.debug(
-        "Postgres JDBC properties - {}={}, {}={}, {}={}",
-        PGProperty.USER,
-        properties.getProperty(PGProperty.USER.toString()),
+        "Postgres JDBC properties - {}={}, {}={}",
         PGProperty.APPLICATION_NAME,
-        properties.getProperty(PGProperty.APPLICATION_NAME.toString()),
+        properties.getProperty(PGProperty.APPLICATION_NAME.getName()),
         PGProperty.ASSUME_MIN_SERVER_VERSION,
-        properties.getProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.toString()));
+        properties.getProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName()));
 
     return properties;
   }
