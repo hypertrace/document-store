@@ -486,7 +486,7 @@ class TypesafeConfigDatastoreConfigExtractorTest {
                 .extract()
                 .connectionConfig();
 
-    assertEquals(true, config.connectionPoolConfig().testOnBorrow());
+    assertEquals(false, config.connectionPoolConfig().testOnBorrow());
   }
 
   @Test

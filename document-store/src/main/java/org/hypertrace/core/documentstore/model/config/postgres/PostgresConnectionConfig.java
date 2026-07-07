@@ -17,6 +17,7 @@ import lombok.ToString;
 import lombok.Value;
 import lombok.experimental.Accessors;
 import lombok.experimental.NonFinal;
+import lombok.extern.slf4j.Slf4j;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.config.ConnectionCredentials;
 import org.hypertrace.core.documentstore.model.config.ConnectionPoolConfig;
@@ -24,12 +25,14 @@ import org.hypertrace.core.documentstore.model.config.DatabaseType;
 import org.hypertrace.core.documentstore.model.config.Endpoint;
 import org.postgresql.PGProperty;
 
+@Slf4j
 @Value
 @NonFinal
 @Accessors(fluent = true)
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
 public class PostgresConnectionConfig extends ConnectionConfig {
+
   private static final ConnectionCredentials DEFAULT_CREDENTIALS =
       ConnectionCredentials.builder()
           .username(PostgresDefaults.DEFAULT_USER)
@@ -41,12 +44,14 @@ public class PostgresConnectionConfig extends ConnectionConfig {
 
   private static final String SCHEMA_CACHE_EXPIRY_MS_KEY = "schemaCacheExpiryMs";
   private static final String SCHEMA_REFRESH_COOLDOWN_MS_KEY = "schemaRefreshCooldownMs";
+  private static final String MIN_SERVER_VERSION_KEY = "minServerVersion";
 
   @NonNull String applicationName;
   @NonNull ConnectionPoolConfig connectionPoolConfig;
   @NonNull Duration queryTimeout;
   @NonNull Duration schemaCacheExpiry;
   @NonNull Duration schemaRefreshCooldown;
+  @Nullable String minServerVersion;
   @NonNull Map<String, CollectionConfig> collectionConfigs;
 
   public static ConnectionConfigBuilder builder() {
@@ -72,6 +77,7 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     this.queryTimeout = queryTimeout;
     this.schemaCacheExpiry = extractSchemaCacheExpiry(customParameters);
     this.schemaRefreshCooldown = extractSchemaRefreshCooldown(customParameters);
+    this.minServerVersion = extractMinServerVersion(customParameters);
     this.collectionConfigs = collectionConfigs != null ? collectionConfigs : Collections.emptyMap();
   }
 
@@ -91,6 +97,17 @@ public class PostgresConnectionConfig extends ConnectionConfig {
     }
 
     properties.setProperty(PGProperty.APPLICATION_NAME.getName(), applicationName());
+    Optional.ofNullable(minServerVersion)
+        .ifPresent(
+            version ->
+                properties.setProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName(), version));
+
+    log.debug(
+        "Postgres JDBC properties - {}={}, {}={}",
+        PGProperty.APPLICATION_NAME,
+        properties.getProperty(PGProperty.APPLICATION_NAME.getName()),
+        PGProperty.ASSUME_MIN_SERVER_VERSION,
+        properties.getProperty(PGProperty.ASSUME_MIN_SERVER_VERSION.getName()));
 
     return properties;
   }
@@ -160,6 +177,13 @@ public class PostgresConnectionConfig extends ConnectionConfig {
         .map(Long::parseLong)
         .map(Duration::ofMillis)
         .orElse(DEFAULT_SCHEMA_REFRESH_COOLDOWN);
+  }
+
+  @Nullable
+  private static String extractMinServerVersion(final Map<String, String> customParameters) {
+    return Optional.ofNullable(customParameters.get(MIN_SERVER_VERSION_KEY))
+        .filter(not(String::isBlank))
+        .orElse(null);
   }
 
   public Optional<CollectionConfig> getCollectionConfig(String collectionName) {
