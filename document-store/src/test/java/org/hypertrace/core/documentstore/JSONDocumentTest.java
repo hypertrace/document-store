@@ -2,6 +2,7 @@ package org.hypertrace.core.documentstore;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.util.Map;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -105,5 +106,17 @@ public class JSONDocumentTest {
 
     // toString should return the same as toJson
     Assertions.assertEquals(document.toJson(), document.toString());
+  }
+
+  @Test
+  public void testGetJsonMethod() throws IOException {
+    Map<String, String> data = Map.of("key1", "value1");
+    JSONDocument document = new JSONDocument(data, DocumentType.FLAT);
+
+    JsonNode jsonNode = document.getJsonNode();
+
+    Assertions.assertNotNull(jsonNode);
+    Assertions.assertEquals(mapper.readTree(document.toJson()), jsonNode);
+    Assertions.assertEquals("value1", jsonNode.get("key1").asText());
   }
 }

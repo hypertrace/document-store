@@ -46,6 +46,11 @@ public class JSONDocument implements Document {
   }
 
   @Override
+  public JsonNode getJsonNode() {
+    return node;
+  }
+
+  @Override
   public String toJson() {
     try {
       return mapper.writeValueAsString(node);
