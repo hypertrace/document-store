@@ -438,8 +438,8 @@ public interface Collection {
    * @param updates Map of Key to Collection of SubDocumentUpdate operations. Each key's updates are
    *     applied atomically, but no cross-key atomicity is guaranteed.
    * @param updateOptions Options for the update operation
-   * @return {@link DeepBulkUpdateResult} containing the count of successfully updated documents
-   *     and the set of keys whose updates could not be applied.
+   * @return {@link DeepBulkUpdateResult} containing the count of successfully updated documents and
+   *     the set of keys whose updates could not be applied.
    * @throws IOException if the update operation fails
    */
   default DeepBulkUpdateResult bulkUpdate(

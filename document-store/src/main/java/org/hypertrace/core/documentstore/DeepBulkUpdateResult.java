@@ -14,6 +14,8 @@ public class DeepBulkUpdateResult extends BulkUpdateResult {
   private final Set<Key> failedKeys;
   private final Set<Key> successfulKeys;
 
+  // all keys attempted can be derived from failedKeys + successfulKeys
+
   public DeepBulkUpdateResult(
       long successfullyUpdated, Set<Key> failedKeys, Set<Key> successfulKeys) {
     super(successfullyUpdated);
