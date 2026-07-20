@@ -45,6 +45,7 @@ import org.hypertrace.core.documentstore.BulkUpdateResult;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.CreateStatus;
+import org.hypertrace.core.documentstore.DeepBulkUpdateResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
@@ -869,47 +870,54 @@ public class FlatPostgresCollection extends PostgresCollection {
   }
 
   @Override
-  public BulkUpdateResult bulkUpdate(
+  public DeepBulkUpdateResult bulkUpdate(
       Map<Key, Collection<SubDocumentUpdate>> updates, UpdateOptions updateOptions)
       throws IOException {
 
     if (updates == null || updates.isEmpty()) {
-      return new BulkUpdateResult(0);
+      return new DeepBulkUpdateResult(0, Set.of(), Set.of());
     }
 
     Preconditions.checkArgument(updateOptions != null, "UpdateOptions cannot be NULL");
 
+    // todo: Honour update options like in bulkUpdate
     String tableName = tableIdentifier.getTableName();
     String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(getPKForTable(tableName));
     long batchUpdateTimestamp = System.currentTimeMillis();
 
     int totalUpdated = 0;
+    Set<Key> failedKeys = new HashSet<>();
+    Set<Key> successfulKeys = new HashSet<>();
 
     try (Connection connection = client.getPooledConnection()) {
       // Group keys by their "SQL shape" (same SET-clause fragments AND param count)
       Map<String, KeyUpdateGroup> keyGroups =
-          groupKeysByUpdateShape(connection, updates, tableName);
+          groupKeysByUpdateShape(connection, updates, tableName, failedKeys);
 
       // Execute one multi-row UPDATE per group (or fallback to single-key if group size = 1)
       for (Map.Entry<String, KeyUpdateGroup> entry : keyGroups.entrySet()) {
+        KeyUpdateGroup group = entry.getValue();
         try {
           int updated =
               executeBatchUpdate(
-                  connection, entry.getValue(), tableName, quotedPkColumn, batchUpdateTimestamp);
+                  connection, group, tableName, quotedPkColumn, batchUpdateTimestamp);
           totalUpdated += updated;
+          successfulKeys.addAll(group.getKeys());
         } catch (Exception e) {
-          LOGGER.warn(
-              "Failed to update key group (size: {}): {}",
-              entry.getValue().getKeys().size(),
-              e.getMessage());
-          // Continue with other groups - no cross-group atomicity
+          LOGGER.error(
+              "Failed to update key group (size: {}). Will continue with remaining batches",
+              group.getKeys().size(),
+              e);
+          // Batch was aborted as a whole (e.g. Postgres deadlock); surface every key in the
+          // group to the caller so it can decide what to do. No cross-group atomicity either.
+          failedKeys.addAll(group.getKeys());
         }
       }
     } catch (SQLException e) {
       throw new IOException("Failed to get connection for bulk update", e);
     }
 
-    return new BulkUpdateResult(totalUpdated);
+    return new DeepBulkUpdateResult(totalUpdated, failedKeys, successfulKeys);
   }
 
   private boolean executeKeyUpdate(
@@ -963,7 +971,10 @@ public class FlatPostgresCollection extends PostgresCollection {
    * nested-JSONB REMOVE_ALL_FROM_LIST emitting 1+N placeholders) will land in distinct groups.
    */
   private Map<String, KeyUpdateGroup> groupKeysByUpdateShape(
-      Connection connection, Map<Key, Collection<SubDocumentUpdate>> updates, String tableName) {
+      Connection connection,
+      Map<Key, Collection<SubDocumentUpdate>> updates,
+      String tableName,
+      Set<Key> failedKeys) {
 
     Map<String, KeyUpdateGroup> groups = new LinkedHashMap<>();
 
@@ -995,7 +1006,8 @@ public class FlatPostgresCollection extends PostgresCollection {
             .addKeyWithParams(key, params);
 
       } catch (Exception e) {
-        LOGGER.warn("Failed to group key {}: {}", key, e.getMessage());
+        LOGGER.warn("Failed to group key {}", key, e);
+        failedKeys.add(key);
       }
     }
 
@@ -1057,7 +1069,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       LOGGER.debug("Batch update affected {} rows out of {} keys", totalUpdated, keys.size());
       return totalUpdated;
     } catch (SQLException e) {
-      LOGGER.warn("Failed to execute batch update. SQL: {}, Error: {}", sql, e.getMessage());
+      LOGGER.error("Failed to execute batch update. SQL: {}, Error: {}", sql, e.getMessage());
       throw e;
     }
   }
