@@ -1069,7 +1069,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       LOGGER.debug("Batch update affected {} rows out of {} keys", totalUpdated, keys.size());
       return totalUpdated;
     } catch (SQLException e) {
-      LOGGER.error("Failed to execute batch update. SQL: {}, Error: {}", sql, e.getMessage());
+      LOGGER.error("Failed to execute batch update. SQL: {}", sql, e);
       throw e;
     }
   }
