@@ -481,7 +481,9 @@ class FlatPostgresCollectionTest {
 
       assertEquals(0, result.getUpdatedCount());
       assertFalse(result.hasFailures());
+      assertTrue(result.wasSuccessful());
       assertTrue(result.getFailedKeys().isEmpty());
+      assertTrue(result.getSuccessfulKeys().isEmpty());
     }
 
     @Test
@@ -492,6 +494,8 @@ class FlatPostgresCollectionTest {
 
       assertEquals(0, result.getUpdatedCount());
       assertFalse(result.hasFailures());
+      assertTrue(result.wasSuccessful());
+      assertTrue(result.getSuccessfulKeys().isEmpty());
     }
 
     @Test
@@ -514,15 +518,22 @@ class FlatPostgresCollectionTest {
       when(mockPreparedStatement.executeBatch()).thenReturn(new int[] {1, 1});
 
       Map<Key, Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
-      updates.put(Key.from("k1"), List.of(SubDocumentUpdate.of("price", 100)));
-      updates.put(Key.from("k2"), List.of(SubDocumentUpdate.of("price", 200)));
+      Key k1 = Key.from("k1");
+      Key k2 = Key.from("k2");
+      updates.put(k1, List.of(SubDocumentUpdate.of("price", 100)));
+      updates.put(k2, List.of(SubDocumentUpdate.of("price", 200)));
 
       DeepBulkUpdateResult result =
           flatPostgresCollection.bulkUpdate(updates, UpdateOptions.DEFAULT_UPDATE_OPTIONS);
 
       assertEquals(2, result.getUpdatedCount());
       assertFalse(result.hasFailures());
+      assertTrue(result.wasSuccessful());
       assertTrue(result.getFailedKeys().isEmpty());
+      assertEquals(
+          Set.of(k1, k2),
+          result.getSuccessfulKeys(),
+          "successfulKeys must contain every input key when no batch aborts");
       verify(mockPreparedStatement, times(1)).executeBatch();
     }
 
@@ -563,10 +574,15 @@ class FlatPostgresCollectionTest {
 
       assertEquals(2, result.getUpdatedCount(), "only price group's rows should count as updated");
       assertTrue(result.hasFailures());
+      assertFalse(result.wasSuccessful());
       assertEquals(
           Set.of(k3, k4),
           result.getFailedKeys(),
           "failedKeys must contain exactly the keys from the aborted batch group");
+      assertEquals(
+          Set.of(k1, k2),
+          result.getSuccessfulKeys(),
+          "successfulKeys must contain exactly the keys from the group whose batch completed");
       verify(mockPreparedStatement, times(2)).executeBatch();
     }
 
