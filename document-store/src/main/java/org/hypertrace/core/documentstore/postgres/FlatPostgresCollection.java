@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -364,7 +365,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
 
       List<Key> ignoredDocuments = new ArrayList<>();
-      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+      for (Map.Entry<Key, Document> entry : sortedByKey(documents)) {
         List<String> skippedFields = new ArrayList<>();
         TypedDocument parsed = parseDocument(entry.getValue(), tableName, skippedFields);
 
@@ -458,7 +459,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
 
       List<Key> ignoredDocuments = new ArrayList<>();
-      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
+      for (Map.Entry<Key, Document> entry : sortedByKey(documents)) {
         List<String> skippedFields = new ArrayList<>();
         TypedDocument parsed = parseDocument(entry.getValue(), tableName, skippedFields);
 
@@ -663,6 +664,12 @@ public class FlatPostgresCollection extends PostgresCollection {
         LOGGER.warn("Error closing connection after exception", closeEx);
       }
     }
+  }
+
+  private static List<Map.Entry<Key, Document>> sortedByKey(Map<Key, Document> documents) {
+    List<Map.Entry<Key, Document>> sorted = new ArrayList<>(documents.entrySet());
+    sorted.sort(Comparator.comparing(entry -> entry.getKey().toString()));
+    return sorted;
   }
 
   private PreparedStatement getPreparedStatementForQuery(
@@ -1022,6 +1029,12 @@ public class FlatPostgresCollection extends PostgresCollection {
     List<Key> keys = keyGroup.getKeys();
     List<List<Object>> allKeyParams = keyGroup.getKeyParams();
 
+    Integer[] order = new Integer[keys.size()];
+    for (int i = 0; i < order.length; i++) {
+      order[i] = i;
+    }
+    Arrays.sort(order, Comparator.comparing(i -> keys.get(i).toString()));
+
     List<String> setFragments = new ArrayList<>(keyGroup.getSetFragments());
     List<Object> timestampParam = new ArrayList<>();
     appendLastUpdatedTimestamp(setFragments, timestampParam, tableName, epochMillis);
@@ -1034,7 +1047,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     LOGGER.debug("Executing batch update SQL: {} for {} keys", sql, keys.size());
 
     try (PreparedStatement ps = connection.prepareStatement(sql)) {
-      for (int i = 0; i < keys.size(); i++) {
+      for (int i : order) {
         int idx = 1;
         for (Object param : allKeyParams.get(i)) {
           ps.setObject(idx++, param);
