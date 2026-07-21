@@ -17,19 +17,24 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.sql.BatchUpdateException;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.hypertrace.core.documentstore.CloseableIterator;
+import org.hypertrace.core.documentstore.DeepBulkUpdateResult;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
@@ -465,6 +470,139 @@ class FlatPostgresCollectionTest {
       assertThrows(IOException.class, () -> spyCollection.bulkUpdate(query, updates, options));
 
       verify(mockIterator).close();
+    }
+
+    @Test
+    @DisplayName("Map bulkUpdate: empty updates map -> zero updated, no failures")
+    void testMapBulkUpdateEmptyMap() throws Exception {
+      DeepBulkUpdateResult result =
+          flatPostgresCollection.bulkUpdate(
+              Collections.emptyMap(), UpdateOptions.DEFAULT_UPDATE_OPTIONS);
+
+      assertEquals(0, result.getUpdatedCount());
+      assertFalse(result.hasFailures());
+      assertTrue(result.wasSuccessful());
+      assertTrue(result.getFailedKeys().isEmpty());
+      assertTrue(result.getSuccessfulKeys().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Map bulkUpdate: null updates map -> zero updated, no failures")
+    void testMapBulkUpdateNullMap() throws Exception {
+      DeepBulkUpdateResult result =
+          flatPostgresCollection.bulkUpdate(null, UpdateOptions.DEFAULT_UPDATE_OPTIONS);
+
+      assertEquals(0, result.getUpdatedCount());
+      assertFalse(result.hasFailures());
+      assertTrue(result.wasSuccessful());
+      assertTrue(result.getSuccessfulKeys().isEmpty());
+    }
+
+    @Test
+    @DisplayName("Map bulkUpdate: null UpdateOptions throws IllegalArgumentException")
+    void testMapBulkUpdateThrowsOnNullOptions() {
+      Map<Key, Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
+      updates.put(Key.from("k1"), List.of(SubDocumentUpdate.of("price", 100)));
+
+      assertThrows(
+          IllegalArgumentException.class, () -> flatPostgresCollection.bulkUpdate(updates, null));
+    }
+
+    @Test
+    @DisplayName("Map bulkUpdate: happy path - all keys updated, no failures")
+    void testMapBulkUpdateAllSuccess() throws Exception {
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCommonMocks(schema);
+
+      // Every SET on "price" lands in one shape group; two keys => two batch entries.
+      when(mockPreparedStatement.executeBatch()).thenReturn(new int[] {1, 1});
+
+      Map<Key, Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
+      Key k1 = Key.from("k1");
+      Key k2 = Key.from("k2");
+      updates.put(k1, List.of(SubDocumentUpdate.of("price", 100)));
+      updates.put(k2, List.of(SubDocumentUpdate.of("price", 200)));
+
+      DeepBulkUpdateResult result =
+          flatPostgresCollection.bulkUpdate(updates, UpdateOptions.DEFAULT_UPDATE_OPTIONS);
+
+      assertEquals(2, result.getUpdatedCount());
+      assertFalse(result.hasFailures());
+      assertTrue(result.wasSuccessful());
+      assertTrue(result.getFailedKeys().isEmpty());
+      assertEquals(
+          Set.of(k1, k2),
+          result.getSuccessfulKeys(),
+          "successfulKeys must contain every input key when no batch aborts");
+      verify(mockPreparedStatement, times(1)).executeBatch();
+    }
+
+    @Test
+    @DisplayName(
+        "Map bulkUpdate: one group's executeBatch throws deadlock - only its keys marked failed")
+    void testMapBulkUpdatePartialGroupFailure() throws Exception {
+      Map<String, PostgresColumnMetadata> schema = createBasicSchema();
+      setupCommonMocks(schema);
+
+      // Two distinct SET columns => two shape groups. Group ordering follows input insertion
+      // order via LinkedHashMap; both groupings happen before either executeBatch call.
+      // First executeBatch (group for "price") succeeds; second (group for "item") aborts with
+      // Postgres deadlock_detected (40P01) via BatchUpdateException.
+      BatchUpdateException deadlock =
+          new BatchUpdateException(
+              "Batch entry ... was aborted: ERROR: deadlock detected",
+              "40P01",
+              0,
+              new int[] {Statement.EXECUTE_FAILED},
+              new SQLException("deadlock detected", "40P01"));
+      when(mockPreparedStatement.executeBatch())
+          .thenReturn(new int[] {1, 1}) // group A: SET "price" for k1, k2
+          .thenThrow(deadlock); // group B: SET "item" for k3, k4
+
+      Map<Key, Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
+      Key k1 = Key.from("k1");
+      Key k2 = Key.from("k2");
+      Key k3 = Key.from("k3");
+      Key k4 = Key.from("k4");
+      updates.put(k1, List.of(SubDocumentUpdate.of("price", 100)));
+      updates.put(k2, List.of(SubDocumentUpdate.of("price", 200)));
+      updates.put(k3, List.of(SubDocumentUpdate.of("item", "Alpha")));
+      updates.put(k4, List.of(SubDocumentUpdate.of("item", "Bravo")));
+
+      DeepBulkUpdateResult result =
+          flatPostgresCollection.bulkUpdate(updates, UpdateOptions.DEFAULT_UPDATE_OPTIONS);
+
+      assertEquals(2, result.getUpdatedCount(), "only price group's rows should count as updated");
+      assertTrue(result.hasFailures());
+      assertFalse(result.wasSuccessful());
+      assertEquals(
+          Set.of(k3, k4),
+          result.getFailedKeys(),
+          "failedKeys must contain exactly the keys from the aborted batch group");
+      assertEquals(
+          Set.of(k1, k2),
+          result.getSuccessfulKeys(),
+          "successfulKeys must contain exactly the keys from the group whose batch completed");
+      verify(mockPreparedStatement, times(2)).executeBatch();
+    }
+
+    @Test
+    @DisplayName("Map bulkUpdate: connection acquisition failure -> IOException")
+    void testMapBulkUpdateConnectionAcquisitionFails() throws Exception {
+      // Only stubs actually consumed before the connection acquisition are required.
+      when(mockSchemaRegistry.getPrimaryKeyColumn(COLLECTION_NAME)).thenReturn(Optional.of("id"));
+      SQLException sqlException = new SQLException("pool exhausted", "08001");
+      when(mockClient.getPooledConnection()).thenThrow(sqlException);
+
+      Map<Key, Collection<SubDocumentUpdate>> updates = new LinkedHashMap<>();
+      updates.put(Key.from("k1"), List.of(SubDocumentUpdate.of("price", 100)));
+
+      IOException thrown =
+          assertThrows(
+              IOException.class,
+              () ->
+                  flatPostgresCollection.bulkUpdate(updates, UpdateOptions.DEFAULT_UPDATE_OPTIONS));
+      assertEquals(sqlException, thrown.getCause());
     }
   }
 
