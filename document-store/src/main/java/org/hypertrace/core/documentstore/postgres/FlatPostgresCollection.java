@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -361,11 +362,13 @@ public class FlatPostgresCollection extends PostgresCollection {
     PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
 
     try {
-      // Parse all documents
-      Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
+      // TreeMap keyed by Key.toString() so the downstream JDBC batch iterates rows in a canonical
+      // order. Postgres acquires row locks in batch-entry order, so overlapping concurrent batches
+      // must share an ordering to avoid deadlocks.
+      Map<Key, TypedDocument> parsedDocuments = new TreeMap<>(Comparator.comparing(Key::toString));
 
       List<Key> ignoredDocuments = new ArrayList<>();
-      for (Map.Entry<Key, Document> entry : sortedByKey(documents)) {
+      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
         List<String> skippedFields = new ArrayList<>();
         TypedDocument parsed = parseDocument(entry.getValue(), tableName, skippedFields);
 
@@ -455,11 +458,13 @@ public class FlatPostgresCollection extends PostgresCollection {
     PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
 
     try {
-      // Parse all documents
-      Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
+      // TreeMap keyed by Key.toString() so the downstream JDBC batch iterates rows in a canonical
+      // order. Postgres acquires row locks in batch-entry order, so overlapping concurrent batches
+      // must share an ordering to avoid deadlocks.
+      Map<Key, TypedDocument> parsedDocuments = new TreeMap<>(Comparator.comparing(Key::toString));
 
       List<Key> ignoredDocuments = new ArrayList<>();
-      for (Map.Entry<Key, Document> entry : sortedByKey(documents)) {
+      for (Map.Entry<Key, Document> entry : documents.entrySet()) {
         List<String> skippedFields = new ArrayList<>();
         TypedDocument parsed = parseDocument(entry.getValue(), tableName, skippedFields);
 
@@ -664,12 +669,6 @@ public class FlatPostgresCollection extends PostgresCollection {
         LOGGER.warn("Error closing connection after exception", closeEx);
       }
     }
-  }
-
-  private static List<Map.Entry<Key, Document>> sortedByKey(Map<Key, Document> documents) {
-    List<Map.Entry<Key, Document>> sorted = new ArrayList<>(documents.entrySet());
-    sorted.sort(Comparator.comparing(entry -> entry.getKey().toString()));
-    return sorted;
   }
 
   private PreparedStatement getPreparedStatementForQuery(
