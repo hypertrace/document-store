@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -361,8 +363,10 @@ public class FlatPostgresCollection extends PostgresCollection {
     PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
 
     try {
-      // Parse all documents
-      Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
+      // TreeMap keyed by Key.toString() so the downstream JDBC batch iterates rows in a canonical
+      // order. Postgres acquires row locks in batch-entry order, so overlapping concurrent batches
+      // must share an ordering to avoid deadlocks.
+      Map<Key, TypedDocument> parsedDocuments = new TreeMap<>(Comparator.comparing(Key::toString));
 
       List<Key> ignoredDocuments = new ArrayList<>();
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
@@ -455,8 +459,10 @@ public class FlatPostgresCollection extends PostgresCollection {
     PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
 
     try {
-      // Parse all documents
-      Map<Key, TypedDocument> parsedDocuments = new LinkedHashMap<>();
+      // TreeMap keyed by Key.toString() so the downstream JDBC batch iterates rows in a canonical
+      // order. Postgres acquires row locks in batch-entry order, so overlapping concurrent batches
+      // must share an ordering to avoid deadlocks.
+      Map<Key, TypedDocument> parsedDocuments = new TreeMap<>(Comparator.comparing(Key::toString));
 
       List<Key> ignoredDocuments = new ArrayList<>();
       for (Map.Entry<Key, Document> entry : documents.entrySet()) {
@@ -1034,6 +1040,13 @@ public class FlatPostgresCollection extends PostgresCollection {
     List<Key> keys = keyGroup.getKeys();
     List<List<Object>> allKeyParams = keyGroup.getKeyParams();
 
+    Integer[] order = new Integer[keys.size()];
+    for (int i = 0; i < order.length; i++) {
+      order[i] = i;
+    }
+    // Sort keys to ensure consistent order to avoid deadlocks
+    Arrays.sort(order, Comparator.comparing(i -> keys.get(i).toString()));
+
     List<String> setFragments = new ArrayList<>(keyGroup.getSetFragments());
     List<Object> timestampParam = new ArrayList<>();
     appendLastUpdatedTimestamp(setFragments, timestampParam, tableName, epochMillis);
@@ -1046,7 +1059,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     LOGGER.debug("Executing batch update SQL: {} for {} keys", sql, keys.size());
 
     try (PreparedStatement ps = connection.prepareStatement(sql)) {
-      for (int i = 0; i < keys.size(); i++) {
+      for (int i : order) {
         int idx = 1;
         for (Object param : allKeyParams.get(i)) {
           ps.setObject(idx++, param);
