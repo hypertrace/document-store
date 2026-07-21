@@ -1032,6 +1032,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     for (int i = 0; i < order.length; i++) {
       order[i] = i;
     }
+    // Sort keys to ensure consistent order to avoid deadlocks
     Arrays.sort(order, Comparator.comparing(i -> keys.get(i).toString()));
 
     List<String> setFragments = new ArrayList<>(keyGroup.getSetFragments());
