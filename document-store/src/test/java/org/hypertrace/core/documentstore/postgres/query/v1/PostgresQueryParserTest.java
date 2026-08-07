@@ -19,6 +19,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GT;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.GTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.IN;
+import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LIKE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.LTE;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NEQ;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.NOT_CONTAINS;
@@ -27,6 +28,8 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.util.List;
@@ -1558,6 +1561,117 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
     assertEquals("java", params.getObjectParams().get(1));
+  }
+
+  @Nested
+  class FlatCollectionUnnestArrayOverlapPrefilterTest {
+
+    @Test
+    void testEqualityOnUnnestedNativeArrayAddsOverlapPrefilterToTable0() {
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("tags"))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .identifierExpression(IdentifierExpression.of("tags"))
+                      .preserveNullAndEmptyArrays(true)
+                      .filterTypeExpression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"), EQ, ConstantExpression.of("java")))
+                      .build())
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+
+      assertEquals(
+          "With \n"
+              + "table0 as (SELECT * from \"testCollection\" WHERE \"tags\" && ?),\n"
+              + "table1 as (SELECT * from table0 t0 LEFT JOIN LATERAL unnest(\"tags\") p1(\"tags_unnested\") on TRUE)\n"
+              + "SELECT \"tags_unnested\" AS \"tags\" FROM table1 WHERE \"tags_unnested\" = ?",
+          sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      assertEquals(2, params.getObjectParams().size());
+      Object prefilterParam = params.getObjectParams().get(1);
+      assertTrue(prefilterParam instanceof Params.ArrayParam);
+      Params.ArrayParam arrayParam = (Params.ArrayParam) prefilterParam;
+      assertEquals("text", arrayParam.getSqlType());
+      assertEquals(List.of("java"), List.of(arrayParam.getValues()));
+      assertEquals("java", params.getObjectParams().get(2));
+    }
+
+    @Test
+    void testInOnUnnestedNativeArrayAddsOverlapPrefilterToTable0() {
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("tags"))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .identifierExpression(IdentifierExpression.of("tags"))
+                      .preserveNullAndEmptyArrays(false)
+                      .filterTypeExpression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("java", "go"))))
+                      .build())
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+
+      assertTrue(
+          sql.contains("table0 as (SELECT * from \"testCollection\" WHERE \"tags\" && ?)"),
+          "Expected array-overlap pre-filter in table0, but got: " + sql);
+
+      Params params = postgresQueryParser.getParamsBuilder().build();
+      Object prefilterParam = params.getObjectParams().get(1);
+      assertTrue(prefilterParam instanceof Params.ArrayParam);
+      Params.ArrayParam arrayParam = (Params.ArrayParam) prefilterParam;
+      assertEquals("text", arrayParam.getSqlType());
+      assertEquals(List.of("java", "go"), List.of(arrayParam.getValues()));
+    }
+
+    @Test
+    void testNonTranslatableOperatorDoesNotAddPrefilterToTable0() {
+      // LIKE has no correct array-membership equivalent, so table0 must remain unfiltered.
+      Query query =
+          Query.builder()
+              .addSelection(IdentifierExpression.of("tags"))
+              .addFromClause(
+                  UnnestExpression.builder()
+                      .identifierExpression(IdentifierExpression.of("tags"))
+                      .preserveNullAndEmptyArrays(true)
+                      .filterTypeExpression(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"), LIKE, ConstantExpression.of("jav")))
+                      .build())
+              .build();
+
+      PostgresQueryParser postgresQueryParser =
+          new PostgresQueryParser(
+              TEST_TABLE,
+              PostgresQueryTransformer.transform(query),
+              new FlatPostgresFieldTransformer());
+
+      String sql = postgresQueryParser.parse();
+
+      assertTrue(
+          sql.contains("table0 as (SELECT * from \"testCollection\"),"),
+          "Expected unfiltered table0 for non-translatable operator, but got: " + sql);
+      assertFalse(sql.contains("&&"), "Did not expect an overlap pre-filter, but got: " + sql);
+    }
   }
 
   @Nested
