@@ -53,6 +53,15 @@ public class PostgresQueryExecutor {
     return buildPreparedStatement(sqlQuery, params, connection, this.queryTimeoutSeconds);
   }
 
+  public PreparedStatement prepareStatementWithTimeout(Connection connection, String sqlQuery)
+      throws SQLException {
+    PreparedStatement preparedStatement = connection.prepareStatement(sqlQuery);
+    if (queryTimeoutSeconds > 0) {
+      preparedStatement.setQueryTimeout(queryTimeoutSeconds);
+    }
+    return preparedStatement;
+  }
+
   public PreparedStatement buildPreparedStatement(
       String sqlQuery, Params params, Connection connection, int queryTimeoutSeconds)
       throws SQLException {
