@@ -253,7 +253,8 @@ public class FlatPostgresCollection extends PostgresCollection {
         String.format(
             "DELETE FROM %s WHERE %s = ?",
             tableIdentifier, PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkForTable));
-    try (PreparedStatement preparedStatement = client.getConnection().prepareStatement(deleteSQL)) {
+    try (PreparedStatement preparedStatement =
+        queryExecutor.prepareStatementWithTimeout(client.getConnection(), deleteSQL)) {
       preparedStatement.setString(1, key.toString());
       int rowsDeleted = preparedStatement.executeUpdate();
       return rowsDeleted > 0;
@@ -320,7 +321,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     LOGGER.debug("Bulk delete SQL: {}", deleteSQL);
 
     try (Connection conn = client.getPooledConnection();
-        PreparedStatement ps = conn.prepareStatement(deleteSQL)) {
+        PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(conn, deleteSQL)) {
       int deletedCount = ps.executeUpdate();
       LOGGER.debug("Bulk deleted {} rows", deletedCount);
       return new BulkDeleteResult(deletedCount);
@@ -336,7 +337,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     LOGGER.debug("Delete all SQL: {}", deleteSQL);
 
     try (Connection conn = client.getPooledConnection();
-        PreparedStatement ps = conn.prepareStatement(deleteSQL)) {
+        PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(conn, deleteSQL)) {
       int deletedCount = ps.executeUpdate();
       LOGGER.debug("Deleted all {} rows", deletedCount);
       return true;
@@ -402,7 +403,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       LOGGER.debug("Bulk upsert SQL: {}", sql);
 
       try (Connection conn = client.getPooledConnection();
-          PreparedStatement ps = conn.prepareStatement(sql)) {
+          PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(conn, sql)) {
 
         for (Map.Entry<Key, TypedDocument> entry : parsedDocuments.entrySet()) {
           TypedDocument parsed = entry.getValue();
@@ -499,7 +500,7 @@ public class FlatPostgresCollection extends PostgresCollection {
       LOGGER.debug("Bulk createOrReplace SQL: {}", sql);
 
       try (Connection conn = client.getPooledConnection();
-          PreparedStatement ps = conn.prepareStatement(sql)) {
+          PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(conn, sql)) {
 
         for (Map.Entry<Key, TypedDocument> entry : parsedDocuments.entrySet()) {
           TypedDocument parsed = entry.getValue();
@@ -680,7 +681,8 @@ public class FlatPostgresCollection extends PostgresCollection {
       throws SQLException {
     String selectQuery =
         String.format("SELECT * FROM %s WHERE %s = ANY(?)", tableIdentifier, quotedPkColumn);
-    PreparedStatement preparedStatement = connection.prepareStatement(selectQuery);
+    PreparedStatement preparedStatement =
+        queryExecutor.prepareStatementWithTimeout(connection, selectQuery);
 
     String[] keyArray = documents.keySet().stream().map(Key::toString).toArray(String[]::new);
     Array sqlArray = connection.createArrayOf(pkType.getSqlType(), keyArray);
@@ -959,7 +961,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     LOGGER.debug("Executing key update SQL: {}", sql);
 
-    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+    try (PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(connection, sql)) {
       int idx = 1;
       for (Object param : params) {
         ps.setObject(idx++, param);
@@ -1058,7 +1060,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     LOGGER.debug("Executing batch update SQL: {} for {} keys", sql, keys.size());
 
-    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+    try (PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(connection, sql)) {
       for (int i : order) {
         int idx = 1;
         for (Object param : allKeyParams.get(i)) {
@@ -1264,7 +1266,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     LOGGER.debug("Executing update SQL: {}", sql);
 
-    try (PreparedStatement ps = connection.prepareStatement(sql)) {
+    try (PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(connection, sql)) {
       int idx = 1;
       for (Object param : params) {
         ps.setObject(idx++, param);
@@ -1580,7 +1582,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   private int executeUpdate(String sql, TypedDocument parsed) throws SQLException {
     try (Connection conn = client.getPooledConnection();
-        PreparedStatement ps = conn.prepareStatement(sql)) {
+        PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(conn, sql)) {
       int index = 1;
       for (String column : parsed.getColumns()) {
         setParameter(
@@ -1749,7 +1751,7 @@ public class FlatPostgresCollection extends PostgresCollection {
     long ta = System.nanoTime();
     try (Connection conn = client.getPooledConnection()) {
       long tb = System.nanoTime();
-      try (PreparedStatement ps = conn.prepareStatement(sql)) {
+      try (PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(conn, sql)) {
         int index = 1;
         Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
         for (String column : allColumns) {
@@ -1778,7 +1780,7 @@ public class FlatPostgresCollection extends PostgresCollection {
   private boolean executeUpsertReturningIsInsert(
       String sql, List<String> allColumns, TypedDocument parsed) throws SQLException {
     try (Connection conn = client.getPooledConnection();
-        PreparedStatement ps = conn.prepareStatement(sql)) {
+        PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(conn, sql)) {
       int index = 1;
       Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
       for (String column : allColumns) {

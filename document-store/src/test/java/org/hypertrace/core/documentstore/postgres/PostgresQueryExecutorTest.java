@@ -1,5 +1,8 @@
 package org.hypertrace.core.documentstore.postgres;
 
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,5 +45,28 @@ class PostgresQueryExecutorTest {
     // override timeout to 45s
     executor.buildPreparedStatement(sqlQuery, params, mockConnection, 45);
     verify(mockPreparedStatement).setQueryTimeout(45);
+  }
+
+  @Test
+  void prepareStatementWithTimeoutAppliesConfiguredTimeout() throws SQLException {
+    String sqlQuery = "UPDATE foo SET x = ?";
+    when(mockConnection.prepareStatement(sqlQuery)).thenReturn(mockPreparedStatement);
+
+    PostgresQueryExecutor executor = new PostgresQueryExecutor(45);
+    PreparedStatement result = executor.prepareStatementWithTimeout(mockConnection, sqlQuery);
+
+    assertSame(mockPreparedStatement, result);
+    verify(mockPreparedStatement).setQueryTimeout(45);
+  }
+
+  @Test
+  void prepareStatementWithTimeoutSkipsSetWhenTimeoutIsZero() throws SQLException {
+    String sqlQuery = "DELETE FROM foo";
+    when(mockConnection.prepareStatement(sqlQuery)).thenReturn(mockPreparedStatement);
+
+    PostgresQueryExecutor executor = new PostgresQueryExecutor(0);
+    executor.prepareStatementWithTimeout(mockConnection, sqlQuery);
+
+    verify(mockPreparedStatement, never()).setQueryTimeout(anyInt());
   }
 }

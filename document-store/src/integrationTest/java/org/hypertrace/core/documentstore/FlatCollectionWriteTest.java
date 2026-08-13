@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore;
 import static org.hypertrace.core.documentstore.utils.Utils.readFileFromResource;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -14,6 +15,7 @@ import com.google.common.base.Preconditions;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -47,6 +49,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.postgresql.util.PSQLException;
+import org.postgresql.util.PSQLState;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @Testcontainers
@@ -4021,6 +4025,83 @@ public class FlatCollectionWriteTest extends BaseWriteTest {
         return 0;
       }
     }
+  }
+
+  @Test
+  @DisplayName("upsert on a row locked by another txn is aborted after query timeout")
+  void upsertHonorsQueryTimeoutOnRowLock() throws Exception {
+    // setup
+    String docId = generateDocId("qt-upsert");
+    Key key = new SingleValueKey(DEFAULT_TENANT, docId);
+    ObjectNode initial = OBJECT_MAPPER.createObjectNode();
+    initial.put("id", docId);
+    initial.put("item", "Seed");
+    initial.put("price", 1);
+    flatCollection.upsert(key, new JSONDocument(initial));
+
+    // 2) Build a collection whose datastore has a 1s query timeout.
+    Collection timeoutCollection = getFlatCollectionWithQueryTimeout("1 second");
+
+    // 3) Hold a FOR UPDATE lock on the seeded row from a separate raw connection.
+    String url =
+        String.format(
+            "jdbc:postgresql://localhost:%s/postgres", postgresContainer.getMappedPort(5432));
+    try (Connection lockConn = DriverManager.getConnection(url, "postgres", "postgres")) {
+      lockConn.setAutoCommit(false);
+      try (PreparedStatement lockPs =
+          lockConn.prepareStatement(
+              String.format(
+                  "SELECT id FROM \"%s\" WHERE id = ? FOR UPDATE", FLAT_COLLECTION_NAME))) {
+        lockPs.setString(1, key.toString());
+        try (ResultSet rs = lockPs.executeQuery()) {
+          assertTrue(rs.next(), "Precondition failure: Could not acquire lock on the seed row");
+        }
+      }
+
+      // 4) The upsert must block on the row lock and then be cancelled by
+      // JDBC's setQueryTimeout(1). FlatPostgresCollection wraps SQLException as IOException.
+      ObjectNode updateNode = OBJECT_MAPPER.createObjectNode();
+      updateNode.put("id", docId);
+      updateNode.put("item", "Updated");
+      updateNode.put("price", 2);
+
+      long startNs = System.nanoTime();
+      IOException thrown =
+          assertThrows(
+              IOException.class, () -> timeoutCollection.upsert(key, new JSONDocument(updateNode)));
+      long elapsedMs = (System.nanoTime() - startNs) / 1_000_000L;
+
+      // Sanity: cancellation should fire quickly - well before the row lock would ever
+      // be released (this txn is held open until the try-with-resources closes).
+      assertTrue(elapsedMs < 15_000);
+
+      Throwable cause = thrown.getCause();
+      assertNotNull(cause);
+      assertInstanceOf(PSQLException.class, cause);
+      assertEquals(PSQLState.QUERY_CANCELED.getState(), ((PSQLException) cause).getSQLState());
+
+      // 5) Verify the seeded row was not modified (lock still held, timed-out UPDATE
+      // never committed).
+      queryAndAssert(
+          key,
+          rs -> {
+            assertTrue(rs.next());
+            assertEquals("Seed", rs.getString("item"));
+            assertEquals(1, rs.getInt("price"));
+          });
+    }
+  }
+
+  private Collection getFlatCollectionWithQueryTimeout(String queryTimeout) {
+    String postgresConnectionUrl =
+        String.format("jdbc:postgresql://localhost:%s/", postgresContainer.getMappedPort(5432));
+    Map<String, String> cfg = new HashMap<>();
+    cfg.put("url", postgresConnectionUrl);
+    cfg.put("user", "postgres");
+    cfg.put("password", "postgres");
+    cfg.put("queryTimeout", queryTimeout);
+    Datastore ds = DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(cfg));
+    return ds.getCollectionForType(FLAT_COLLECTION_NAME, DocumentType.FLAT);
   }
 
   private static void executeInsertStatements() {
