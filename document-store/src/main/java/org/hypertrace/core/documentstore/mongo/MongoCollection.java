@@ -12,6 +12,7 @@ import static org.hypertrace.core.documentstore.mongo.query.parser.MongoSelectTy
 import static org.hypertrace.core.documentstore.mongo.update.parser.MongoSetOperationParser.SET_CLAUSE;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.google.common.annotations.VisibleForTesting;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoBulkWriteException;
 import com.mongodb.MongoCommandException;
@@ -678,6 +679,17 @@ public class MongoCollection implements Collection {
     try {
       BulkWriteResult result = bulkUpsertImpl(documents);
       LOGGER.debug(result.toString());
+      if (!isBulkUpsertComplete(result, documents.size())) {
+        LOGGER.error(
+            "Incomplete bulk upsert for documents. requested={}, matched={}, upserted={},"
+                + " acknowledged={}, result={}",
+            documents.size(),
+            result.wasAcknowledged() ? result.getMatchedCount() : -1,
+            result.wasAcknowledged() ? result.getUpserts().size() : -1,
+            result.wasAcknowledged(),
+            result);
+        return false;
+      }
       return true;
     } catch (IOException | MongoServerException e) {
       LOGGER.error("Error during bulk upsert for documents:{}", documents, e);
@@ -702,6 +714,21 @@ public class MongoCollection implements Collection {
         .get(() -> collection.bulkWrite(bulkCollection, new BulkWriteOptions().ordered(false)));
   }
 
+  /**
+   * Each UpdateOne upsert accounts for exactly one matched existing document or one upserted
+   * document. Incomplete results (or unacknowledged writes) must not be reported as success.
+   */
+  @VisibleForTesting
+  static boolean isBulkUpsertComplete(final BulkWriteResult result, final int requestedCount) {
+    if (requestedCount == 0) {
+      return true;
+    }
+    if (!result.wasAcknowledged()) {
+      return false;
+    }
+    return result.getMatchedCount() + result.getUpserts().size() == requestedCount;
+  }
+
   @Override
   public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
@@ -714,6 +741,17 @@ public class MongoCollection implements Collection {
       // Now go ahead and do the bulk upsert.
       BulkWriteResult result = bulkUpsertImpl(documents);
       LOGGER.debug(result.toString());
+      if (!isBulkUpsertComplete(result, documents.size())) {
+        LOGGER.error(
+            "Incomplete bulk upsert for documents. requested={}, matched={}, upserted={},"
+                + " acknowledged={}, result={}",
+            documents.size(),
+            result.wasAcknowledged() ? result.getMatchedCount() : -1,
+            result.wasAcknowledged() ? result.getUpserts().size() : -1,
+            result.wasAcknowledged(),
+            result);
+        throw new IOException("Incomplete bulk upsert.");
+      }
 
       return convertToDocumentIterator(mongoCursor);
     } catch (JsonProcessingException e) {

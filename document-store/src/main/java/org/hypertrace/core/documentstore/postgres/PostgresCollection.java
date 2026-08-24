@@ -67,6 +67,7 @@ import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.commons.BatchWriteUtils;
 import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
 import org.hypertrace.core.documentstore.commons.DocStoreConstants;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
@@ -754,6 +755,14 @@ public abstract class PostgresCollection implements Collection {
         LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
       }
 
+      if (!BatchWriteUtils.isBatchFullySuccessful(updateCounts, documents.size())) {
+        LOGGER.error(
+            "Incomplete bulk upsert for documents. requested={}, updateCounts={}",
+            documents.size(),
+            Arrays.toString(updateCounts));
+        return false;
+      }
+
       return true;
     } catch (BatchUpdateException e) {
       LOGGER.error("BatchUpdateException bulk inserting documents.", e);
@@ -800,6 +809,13 @@ public abstract class PostgresCollection implements Collection {
       int[] updateCounts = bulkUpsertImpl(documents);
       if (LOGGER.isDebugEnabled()) {
         LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
+      }
+      if (!BatchWriteUtils.isBatchFullySuccessful(updateCounts, documents.size())) {
+        LOGGER.error(
+            "Incomplete bulk upsert for documents. requested={}, updateCounts={}",
+            documents.size(),
+            Arrays.toString(updateCounts));
+        throw new IOException("Incomplete bulk upsert.");
       }
 
       return new PostgresResultIterator(resultSet);

@@ -53,6 +53,7 @@ import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
+import org.hypertrace.core.documentstore.commons.BatchWriteUtils;
 import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
 import org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig;
@@ -429,6 +430,14 @@ public class FlatPostgresCollection extends PostgresCollection {
         int[] results = ps.executeBatch();
         if (LOGGER.isDebugEnabled()) {
           LOGGER.debug("Bulk upsert results: {}", Arrays.toString(results));
+        }
+        if (!BatchWriteUtils.isBatchFullySuccessful(results, parsedDocuments.size())) {
+          LOGGER.error(
+              "Incomplete bulkUpsert. requested={}, submitted={}, updateCounts={}",
+              documents.size(),
+              parsedDocuments.size(),
+              Arrays.toString(results));
+          return false;
         }
         return true;
       }
