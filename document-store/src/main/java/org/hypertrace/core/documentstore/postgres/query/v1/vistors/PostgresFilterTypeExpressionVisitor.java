@@ -8,6 +8,9 @@ import static org.hypertrace.core.documentstore.postgres.PostgresCollection.ID;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.encodeAliasForNestedField;
 import static org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.prepareParsedNonCompositeFilter;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
@@ -15,6 +18,7 @@ import javax.annotation.Nullable;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Key;
+import org.hypertrace.core.documentstore.expression.impl.ArrayFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
@@ -24,6 +28,7 @@ import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.operators.LogicalOperator;
 import org.hypertrace.core.documentstore.expression.type.FilterTypeExpression;
+import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
 import org.hypertrace.core.documentstore.postgres.query.v1.parser.builder.PostgresSelectExpressionParserBuilder;
@@ -117,7 +122,10 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     switch (expression.getOperator()) {
       case ANY:
         return getFilterStringForAnyOperator(expression);
-
+      case ALL:
+        return getFilterStringForAllOperator(expression);
+      case ONE:
+        return getFilterStringForOneOperator(expression);
       default:
         throw new UnsupportedOperationException(
             "Unsupported array operator: " + expression.getOperator());
@@ -137,7 +145,10 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     switch (expression.getOperator()) {
       case ANY:
         return getFilterStringForAnyOperator(expression);
-
+      case ALL:
+        return getFilterStringForAllOperator(expression);
+      case ONE:
+        return getFilterStringForOneOperator(expression);
       default:
         throw new UnsupportedOperationException(
             "Unsupported array operator: " + expression.getOperator());
@@ -330,6 +341,159 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
       return String.format(
           "EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END) AS \"%s\" WHERE %s)",
           parsedLhs, parsedLhs, alias, parsedFilter);
+    }
+  }
+
+  /*
+  Native array (flat collection):
+    COALESCE(tags, ARRAY[]::text[]) @> ?   -- bound as a typed array param, e.g. ['Blue','Green']
+
+  JSONB array (nested collection or JSONB column in a flat collection):
+    (CASE WHEN jsonb_typeof(colors) = 'array' THEN colors ELSE '[]'::jsonb END) @> ?::jsonb
+                                            -- bound as the JSON text '["Blue","Green"]'
+   */
+  private String getFilterStringForAllOperator(final ArrayFilterExpression expression) {
+    final List<?> values = getArrayOperatorFilterValues(expression);
+    final ArrayFieldContext fieldContext = getArrayFieldContext(expression);
+
+    if (fieldContext.isNativeArray()) {
+      final PostgresDataType dataType = resolvePostgresDataType(values);
+      postgresQueryParser.getParamsBuilder().addArrayParam(values.toArray(), dataType.getSqlType());
+      return String.format(
+          "COALESCE(%s, ARRAY[]%s) @> ?", fieldContext.parsedLhs(), dataType.getArrayTypeCast());
+    }
+
+    final String coalescedArray =
+        String.format(
+            "(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END)",
+            fieldContext.parsedLhs(), fieldContext.parsedLhs());
+    postgresQueryParser.getParamsBuilder().addObjectParam(toJsonArrayString(values));
+    return String.format("%s @> ?::jsonb", coalescedArray);
+  }
+
+  /*
+  Native array (flat collection):
+    array_length(COALESCE(tags, ARRAY[]::text[]), 1) = 1
+      AND COALESCE(tags, ARRAY[]::text[]) && ?      -- bound as a typed array param
+
+  JSONB array (nested collection or JSONB column in a flat collection):
+    jsonb_array_length(<coalesced array>) = 1
+      AND (<coalesced array> @> ?::jsonb OR <coalesced array> @> ?::jsonb ...)
+                                            -- one bound single-element JSON array per filter value
+   */
+  private String getFilterStringForOneOperator(final ArrayFilterExpression expression) {
+    final List<?> values = getArrayOperatorFilterValues(expression);
+    final ArrayFieldContext fieldContext = getArrayFieldContext(expression);
+
+    if (fieldContext.isNativeArray()) {
+      final PostgresDataType dataType = resolvePostgresDataType(values);
+      final String arrayTypeCast = dataType.getArrayTypeCast();
+      final String coalescedArray =
+          String.format("COALESCE(%s, ARRAY[]%s)", fieldContext.parsedLhs(), arrayTypeCast);
+      postgresQueryParser.getParamsBuilder().addArrayParam(values.toArray(), dataType.getSqlType());
+      return String.format("array_length(%s, 1) = 1 AND %s && ?", coalescedArray, coalescedArray);
+    }
+
+    final String coalescedArray =
+        String.format(
+            "(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END)",
+            fieldContext.parsedLhs(), fieldContext.parsedLhs());
+    final String matchesAnyValue =
+        values.isEmpty()
+            ? "FALSE"
+            : values.stream()
+                .map(
+                    value -> {
+                      postgresQueryParser
+                          .getParamsBuilder()
+                          .addObjectParam(toJsonArrayString(List.of(value)));
+                      return String.format("%s @> ?::jsonb", coalescedArray);
+                    })
+                .collect(Collectors.joining(" OR "));
+    return String.format("jsonb_array_length(%s) = 1 AND (%s)", coalescedArray, matchesAnyValue);
+  }
+
+  private ArrayFieldContext getArrayFieldContext(final ArrayFilterExpression expression) {
+    final boolean isFlatCollection =
+        postgresQueryParser.getPgColTransformer().getDocumentType() == DocumentType.FLAT;
+    final boolean isJsonbArray = expression.getArraySource() instanceof JsonIdentifierExpression;
+    final boolean isNativeArray = isFlatCollection && !isJsonbArray;
+
+    final String identifierName =
+        expression
+            .getArraySource()
+            .accept(new PostgresIdentifierExpressionVisitor(postgresQueryParser));
+
+    final String parsedLhs;
+    if (isNativeArray) {
+      parsedLhs = postgresQueryParser.transformField(identifierName).getPgColumn();
+    } else {
+      final PostgresIdentifierExpressionVisitor identifierVisitor =
+          new PostgresIdentifierExpressionVisitor(postgresQueryParser);
+      final PostgresSelectTypeExpressionVisitor arrayPathVisitor =
+          wrappingVisitorProvider == null
+              ? new PostgresFieldIdentifierExpressionVisitor(identifierVisitor)
+              : wrappingVisitorProvider.getForNonRelational(identifierVisitor);
+      parsedLhs = expression.getArraySource().accept(arrayPathVisitor);
+    }
+
+    return new ArrayFieldContext(parsedLhs, isNativeArray);
+  }
+
+  private List<?> getArrayOperatorFilterValues(final ArrayFilterExpression expression) {
+    final FilterTypeExpression filter = expression.getFilter();
+    if (!(filter instanceof RelationalExpression)) {
+      throw new UnsupportedOperationException(
+          "Array operator "
+              + expression.getOperator()
+              + " only supports a relational filter with a constant list of values, got: "
+              + filter);
+    }
+
+    final SelectTypeExpression rhs = ((RelationalExpression) filter).getRhs();
+    if (!(rhs instanceof ConstantExpression)) {
+      throw new UnsupportedOperationException(
+          "Array operator "
+              + expression.getOperator()
+              + " requires a constant list of values, got: "
+              + rhs);
+    }
+
+    final Object value = ((ConstantExpression) rhs).getValue();
+    return value instanceof List ? (List<?>) value : List.of(value);
+  }
+
+  private PostgresDataType resolvePostgresDataType(final List<?> values) {
+    return values.stream()
+        .map(PostgresDataType::fromJavaValue)
+        .filter(dataType -> dataType != PostgresDataType.UNKNOWN)
+        .findFirst()
+        .orElse(PostgresDataType.TEXT);
+  }
+
+  private String toJsonArrayString(final List<?> values) {
+    try {
+      return new ObjectMapper().writeValueAsString(values);
+    } catch (JsonProcessingException e) {
+      throw new IllegalArgumentException("Unable to serialize array filter values: " + values, e);
+    }
+  }
+
+  private static class ArrayFieldContext {
+    private final String parsedLhs;
+    private final boolean isNativeArray;
+
+    ArrayFieldContext(final String parsedLhs, final boolean isNativeArray) {
+      this.parsedLhs = parsedLhs;
+      this.isNativeArray = isNativeArray;
+    }
+
+    String parsedLhs() {
+      return parsedLhs;
+    }
+
+    boolean isNativeArray() {
+      return isNativeArray;
     }
   }
 }

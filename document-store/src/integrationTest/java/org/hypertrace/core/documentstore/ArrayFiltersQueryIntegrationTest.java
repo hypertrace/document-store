@@ -2,7 +2,9 @@ package org.hypertrace.core.documentstore;
 
 import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.and;
 import static org.hypertrace.core.documentstore.expression.impl.LogicalExpression.not;
+import static org.hypertrace.core.documentstore.expression.operators.ArrayOperator.ALL;
 import static org.hypertrace.core.documentstore.expression.operators.ArrayOperator.ANY;
+import static org.hypertrace.core.documentstore.expression.operators.ArrayOperator.ONE;
 import static org.hypertrace.core.documentstore.model.config.DatabaseType.MONGO;
 import static org.hypertrace.core.documentstore.model.config.DatabaseType.POSTGRES;
 import static org.hypertrace.core.documentstore.utils.Utils.MONGO_STORE;
@@ -11,6 +13,7 @@ import static org.hypertrace.core.documentstore.utils.Utils.POSTGRES_STORE;
 import com.google.common.io.Resources;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -337,6 +340,84 @@ class ArrayFiltersQueryIntegrationTest {
 
     final Iterator<Document> documents = collection.aggregate(query);
     final String expected = readResource("environment_ids_subset.json");
+    final String actual = iteratorToJson(documents);
+
+    datastore.deleteCollection(testCollectionName);
+
+    JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
+  }
+
+  /**
+   * Tests MATCH_ALL semantics: documents whose array attribute contains every value specified in
+   * the filter.
+   */
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  void getDocumentsContainingAllGivenValues(final String dataStoreName)
+      throws JSONException, IOException {
+    final String testCollectionName = "array_match_test";
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    final Map<Key, Document> testDocuments =
+        Utils.buildDocumentsFromResource("query/array_operators/array_match_test.json");
+    datastore.deleteCollection(testCollectionName);
+    datastore.createCollection(testCollectionName, null);
+    final Collection collection = datastore.getCollection(testCollectionName);
+    collection.bulkUpsert(testDocuments);
+
+    final Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            RelationalOperator.IN,
+                            ConstantExpression.ofStrings(List.of("red", "blue"))))
+                    .build())
+            .build();
+
+    final Iterator<Document> documents = collection.aggregate(query);
+    final String expected = readResource("array_match_all_result.json");
+    final String actual = iteratorToJson(documents);
+
+    datastore.deleteCollection(testCollectionName);
+
+    JSONAssert.assertEquals(expected, actual, JSONCompareMode.LENIENT);
+  }
+
+  /**
+   * Tests MATCH_ONE semantics: documents whose array attribute has exactly one element, and that
+   * element is one of the values specified in the filter.
+   */
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
+  void getDocumentsWithExactlyOneElementMatchingGivenValues(final String dataStoreName)
+      throws JSONException, IOException {
+    final String testCollectionName = "array_match_test";
+    final Datastore datastore = datastoreMap.get(dataStoreName);
+    final Map<Key, Document> testDocuments =
+        Utils.buildDocumentsFromResource("query/array_operators/array_match_test.json");
+    datastore.deleteCollection(testCollectionName);
+    datastore.createCollection(testCollectionName, null);
+    final Collection collection = datastore.getCollection(testCollectionName);
+    collection.bulkUpsert(testDocuments);
+
+    final Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            RelationalOperator.IN,
+                            ConstantExpression.ofStrings(List.of("red", "blue"))))
+                    .build())
+            .build();
+
+    final Iterator<Document> documents = collection.aggregate(query);
+    final String expected = readResource("array_match_one_result.json");
     final String actual = iteratorToJson(documents);
 
     datastore.deleteCollection(testCollectionName);

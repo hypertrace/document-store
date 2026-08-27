@@ -1,0 +1,10 @@
+[
+  {
+    "name": "Document A",
+    "tags": ["red", "blue"]
+  },
+  {
+    "name": "Document B",
+    "tags": ["red", "blue", "green"]
+  }
+]
