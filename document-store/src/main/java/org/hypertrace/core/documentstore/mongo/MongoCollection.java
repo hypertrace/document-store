@@ -732,11 +732,12 @@ public class MongoCollection implements Collection {
   @Override
   public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
+    MongoCursor<BasicDBObject> mongoCursor = null;
     try {
       // First get all the documents for the given keys.
       FindIterable<BasicDBObject> cursor =
           collection.find(selectionCriteriaForKeys(documents.keySet()));
-      final MongoCursor<BasicDBObject> mongoCursor = cursor.cursor();
+      mongoCursor = cursor.cursor();
 
       // Now go ahead and do the bulk upsert.
       BulkWriteResult result = bulkUpsertImpl(documents);
@@ -750,13 +751,31 @@ public class MongoCollection implements Collection {
             result.wasAcknowledged() ? result.getUpserts().size() : -1,
             result.wasAcknowledged(),
             result);
+        closeQuietly(mongoCursor);
+        mongoCursor = null;
         throw new IOException("Incomplete bulk upsert.");
       }
 
-      return convertToDocumentIterator(mongoCursor);
+      CloseableIterator<Document> iterator = convertToDocumentIterator(mongoCursor);
+      mongoCursor = null; // ownership transferred to the iterator
+      return iterator;
     } catch (JsonProcessingException e) {
+      closeQuietly(mongoCursor);
       LOGGER.error("Error during bulk upsert for documents:{}", documents, e);
       throw new IOException("Error during bulk upsert.");
+    } catch (RuntimeException e) {
+      closeQuietly(mongoCursor);
+      throw e;
+    }
+  }
+
+  private static void closeQuietly(final MongoCursor<?> cursor) {
+    if (cursor != null) {
+      try {
+        cursor.close();
+      } catch (Exception e) {
+        LOGGER.warn("Failed to close Mongo cursor after bulk upsert failure", e);
+      }
     }
   }
 

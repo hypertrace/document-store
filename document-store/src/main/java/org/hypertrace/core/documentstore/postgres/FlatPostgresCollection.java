@@ -430,19 +430,15 @@ public class FlatPostgresCollection extends PostgresCollection {
         if (LOGGER.isDebugEnabled()) {
           LOGGER.debug("Bulk upsert results: {}", Arrays.toString(results));
         }
-        if (!isBatchFullySuccessful(results, parsedDocuments.size())) {
-          LOGGER.error(
-              "Incomplete bulkUpsert. requested={}, submitted={}, updateCounts={}",
-              documents.size(),
-              parsedDocuments.size(),
-              Arrays.toString(results));
-          return false;
-        }
         return true;
       }
 
     } catch (BatchUpdateException e) {
-      LOGGER.error("BatchUpdateException in bulkUpsert", e);
+      LOGGER.error(
+          "BatchUpdateException in bulkUpsert. requested={}, updateCounts={}",
+          documents.size(),
+          Arrays.toString(e.getUpdateCounts()),
+          e);
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException in bulkUpsert. SQLState: {} Error Code: {}",

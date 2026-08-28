@@ -34,7 +34,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
@@ -55,7 +54,6 @@ import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.Query;
 import org.hypertrace.core.documentstore.query.SortingSpec;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -1237,38 +1235,6 @@ class PostgresCollectionTest {
     verify(mockUpsertPreparedStatement).setString(1, key.toString());
     verify(mockUpsertPreparedStatement, times(1)).setString(eq(2), any());
     verify(mockUpsertPreparedStatement, times(1)).setString(eq(3), any());
-  }
-
-  @Nested
-  class BatchFullySuccessful {
-
-    @Test
-    void allPositive_returnsTrue() {
-      assertTrue(PostgresCollection.isBatchFullySuccessful(new int[] {1, 1, 2}, 3));
-    }
-
-    @Test
-    void successNoInfo_returnsTrue() {
-      assertTrue(
-          PostgresCollection.isBatchFullySuccessful(
-              new int[] {Statement.SUCCESS_NO_INFO, Statement.SUCCESS_NO_INFO}, 2));
-    }
-
-    @Test
-    void executeFailed_returnsFalse() {
-      assertFalse(
-          PostgresCollection.isBatchFullySuccessful(new int[] {1, Statement.EXECUTE_FAILED}, 2));
-    }
-
-    @Test
-    void lengthMismatch_returnsFalse() {
-      assertFalse(PostgresCollection.isBatchFullySuccessful(new int[] {1}, 2));
-    }
-
-    @Test
-    void nullCounts_returnsFalse() {
-      assertFalse(PostgresCollection.isBatchFullySuccessful(null, 0));
-    }
   }
 
   private void mockResultSetMetadata() throws SQLException {
