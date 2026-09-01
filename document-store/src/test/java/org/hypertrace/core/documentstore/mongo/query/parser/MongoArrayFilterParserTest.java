@@ -221,6 +221,21 @@ class MongoArrayFilterParserTest {
     assertThrows(UnsupportedOperationException.class, () -> parser.visit(expression));
   }
 
+  @Test
+  void testAllOperatorRejectsNonConstantRhs() {
+    final ArrayRelationalFilterExpression expression =
+        ArrayRelationalFilterExpression.builder()
+            .operator(ArrayOperator.ALL)
+            .filter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("tags"),
+                    RelationalOperator.IN,
+                    IdentifierExpression.of("otherField")))
+            .build();
+
+    assertThrows(UnsupportedOperationException.class, () -> parser.visit(expression));
+  }
+
   @SuppressWarnings("unchecked")
   private Map<String, Object> castToMap(final Object object) {
     return (Map<String, Object>) object;

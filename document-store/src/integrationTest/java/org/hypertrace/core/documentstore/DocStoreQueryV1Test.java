@@ -7324,6 +7324,130 @@ public class DocStoreQueryV1Test {
     }
 
     /**
+     * A non-array JSONB value (here props.brand, a string) must simply not match - the jsonb_typeof
+     * guard turns it into an empty array instead of failing the query. Postgres-only: MongoDB's
+     * $setIsSubset rejects non-array operands outright.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAllAndOneOnNonArrayJsonbValueDoNotMatch(String dataStoreName) {
+      Collection collection = getCollection(dataStoreName);
+
+      Query allQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.brand"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Dettol"))))
+                      .build())
+              .build();
+      assertEquals(0, collection.count(allQuery));
+
+      Query oneQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.brand"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Dettol"))))
+                      .build())
+              .build();
+      assertEquals(0, collection.count(oneQuery));
+    }
+
+    /**
+     * ALL/ONE on an array field nested three levels deep (props.metadata.colors), including
+     * documents with missing intermediate objects, which must simply not match.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAllAndOneOnDeeplyNestedArrayField(String dataStoreName) throws IOException {
+      String testCollectionName = "nested_array_match_test";
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Map<Key, Document> testDocuments =
+          Utils.buildDocumentsFromResource("query/array_operators/nested_array_match_test.json");
+      datastore.deleteCollection(testCollectionName);
+      datastore.createCollection(testCollectionName, null);
+      Collection collection = datastore.getCollection(testCollectionName);
+      collection.bulkUpsert(testDocuments);
+
+      Query allQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.metadata.colors"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("red", "blue"))))
+                      .build())
+              .build();
+      // Documents A [red, blue] and B [red, blue, green]; C-F miss at least one value or the
+      // field itself, G has no props at all
+      assertEquals(2, collection.count(allQuery));
+
+      Query oneQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.metadata.colors"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("red", "blue"))))
+                      .build())
+              .build();
+      // Only document C has exactly one element, and it is red
+      assertEquals(1, collection.count(oneQuery));
+
+      datastore.deleteCollection(testCollectionName);
+    }
+
+    /**
+     * Documents that ALL is order-independent: ["red", "blue"] ALL ["blue", "red"] is true in both
+     * backends ($setIsSubset and @> are both set containment).
+     */
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAllIsOrderIndependent(String dataStoreName) throws IOException {
+      String testCollectionName = "array_match_test";
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Map<Key, Document> testDocuments =
+          Utils.buildDocumentsFromResource("query/array_operators/array_match_test.json");
+      datastore.deleteCollection(testCollectionName);
+      datastore.createCollection(testCollectionName, null);
+      Collection collection = datastore.getCollection(testCollectionName);
+      collection.bulkUpsert(testDocuments);
+
+      Query query =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("blue", "red"))))
+                      .build())
+              .build();
+
+      // Documents A [red, blue] and B [red, blue, green] match despite the reversed filter order
+      assertEquals(2, collection.count(query));
+
+      datastore.deleteCollection(testCollectionName);
+    }
+
+    /**
      * Documents the set-containment semantics of ALL: duplicates in the document's array do not
      * affect the outcome. ["red", "red"] ALL ["red"] is true both in MongoDB ($setIsSubset treats
      * its operands as sets) and in Postgres (@> is element-wise containment).
