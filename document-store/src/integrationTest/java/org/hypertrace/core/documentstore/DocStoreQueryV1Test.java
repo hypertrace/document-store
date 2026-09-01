@@ -7193,7 +7193,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ONE)
+                      .operator(ArrayOperator.EXACTLY_ONE)
                       .filter(
                           RelationalExpression.of(
                               IdentifierExpression.of("props.colors"),
@@ -7208,7 +7208,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ONE)
+                      .operator(ArrayOperator.EXACTLY_ONE)
                       .filter(
                           RelationalExpression.of(
                               IdentifierExpression.of("props.colors"),
@@ -7264,7 +7264,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ONE)
+                      .operator(ArrayOperator.EXACTLY_ONE)
                       .filter(
                           RelationalExpression.of(
                               flags, IN, ConstantExpression.ofBooleans(List.of(true, false))))
@@ -7310,7 +7310,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ONE)
+                      .operator(ArrayOperator.EXACTLY_ONE)
                       .filter(
                           RelationalExpression.of(
                               JsonIdentifierExpression.of("props", "colors"),
@@ -7350,7 +7350,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ONE)
+                      .operator(ArrayOperator.EXACTLY_ONE)
                       .filter(
                           RelationalExpression.of(
                               IdentifierExpression.of("props.brand"),
@@ -7362,7 +7362,7 @@ public class DocStoreQueryV1Test {
     }
 
     /**
-     * ALL/ONE on an array field nested three levels deep (props.metadata.colors), including
+     * ALL/EXACTLY_ONE on an array field nested three levels deep (props.metadata.colors), including
      * documents with missing intermediate objects, which must simply not match.
      */
     @ParameterizedTest
@@ -7397,7 +7397,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ONE)
+                      .operator(ArrayOperator.EXACTLY_ONE)
                       .filter(
                           RelationalExpression.of(
                               IdentifierExpression.of("props.metadata.colors"),
@@ -7483,8 +7483,8 @@ public class DocStoreQueryV1Test {
     }
 
     /**
-     * Documents that ONE counts raw elements, not distinct values: a document with tags ["red",
-     * "red"] does NOT match ONE ["red"] because the array has two elements.
+     * Documents that EXACTLY_ONE counts raw elements, not distinct values: a document with tags
+     * ["red", "red"] does NOT match EXACTLY_ONE ["red"] because the array has two elements.
      */
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
@@ -7502,7 +7502,7 @@ public class DocStoreQueryV1Test {
           Query.builder()
               .setFilter(
                   ArrayRelationalFilterExpression.builder()
-                      .operator(ArrayOperator.ONE)
+                      .operator(ArrayOperator.EXACTLY_ONE)
                       .filter(
                           RelationalExpression.of(
                               IdentifierExpression.of("tags"),

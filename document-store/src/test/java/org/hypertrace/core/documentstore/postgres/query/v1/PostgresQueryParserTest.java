@@ -1985,7 +1985,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 ArrayRelationalFilterExpression.builder()
-                    .operator(ArrayOperator.ONE)
+                    .operator(ArrayOperator.EXACTLY_ONE)
                     .filter(
                         RelationalExpression.of(
                             IdentifierExpression.of("tags"),
@@ -2048,7 +2048,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 ArrayRelationalFilterExpression.builder()
-                    .operator(ArrayOperator.ONE)
+                    .operator(ArrayOperator.EXACTLY_ONE)
                     .filter(
                         RelationalExpression.of(
                             ArrayIdentifierExpression.ofStrings("tags"),
@@ -2112,7 +2112,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 ArrayRelationalFilterExpression.builder()
-                    .operator(ArrayOperator.ONE)
+                    .operator(ArrayOperator.EXACTLY_ONE)
                     .filter(
                         RelationalExpression.of(
                             IdentifierExpression.of("scope.environmentScope.environmentIds"),
@@ -2175,7 +2175,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 ArrayRelationalFilterExpression.builder()
-                    .operator(ArrayOperator.ONE)
+                    .operator(ArrayOperator.EXACTLY_ONE)
                     .filter(
                         RelationalExpression.of(
                             ArrayIdentifierExpression.ofLongs("ids"),
@@ -2258,7 +2258,7 @@ public class PostgresQueryParserTest {
         Query.builder()
             .setFilter(
                 ArrayRelationalFilterExpression.builder()
-                    .operator(ArrayOperator.ONE)
+                    .operator(ArrayOperator.EXACTLY_ONE)
                     .filter(
                         RelationalExpression.of(
                             IdentifierExpression.of("tags"),
@@ -2276,7 +2276,7 @@ public class PostgresQueryParserTest {
   @Test
   void testArrayOperatorsRejectEmptyValueList() {
     // Empty value lists are rejected at construction time by ConstantExpression itself, so they
-    // can never reach the ALL/ONE parsers
+    // can never reach the ALL/EXACTLY_ONE parsers
     assertThrows(IllegalArgumentException.class, () -> ConstantExpression.ofStrings(List.of()));
   }
 }

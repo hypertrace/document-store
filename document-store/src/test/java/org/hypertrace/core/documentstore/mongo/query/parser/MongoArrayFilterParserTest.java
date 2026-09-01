@@ -45,7 +45,7 @@ class MongoArrayFilterParserTest {
   void testOneOperator() {
     final ArrayRelationalFilterExpression expression =
         ArrayRelationalFilterExpression.builder()
-            .operator(ArrayOperator.ONE)
+            .operator(ArrayOperator.EXACTLY_ONE)
             .filter(
                 RelationalExpression.of(
                     IdentifierExpression.of("tags"),
@@ -165,7 +165,7 @@ class MongoArrayFilterParserTest {
   void testOneOperatorWithNestedArrayField() {
     final ArrayRelationalFilterExpression expression =
         ArrayRelationalFilterExpression.builder()
-            .operator(ArrayOperator.ONE)
+            .operator(ArrayOperator.EXACTLY_ONE)
             .filter(
                 RelationalExpression.of(
                     IdentifierExpression.of("scope.environmentScope.environmentIds"),
@@ -195,7 +195,7 @@ class MongoArrayFilterParserTest {
   void testOneOperatorRejectsNonConstantRhs() {
     final ArrayRelationalFilterExpression expression =
         ArrayRelationalFilterExpression.builder()
-            .operator(ArrayOperator.ONE)
+            .operator(ArrayOperator.EXACTLY_ONE)
             .filter(
                 RelationalExpression.of(
                     IdentifierExpression.of("tags"),
