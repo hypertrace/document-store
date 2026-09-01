@@ -7324,13 +7324,12 @@ public class DocStoreQueryV1Test {
     }
 
     /**
-     * A non-array JSONB value (here props.brand, a string) must simply not match - the jsonb_typeof
-     * guard turns it into an empty array instead of failing the query. Postgres-only: MongoDB's
-     * $setIsSubset rejects non-array operands outright.
+     * A non-array value (here props.brand, a string) must simply not match instead of failing the
+     * query - Postgres uses the jsonb_typeof guard, MongoDB an $isArray guard.
      */
     @ParameterizedTest
-    @ArgumentsSource(PostgresProvider.class)
-    void testAllAndOneOnNonArrayJsonbValueDoNotMatch(String dataStoreName) {
+    @ArgumentsSource(AllProvider.class)
+    void testAllAndOneOnNonArrayValueDoNotMatch(String dataStoreName) {
       Collection collection = getCollection(dataStoreName);
 
       Query allQuery =
@@ -7479,6 +7478,41 @@ public class DocStoreQueryV1Test {
 
       // Documents A [red, blue], B [red, blue, green], C [red] and G [red, red] all match
       assertEquals(4, collection.count(query));
+
+      datastore.deleteCollection(testCollectionName);
+    }
+
+    /**
+     * Documents that ONE counts raw elements, not distinct values: a document with tags ["red",
+     * "red"] does NOT match ONE ["red"] because the array has two elements.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testOneWithDuplicatesInDocumentArray(String dataStoreName) throws IOException {
+      String testCollectionName = "array_match_test";
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Map<Key, Document> testDocuments =
+          Utils.buildDocumentsFromResource("query/array_operators/array_match_test.json");
+      datastore.deleteCollection(testCollectionName);
+      datastore.createCollection(testCollectionName, null);
+      Collection collection = datastore.getCollection(testCollectionName);
+      collection.bulkUpsert(testDocuments);
+
+      Query query =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("red"))))
+                      .build())
+              .build();
+
+      // Only document C [red] matches; G [red, red] has two elements and is excluded
+      assertEquals(1, collection.count(query));
 
       datastore.deleteCollection(testCollectionName);
     }

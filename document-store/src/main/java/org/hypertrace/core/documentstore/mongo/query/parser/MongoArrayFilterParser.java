@@ -23,6 +23,8 @@ class MongoArrayFilterParser {
   private static final String MAP = "$map";
   private static final String INPUT = "input";
   private static final String IF_NULL = "$ifNull";
+  private static final String COND = "$cond";
+  private static final String IS_ARRAY = "$isArray";
   private static final String AS = "as";
   private static final String IN = "in";
   private static final String SET_IS_SUBSET = "$setIsSubset";
@@ -132,7 +134,7 @@ class MongoArrayFilterParser {
     "$expr": {
       "$setIsSubset": [
         ["Blue", "Green"],
-        { "$ifNull": ["$colors", []] }
+        { "$cond": [{ "$isArray": "$colors" }, "$colors", []] }
       ]
     }
   }
@@ -142,9 +144,7 @@ class MongoArrayFilterParser {
     final List<?> values = getFilterValues(arrayFilterExpression);
 
     final Map<String, Object> setIsSubset =
-        Map.of(
-            SET_IS_SUBSET,
-            List.of(values, Map.of(IF_NULL, new Object[] {mapInput, new Object[0]})));
+        Map.of(SET_IS_SUBSET, List.of(values, arrayOrEmpty(mapInput)));
     return wrapInExprIfNeeded(setIsSubset);
   }
 
@@ -152,8 +152,8 @@ class MongoArrayFilterParser {
   {
     "$expr": {
       "$and": [
-        { "$eq": [{ "$size": { "$ifNull": ["$colors", []] } }, 1] },
-        { "$in": [{ "$arrayElemAt": [{ "$ifNull": ["$colors", []] }, 0] }, ["Blue", "Green"]] }
+        { "$eq": [{ "$size": { "$cond": [{ "$isArray": "$colors" }, "$colors", []] } }, 1] },
+        { "$in": [{ "$arrayElemAt": [{ "$cond": [{ "$isArray": "$colors" }, "$colors", []] }, 0] }, ["Blue", "Green"]] }
       ]
     }
   }
@@ -161,14 +161,22 @@ class MongoArrayFilterParser {
   private Map<String, Object> parseOneOperator(final ArrayFilterExpression arrayFilterExpression) {
     final Object mapInput = getDollarPrefixedArraySource(arrayFilterExpression);
     final List<?> values = getFilterValues(arrayFilterExpression);
-    final Map<String, Object> arrayWithDefault =
-        Map.of(IF_NULL, new Object[] {mapInput, new Object[0]});
+    final Map<String, Object> arrayWithDefault = arrayOrEmpty(mapInput);
 
     final Map<String, Object> sizeIsOne = Map.of(EQ, List.of(Map.of(SIZE, arrayWithDefault), 1));
     final Map<String, Object> firstElementMatches =
         Map.of(IN_OPERATOR, List.of(Map.of(ARRAY_ELEM_AT, List.of(arrayWithDefault, 0)), values));
 
     return wrapInExprIfNeeded(Map.of(AND, List.of(sizeIsOne, firstElementMatches)));
+  }
+
+  /*
+   * Guards against missing, null and non-array (e.g. scalar) field values: $setIsSubset/$size
+   * error out on a non-array operand, whereas Postgres simply does not match such documents.
+   * $isArray is false for null/missing values, so this also subsumes $ifNull.
+   */
+  private Map<String, Object> arrayOrEmpty(final Object mapInput) {
+    return Map.of(COND, List.of(Map.of(IS_ARRAY, mapInput), mapInput, List.of()));
   }
 
   private String getDollarPrefixedArraySource(final ArrayFilterExpression arrayFilterExpression) {

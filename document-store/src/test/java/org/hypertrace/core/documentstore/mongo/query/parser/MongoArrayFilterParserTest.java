@@ -32,16 +32,13 @@ class MongoArrayFilterParserTest {
 
     final Map<String, Object> result = parser.visit(expression);
 
-    // {"$expr": {"$setIsSubset": [["Blue", "Green"], {"$ifNull": ["$tags", []]}]}}
+    // {"$expr": {"$setIsSubset": [["Blue", "Green"], {"$cond": [{"$isArray": "$tags"}, "$tags",
+    // []]}]}}
     final Map<String, Object> expr = getMap(result, "$expr");
     final List<Object> setIsSubset = getList(expr, "$setIsSubset");
     assertEquals(2, setIsSubset.size());
     assertEquals(List.of("Blue", "Green"), setIsSubset.get(0));
-
-    final Map<String, Object> ifNull = castToMap(setIsSubset.get(1));
-    final Object[] ifNullArgs = (Object[]) ifNull.get("$ifNull");
-    assertEquals("$tags", ifNullArgs[0]);
-    assertEquals(0, ((Object[]) ifNullArgs[1]).length);
+    assertArrayGuard(setIsSubset.get(1), "$tags");
   }
 
   @Test
@@ -60,8 +57,8 @@ class MongoArrayFilterParserTest {
 
     /*
     {"$expr": {"$and": [
-      {"$eq": [{"$size": {"$ifNull": ["$tags", []]}}, 1]},
-      {"$in": [{"$arrayElemAt": [{"$ifNull": ["$tags", []]}, 0]}, ["Blue", "Green"]]}
+      {"$eq": [{"$size": {"$cond": [{"$isArray": "$tags"}, "$tags", []]}}, 1]},
+      {"$in": [{"$arrayElemAt": [{"$cond": [{"$isArray": "$tags"}, "$tags", []]}, 0]}, ["Blue", "Green"]]}
     ]}}
      */
     final Map<String, Object> expr = getMap(result, "$expr");
@@ -70,17 +67,13 @@ class MongoArrayFilterParserTest {
 
     final List<Object> eq = getList(castToMap(and.get(0)), "$eq");
     final Map<String, Object> size = castToMap(eq.get(0));
-    final Map<String, Object> sizeIfNull = castToMap(size.get("$size"));
-    final Object[] sizeIfNullArgs = (Object[]) sizeIfNull.get("$ifNull");
-    assertEquals("$tags", sizeIfNullArgs[0]);
+    assertArrayGuard(size.get("$size"), "$tags");
     assertEquals(1, eq.get(1));
 
     final List<Object> in = getList(castToMap(and.get(1)), "$in");
     final Map<String, Object> arrayElemAt = castToMap(in.get(0));
     final List<Object> arrayElemAtArgs = getList(arrayElemAt, "$arrayElemAt");
-    final Map<String, Object> elemIfNull = castToMap(arrayElemAtArgs.get(0));
-    final Object[] elemIfNullArgs = (Object[]) elemIfNull.get("$ifNull");
-    assertEquals("$tags", elemIfNullArgs[0]);
+    assertArrayGuard(arrayElemAtArgs.get(0), "$tags");
     assertEquals(0, arrayElemAtArgs.get(1));
     assertEquals(List.of("Blue", "Green"), in.get(1));
   }
@@ -165,11 +158,7 @@ class MongoArrayFilterParserTest {
     final Map<String, Object> expr = getMap(result, "$expr");
     final List<Object> setIsSubset = getList(expr, "$setIsSubset");
     assertEquals(List.of("env-1", "env-2"), setIsSubset.get(0));
-
-    final Map<String, Object> ifNull = castToMap(setIsSubset.get(1));
-    final Object[] ifNullArgs = (Object[]) ifNull.get("$ifNull");
-    assertEquals("$scope.environmentScope.environmentIds", ifNullArgs[0]);
-    assertEquals(0, ((Object[]) ifNullArgs[1]).length);
+    assertArrayGuard(setIsSubset.get(1), "$scope.environmentScope.environmentIds");
   }
 
   @Test
@@ -192,17 +181,13 @@ class MongoArrayFilterParserTest {
 
     final List<Object> eq = getList(castToMap(and.get(0)), "$eq");
     final Map<String, Object> size = castToMap(eq.get(0));
-    final Map<String, Object> sizeIfNull = castToMap(size.get("$size"));
-    final Object[] sizeIfNullArgs = (Object[]) sizeIfNull.get("$ifNull");
-    assertEquals("$scope.environmentScope.environmentIds", sizeIfNullArgs[0]);
+    assertArrayGuard(size.get("$size"), "$scope.environmentScope.environmentIds");
     assertEquals(1, eq.get(1));
 
     final List<Object> in = getList(castToMap(and.get(1)), "$in");
     final Map<String, Object> arrayElemAt = castToMap(in.get(0));
     final List<Object> arrayElemAtArgs = getList(arrayElemAt, "$arrayElemAt");
-    final Map<String, Object> elemIfNull = castToMap(arrayElemAtArgs.get(0));
-    final Object[] elemIfNullArgs = (Object[]) elemIfNull.get("$ifNull");
-    assertEquals("$scope.environmentScope.environmentIds", elemIfNullArgs[0]);
+    assertArrayGuard(arrayElemAtArgs.get(0), "$scope.environmentScope.environmentIds");
     assertEquals(List.of("env-1", "env-2"), in.get(1));
   }
 
@@ -234,6 +219,15 @@ class MongoArrayFilterParserTest {
             .build();
 
     assertThrows(UnsupportedOperationException.class, () -> parser.visit(expression));
+  }
+
+  /** Asserts the {"$cond": [{"$isArray": path}, path, []]} guard for the given field path. */
+  private void assertArrayGuard(final Object guard, final String expectedPath) {
+    final List<Object> condArgs = getList(castToMap(guard), "$cond");
+    assertEquals(3, condArgs.size());
+    assertEquals(Map.of("$isArray", expectedPath), condArgs.get(0));
+    assertEquals(expectedPath, condArgs.get(1));
+    assertEquals(List.of(), condArgs.get(2));
   }
 
   @SuppressWarnings("unchecked")

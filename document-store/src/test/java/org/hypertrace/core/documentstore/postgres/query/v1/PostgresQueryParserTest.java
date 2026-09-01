@@ -2002,16 +2002,13 @@ public class PostgresQueryParserTest {
         "SELECT * FROM \"testCollection\" "
             + "WHERE jsonb_array_length((CASE WHEN jsonb_typeof(document->'tags') = 'array' "
             + "THEN document->'tags' ELSE '[]'::jsonb END)) = 1 "
-            + "AND ((CASE WHEN jsonb_typeof(document->'tags') = 'array' "
-            + "THEN document->'tags' ELSE '[]'::jsonb END) @> ?::jsonb "
-            + "OR (CASE WHEN jsonb_typeof(document->'tags') = 'array' "
-            + "THEN document->'tags' ELSE '[]'::jsonb END) @> ?::jsonb)",
+            + "AND (CASE WHEN jsonb_typeof(document->'tags') = 'array' "
+            + "THEN document->'tags' ELSE '[]'::jsonb END) <@ ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
-    assertEquals(2, params.getObjectParams().size());
-    assertEquals("[\"premium\"]", params.getObjectParams().get(1));
-    assertEquals("[\"sale\"]", params.getObjectParams().get(2));
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals("[\"premium\",\"sale\"]", params.getObjectParams().get(1));
   }
 
   @Test
@@ -2036,8 +2033,7 @@ public class PostgresQueryParserTest {
             new FlatPostgresFieldTransformer());
 
     String sql = postgresQueryParser.parse();
-    assertEquals(
-        "SELECT * FROM \"testCollection\" WHERE COALESCE(\"tags\", ARRAY[]::text[]) @> ?", sql);
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"tags\" @> ?", sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
@@ -2070,8 +2066,7 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE array_length(COALESCE(\"tags\", ARRAY[]::text[]), 1) = 1 "
-            + "AND COALESCE(\"tags\", ARRAY[]::text[]) && ?",
+            + "WHERE array_length(\"tags\", 1) = 1 AND \"tags\" && ?",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2134,16 +2129,13 @@ public class PostgresQueryParserTest {
         "SELECT * FROM \"testCollection\" "
             + "WHERE jsonb_array_length((CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
             + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END)) = 1 "
-            + "AND ((CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
-            + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END) @> ?::jsonb "
-            + "OR (CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
-            + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END) @> ?::jsonb)",
+            + "AND (CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
+            + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END) <@ ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
-    assertEquals(2, params.getObjectParams().size());
-    assertEquals("[\"env-1\"]", params.getObjectParams().get(1));
-    assertEquals("[\"env-2\"]", params.getObjectParams().get(2));
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals("[\"env-1\",\"env-2\"]", params.getObjectParams().get(1));
   }
 
   @Test
@@ -2170,8 +2162,7 @@ public class PostgresQueryParserTest {
             new FlatPostgresFieldTransformer());
 
     String sql = postgresQueryParser.parse();
-    assertEquals(
-        "SELECT * FROM \"testCollection\" WHERE COALESCE(\"ids\", ARRAY[]::int8[]) @> ?", sql);
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"ids\" @> ?", sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
@@ -2201,9 +2192,7 @@ public class PostgresQueryParserTest {
 
     String sql = postgresQueryParser.parse();
     assertEquals(
-        "SELECT * FROM \"testCollection\" "
-            + "WHERE array_length(COALESCE(\"ids\", ARRAY[]::int8[]), 1) = 1 "
-            + "AND COALESCE(\"ids\", ARRAY[]::int8[]) && ?",
+        "SELECT * FROM \"testCollection\" " + "WHERE array_length(\"ids\", 1) = 1 AND \"ids\" && ?",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2235,8 +2224,7 @@ public class PostgresQueryParserTest {
             new FlatPostgresFieldTransformer());
 
     String sql = postgresQueryParser.parse();
-    assertEquals(
-        "SELECT * FROM \"testCollection\" WHERE COALESCE(\"tags\", ARRAY[]::text[]) @> ?", sql);
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"tags\" @> ?", sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
