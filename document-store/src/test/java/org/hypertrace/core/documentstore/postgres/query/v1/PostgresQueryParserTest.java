@@ -27,6 +27,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
 import java.util.List;
@@ -2240,5 +2241,54 @@ public class PostgresQueryParserTest {
     Params params = postgresQueryParser.getParamsBuilder().build();
     Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
     assertEquals("text", arrayParam.getSqlType());
+  }
+
+  @Test
+  void testAllOperatorRejectsNonConstantRhs() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            IN,
+                            IdentifierExpression.of("otherField")))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    assertThrows(UnsupportedOperationException.class, postgresQueryParser::parse);
+  }
+
+  @Test
+  void testOneOperatorRejectsNonConstantRhs() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            IN,
+                            IdentifierExpression.of("otherField")))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    assertThrows(UnsupportedOperationException.class, postgresQueryParser::parse);
+  }
+
+  @Test
+  void testArrayOperatorsRejectEmptyValueList() {
+    // Empty value lists are rejected at construction time by ConstantExpression itself, so they
+    // can never reach the ALL/ONE parsers
+    assertThrows(IllegalArgumentException.class, () -> ConstantExpression.ofStrings(List.of()));
   }
 }
