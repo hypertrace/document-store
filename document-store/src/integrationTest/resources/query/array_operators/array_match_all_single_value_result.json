@@ -1,35 +1,17 @@
 [
   {
-    "_id": 1,
     "name": "Document A",
     "tags": ["red", "blue"]
   },
   {
-    "_id": 2,
     "name": "Document B",
     "tags": ["red", "blue", "green"]
   },
   {
-    "_id": 3,
     "name": "Document C",
     "tags": ["red"]
   },
   {
-    "_id": 4,
-    "name": "Document D",
-    "tags": ["yellow"]
-  },
-  {
-    "_id": 5,
-    "name": "Document E",
-    "tags": []
-  },
-  {
-    "_id": 6,
-    "name": "Document F"
-  },
-  {
-    "_id": 7,
     "name": "Document G",
     "tags": ["red", "red"]
   }

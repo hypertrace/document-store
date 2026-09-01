@@ -149,6 +149,64 @@ class MongoArrayFilterParserTest {
   }
 
   @Test
+  void testAllOperatorWithNestedArrayField() {
+    final ArrayRelationalFilterExpression expression =
+        ArrayRelationalFilterExpression.builder()
+            .operator(ArrayOperator.ALL)
+            .filter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("scope.environmentScope.environmentIds"),
+                    RelationalOperator.IN,
+                    ConstantExpression.ofStrings(List.of("env-1", "env-2"))))
+            .build();
+
+    final Map<String, Object> result = parser.visit(expression);
+
+    final Map<String, Object> expr = getMap(result, "$expr");
+    final List<Object> setIsSubset = getList(expr, "$setIsSubset");
+    assertEquals(List.of("env-1", "env-2"), setIsSubset.get(0));
+
+    final Map<String, Object> ifNull = castToMap(setIsSubset.get(1));
+    final Object[] ifNullArgs = (Object[]) ifNull.get("$ifNull");
+    assertEquals("$scope.environmentScope.environmentIds", ifNullArgs[0]);
+    assertEquals(0, ((Object[]) ifNullArgs[1]).length);
+  }
+
+  @Test
+  void testOneOperatorWithNestedArrayField() {
+    final ArrayRelationalFilterExpression expression =
+        ArrayRelationalFilterExpression.builder()
+            .operator(ArrayOperator.ONE)
+            .filter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("scope.environmentScope.environmentIds"),
+                    RelationalOperator.IN,
+                    ConstantExpression.ofStrings(List.of("env-1", "env-2"))))
+            .build();
+
+    final Map<String, Object> result = parser.visit(expression);
+
+    final Map<String, Object> expr = getMap(result, "$expr");
+    final List<Object> and = getList(expr, "$and");
+    assertEquals(2, and.size());
+
+    final List<Object> eq = getList(castToMap(and.get(0)), "$eq");
+    final Map<String, Object> size = castToMap(eq.get(0));
+    final Map<String, Object> sizeIfNull = castToMap(size.get("$size"));
+    final Object[] sizeIfNullArgs = (Object[]) sizeIfNull.get("$ifNull");
+    assertEquals("$scope.environmentScope.environmentIds", sizeIfNullArgs[0]);
+    assertEquals(1, eq.get(1));
+
+    final List<Object> in = getList(castToMap(and.get(1)), "$in");
+    final Map<String, Object> arrayElemAt = castToMap(in.get(0));
+    final List<Object> arrayElemAtArgs = getList(arrayElemAt, "$arrayElemAt");
+    final Map<String, Object> elemIfNull = castToMap(arrayElemAtArgs.get(0));
+    final Object[] elemIfNullArgs = (Object[]) elemIfNull.get("$ifNull");
+    assertEquals("$scope.environmentScope.environmentIds", elemIfNullArgs[0]);
+    assertEquals(List.of("env-1", "env-2"), in.get(1));
+  }
+
+  @Test
   void testOneOperatorRejectsNonConstantRhs() {
     final ArrayRelationalFilterExpression expression =
         ArrayRelationalFilterExpression.builder()
