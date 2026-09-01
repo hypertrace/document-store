@@ -2109,4 +2109,136 @@ public class PostgresQueryParserTest {
     assertEquals(1, params.getObjectParams().size());
     assertEquals("[\"env-1\",\"env-2\"]", params.getObjectParams().get(1));
   }
+
+  @Test
+  void testOneOperatorWithNestedJsonbArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("scope.environmentScope.environmentIds"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("env-1", "env-2"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE jsonb_array_length((CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
+            + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END)) = 1 "
+            + "AND ((CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
+            + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END) @> ?::jsonb "
+            + "OR (CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
+            + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END) @> ?::jsonb)",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(2, params.getObjectParams().size());
+    assertEquals("[\"env-1\"]", params.getObjectParams().get(1));
+    assertEquals("[\"env-2\"]", params.getObjectParams().get(2));
+  }
+
+  @Test
+  void testAllOperatorPrefersCompileTimeFieldTypeOverValueInference() {
+    // The field is declared as a long array, but the filter values are Integers. The
+    // compile-time type info on the field expression must win over value-based inference.
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            ArrayIdentifierExpression.ofLongs("ids"),
+                            IN,
+                            ConstantExpression.ofNumbers(List.of(1, 2))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" WHERE COALESCE(\"ids\", ARRAY[]::int8[]) @> ?", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("int8", arrayParam.getSqlType());
+  }
+
+  @Test
+  void testOneOperatorPrefersCompileTimeFieldTypeOverValueInference() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            ArrayIdentifierExpression.ofLongs("ids"),
+                            IN,
+                            ConstantExpression.ofNumbers(List.of(1, 2))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE array_length(COALESCE(\"ids\", ARRAY[]::int8[]), 1) = 1 "
+            + "AND COALESCE(\"ids\", ARRAY[]::int8[]) && ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("int8", arrayParam.getSqlType());
+  }
+
+  @Test
+  void testAllOperatorFallsBackToValueInferenceWithoutFieldTypeInfo() {
+    // A plain IdentifierExpression carries no compile-time type info, so the array element
+    // type is inferred from the filter values.
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("premium", "sale"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" WHERE COALESCE(\"tags\", ARRAY[]::text[]) @> ?", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("text", arrayParam.getSqlType());
+  }
 }

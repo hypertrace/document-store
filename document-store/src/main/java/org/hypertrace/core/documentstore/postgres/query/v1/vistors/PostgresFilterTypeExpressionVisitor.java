@@ -19,9 +19,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.expression.impl.ArrayFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.DataType;
 import org.hypertrace.core.documentstore.expression.impl.DocumentArrayFilterExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.JsonIdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
@@ -347,17 +350,22 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
   /*
   Native array (flat collection):
     COALESCE(tags, ARRAY[]::text[]) @> ?   -- bound as a typed array param, e.g. ['Blue','Green']
+    The element type comes from the compile-time type info on the field expression
+    (ArrayIdentifierExpression), falling back to inference from the filter values.
 
   JSONB array (nested collection or JSONB column in a flat collection):
     (CASE WHEN jsonb_typeof(colors) = 'array' THEN colors ELSE '[]'::jsonb END) @> ?::jsonb
                                             -- bound as the JSON text '["Blue","Green"]'
+    JSONB is schemaless, so the runtime jsonb_typeof guard is retained here to tolerate
+    JSON null / non-array values; top-level native array columns need no such check.
    */
   private String getFilterStringForAllOperator(final ArrayFilterExpression expression) {
     final List<?> values = getArrayOperatorFilterValues(expression);
     final ArrayFieldContext fieldContext = getArrayFieldContext(expression);
 
     if (fieldContext.isNativeArray()) {
-      final PostgresDataType dataType = resolvePostgresDataType(values);
+      final PostgresDataType dataType =
+          resolvePostgresDataType(expression.getArraySource(), values);
       postgresQueryParser.getParamsBuilder().addArrayParam(values.toArray(), dataType.getSqlType());
       return String.format(
           "COALESCE(%s, ARRAY[]%s) @> ?", fieldContext.parsedLhs(), dataType.getArrayTypeCast());
@@ -386,7 +394,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     final ArrayFieldContext fieldContext = getArrayFieldContext(expression);
 
     if (fieldContext.isNativeArray()) {
-      final PostgresDataType dataType = resolvePostgresDataType(values);
+      final PostgresDataType dataType =
+          resolvePostgresDataType(expression.getArraySource(), values);
       final String arrayTypeCast = dataType.getArrayTypeCast();
       final String coalescedArray =
           String.format("COALESCE(%s, ARRAY[]%s)", fieldContext.parsedLhs(), arrayTypeCast);
@@ -461,6 +470,34 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
 
     final Object value = ((ConstantExpression) rhs).getValue();
     return value instanceof List ? (List<?>) value : List.of(value);
+  }
+
+  /**
+   * Resolves the PostgreSQL element type for a native array field, preferring the compile-time type
+   * carried by the field expression ({@link ArrayIdentifierExpression#getElementDataType()} /
+   * {@link IdentifierExpression#getDataType()}) and falling back to inference from the filter
+   * values only when the field carries no type info.
+   */
+  private PostgresDataType resolvePostgresDataType(
+      final SelectTypeExpression arraySource, final List<?> values) {
+    final PostgresDataType fieldType = getCompileTimeFieldType(arraySource);
+    return fieldType != PostgresDataType.UNKNOWN ? fieldType : resolvePostgresDataType(values);
+  }
+
+  private PostgresDataType getCompileTimeFieldType(final SelectTypeExpression arraySource) {
+    final DataType dataType;
+    if (arraySource instanceof ArrayIdentifierExpression) {
+      dataType = ((ArrayIdentifierExpression) arraySource).getElementDataType();
+    } else if (arraySource instanceof IdentifierExpression) {
+      dataType = ((IdentifierExpression) arraySource).getDataType();
+    } else {
+      return PostgresDataType.UNKNOWN;
+    }
+    // JSON has no scalar Postgres mapping for native array casts; treat it like UNSPECIFIED
+    if (dataType == DataType.UNSPECIFIED || dataType == DataType.JSON) {
+      return PostgresDataType.UNKNOWN;
+    }
+    return PostgresDataType.fromDataType(dataType);
   }
 
   private PostgresDataType resolvePostgresDataType(final List<?> values) {

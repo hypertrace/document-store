@@ -2,35 +2,40 @@
   {
     "_id": 1,
     "name": "Document A",
-    "tags": ["red", "blue"]
+    "props": {
+      "colors": ["red", "blue"]
+    }
   },
   {
     "_id": 2,
     "name": "Document B",
-    "tags": ["red", "blue", "green"]
+    "props": {
+      "colors": ["red", "blue", "green"]
+    }
   },
   {
     "_id": 3,
     "name": "Document C",
-    "tags": ["red"]
+    "props": {
+      "colors": ["red"]
+    }
   },
   {
     "_id": 4,
     "name": "Document D",
-    "tags": ["yellow"]
+    "props": {
+      "colors": ["yellow"]
+    }
   },
   {
     "_id": 5,
     "name": "Document E",
-    "tags": []
+    "props": {
+      "colors": []
+    }
   },
   {
     "_id": 6,
     "name": "Document F"
-  },
-  {
-    "_id": 7,
-    "name": "Document G",
-    "tags": ["red", "red"]
   }
 ]
