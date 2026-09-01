@@ -10,7 +10,9 @@ public enum ArrayOperator {
   /**
    * Array attribute must contain exactly one element, and that element must be one of the values
    * specified in the filter. The cardinality check is on the raw element count, not distinct
-   * values, e.g. [red, red] ONE [red] is false because the array has two elements.
+   * values, e.g. [red, red] EXACTLY_ONE [red] is false because the array has two elements.
    */
-  ONE,
+  EXACTLY_ONE,
+  // Future consideration: an EXACTLY operator for set equality - the array contains exactly the
+  // filter values, no more and no less.
 }

@@ -127,7 +127,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
         return getFilterStringForAnyOperator(expression);
       case ALL:
         return getFilterStringForAllOperator(expression);
-      case ONE:
+      case EXACTLY_ONE:
         return getFilterStringForOneOperator(expression);
       default:
         throw new UnsupportedOperationException(
@@ -150,7 +150,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
         return getFilterStringForAnyOperator(expression);
       case ALL:
         return getFilterStringForAllOperator(expression);
-      case ONE:
+      case EXACTLY_ONE:
         return getFilterStringForOneOperator(expression);
       default:
         throw new UnsupportedOperationException(

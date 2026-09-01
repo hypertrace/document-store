@@ -54,7 +54,7 @@ class MongoArrayFilterParser {
     switch (arrayFilterExpression.getOperator()) {
       case ALL:
         return parseAllOperator(arrayFilterExpression);
-      case ONE:
+      case EXACTLY_ONE:
         return parseOneOperator(arrayFilterExpression);
       default:
         return parseAnyOperator(arrayFilterExpression);
