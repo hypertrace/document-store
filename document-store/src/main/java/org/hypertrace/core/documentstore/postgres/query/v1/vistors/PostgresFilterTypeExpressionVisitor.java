@@ -349,7 +349,9 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
 
   /*
   Native array (flat collection):
-    COALESCE(tags, ARRAY[]::text[]) @> ?   -- bound as a typed array param, e.g. ['Blue','Green']
+    tags @> ?   -- bound as a typed array param, e.g. ['Blue','Green']
+    No COALESCE: a NULL array makes the predicate evaluate to NULL, which excludes the row
+    anyway, and the unwrapped column reference keeps the filter GIN-indexable (SARGable).
     The element type comes from the compile-time type info on the field expression
     (ArrayIdentifierExpression), falling back to inference from the filter values.
 
@@ -367,27 +369,27 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
       final PostgresDataType dataType =
           resolvePostgresDataType(expression.getArraySource(), values);
       postgresQueryParser.getParamsBuilder().addArrayParam(values.toArray(), dataType.getSqlType());
-      return String.format(
-          "COALESCE(%s, ARRAY[]%s) @> ?", fieldContext.parsedLhs(), dataType.getArrayTypeCast());
+      return String.format("%s @> ?", fieldContext.parsedLhs());
     }
 
-    final String coalescedArray =
+    final String guardedArray =
         String.format(
             "(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END)",
             fieldContext.parsedLhs(), fieldContext.parsedLhs());
     postgresQueryParser.getParamsBuilder().addObjectParam(toJsonArrayString(values));
-    return String.format("%s @> ?::jsonb", coalescedArray);
+    return String.format("%s @> ?::jsonb", guardedArray);
   }
 
   /*
   Native array (flat collection):
-    array_length(COALESCE(tags, ARRAY[]::text[]), 1) = 1
-      AND COALESCE(tags, ARRAY[]::text[]) && ?      -- bound as a typed array param
+    array_length(tags, 1) = 1 AND tags && ?   -- bound as a typed array param
+    NULL-safe without COALESCE: both predicates evaluate to NULL for NULL arrays.
 
   JSONB array (nested collection or JSONB column in a flat collection):
-    jsonb_array_length(<coalesced array>) = 1
-      AND (<coalesced array> @> ?::jsonb OR <coalesced array> @> ?::jsonb ...)
-                                            -- one bound single-element JSON array per filter value
+    jsonb_array_length(<guarded array>) = 1 AND <guarded array> <@ ?::jsonb
+                                            -- bound as the JSON text '["Blue","Green"]'
+    With exactly one element, "the element is one of the filter values" is equivalent to the
+    array being contained in the filter values (<@) - one bound param, no OR chain.
    */
   private String getFilterStringForOneOperator(final ArrayFilterExpression expression) {
     final List<?> values = getArrayOperatorFilterValues(expression);
@@ -396,30 +398,19 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     if (fieldContext.isNativeArray()) {
       final PostgresDataType dataType =
           resolvePostgresDataType(expression.getArraySource(), values);
-      final String arrayTypeCast = dataType.getArrayTypeCast();
-      final String coalescedArray =
-          String.format("COALESCE(%s, ARRAY[]%s)", fieldContext.parsedLhs(), arrayTypeCast);
       postgresQueryParser.getParamsBuilder().addArrayParam(values.toArray(), dataType.getSqlType());
-      return String.format("array_length(%s, 1) = 1 AND %s && ?", coalescedArray, coalescedArray);
+      return String.format(
+          "array_length(%s, 1) = 1 AND %s && ?",
+          fieldContext.parsedLhs(), fieldContext.parsedLhs());
     }
 
-    final String coalescedArray =
+    final String guardedArray =
         String.format(
             "(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END)",
             fieldContext.parsedLhs(), fieldContext.parsedLhs());
-    final String matchesAnyValue =
-        values.isEmpty()
-            ? "FALSE"
-            : values.stream()
-                .map(
-                    value -> {
-                      postgresQueryParser
-                          .getParamsBuilder()
-                          .addObjectParam(toJsonArrayString(List.of(value)));
-                      return String.format("%s @> ?::jsonb", coalescedArray);
-                    })
-                .collect(Collectors.joining(" OR "));
-    return String.format("jsonb_array_length(%s) = 1 AND (%s)", coalescedArray, matchesAnyValue);
+    postgresQueryParser.getParamsBuilder().addObjectParam(toJsonArrayString(values));
+    return String.format(
+        "jsonb_array_length(%s) = 1 AND %s <@ ?::jsonb", guardedArray, guardedArray);
   }
 
   private ArrayFieldContext getArrayFieldContext(final ArrayFilterExpression expression) {
