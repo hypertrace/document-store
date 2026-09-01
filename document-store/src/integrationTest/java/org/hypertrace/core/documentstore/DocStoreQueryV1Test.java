@@ -7141,6 +7141,225 @@ public class DocStoreQueryV1Test {
         "DateConstantExpression should throw UnsupportedOperationException for Postgres");
   }
 
+  @Nested
+  class ArrayMatchAllOneOperatorTest {
+
+    /*
+     * props.colors in the shared document collection:
+     *   id 1: [Blue, Green], id 3: [Black], id 5: [Orange, Blue], id 7: [], rest: absent
+     */
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAllOnNestedJsonbArrayField(String dataStoreName) {
+      Collection collection = getCollection(dataStoreName);
+
+      Query allBlueAndGreen =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.colors"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Blue", "Green"))))
+                      .build())
+              .build();
+      // Only id 1 contains both Blue and Green
+      assertEquals(1, collection.count(allBlueAndGreen));
+
+      Query allBlue =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.colors"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Blue"))))
+                      .build())
+              .build();
+      // ids 1 and 5 contain Blue
+      assertEquals(2, collection.count(allBlue));
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testOneOnNestedJsonbArrayField(String dataStoreName) {
+      Collection collection = getCollection(dataStoreName);
+
+      Query oneBlackOrWhite =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.colors"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Black", "White"))))
+                      .build())
+              .build();
+      // Only id 3 has exactly one element, and it is Black
+      assertEquals(1, collection.count(oneBlackOrWhite));
+
+      Query oneBlue =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.colors"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Blue"))))
+                      .build())
+              .build();
+      // No single-element array contains Blue
+      assertEquals(0, collection.count(oneBlue));
+    }
+
+    /*
+     * tags (TEXT[]) in the flat collection:
+     *   id 1: {hygiene, personal-care, premium} is the only array containing both hygiene
+     *   and premium
+     * flags (BOOLEAN[]): id 8: {true} is the only single-element array
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresArrayTypeProvider.class)
+    void testAllOnNativeArrayColumn(String dataStoreName, String expressionType) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+      ArrayIdentifierExpression tags =
+          "WITH_TYPE".equals(expressionType)
+              ? ArrayIdentifierExpression.ofStrings("tags")
+              : ArrayIdentifierExpression.of("tags");
+
+      Query query =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              tags,
+                              IN,
+                              ConstantExpression.ofStrings(List.of("hygiene", "premium"))))
+                      .build())
+              .build();
+
+      assertEquals(1, flatCollection.count(query));
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresArrayTypeProvider.class)
+    void testOneOnNativeArrayColumn(String dataStoreName, String expressionType) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+      ArrayIdentifierExpression flags =
+          "WITH_TYPE".equals(expressionType)
+              ? ArrayIdentifierExpression.ofBooleans("flags")
+              : ArrayIdentifierExpression.of("flags");
+
+      Query query =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              flags, IN, ConstantExpression.ofBooleans(List.of(true, false))))
+                      .build())
+              .build();
+
+      // Only id 8 has a single-element flags array
+      assertEquals(1, flatCollection.count(query));
+    }
+
+    /*
+     * props.colors JSONB array column in the flat collection:
+     *   id 1: [Blue, Green], id 3: [Black], id 5: [Orange, Blue], id 7: []
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAllOnJsonbArrayColumn(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      Query query =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", "colors"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Blue", "Green"))))
+                      .build())
+              .build();
+
+      // Only id 1 contains both Blue and Green
+      assertEquals(1, flatCollection.count(query));
+    }
+
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testOneOnJsonbArrayColumn(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      Query query =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", "colors"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Black", "White"))))
+                      .build())
+              .build();
+
+      // Only id 3 has exactly one element, and it is Black
+      assertEquals(1, flatCollection.count(query));
+    }
+
+    /**
+     * Documents the set-containment semantics of ALL: duplicates in the document's array do not
+     * affect the outcome. ["red", "red"] ALL ["red"] is true both in MongoDB ($setIsSubset treats
+     * its operands as sets) and in Postgres (@> is element-wise containment).
+     */
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAllWithDuplicatesInDocumentArray(String dataStoreName) throws IOException {
+      String testCollectionName = "array_match_test";
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Map<Key, Document> testDocuments =
+          Utils.buildDocumentsFromResource("query/array_operators/array_match_test.json");
+      datastore.deleteCollection(testCollectionName);
+      datastore.createCollection(testCollectionName, null);
+      Collection collection = datastore.getCollection(testCollectionName);
+      collection.bulkUpsert(testDocuments);
+
+      Query query =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("red"))))
+                      .build())
+              .build();
+
+      // Documents A [red, blue], B [red, blue, green], C [red] and G [red, red] all match
+      assertEquals(4, collection.count(query));
+
+      datastore.deleteCollection(testCollectionName);
+    }
+  }
+
   private static Collection getCollection(final String dataStoreName) {
     return getCollection(dataStoreName, COLLECTION_NAME);
   }
