@@ -7224,7 +7224,7 @@ public class DocStoreQueryV1Test {
      * tags (TEXT[]) in the flat collection:
      *   id 1: {hygiene, personal-care, premium} is the only array containing both hygiene
      *   and premium
-     * flags (BOOLEAN[]): id 8: {true} is the only single-element array
+     * flags (BOOLEAN[]): id 5: {false} and id 8: {true} are the only single-element arrays
      */
     @ParameterizedTest
     @ArgumentsSource(PostgresArrayTypeProvider.class)
@@ -7260,7 +7260,7 @@ public class DocStoreQueryV1Test {
               ? ArrayIdentifierExpression.ofBooleans("flags")
               : ArrayIdentifierExpression.of("flags");
 
-      Query query =
+      Query oneTrueOrFalse =
           Query.builder()
               .setFilter(
                   ArrayRelationalFilterExpression.builder()
@@ -7271,8 +7271,22 @@ public class DocStoreQueryV1Test {
                       .build())
               .build();
 
-      // Only id 8 has a single-element flags array
-      assertEquals(1, flatCollection.count(query));
+      // ids 5 ({false}) and 8 ({true}) are the only single-element flags arrays
+      assertEquals(2, flatCollection.count(oneTrueOrFalse));
+
+      Query oneTrue =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.EXACTLY_ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              flags, IN, ConstantExpression.ofBooleans(List.of(true))))
+                      .build())
+              .build();
+
+      // Only id 8 ({true}); id 5's single element is false, multi-element arrays are excluded
+      assertEquals(1, flatCollection.count(oneTrue));
     }
 
     /*
