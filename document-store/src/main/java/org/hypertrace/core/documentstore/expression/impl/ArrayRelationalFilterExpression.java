@@ -24,6 +24,11 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
  *
  * Order and duplicates are ignored (set semantics).
  *
+ * <p>The inner {@code IN} RHS is a scalar list — arrays of arrays cannot be expressed. The
+ * operators apply to the outermost array only: a stored element that is itself an array is opaque
+ * and never matches a scalar RHS value, and length/cardinality checks count top-level elements
+ * only.
+ *
  * <p>Example: If color is an array field <code>
  * ANY(color) IN ('Blue', 'Green')
  * </code> can be constructed as <code>
