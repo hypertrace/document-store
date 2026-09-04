@@ -27,6 +27,7 @@ import static org.hypertrace.core.documentstore.expression.operators.RelationalO
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.ASC;
 import static org.hypertrace.core.documentstore.expression.operators.SortOrder.DESC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,6 +35,7 @@ import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.expression.impl.AggregateExpression;
 import org.hypertrace.core.documentstore.expression.impl.ArrayIdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.ArrayRelationalFilterExpression;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
@@ -43,6 +45,7 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
 import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
 import org.hypertrace.core.documentstore.expression.impl.UnnestExpression;
+import org.hypertrace.core.documentstore.expression.operators.ArrayOperator;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.postgres.Params;
 import org.hypertrace.core.documentstore.postgres.PostgresTableIdentifier;
@@ -1944,5 +1947,570 @@ public class PostgresQueryParserTest {
     Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
     assertEquals("text", arrayParam.getSqlType());
     assertEquals(2, arrayParam.getValues().length);
+  }
+
+  @Test
+  void testAllOperatorWithJsonbArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("premium", "sale"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE document->'tags' @> ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals("[\"premium\",\"sale\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testOneOperatorWithJsonbArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.EXACTLY_ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("premium", "sale"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE (CASE WHEN jsonb_typeof(document->'tags') = 'array' "
+            + "THEN jsonb_array_length(document->'tags') ELSE 0 END) = 1 "
+            + "AND document->'tags' <@ ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals("[\"premium\",\"sale\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testAllOperatorWithNativeArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            ArrayIdentifierExpression.ofStrings("tags"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("premium", "sale"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"tags\" @> ?", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("text", arrayParam.getSqlType());
+    assertEquals(2, arrayParam.getValues().length);
+  }
+
+  @Test
+  void testOneOperatorWithNativeArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.EXACTLY_ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            ArrayIdentifierExpression.ofStrings("tags"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("premium", "sale"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE array_length(\"tags\", 1) = 1 AND \"tags\" && ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("text", arrayParam.getSqlType());
+    assertEquals(2, arrayParam.getValues().length);
+  }
+
+  @Test
+  void testAllOperatorWithNativeBooleanArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            ArrayIdentifierExpression.ofBooleans("flags"),
+                            IN,
+                            ConstantExpression.ofBooleans(List.of(true, false))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"flags\" @> ?", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("bool", arrayParam.getSqlType());
+    assertEquals(2, arrayParam.getValues().length);
+  }
+
+  @Test
+  void testOneOperatorWithNativeBooleanArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.EXACTLY_ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            ArrayIdentifierExpression.ofBooleans("flags"),
+                            IN,
+                            ConstantExpression.ofBooleans(List.of(true))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE array_length(\"flags\", 1) = 1 AND \"flags\" && ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("bool", arrayParam.getSqlType());
+    assertEquals(1, arrayParam.getValues().length);
+  }
+
+  @Test
+  void testAllOperatorWithJsonIdentifierOnFlatJsonbColumn() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            JsonIdentifierExpression.of("props", "colors"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("Blue", "Green"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE \"props\"->'colors' @> ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals("[\"Blue\",\"Green\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testOneOperatorWithJsonIdentifierOnFlatJsonbColumn() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.EXACTLY_ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            JsonIdentifierExpression.of("props", "colors"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("Black", "White"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE (CASE WHEN jsonb_typeof(\"props\"->'colors') = 'array' "
+            + "THEN jsonb_array_length(\"props\"->'colors') ELSE 0 END) = 1 "
+            + "AND \"props\"->'colors' <@ ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals("[\"Black\",\"White\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testAllOperatorWithMultiLevelJsonPathOnFlatJsonbColumn() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            JsonIdentifierExpression.of("props", "metadata", "colors"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("red", "blue"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE \"props\"->'metadata'->'colors' @> ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals("[\"red\",\"blue\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testOneOperatorWithMultiLevelJsonPathOnFlatJsonbColumn() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.EXACTLY_ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            JsonIdentifierExpression.of("props", "metadata", "colors"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("red", "blue"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE (CASE WHEN jsonb_typeof(\"props\"->'metadata'->'colors') = 'array' "
+            + "THEN jsonb_array_length(\"props\"->'metadata'->'colors') ELSE 0 END) = 1 "
+            + "AND \"props\"->'metadata'->'colors' <@ ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals("[\"red\",\"blue\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testEqWithStringOnNumericJsonbFieldUsesTextComparison() {
+    // EQ infers CAST from the RHS type. A string RHS does not CAST AS NUMERIC, so Postgres
+    // compares document->>'quantity' as text ("10" matches JSON number 10). Mongo EQ is
+    // BSON-type-strict and would not match. ALL/EXACTLY_ONE do not use this text path.
+    Query query =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("quantity"), EQ, ConstantExpression.of("10")))
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE document->>'quantity' = ?", sql);
+    assertEquals("10", postgresQueryParser.getParamsBuilder().build().getObjectParams().get(1));
+  }
+
+  @Test
+  void testAllOperatorWithNumericValuesOnStringJsonbArraySerializesJsonNumbers() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("props.colors"),
+                            IN,
+                            ConstantExpression.ofNumbers(List.of(1, 2))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE document->'props'->'colors' @> ?::jsonb",
+        sql);
+    assertEquals("[1,2]", postgresQueryParser.getParamsBuilder().build().getObjectParams().get(1));
+  }
+
+  @Test
+  void testAllOperatorWithNestedJsonbArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("scope.environmentScope.environmentIds"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("env-1", "env-2"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE document->'scope'->'environmentScope'->'environmentIds' @> ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals("[\"env-1\",\"env-2\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testOneOperatorWithNestedJsonbArrayField() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.EXACTLY_ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("scope.environmentScope.environmentIds"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("env-1", "env-2"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE (CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
+            + "THEN jsonb_array_length(document->'scope'->'environmentScope'->'environmentIds') ELSE 0 END) = 1 "
+            + "AND document->'scope'->'environmentScope'->'environmentIds' <@ ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals(1, params.getObjectParams().size());
+    assertEquals("[\"env-1\",\"env-2\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testAllOperatorPrefersCompileTimeFieldTypeOverValueInference() {
+    // The field is declared as a long array, but the filter values are Integers. The
+    // compile-time type info on the field expression must win over value-based inference.
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            ArrayIdentifierExpression.ofLongs("ids"),
+                            IN,
+                            ConstantExpression.ofNumbers(List.of(1, 2))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"ids\" @> ?", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("int8", arrayParam.getSqlType());
+  }
+
+  @Test
+  void testOneOperatorPrefersCompileTimeFieldTypeOverValueInference() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.EXACTLY_ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            ArrayIdentifierExpression.ofLongs("ids"),
+                            IN,
+                            ConstantExpression.ofNumbers(List.of(1, 2))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" " + "WHERE array_length(\"ids\", 1) = 1 AND \"ids\" && ?",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("int8", arrayParam.getSqlType());
+  }
+
+  @Test
+  void testAllOperatorFallsBackToValueInferenceWithoutFieldTypeInfo() {
+    // A plain IdentifierExpression carries no compile-time type info, so the array element
+    // type is inferred from the filter values.
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("premium", "sale"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals("SELECT * FROM \"testCollection\" WHERE \"tags\" @> ?", sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    Params.ArrayParam arrayParam = (Params.ArrayParam) params.getObjectParams().get(1);
+    assertEquals("text", arrayParam.getSqlType());
+  }
+
+  @Test
+  void testAllOperatorRejectsNonConstantRhs() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            IN,
+                            IdentifierExpression.of("otherField")))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    assertThrows(UnsupportedOperationException.class, postgresQueryParser::parse);
+  }
+
+  @Test
+  void testOneOperatorRejectsNonConstantRhs() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.EXACTLY_ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            IdentifierExpression.of("tags"),
+                            IN,
+                            IdentifierExpression.of("otherField")))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    assertThrows(UnsupportedOperationException.class, postgresQueryParser::parse);
+  }
+
+  @Test
+  void testArrayOperatorsRejectEmptyValueList() {
+    // Empty value lists are rejected at construction time by ConstantExpression itself, so they
+    // can never reach the ALL/EXACTLY_ONE parsers
+    assertThrows(IllegalArgumentException.class, () -> ConstantExpression.ofStrings(List.of()));
   }
 }

@@ -11,7 +11,23 @@ import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
 
 /**
- * Expression representing a condition for filtering on array fields
+ * Expression representing a condition for filtering on array fields.
+ *
+ * <p>When the inner filter uses {@code IN}, that operator is <em>element membership</em>, not array
+ * equality. Combined with {@link ArrayOperator}:
+ *
+ * <ul>
+ *   <li>{@code ALL}: the RHS set is a subset of the stored array (every listed value appears in
+ *       the array).
+ *   <li>{@code EXACTLY_ONE}: the stored array has length 1 and that element is in the RHS set.
+ * </ul>
+ *
+ * Order and duplicates are ignored (set semantics).
+ *
+ * <p>The inner {@code IN} RHS is a scalar list — arrays of arrays cannot be expressed. The
+ * operators apply to the outermost array only: a stored element that is itself an array is opaque
+ * and never matches a scalar RHS value, and length/cardinality checks count top-level elements
+ * only.
  *
  * <p>Example: If color is an array field <code>
  * ANY(color) IN ('Blue', 'Green')
