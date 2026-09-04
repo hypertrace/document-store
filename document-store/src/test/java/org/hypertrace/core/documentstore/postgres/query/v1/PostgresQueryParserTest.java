@@ -1970,8 +1970,7 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE (CASE WHEN jsonb_typeof(document->'tags') = 'array' "
-            + "THEN document->'tags' ELSE '[]'::jsonb END) @> ?::jsonb",
+            + "WHERE document->'tags' @> ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2000,10 +1999,9 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE jsonb_array_length((CASE WHEN jsonb_typeof(document->'tags') = 'array' "
-            + "THEN document->'tags' ELSE '[]'::jsonb END)) = 1 "
-            + "AND (CASE WHEN jsonb_typeof(document->'tags') = 'array' "
-            + "THEN document->'tags' ELSE '[]'::jsonb END) <@ ?::jsonb",
+            + "WHERE (CASE WHEN jsonb_typeof(document->'tags') = 'array' "
+            + "THEN jsonb_array_length(document->'tags') ELSE 0 END) = 1 "
+            + "AND document->'tags' <@ ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2164,8 +2162,7 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE (CASE WHEN jsonb_typeof(\"props\"->'colors') = 'array' "
-            + "THEN \"props\"->'colors' ELSE '[]'::jsonb END) @> ?::jsonb",
+            + "WHERE \"props\"->'colors' @> ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2196,10 +2193,9 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE jsonb_array_length((CASE WHEN jsonb_typeof(\"props\"->'colors') = 'array' "
-            + "THEN \"props\"->'colors' ELSE '[]'::jsonb END)) = 1 "
-            + "AND (CASE WHEN jsonb_typeof(\"props\"->'colors') = 'array' "
-            + "THEN \"props\"->'colors' ELSE '[]'::jsonb END) <@ ?::jsonb",
+            + "WHERE (CASE WHEN jsonb_typeof(\"props\"->'colors') = 'array' "
+            + "THEN jsonb_array_length(\"props\"->'colors') ELSE 0 END) = 1 "
+            + "AND \"props\"->'colors' <@ ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2230,8 +2226,7 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE (CASE WHEN jsonb_typeof(\"props\"->'metadata'->'colors') = 'array' "
-            + "THEN \"props\"->'metadata'->'colors' ELSE '[]'::jsonb END) @> ?::jsonb",
+            + "WHERE \"props\"->'metadata'->'colors' @> ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2262,10 +2257,9 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE jsonb_array_length((CASE WHEN jsonb_typeof(\"props\"->'metadata'->'colors') = 'array' "
-            + "THEN \"props\"->'metadata'->'colors' ELSE '[]'::jsonb END)) = 1 "
-            + "AND (CASE WHEN jsonb_typeof(\"props\"->'metadata'->'colors') = 'array' "
-            + "THEN \"props\"->'metadata'->'colors' ELSE '[]'::jsonb END) <@ ?::jsonb",
+            + "WHERE (CASE WHEN jsonb_typeof(\"props\"->'metadata'->'colors') = 'array' "
+            + "THEN jsonb_array_length(\"props\"->'metadata'->'colors') ELSE 0 END) = 1 "
+            + "AND \"props\"->'metadata'->'colors' <@ ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2313,8 +2307,7 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE (CASE WHEN jsonb_typeof(document->'props'->'colors') = 'array' "
-            + "THEN document->'props'->'colors' ELSE '[]'::jsonb END) @> ?::jsonb",
+            + "WHERE document->'props'->'colors' @> ?::jsonb",
         sql);
     assertEquals("[1,2]", postgresQueryParser.getParamsBuilder().build().getObjectParams().get(1));
   }
@@ -2340,8 +2333,7 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE (CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
-            + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END) @> ?::jsonb",
+            + "WHERE document->'scope'->'environmentScope'->'environmentIds' @> ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2370,10 +2362,9 @@ public class PostgresQueryParserTest {
     String sql = postgresQueryParser.parse();
     assertEquals(
         "SELECT * FROM \"testCollection\" "
-            + "WHERE jsonb_array_length((CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
-            + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END)) = 1 "
-            + "AND (CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
-            + "THEN document->'scope'->'environmentScope'->'environmentIds' ELSE '[]'::jsonb END) <@ ?::jsonb",
+            + "WHERE (CASE WHEN jsonb_typeof(document->'scope'->'environmentScope'->'environmentIds') = 'array' "
+            + "THEN jsonb_array_length(document->'scope'->'environmentScope'->'environmentIds') ELSE 0 END) = 1 "
+            + "AND document->'scope'->'environmentScope'->'environmentIds' <@ ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();

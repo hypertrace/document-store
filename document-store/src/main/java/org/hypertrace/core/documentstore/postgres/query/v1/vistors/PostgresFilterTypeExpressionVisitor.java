@@ -356,10 +356,9 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     (ArrayIdentifierExpression), falling back to inference from the filter values.
 
   JSONB array (nested collection or JSONB column in a flat collection):
-    (CASE WHEN jsonb_typeof(colors) = 'array' THEN colors ELSE '[]'::jsonb END) @> ?::jsonb
-                                            -- bound as the JSON text '["Blue","Green"]'
-    JSONB is schemaless, so the runtime jsonb_typeof guard is retained here to tolerate
-    JSON null / non-array values; top-level native array columns need no such check.
+    colors @> ?::jsonb          -- bound as the JSON text '["Blue","Green"]'
+    No jsonb_typeof guard is needed: jsonb containment (@>) is total on non-array values -
+    it returns false on scalars/objects and NULL on SQL NULL / missing keys, never errors.
    */
   private String getFilterStringForAllOperator(final ArrayFilterExpression expression) {
     final List<?> values = getArrayOperatorFilterValues(expression);
@@ -372,12 +371,8 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
       return String.format("%s @> ?", fieldContext.parsedLhs());
     }
 
-    final String guardedArray =
-        String.format(
-            "(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END)",
-            fieldContext.parsedLhs(), fieldContext.parsedLhs());
     postgresQueryParser.getParamsBuilder().addObjectParam(toJsonArrayString(values));
-    return String.format("%s @> ?::jsonb", guardedArray);
+    return String.format("%s @> ?::jsonb", fieldContext.parsedLhs());
   }
 
   /*
@@ -386,10 +381,16 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
     NULL-safe without COALESCE: both predicates evaluate to NULL for NULL arrays.
 
   JSONB array (nested collection or JSONB column in a flat collection):
-    jsonb_array_length(<guarded array>) = 1 AND <guarded array> <@ ?::jsonb
-                                            -- bound as the JSON text '["Blue","Green"]'
+    (CASE WHEN jsonb_typeof(colors) = 'array' THEN jsonb_array_length(colors) ELSE 0 END) = 1
+      AND colors <@ ?::jsonb    -- bound as the JSON text '["Blue","Green"]'
     With exactly one element, "the element is one of the filter values" is equivalent to the
     array being contained in the filter values (<@) - one bound param, no OR chain.
+    The containment conjunct (<@) needs no guard: like @>, it is total on non-array jsonb
+    (false on scalars, NULL on SQL NULL / missing keys, never errors). The length check,
+    however, does: jsonb_array_length() raises "cannot get array length of a scalar" on
+    non-array jsonb, and Postgres does not guarantee WHERE conjunct evaluation order, so a
+    plain AND-chained jsonb_typeof check is not a safe guard - CASE is the order-forcing
+    construct. Non-array input takes the ELSE branch (0 != 1), so the row is excluded.
    */
   private String getFilterStringForOneOperator(final ArrayFilterExpression expression) {
     final List<?> values = getArrayOperatorFilterValues(expression);
@@ -404,13 +405,13 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
           fieldContext.parsedLhs(), fieldContext.parsedLhs());
     }
 
-    final String guardedArray =
+    final String guardedLength =
         String.format(
-            "(CASE WHEN jsonb_typeof(%s) = 'array' THEN %s ELSE '[]'::jsonb END)",
+            "(CASE WHEN jsonb_typeof(%s) = 'array' THEN jsonb_array_length(%s) ELSE 0 END)",
             fieldContext.parsedLhs(), fieldContext.parsedLhs());
     postgresQueryParser.getParamsBuilder().addObjectParam(toJsonArrayString(values));
     return String.format(
-        "jsonb_array_length(%s) = 1 AND %s <@ ?::jsonb", guardedArray, guardedArray);
+        "%s = 1 AND %s <@ ?::jsonb", guardedLength, fieldContext.parsedLhs());
   }
 
   private ArrayFieldContext getArrayFieldContext(final ArrayFilterExpression expression) {
