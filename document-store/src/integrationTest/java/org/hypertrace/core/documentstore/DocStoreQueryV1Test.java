@@ -7665,6 +7665,66 @@ public class DocStoreQueryV1Test {
       datastore.deleteCollection(testCollectionName);
     }
 
+    /**
+     * Pins the nested-array semantics of ALL/EXACTLY_ONE: the operators see only the OUTERMOST
+     * array. The RHS of the inner {@code IN} is scalar-only ({@link ConstantExpression} cannot
+     * express an array of arrays), and a stored element that is itself an array is compared by
+     * value equality, so it never matches a scalar RHS value. Length checks count top-level
+     * elements only.
+     *
+     * <p>Behavior is identical on MongoDB ({@code $setIsSubset}/{@code $size}/{@code $arrayElemAt})
+     * and Postgres JSONB ({@code @>}, {@code jsonb_array_length}, {@code <@}).
+     *
+     * <p>There is no flat-collection variant of this test: native {@code TEXT[]} columns cannot
+     * hold nested arrays, so this case is document/JSONB-only.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAllAndOneTreatNestedArrayElementsAsOpaque(String dataStoreName) throws IOException {
+      String testCollectionName = "nested_array_elements_test";
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Map<Key, Document> testDocuments =
+          Utils.buildDocumentsFromResource(
+              "query/array_operators/nested_array_elements_test.json");
+      datastore.deleteCollection(testCollectionName);
+      datastore.createCollection(testCollectionName, null);
+      Collection collection = datastore.getCollection(testCollectionName);
+      collection.bulkUpsert(testDocuments);
+
+      Query allQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("red"))))
+                      .build())
+              .build();
+      // id 1's elements are ["red", "blue"] and "green" (neither equals scalar "red"); id 3's
+      // only element is the array ["red"], not the scalar "red"
+      assertEquals(Set.of("2"), collectNormalizedIds(collection, allQuery));
+
+      Query oneQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.EXACTLY_ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("red"))))
+                      .build())
+              .build();
+      // id 3 has length 1 but its single element is an array, so it must NOT match
+      assertEquals(Set.of("2"), collectNormalizedIds(collection, oneQuery));
+
+      datastore.deleteCollection(testCollectionName);
+    }
+
     /*
      * Flat counterpart of query/array_operators/array_match_test.json as a native TEXT[] column:
      *   id 1: {red, blue}, id 2: {red, blue, green}, id 3: {red}, id 4: {yellow},

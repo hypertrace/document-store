@@ -7,6 +7,10 @@ public enum ArrayOperator {
    * ALL} means the RHS set is a subset of the stored array: every listed value appears in the
    * array. Order and duplicates are ignored (set semantics), e.g. {@code [red, red] ALL [red]} is
    * true.
+   *
+   * <p>The RHS is a scalar list — arrays of arrays cannot be expressed. The operator applies to
+   * the outermost array only: a stored element that is itself an array is opaque and never matches
+   * a scalar RHS value.
    */
   ALL,
   /**
@@ -15,6 +19,10 @@ public enum ArrayOperator {
    * RHS set. Order and duplicates in the RHS are ignored (set semantics). The cardinality check is
    * on the raw element count, not distinct values, e.g. {@code [red, red] EXACTLY_ONE [red]} is
    * false because the array has two elements.
+   *
+   * <p>The RHS is a scalar list — arrays of arrays cannot be expressed. The operator applies to
+   * the outermost array only: a stored element that is itself an array is opaque and never matches
+   * a scalar RHS value, and the length check counts top-level elements only.
    */
   EXACTLY_ONE,
   // Future consideration: an EXACTLY operator for set equality - the array contains exactly the
