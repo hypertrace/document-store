@@ -7791,6 +7791,111 @@ public class DocStoreQueryV1Test {
     }
 
     /**
+     * Explicit guarantee: rows where the array field is missing or empty never match ALL or
+     * EXACTLY_ONE. Postgres: {@code NULL @> ...} and {@code array_length(NULL, 1)} evaluate to
+     * NULL (not true), and an empty array also has {@code array_length('{}', 1) = NULL}. MongoDB:
+     * a missing field fails the $isArray/$size guards. Document E (id 5) has an empty array,
+     * document F (id 6) has no tags field at all.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAllAndOneExcludeNullAndEmptyArrays(String dataStoreName) throws IOException {
+      String testCollectionName = "array_match_test";
+      Datastore datastore = datastoreMap.get(dataStoreName);
+      Map<Key, Document> testDocuments =
+          Utils.buildDocumentsFromResource("query/array_operators/array_match_test.json");
+      datastore.deleteCollection(testCollectionName);
+      datastore.createCollection(testCollectionName, null);
+      Collection collection = datastore.getCollection(testCollectionName);
+      collection.bulkUpsert(testDocuments);
+
+      Query allQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("red"))))
+                      .build())
+              .build();
+      Set<String> allIds = collectNormalizedIds(collection, allQuery);
+      // Positive control: the query does match rows with real arrays
+      assertEquals(Set.of("1", "2", "3", "7"), allIds);
+      assertFalse(allIds.contains("5"), "empty array must not match ALL");
+      assertFalse(allIds.contains("6"), "missing field must not match ALL");
+
+      Query oneQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.EXACTLY_ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("tags"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("red"))))
+                      .build())
+              .build();
+      Set<String> oneIds = collectNormalizedIds(collection, oneQuery);
+      assertEquals(Set.of("3"), oneIds);
+      assertFalse(oneIds.contains("5"), "empty array must not match EXACTLY_ONE");
+      assertFalse(oneIds.contains("6"), "missing field must not match EXACTLY_ONE");
+
+      datastore.deleteCollection(testCollectionName);
+    }
+
+    /**
+     * Flat counterpart of {@link #testAllAndOneExcludeNullAndEmptyArrays} on a native TEXT[]
+     * column: id 5 has {@code '{}'} and id 6 has {@code NULL}.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresArrayTypeProvider.class)
+    void testAllAndOneExcludeNullAndEmptyArraysFlat(String dataStoreName, String expressionType)
+        throws SQLException, JsonProcessingException {
+      Collection flatCollection = createFlatArrayMatchTable();
+      try {
+        Query allQuery =
+            Query.builder()
+                .setFilter(
+                    ArrayRelationalFilterExpression.builder()
+                        .operator(ArrayOperator.ALL)
+                        .filter(
+                            RelationalExpression.of(
+                                tagsExpression(expressionType),
+                                IN,
+                                ConstantExpression.ofStrings(List.of("red"))))
+                        .build())
+                .build();
+        Set<String> allIds = collectNormalizedIds(flatCollection, allQuery);
+        assertEquals(Set.of("1", "2", "3", "7"), allIds);
+        assertFalse(allIds.contains("5"), "empty array must not match ALL");
+        assertFalse(allIds.contains("6"), "NULL array must not match ALL");
+
+        Query oneQuery =
+            Query.builder()
+                .setFilter(
+                    ArrayRelationalFilterExpression.builder()
+                        .operator(ArrayOperator.EXACTLY_ONE)
+                        .filter(
+                            RelationalExpression.of(
+                                tagsExpression(expressionType),
+                                IN,
+                                ConstantExpression.ofStrings(List.of("red"))))
+                        .build())
+                .build();
+        Set<String> oneIds = collectNormalizedIds(flatCollection, oneQuery);
+        assertEquals(Set.of("3"), oneIds);
+        assertFalse(oneIds.contains("5"), "empty array must not match EXACTLY_ONE");
+        assertFalse(oneIds.contains("6"), "NULL array must not match EXACTLY_ONE");
+      } finally {
+        dropFlatArrayMatchTable();
+      }
+    }
+
+    /**
      * Type mismatch vs EQ/IN (string vs number), observed in ITs (not invented):
      *
      * <ul>
