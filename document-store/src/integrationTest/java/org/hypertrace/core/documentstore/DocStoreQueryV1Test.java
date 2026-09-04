@@ -68,6 +68,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -7147,10 +7148,15 @@ public class DocStoreQueryV1Test {
     /*
      * props.colors in the shared document collection:
      *   id 1: [Blue, Green], id 3: [Black], id 5: [Orange, Blue], id 7: [], rest: absent
+     *
+     * Nested/document collections do not accept JsonIdentifierExpression
+     * (NestedPostgresColTransformer rejects it). IdentifierExpression.of("props.colors")
+     * is the document-collection equivalent of JsonIdentifierExpression.of("props", "colors")
+     * used for flat JSONB columns below.
      */
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
-    void testAllOnNestedJsonbArrayField(String dataStoreName) {
+    void testAllOnNestedJsonbArrayField(String dataStoreName) throws JsonProcessingException {
       Collection collection = getCollection(dataStoreName);
 
       Query allBlueAndGreen =
@@ -7166,7 +7172,7 @@ public class DocStoreQueryV1Test {
                       .build())
               .build();
       // Only id 1 contains both Blue and Green
-      assertEquals(1, collection.count(allBlueAndGreen));
+      assertEquals(Set.of("1"), collectNormalizedIds(collection, allBlueAndGreen));
 
       Query allBlue =
           Query.builder()
@@ -7181,12 +7187,12 @@ public class DocStoreQueryV1Test {
                       .build())
               .build();
       // ids 1 and 5 contain Blue
-      assertEquals(2, collection.count(allBlue));
+      assertEquals(Set.of("1", "5"), collectNormalizedIds(collection, allBlue));
     }
 
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
-    void testOneOnNestedJsonbArrayField(String dataStoreName) {
+    void testOneOnNestedJsonbArrayField(String dataStoreName) throws JsonProcessingException {
       Collection collection = getCollection(dataStoreName);
 
       Query oneBlackOrWhite =
@@ -7202,7 +7208,7 @@ public class DocStoreQueryV1Test {
                       .build())
               .build();
       // Only id 3 has exactly one element, and it is Black
-      assertEquals(1, collection.count(oneBlackOrWhite));
+      assertEquals(Set.of("3"), collectNormalizedIds(collection, oneBlackOrWhite));
 
       Query oneBlue =
           Query.builder()
@@ -7217,7 +7223,7 @@ public class DocStoreQueryV1Test {
                       .build())
               .build();
       // No single-element array contains Blue
-      assertEquals(0, collection.count(oneBlue));
+      assertEquals(Set.of(), collectNormalizedIds(collection, oneBlue));
     }
 
     /*
@@ -7228,7 +7234,8 @@ public class DocStoreQueryV1Test {
      */
     @ParameterizedTest
     @ArgumentsSource(PostgresArrayTypeProvider.class)
-    void testAllOnNativeArrayColumn(String dataStoreName, String expressionType) {
+    void testAllOnNativeArrayColumn(String dataStoreName, String expressionType)
+        throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
       ArrayIdentifierExpression tags =
           "WITH_TYPE".equals(expressionType)
@@ -7248,12 +7255,14 @@ public class DocStoreQueryV1Test {
                       .build())
               .build();
 
-      assertEquals(1, flatCollection.count(query));
+      // Only id 1 contains both hygiene and premium
+      assertEquals(Set.of("1"), collectNormalizedIds(flatCollection, query));
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresArrayTypeProvider.class)
-    void testOneOnNativeArrayColumn(String dataStoreName, String expressionType) {
+    void testOneOnNativeArrayColumn(String dataStoreName, String expressionType)
+        throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
       ArrayIdentifierExpression flags =
           "WITH_TYPE".equals(expressionType)
@@ -7272,7 +7281,7 @@ public class DocStoreQueryV1Test {
               .build();
 
       // ids 5 ({false}) and 8 ({true}) are the only single-element flags arrays
-      assertEquals(2, flatCollection.count(oneTrueOrFalse));
+      assertEquals(Set.of("5", "8"), collectNormalizedIds(flatCollection, oneTrueOrFalse));
 
       Query oneTrue =
           Query.builder()
@@ -7286,7 +7295,7 @@ public class DocStoreQueryV1Test {
               .build();
 
       // Only id 8 ({true}); id 5's single element is false, multi-element arrays are excluded
-      assertEquals(1, flatCollection.count(oneTrue));
+      assertEquals(Set.of("8"), collectNormalizedIds(flatCollection, oneTrue));
     }
 
     /*
@@ -7295,7 +7304,7 @@ public class DocStoreQueryV1Test {
      */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testAllOnJsonbArrayColumn(String dataStoreName) {
+    void testAllOnJsonbArrayColumn(String dataStoreName) throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
@@ -7312,12 +7321,12 @@ public class DocStoreQueryV1Test {
               .build();
 
       // Only id 1 contains both Blue and Green
-      assertEquals(1, flatCollection.count(query));
+      assertEquals(Set.of("1"), collectNormalizedIds(flatCollection, query));
     }
 
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
-    void testOneOnJsonbArrayColumn(String dataStoreName) {
+    void testOneOnJsonbArrayColumn(String dataStoreName) throws JsonProcessingException {
       Collection flatCollection = getFlatCollection(dataStoreName);
 
       Query query =
@@ -7334,16 +7343,17 @@ public class DocStoreQueryV1Test {
               .build();
 
       // Only id 3 has exactly one element, and it is Black
-      assertEquals(1, flatCollection.count(query));
+      assertEquals(Set.of("3"), collectNormalizedIds(flatCollection, query));
     }
 
     /**
-     * A non-array value (here props.brand, a string) must simply not match instead of failing the
-     * query - Postgres uses the jsonb_typeof guard, MongoDB an $isArray guard.
+     * A nested non-array value (here props.brand, a string) must simply not match instead of
+     * failing the query - Postgres uses the jsonb_typeof guard, MongoDB an $isArray guard.
      */
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
-    void testAllAndOneOnNonArrayValueDoNotMatch(String dataStoreName) {
+    void testAllAndOneOnNonArrayValueDoNotMatch(String dataStoreName)
+        throws JsonProcessingException {
       Collection collection = getCollection(dataStoreName);
 
       Query allQuery =
@@ -7358,7 +7368,7 @@ public class DocStoreQueryV1Test {
                               ConstantExpression.ofStrings(List.of("Dettol"))))
                       .build())
               .build();
-      assertEquals(0, collection.count(allQuery));
+      assertEquals(Set.of(), collectNormalizedIds(collection, allQuery));
 
       Query oneQuery =
           Query.builder()
@@ -7372,7 +7382,131 @@ public class DocStoreQueryV1Test {
                               ConstantExpression.ofStrings(List.of("Dettol"))))
                       .build())
               .build();
-      assertEquals(0, collection.count(oneQuery));
+      assertEquals(Set.of(), collectNormalizedIds(collection, oneQuery));
+    }
+
+    /**
+     * Flat-collection counterpart of {@link #testAllAndOneOnNonArrayValueDoNotMatch}: on a flat
+     * JSONB column, a scalar value (props.brand is a string, not an array) must not match. The
+     * flat JSONB path applies the same jsonb_typeof guard as the legacy document path.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAllAndOneOnNonArrayValueDoNotMatchFlat(String dataStoreName)
+        throws JsonProcessingException {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      Query allQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", "brand"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Dettol"))))
+                      .build())
+              .build();
+      assertEquals(Set.of(), collectNormalizedIds(flatCollection, allQuery));
+
+      Query oneQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.EXACTLY_ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              JsonIdentifierExpression.of("props", "brand"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Dettol"))))
+                      .build())
+              .build();
+      assertEquals(Set.of(), collectNormalizedIds(flatCollection, oneQuery));
+    }
+
+    /**
+     * ALL/EXACTLY_ONE on a top-level scalar (item is a string, not an array) must return no matches
+     * and must not throw.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAllAndOneOnTopLevelNonArrayFieldDoNotMatch(String dataStoreName)
+        throws JsonProcessingException {
+      Collection collection = getCollection(dataStoreName);
+
+      Query allQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Soap"))))
+                      .build())
+              .build();
+      assertEquals(Set.of(), collectNormalizedIds(collection, allQuery));
+
+      Query oneQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.EXACTLY_ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Soap"))))
+                      .build())
+              .build();
+      assertEquals(Set.of(), collectNormalizedIds(collection, oneQuery));
+    }
+
+    /**
+     * On a flat native scalar column the ALL/EXACTLY_ONE SQL is {@code col @> ?} / {@code
+     * array_length(col, 1) = 1 AND col && ?}. Postgres rejects that at plan time ({@code operator
+     * does not exist: text @> text[]}) because {@code item} is text, not text[]. JSONB document
+     * fields instead use the {@code jsonb_typeof} guard and return 0 (see {@link
+     * #testAllAndOneOnTopLevelNonArrayFieldDoNotMatch}).
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresProvider.class)
+    void testAllAndOneOnTopLevelNonArrayFlatColumnDoNotMatch(String dataStoreName) {
+      Collection flatCollection = getFlatCollection(dataStoreName);
+
+      Query allQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Soap"))))
+                      .build())
+              .build();
+      assertThrows(
+          UnsupportedOperationException.class,
+          () -> drain(flatCollection.find(allQuery)));
+
+      Query oneQuery =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.EXACTLY_ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("item"),
+                              IN,
+                              ConstantExpression.ofStrings(List.of("Soap"))))
+                      .build())
+              .build();
+      assertThrows(
+          UnsupportedOperationException.class,
+          () -> drain(flatCollection.find(oneQuery)));
     }
 
     /**
@@ -7405,7 +7539,7 @@ public class DocStoreQueryV1Test {
               .build();
       // Documents A [red, blue] and B [red, blue, green]; C-F miss at least one value or the
       // field itself, G has no props at all
-      assertEquals(2, collection.count(allQuery));
+      assertEquals(Set.of("1", "2"), collectNormalizedIds(collection, allQuery));
 
       Query oneQuery =
           Query.builder()
@@ -7420,7 +7554,7 @@ public class DocStoreQueryV1Test {
                       .build())
               .build();
       // Only document C has exactly one element, and it is red
-      assertEquals(1, collection.count(oneQuery));
+      assertEquals(Set.of("3"), collectNormalizedIds(collection, oneQuery));
 
       datastore.deleteCollection(testCollectionName);
     }
@@ -7455,7 +7589,7 @@ public class DocStoreQueryV1Test {
               .build();
 
       // Documents A [red, blue] and B [red, blue, green] match despite the reversed filter order
-      assertEquals(2, collection.count(query));
+      assertEquals(Set.of("1", "2"), collectNormalizedIds(collection, query));
 
       datastore.deleteCollection(testCollectionName);
     }
@@ -7491,7 +7625,7 @@ public class DocStoreQueryV1Test {
               .build();
 
       // Documents A [red, blue], B [red, blue, green], C [red] and G [red, red] all match
-      assertEquals(4, collection.count(query));
+      assertEquals(Set.of("1", "2", "3", "7"), collectNormalizedIds(collection, query));
 
       datastore.deleteCollection(testCollectionName);
     }
@@ -7526,9 +7660,264 @@ public class DocStoreQueryV1Test {
               .build();
 
       // Only document C [red] matches; G [red, red] has two elements and is excluded
-      assertEquals(1, collection.count(query));
+      assertEquals(Set.of("3"), collectNormalizedIds(collection, query));
 
       datastore.deleteCollection(testCollectionName);
+    }
+
+    /*
+     * Flat counterpart of query/array_operators/array_match_test.json as a native TEXT[] column:
+     *   id 1: {red, blue}, id 2: {red, blue, green}, id 3: {red}, id 4: {yellow},
+     *   id 5: {}, id 6: NULL (no tags), id 7: {red, red}
+     */
+    private static final String FLAT_ARRAY_MATCH_TABLE = "array_match_flat_test";
+
+    private Collection createFlatArrayMatchTable() throws SQLException {
+      PostgresDatastore postgresDatastore = (PostgresDatastore) datastoreMap.get(POSTGRES_STORE);
+      try (java.sql.Connection connection = postgresDatastore.getPostgresClient();
+          java.sql.Statement statement = connection.createStatement()) {
+        statement.execute("DROP TABLE IF EXISTS \"" + FLAT_ARRAY_MATCH_TABLE + "\"");
+        statement.execute(
+            "CREATE TABLE \""
+                + FLAT_ARRAY_MATCH_TABLE
+                + "\" (\"id\" TEXT PRIMARY KEY, \"tags\" TEXT[])");
+        statement.execute(
+            "INSERT INTO \""
+                + FLAT_ARRAY_MATCH_TABLE
+                + "\" (\"id\", \"tags\") VALUES "
+                + "('1', '{red,blue}'), ('2', '{red,blue,green}'), ('3', '{red}'), "
+                + "('4', '{yellow}'), ('5', '{}'), ('6', NULL), ('7', '{red,red}')");
+      }
+      return postgresDatastore.getCollectionForType(FLAT_ARRAY_MATCH_TABLE, DocumentType.FLAT);
+    }
+
+    private void dropFlatArrayMatchTable() throws SQLException {
+      PostgresDatastore postgresDatastore = (PostgresDatastore) datastoreMap.get(POSTGRES_STORE);
+      try (java.sql.Connection connection = postgresDatastore.getPostgresClient();
+          java.sql.Statement statement = connection.createStatement()) {
+        statement.execute("DROP TABLE IF EXISTS \"" + FLAT_ARRAY_MATCH_TABLE + "\"");
+      }
+    }
+
+    private ArrayIdentifierExpression tagsExpression(String expressionType) {
+      return "WITH_TYPE".equals(expressionType)
+          ? ArrayIdentifierExpression.ofStrings("tags")
+          : ArrayIdentifierExpression.of("tags");
+    }
+
+    /** Flat counterpart of {@link #testAllIsOrderIndependent} on a native TEXT[] column. */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresArrayTypeProvider.class)
+    void testAllIsOrderIndependentFlat(String dataStoreName, String expressionType)
+        throws SQLException, JsonProcessingException {
+      Collection flatCollection = createFlatArrayMatchTable();
+      try {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    ArrayRelationalFilterExpression.builder()
+                        .operator(ArrayOperator.ALL)
+                        .filter(
+                            RelationalExpression.of(
+                                tagsExpression(expressionType),
+                                IN,
+                                ConstantExpression.ofStrings(List.of("blue", "red"))))
+                        .build())
+                .build();
+
+        // ids 1 {red, blue} and 2 {red, blue, green} match despite the reversed filter order
+        assertEquals(Set.of("1", "2"), collectNormalizedIds(flatCollection, query));
+      } finally {
+        dropFlatArrayMatchTable();
+      }
+    }
+
+    /**
+     * Flat counterpart of {@link #testAllWithDuplicatesInDocumentArray} on a native TEXT[] column.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresArrayTypeProvider.class)
+    void testAllWithDuplicatesInDocumentArrayFlat(String dataStoreName, String expressionType)
+        throws SQLException, JsonProcessingException {
+      Collection flatCollection = createFlatArrayMatchTable();
+      try {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    ArrayRelationalFilterExpression.builder()
+                        .operator(ArrayOperator.ALL)
+                        .filter(
+                            RelationalExpression.of(
+                                tagsExpression(expressionType),
+                                IN,
+                                ConstantExpression.ofStrings(List.of("red"))))
+                        .build())
+                .build();
+
+        // ids 1 {red, blue}, 2 {red, blue, green}, 3 {red} and 7 {red, red} all match
+        assertEquals(Set.of("1", "2", "3", "7"), collectNormalizedIds(flatCollection, query));
+      } finally {
+        dropFlatArrayMatchTable();
+      }
+    }
+
+    /**
+     * Flat counterpart of {@link #testOneWithDuplicatesInDocumentArray} on a native TEXT[] column.
+     */
+    @ParameterizedTest
+    @ArgumentsSource(PostgresArrayTypeProvider.class)
+    void testOneWithDuplicatesInDocumentArrayFlat(String dataStoreName, String expressionType)
+        throws SQLException, JsonProcessingException {
+      Collection flatCollection = createFlatArrayMatchTable();
+      try {
+        Query query =
+            Query.builder()
+                .setFilter(
+                    ArrayRelationalFilterExpression.builder()
+                        .operator(ArrayOperator.EXACTLY_ONE)
+                        .filter(
+                            RelationalExpression.of(
+                                tagsExpression(expressionType),
+                                IN,
+                                ConstantExpression.ofStrings(List.of("red"))))
+                        .build())
+                .build();
+
+        // Only id 3 {red} matches; id 7 {red, red} has two elements and is excluded
+        assertEquals(Set.of("3"), collectNormalizedIds(flatCollection, query));
+      } finally {
+        dropFlatArrayMatchTable();
+      }
+    }
+
+    /**
+     * Type mismatch vs EQ/IN (string vs number), observed in ITs (not invented):
+     *
+     * <ul>
+     *   <li>Mongo EQ/IN: BSON-type-strict, 0 matches.
+     *   <li>Postgres EQ: {@code document->>'quantity' = ?} text-compares, so {@code "10"} matches
+     *       JSON number 10 (ids 3 and 7).
+     *   <li>Postgres IN: jsonb array containment is type-sensitive, so {@code IN ["10"]} does not
+     *       match numeric 10 (0 rows, no exception).
+     *   <li>ALL/EXACTLY_ONE: RHS is serialized as a JSON array and compared with {@code @>}/{@code
+     *       <@} (Postgres) or {@code $setIsSubset}/{@code $in} (Mongo). Numbers against a string
+     *       array match nothing on both backends (0 rows, no exception) — same as Mongo EQ/IN and
+     *       Postgres IN, not Postgres EQ.
+     * </ul>
+     */
+    @ParameterizedTest
+    @ArgumentsSource(AllProvider.class)
+    void testAllAndOneTypeMismatchDoesNotMatch(String dataStoreName)
+        throws JsonProcessingException {
+      Collection collection = getCollection(dataStoreName);
+
+      Query eqQuantityAsString =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("quantity"), EQ, ConstantExpression.of("10")))
+              .build();
+      Set<String> eqIds = collectNormalizedIds(collection, eqQuantityAsString);
+      Query inQuantityAsString =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("quantity"),
+                      IN,
+                      ConstantExpression.ofStrings(List.of("10"))))
+              .build();
+      Set<String> inIds = collectNormalizedIds(collection, inQuantityAsString);
+      if (MONGO_STORE.equals(dataStoreName)) {
+        assertEquals(Set.of(), eqIds);
+        assertEquals(Set.of(), inIds);
+      } else {
+        // ids 3 and 7 have numeric quantity 10; Postgres EQ text-compares via ->>
+        assertEquals(Set.of("3", "7"), eqIds);
+        // Postgres IN uses jsonb_build_array and is type-sensitive
+        assertEquals(Set.of(), inIds);
+      }
+
+      Query allNumbersOnStringArray =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.ALL)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.colors"),
+                              IN,
+                              ConstantExpression.ofNumbers(List.of(1, 2))))
+                      .build())
+              .build();
+      // String colors vs numeric RHS: JSON/BSON type-sensitive, no matches
+      assertEquals(Set.of(), collectNormalizedIds(collection, allNumbersOnStringArray));
+
+      Query oneNumbersOnStringArray =
+          Query.builder()
+              .setFilter(
+                  ArrayRelationalFilterExpression.builder()
+                      .operator(ArrayOperator.EXACTLY_ONE)
+                      .filter(
+                          RelationalExpression.of(
+                              IdentifierExpression.of("props.colors"),
+                              IN,
+                              ConstantExpression.ofNumbers(List.of(1, 2))))
+                      .build())
+              .build();
+      // Same type-sensitive miss for EXACTLY_ONE
+      assertEquals(Set.of(), collectNormalizedIds(collection, oneNumbersOnStringArray));
+    }
+
+    /**
+     * Collects document ids from query results, order-independent. Mongo strips {@code _id} from
+     * result JSON ({@code MongoUtils.dbObjectToDocument}); selecting it under the alias {@code id}
+     * keeps the key. Flat collections already include {@code id}. Keys are {@code tenant:id};
+     * only the trailing id is returned.
+     */
+    private Set<String> collectNormalizedIds(Collection collection, Query query)
+        throws JsonProcessingException {
+      ObjectMapper mapper = new ObjectMapper();
+      List<JsonNode> nodes = readResultNodes(collection.find(query), mapper);
+      if (!nodes.isEmpty() && idNode(nodes.get(0)) == null) {
+        QueryBuilder builder =
+            Query.builder().addSelection(IdentifierExpression.of("_id"), "id");
+        query.getFilter().ifPresent(builder::setFilter);
+        nodes = readResultNodes(collection.find(builder.build()), mapper);
+      }
+      Set<String> ids = new HashSet<>();
+      for (JsonNode node : nodes) {
+        JsonNode id = idNode(node);
+        assertNotNull(id, "Query result missing id/_id: " + node);
+        String raw = id.asText().replace("\"", "").trim();
+        int colon = raw.lastIndexOf(':');
+        ids.add(colon >= 0 ? raw.substring(colon + 1) : raw);
+      }
+      return ids;
+    }
+
+    private List<JsonNode> readResultNodes(Iterator<Document> iterator, ObjectMapper mapper)
+        throws JsonProcessingException {
+      List<JsonNode> nodes = new ArrayList<>();
+      while (iterator.hasNext()) {
+        nodes.add(mapper.readTree(iterator.next().toJson()));
+      }
+      return nodes;
+    }
+
+    private JsonNode idNode(JsonNode node) {
+      if (node.has("_id") && !node.get("_id").isNull()) {
+        return node.get("_id");
+      }
+      if (node.has("id") && !node.get("id").isNull()) {
+        return node.get("id");
+      }
+      return null;
+    }
+
+    private void drain(Iterator<Document> iterator) {
+      while (iterator.hasNext()) {
+        iterator.next();
+      }
     }
   }
 
