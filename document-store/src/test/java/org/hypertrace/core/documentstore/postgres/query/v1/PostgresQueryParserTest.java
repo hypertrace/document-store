@@ -2207,6 +2207,72 @@ public class PostgresQueryParserTest {
   }
 
   @Test
+  void testAllOperatorWithMultiLevelJsonPathOnFlatJsonbColumn() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.ALL)
+                    .filter(
+                        RelationalExpression.of(
+                            JsonIdentifierExpression.of("props", "metadata", "colors"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("red", "blue"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE (CASE WHEN jsonb_typeof(\"props\"->'metadata'->'colors') = 'array' "
+            + "THEN \"props\"->'metadata'->'colors' ELSE '[]'::jsonb END) @> ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals("[\"red\",\"blue\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
+  void testOneOperatorWithMultiLevelJsonPathOnFlatJsonbColumn() {
+    Query query =
+        Query.builder()
+            .setFilter(
+                ArrayRelationalFilterExpression.builder()
+                    .operator(ArrayOperator.EXACTLY_ONE)
+                    .filter(
+                        RelationalExpression.of(
+                            JsonIdentifierExpression.of("props", "metadata", "colors"),
+                            IN,
+                            ConstantExpression.ofStrings(List.of("red", "blue"))))
+                    .build())
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    String sql = postgresQueryParser.parse();
+    assertEquals(
+        "SELECT * FROM \"testCollection\" "
+            + "WHERE jsonb_array_length((CASE WHEN jsonb_typeof(\"props\"->'metadata'->'colors') = 'array' "
+            + "THEN \"props\"->'metadata'->'colors' ELSE '[]'::jsonb END)) = 1 "
+            + "AND (CASE WHEN jsonb_typeof(\"props\"->'metadata'->'colors') = 'array' "
+            + "THEN \"props\"->'metadata'->'colors' ELSE '[]'::jsonb END) <@ ?::jsonb",
+        sql);
+
+    Params params = postgresQueryParser.getParamsBuilder().build();
+    assertEquals("[\"red\",\"blue\"]", params.getObjectParams().get(1));
+  }
+
+  @Test
   void testEqWithStringOnNumericJsonbFieldUsesTextComparison() {
     // EQ infers CAST from the RHS type. A string RHS does not CAST AS NUMERIC, so Postgres
     // compares document->>'quantity' as text ("10" matches JSON number 10). Mongo EQ is
