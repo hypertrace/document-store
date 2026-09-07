@@ -17,8 +17,8 @@ import org.hypertrace.core.documentstore.parser.FilterTypeExpressionVisitor;
  * equality. Combined with {@link ArrayOperator}:
  *
  * <ul>
- *   <li>{@code ALL}: the RHS set is a subset of the stored array (every listed value appears in
- *       the array).
+ *   <li>{@code ALL}: the RHS set is a subset of the stored array (every listed value appears in the
+ *       array).
  *   <li>{@code EXACTLY_ONE}: the stored array has length 1 and that element is in the RHS set.
  * </ul>
  *

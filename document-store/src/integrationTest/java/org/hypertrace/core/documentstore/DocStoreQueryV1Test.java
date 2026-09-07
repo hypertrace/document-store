@@ -7387,8 +7387,8 @@ public class DocStoreQueryV1Test {
 
     /**
      * Flat-collection counterpart of {@link #testAllAndOneOnNonArrayValueDoNotMatch}: on a flat
-     * JSONB column, a scalar value (props.brand is a string, not an array) must not match. The
-     * flat JSONB path applies the same jsonb_typeof guard as the legacy document path.
+     * JSONB column, a scalar value (props.brand is a string, not an array) must not match. The flat
+     * JSONB path applies the same jsonb_typeof guard as the legacy document path.
      */
     @ParameterizedTest
     @ArgumentsSource(PostgresProvider.class)
@@ -7488,9 +7488,7 @@ public class DocStoreQueryV1Test {
                               ConstantExpression.ofStrings(List.of("Soap"))))
                       .build())
               .build();
-      assertThrows(
-          UnsupportedOperationException.class,
-          () -> drain(flatCollection.find(allQuery)));
+      assertThrows(UnsupportedOperationException.class, () -> drain(flatCollection.find(allQuery)));
 
       Query oneQuery =
           Query.builder()
@@ -7504,9 +7502,7 @@ public class DocStoreQueryV1Test {
                               ConstantExpression.ofStrings(List.of("Soap"))))
                       .build())
               .build();
-      assertThrows(
-          UnsupportedOperationException.class,
-          () -> drain(flatCollection.find(oneQuery)));
+      assertThrows(UnsupportedOperationException.class, () -> drain(flatCollection.find(oneQuery)));
     }
 
     /**
@@ -7684,8 +7680,7 @@ public class DocStoreQueryV1Test {
       String testCollectionName = "nested_array_elements_test";
       Datastore datastore = datastoreMap.get(dataStoreName);
       Map<Key, Document> testDocuments =
-          Utils.buildDocumentsFromResource(
-              "query/array_operators/nested_array_elements_test.json");
+          Utils.buildDocumentsFromResource("query/array_operators/nested_array_elements_test.json");
       datastore.deleteCollection(testCollectionName);
       datastore.createCollection(testCollectionName, null);
       Collection collection = datastore.getCollection(testCollectionName);
@@ -7852,10 +7847,10 @@ public class DocStoreQueryV1Test {
 
     /**
      * Explicit guarantee: rows where the array field is missing or empty never match ALL or
-     * EXACTLY_ONE. Postgres: {@code NULL @> ...} and {@code array_length(NULL, 1)} evaluate to
-     * NULL (not true), and an empty array also has {@code array_length('{}', 1) = NULL}. MongoDB:
-     * a missing field fails the $isArray/$size guards. Document E (id 5) has an empty array,
-     * document F (id 6) has no tags field at all.
+     * EXACTLY_ONE. Postgres: {@code NULL @> ...} and {@code array_length(NULL, 1)} evaluate to NULL
+     * (not true), and an empty array also has {@code array_length('{}', 1) = NULL}. MongoDB: a
+     * missing field fails the $isArray/$size guards. Document E (id 5) has an empty array, document
+     * F (id 6) has no tags field at all.
      */
     @ParameterizedTest
     @ArgumentsSource(AllProvider.class)
@@ -8036,16 +8031,15 @@ public class DocStoreQueryV1Test {
     /**
      * Collects document ids from query results, order-independent. Mongo strips {@code _id} from
      * result JSON ({@code MongoUtils.dbObjectToDocument}); selecting it under the alias {@code id}
-     * keeps the key. Flat collections already include {@code id}. Keys are {@code tenant:id};
-     * only the trailing id is returned.
+     * keeps the key. Flat collections already include {@code id}. Keys are {@code tenant:id}; only
+     * the trailing id is returned.
      */
     private Set<String> collectNormalizedIds(Collection collection, Query query)
         throws JsonProcessingException {
       ObjectMapper mapper = new ObjectMapper();
       List<JsonNode> nodes = readResultNodes(collection.find(query), mapper);
       if (!nodes.isEmpty() && idNode(nodes.get(0)) == null) {
-        QueryBuilder builder =
-            Query.builder().addSelection(IdentifierExpression.of("_id"), "id");
+        QueryBuilder builder = Query.builder().addSelection(IdentifierExpression.of("_id"), "id");
         query.getFilter().ifPresent(builder::setFilter);
         nodes = readResultNodes(collection.find(builder.build()), mapper);
       }

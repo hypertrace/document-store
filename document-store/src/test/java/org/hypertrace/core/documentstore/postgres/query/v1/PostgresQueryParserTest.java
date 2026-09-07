@@ -1968,10 +1968,7 @@ public class PostgresQueryParserTest {
         new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
 
     String sql = postgresQueryParser.parse();
-    assertEquals(
-        "SELECT * FROM \"testCollection\" "
-            + "WHERE document->'tags' @> ?::jsonb",
-        sql);
+    assertEquals("SELECT * FROM \"testCollection\" " + "WHERE document->'tags' @> ?::jsonb", sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals(1, params.getObjectParams().size());
@@ -2161,9 +2158,7 @@ public class PostgresQueryParserTest {
 
     String sql = postgresQueryParser.parse();
     assertEquals(
-        "SELECT * FROM \"testCollection\" "
-            + "WHERE \"props\"->'colors' @> ?::jsonb",
-        sql);
+        "SELECT * FROM \"testCollection\" " + "WHERE \"props\"->'colors' @> ?::jsonb", sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
     assertEquals("[\"Blue\",\"Green\"]", params.getObjectParams().get(1));
@@ -2225,8 +2220,7 @@ public class PostgresQueryParserTest {
 
     String sql = postgresQueryParser.parse();
     assertEquals(
-        "SELECT * FROM \"testCollection\" "
-            + "WHERE \"props\"->'metadata'->'colors' @> ?::jsonb",
+        "SELECT * FROM \"testCollection\" " + "WHERE \"props\"->'metadata'->'colors' @> ?::jsonb",
         sql);
 
     Params params = postgresQueryParser.getParamsBuilder().build();
@@ -2306,9 +2300,7 @@ public class PostgresQueryParserTest {
 
     String sql = postgresQueryParser.parse();
     assertEquals(
-        "SELECT * FROM \"testCollection\" "
-            + "WHERE document->'props'->'colors' @> ?::jsonb",
-        sql);
+        "SELECT * FROM \"testCollection\" " + "WHERE document->'props'->'colors' @> ?::jsonb", sql);
     assertEquals("[1,2]", postgresQueryParser.getParamsBuilder().build().getObjectParams().get(1));
   }
 

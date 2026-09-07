@@ -410,8 +410,7 @@ public class PostgresFilterTypeExpressionVisitor implements FilterTypeExpression
             "(CASE WHEN jsonb_typeof(%s) = 'array' THEN jsonb_array_length(%s) ELSE 0 END)",
             fieldContext.parsedLhs(), fieldContext.parsedLhs());
     postgresQueryParser.getParamsBuilder().addObjectParam(toJsonArrayString(values));
-    return String.format(
-        "%s = 1 AND %s <@ ?::jsonb", guardedLength, fieldContext.parsedLhs());
+    return String.format("%s = 1 AND %s <@ ?::jsonb", guardedLength, fieldContext.parsedLhs());
   }
 
   private ArrayFieldContext getArrayFieldContext(final ArrayFilterExpression expression) {
