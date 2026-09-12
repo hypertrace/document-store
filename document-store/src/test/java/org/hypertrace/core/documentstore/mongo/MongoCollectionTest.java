@@ -31,14 +31,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.BasicDBObject;
 import com.mongodb.MongoNamespace;
 import com.mongodb.ReadPreference;
+import com.mongodb.bulk.BulkWriteResult;
+import com.mongodb.bulk.BulkWriteUpsert;
 import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCursor;
+import com.mongodb.client.model.BulkWriteOptions;
 import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.bson.BsonString;
@@ -49,6 +53,7 @@ import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
+import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
@@ -450,6 +455,85 @@ public class MongoCollectionTest {
                   org.hypertrace.core.documentstore.query.Query.builder().build(),
                   emptyList(),
                   UpdateOptions.DEFAULT_UPDATE_OPTIONS));
+    }
+  }
+
+  @Nested
+  class BulkUpsert {
+
+    @Test
+    void returnsTrueWhenAllDocumentsMatched() throws Exception {
+      Document document = new JSONDocument("{\"planet\": \"Mars\"}");
+      Map<Key, Document> documents =
+          Map.of(
+              new SingleValueKey("default", "k1"), document,
+              new SingleValueKey("default", "k2"), document);
+
+      when(collection.bulkWrite(anyList(), any(BulkWriteOptions.class)))
+          .thenReturn(BulkWriteResult.acknowledged(0, 2, 0, 2, emptyList(), emptyList()));
+
+      assertTrue(mongoCollection.bulkUpsert(documents));
+    }
+
+    @Test
+    void returnsTrueWhenDocumentsAreUpserted() throws Exception {
+      Document document = new JSONDocument("{\"planet\": \"Mars\"}");
+      Map<Key, Document> documents =
+          Map.of(
+              new SingleValueKey("default", "k1"), document,
+              new SingleValueKey("default", "k2"), document);
+
+      List<BulkWriteUpsert> upserts =
+          List.of(
+              new BulkWriteUpsert(0, new BsonString("default:k1")),
+              new BulkWriteUpsert(1, new BsonString("default:k2")));
+      when(collection.bulkWrite(anyList(), any(BulkWriteOptions.class)))
+          .thenReturn(BulkWriteResult.acknowledged(0, 0, 0, 0, upserts, emptyList()));
+
+      assertTrue(mongoCollection.bulkUpsert(documents));
+    }
+
+    @Test
+    void returnsFalseWhenResultAccountsForFewerDocumentsThanRequested() throws Exception {
+      Document document = new JSONDocument("{\"planet\": \"Mars\"}");
+      Map<Key, Document> documents =
+          Map.of(
+              new SingleValueKey("default", "k1"), document,
+              new SingleValueKey("default", "k2"), document);
+
+      // Only one of two requested docs accounted for (matched=1, upserts=0)
+      when(collection.bulkWrite(anyList(), any(BulkWriteOptions.class)))
+          .thenReturn(BulkWriteResult.acknowledged(0, 1, 0, 1, emptyList(), emptyList()));
+
+      assertFalse(mongoCollection.bulkUpsert(documents));
+    }
+
+    @Test
+    void returnsFalseForUnacknowledgedResult() throws Exception {
+      Document document = new JSONDocument("{\"planet\": \"Mars\"}");
+      Map<Key, Document> documents = Map.of(new SingleValueKey("default", "k1"), document);
+
+      when(collection.bulkWrite(anyList(), any(BulkWriteOptions.class)))
+          .thenReturn(BulkWriteResult.unacknowledged());
+
+      assertFalse(mongoCollection.bulkUpsert(documents));
+    }
+
+    @Test
+    void isBulkUpsertComplete_matchedPlusUpsertsEqualsRequested() {
+      assertTrue(
+          MongoCollection.isBulkUpsertComplete(
+              BulkWriteResult.acknowledged(0, 1, 0, 1, emptyList(), emptyList()), 1));
+      assertTrue(
+          MongoCollection.isBulkUpsertComplete(
+              BulkWriteResult.acknowledged(
+                  0, 1, 0, 1, List.of(new BulkWriteUpsert(1, new BsonString("id"))), emptyList()),
+              2));
+      assertFalse(
+          MongoCollection.isBulkUpsertComplete(
+              BulkWriteResult.acknowledged(0, 1, 0, 1, emptyList(), emptyList()), 2));
+      assertFalse(MongoCollection.isBulkUpsertComplete(BulkWriteResult.unacknowledged(), 1));
+      assertTrue(MongoCollection.isBulkUpsertComplete(BulkWriteResult.unacknowledged(), 0));
     }
   }
 }

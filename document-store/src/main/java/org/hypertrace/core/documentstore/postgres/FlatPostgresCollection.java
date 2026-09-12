@@ -434,7 +434,11 @@ public class FlatPostgresCollection extends PostgresCollection {
       }
 
     } catch (BatchUpdateException e) {
-      LOGGER.error("BatchUpdateException in bulkUpsert", e);
+      LOGGER.error(
+          "BatchUpdateException in bulkUpsert. requested={}, updateCounts={}",
+          documents.size(),
+          Arrays.toString(e.getUpdateCounts()),
+          e);
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException in bulkUpsert. SQLState: {} Error Code: {}",
