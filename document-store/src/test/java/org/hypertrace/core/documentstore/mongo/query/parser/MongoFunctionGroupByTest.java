@@ -60,9 +60,7 @@ class MongoFunctionGroupByTest {
     Map<?, ?> group = (Map<?, ?>) clauses.get(1).get("$group");
     Map<?, ?> id = (Map<?, ?>) group.get("_id");
     assertEquals("$INTERVAL_START_TIME", id.get("INTERVAL_START_TIME"));
-    assertEquals(
-        "$attributes.score_category",
-        id.get("attributes\\u002escore_category"));
+    assertEquals("$attributes.score_category", id.get("attributes\\u002escore_category"));
 
     BasicDBObject projection = MongoSelectTypeExpressionParser.getSelections(query);
     assertEquals("$_id.INTERVAL_START_TIME", projection.get("INTERVAL_START_TIME"));
