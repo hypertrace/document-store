@@ -48,13 +48,19 @@ public class FunctionExpression
 
   FunctionOperator operator;
 
+  /**
+   * Name of this expression when it is used as a group key. Mongo materializes the function in
+   * {@code $addFields} under this alias and groups by that field.
+   */
+  String alias;
+
   public static class FunctionExpressionBuilder {
     public FunctionExpression build() {
       Preconditions.checkArgument(!operands.isEmpty(), "operands is empty");
       Preconditions.checkArgument(
           operands.stream().noneMatch(Objects::isNull), "One or more operands is null");
       Preconditions.checkArgument(operator != null, "operator is null");
-      return new FunctionExpression(operands, operator);
+      return new FunctionExpression(operands, operator, alias);
     }
   }
 

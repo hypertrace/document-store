@@ -35,11 +35,15 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final FunctionExpression expression) {
-    // To support this, we need to take an alias for GroupingExpressions
-    throw new UnsupportedOperationException(
-        String.format(
-            "Grouping by a function ($%s) is not yet supported by this library for MongoDB",
-            expression));
+    String alias = expression.getAlias();
+    if (alias == null || alias.isBlank()) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Grouping by a function ($%s) is not yet supported by this library for MongoDB",
+              expression));
+    }
+    // $addFields already computed this alias. Group by that field.
+    return Map.of(encodeKey(alias), PREFIX + alias);
   }
 
   @SuppressWarnings("unchecked")
