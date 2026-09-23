@@ -1,0 +1,24 @@
+document-store/src/test/java/org/hypertrace/core/documentstore/mongo/query/parser/MongoFunctionGroupByTest.java
+  bca1aeab-b538-4de3-a792-be49d5117e75 12-61
+  bca1aeab-b538-4de3-a792-be49d5117e75 9-11
+  bca1aeab-b538-4de3-a792-be49d5117e75 62-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0722ddd95808baa0f5b214da338ec41d6cd019a4",
+  "prompts": {
+    "d781ad4f1f87ca81": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bca1aeab-b538-4de3-a792-be49d5117e75",
+        "model": "grok-4.7"
+      },
+      "human_author": "bhubam <bhuvnesh.bamoriya@harness.io>",
+      "total_additions": 4,
+      "total_deletions": 3,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
