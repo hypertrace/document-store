@@ -50,7 +50,9 @@ public class FunctionExpression
 
   /**
    * Name of this expression when it is used as a group key. Mongo materializes the function in
-   * {@code $addFields} under this alias and groups by that field.
+   * {@code $addFields} under this alias and groups by that field. A selection may use a different
+   * alias; that name is the projected column, read from {@code $_id.<this alias>}. A null or blank
+   * alias is not a group key.
    */
   String alias;
 

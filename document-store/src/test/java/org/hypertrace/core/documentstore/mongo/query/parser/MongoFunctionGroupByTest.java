@@ -5,6 +5,8 @@ import static org.hypertrace.core.documentstore.expression.operators.FunctionOpe
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.FLOOR;
 import static org.hypertrace.core.documentstore.expression.operators.FunctionOperator.MULTIPLY;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.mongodb.BasicDBObject;
@@ -16,30 +18,15 @@ import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.query.Query;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 class MongoFunctionGroupByTest {
 
   @Test
   void groupsByAliasedArithmeticFunction() {
-    IdentifierExpression timestamp =
-        IdentifierExpression.of("attributes.last_activity_timestamp.value.long");
-    ConstantExpression interval = ConstantExpression.of(86_400_000L);
-    FunctionExpression bucket =
-        FunctionExpression.builder()
-            .alias("INTERVAL_START_TIME")
-            .operator(MULTIPLY)
-            .operand(
-                FunctionExpression.builder()
-                    .operator(FLOOR)
-                    .operand(
-                        FunctionExpression.builder()
-                            .operator(DIVIDE)
-                            .operand(timestamp)
-                            .operand(interval)
-                            .build())
-                    .build())
-            .operand(interval)
-            .build();
+    FunctionExpression bucket = bucket("INTERVAL_START_TIME");
 
     Query query =
         Query.builder()
@@ -64,5 +51,72 @@ class MongoFunctionGroupByTest {
 
     BasicDBObject projection = MongoSelectTypeExpressionParser.getSelections(query);
     assertEquals("$_id.INTERVAL_START_TIME", projection.get("INTERVAL_START_TIME"));
+  }
+
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(strings = {"", " "})
+  void rejectsFunctionGroupByWhenAliasIsMissing(final String alias) {
+    FunctionExpression bucket = bucket(alias);
+    Query query =
+        Query.builder()
+            .addSelection(bucket, "foo")
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("id")), "count")
+            .addAggregation(bucket)
+            .build();
+
+    UnsupportedOperationException exception =
+        assertThrows(
+            UnsupportedOperationException.class,
+            () -> MongoGroupTypeExpressionParser.getGroupClauses(query));
+    assertTrue(exception.getMessage().contains("not yet supported"));
+  }
+
+  @Test
+  void projectsSelectionAliasWhenItDiffersFromFunctionAlias() {
+    FunctionExpression bucket = bucket("bar");
+    Query query =
+        Query.builder()
+            .addSelection(bucket, "foo")
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("id")), "count")
+            .addAggregation(bucket)
+            .build();
+
+    List<BasicDBObject> clauses = MongoGroupTypeExpressionParser.getGroupClauses(query);
+    assertEquals(2, clauses.size());
+
+    Map<?, ?> addFields = (Map<?, ?>) clauses.get(0).get("$addFields");
+    assertTrue(addFields.containsKey("bar"));
+    assertFalse(addFields.containsKey("foo"));
+
+    Map<?, ?> group = (Map<?, ?>) clauses.get(1).get("$group");
+    Map<?, ?> id = (Map<?, ?>) group.get("_id");
+    assertEquals("$bar", id.get("bar"));
+    assertFalse(id.containsKey("foo"));
+
+    BasicDBObject projection = MongoSelectTypeExpressionParser.getSelections(query);
+    assertEquals("$_id.bar", projection.get("foo"));
+    assertFalse(projection.containsKey("bar"));
+  }
+
+  private static FunctionExpression bucket(final String alias) {
+    IdentifierExpression timestamp =
+        IdentifierExpression.of("attributes.last_activity_timestamp.value.long");
+    ConstantExpression interval = ConstantExpression.of(86_400_000L);
+    return FunctionExpression.builder()
+        .alias(alias)
+        .operator(MULTIPLY)
+        .operand(
+            FunctionExpression.builder()
+                .operator(FLOOR)
+                .operand(
+                    FunctionExpression.builder()
+                        .operator(DIVIDE)
+                        .operand(timestamp)
+                        .operand(interval)
+                        .build())
+                .build())
+        .operand(interval)
+        .build();
   }
 }
