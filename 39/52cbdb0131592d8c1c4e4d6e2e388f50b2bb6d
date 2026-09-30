@@ -1,0 +1,28 @@
+document-store/src/main/java/org/hypertrace/core/documentstore/mongo/query/parser/MongoGroupTypeExpressionParser.java
+  c436265b-f6df-48ec-bd48-3981e1ac6470 63,65,73-78,147,155-170,173-177
+document-store/src/main/java/org/hypertrace/core/documentstore/expression/impl/FunctionExpression.java
+  c436265b-f6df-48ec-bd48-3981e1ac6470 53-55
+document-store/src/test/java/org/hypertrace/core/documentstore/mongo/query/parser/MongoFunctionGroupByTest.java
+  c436265b-f6df-48ec-bd48-3981e1ac6470 8-9,21-23,29,55-121
+document-store/src/main/java/org/hypertrace/core/documentstore/mongo/query/parser/MongoSelectTypeExpressionParser.java
+  c436265b-f6df-48ec-bd48-3981e1ac6470 6,83-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3952cbdb0131592d8c1c4e4d6e2e388f50b2bb6d",
+  "prompts": {
+    "fc1f3873850e0398": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "c436265b-f6df-48ec-bd48-3981e1ac6470",
+        "model": "grok-4.7"
+      },
+      "human_author": "bhubam <bhuvnesh.bamoriya@harness.io>",
+      "total_additions": 110,
+      "total_deletions": 29,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
