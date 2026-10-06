@@ -55,6 +55,7 @@ import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
+import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
@@ -228,6 +229,39 @@ public class FlatPostgresCollection extends PostgresCollection {
     } catch (IOException e) {
       LOGGER.error("SQLException inserting document. key: {} content:{}", key, document, e);
       throw e;
+    }
+  }
+
+  @Override
+  public Optional<Document> upsertAndReturnOlderDocument(Key key, Document document)
+      throws IOException {
+    final String tableName = tableIdentifier.getTableName();
+
+    try (final Connection connection = client.getTransactionalConnection()) {
+      try {
+        final Query query =
+            Query.builder()
+                .setFilter(
+                    org.hypertrace.core.documentstore.query.Filter.builder()
+                        .expression(KeyExpression.from(key.toString()))
+                        .build())
+                .build();
+
+        final Optional<Document> beforeDocument = selectFirstDocument(connection, query);
+        upsertOnConnection(connection, key, document, tableName);
+        connection.commit();
+        return beforeDocument;
+      } catch (final Exception e) {
+        connection.rollback();
+        throw e;
+      }
+    } catch (final Exception e) {
+      LOGGER.error(
+          "Exception upserting document and returning older version. key: {} content:{}",
+          key,
+          document,
+          e);
+      throw new IOException(e);
     }
   }
 
@@ -1744,6 +1778,51 @@ public class FlatPostgresCollection extends PostgresCollection {
     return String.format(
         "INSERT INTO %s (%s) VALUES (%s) ON CONFLICT (%s) DO UPDATE SET %s RETURNING (xmax = 0) AS is_insert",
         tableIdentifier, columnList, placeholders, pkColumn, setClause);
+  }
+
+  private void upsertOnConnection(
+      Connection connection, Key key, Document document, String tableName) throws IOException {
+    final List<String> skippedFields = new ArrayList<>();
+
+    try {
+      final TypedDocument parsed = parseDocument(document, tableName, skippedFields);
+      final String pkColumn = getPKForTable(tableName);
+      final String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+      final PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+      parsed.add(quotedPkColumn, key.toString(), pkType, false);
+
+      final List<String> allColumns = getAllQuotedColumns(tableName);
+      final String sql = buildUpsertSql(allColumns, quotedPkColumn);
+      executeUpsertOnConnection(connection, sql, allColumns, parsed);
+    } catch (SQLException e) {
+      LOGGER.error("SQLException in upsert. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    }
+  }
+
+  private void executeUpsertOnConnection(
+      Connection connection, String sql, List<String> allColumns, TypedDocument parsed)
+      throws SQLException {
+    try (PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(connection, sql)) {
+      int index = 1;
+      final Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
+      for (String column : allColumns) {
+        if (parsedColumns.contains(column)) {
+          setParameter(
+              connection,
+              ps,
+              index++,
+              parsed.getValue(column),
+              parsed.getType(column),
+              parsed.isArray(column));
+        } else {
+          ps.setObject(index++, null);
+        }
+      }
+      try (ResultSet rs = ps.executeQuery()) {
+        rs.next();
+      }
+    }
   }
 
   private boolean executeUpsert(String sql, List<String> allColumns, TypedDocument parsed)

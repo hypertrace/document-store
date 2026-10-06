@@ -18,12 +18,15 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
+import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.Datastore;
 import org.hypertrace.core.documentstore.DatastoreProvider;
 import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.SingleValueKey;
@@ -114,6 +117,43 @@ public class PostgresDocStoreTest {
         collection.upsertAndReturn(new SingleValueKey("default", "testKey"), document);
 
     assertEquals(document.toJson(), resultDocument.toJson());
+  }
+
+  @Test
+  public void testUpsertAndReturnOlderDocument() throws IOException {
+    Collection collection = datastore.getCollection(COLLECTION_NAME);
+    Key key = new SingleValueKey("default", "olderDocKey");
+
+    ObjectMapper objectMapper = new ObjectMapper();
+    ObjectNode initialNode = objectMapper.createObjectNode();
+    initialNode.put("foo1", "bar1");
+    initialNode.put("foo2", "bar2");
+    Document initialDoc = new JSONDocument(initialNode);
+    collection.upsert(key, initialDoc);
+
+    ObjectNode partialNode = objectMapper.createObjectNode();
+    partialNode.put("foo1", "updated");
+    Document partialDoc = new JSONDocument(partialNode);
+
+    Optional<Document> olderDocument = collection.upsertAndReturnOlderDocument(key, partialDoc);
+
+    assertTrue(olderDocument.isPresent());
+    JsonNode olderJson = objectMapper.readTree(olderDocument.get().toJson());
+    assertEquals("bar1", olderJson.get("foo1").asText());
+    assertEquals("bar2", olderJson.get("foo2").asText());
+
+    Query query = new Query();
+    query.setFilter(Filter.eq("id", key.toString()));
+    try (CloseableIterator<Document> iterator = collection.search(query)) {
+      assertTrue(iterator.hasNext());
+      JsonNode storedJson = objectMapper.readTree(iterator.next().toJson());
+      assertEquals("updated", storedJson.get("foo1").asText());
+    }
+
+    Optional<Document> createdDocument =
+        collection.upsertAndReturnOlderDocument(
+            new SingleValueKey("default", "newOlderDocKey"), Utils.createDocument("foo1", "bar1"));
+    assertFalse(createdDocument.isPresent());
   }
 
   @Test

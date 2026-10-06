@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.mongo;
 
 import static com.mongodb.client.model.ReturnDocument.AFTER;
+import static com.mongodb.client.model.ReturnDocument.BEFORE;
 import static java.util.Collections.emptyList;
 import static org.hypertrace.core.documentstore.expression.operators.LogicalOperator.AND;
 import static org.hypertrace.core.documentstore.expression.operators.RelationalOperator.EQ;
@@ -49,6 +50,7 @@ import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
+import org.hypertrace.core.documentstore.SingleValueKey;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.impl.LogicalExpression;
@@ -450,6 +452,51 @@ public class MongoCollectionTest {
                   org.hypertrace.core.documentstore.query.Query.builder().build(),
                   emptyList(),
                   UpdateOptions.DEFAULT_UPDATE_OPTIONS));
+    }
+  }
+
+  @Nested
+  class UpsertAndReturnOlderDocumentTest {
+
+    private final Key key = new SingleValueKey("default", "testKey");
+    private final Document document;
+
+    UpsertAndReturnOlderDocumentTest() throws IOException {
+      document = new JSONDocument("{\"item\":\"Soap\",\"price\":100}");
+    }
+
+    @Test
+    void testUpsertAndReturnOlderDocumentReturnsEmptyWhenCreated() throws IOException {
+      final ArgumentCaptor<FindOneAndUpdateOptions> options =
+          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
+
+      when(collection.findOneAndUpdate(
+              any(BasicDBObject.class), any(BasicDBObject.class), options.capture()))
+          .thenReturn(null);
+
+      final Optional<Document> result = mongoCollection.upsertAndReturnOlderDocument(key, document);
+
+      assertFalse(result.isPresent());
+      assertTrue(options.getValue().isUpsert());
+      assertEquals(BEFORE, options.getValue().getReturnDocument());
+    }
+
+    @Test
+    void testUpsertAndReturnOlderDocumentReturnsBeforeImage() throws IOException {
+      final ArgumentCaptor<FindOneAndUpdateOptions> options =
+          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
+      final BasicDBObject beforeDocument = new BasicDBObject("item", "OldSoap");
+
+      when(collection.findOneAndUpdate(
+              any(BasicDBObject.class), any(BasicDBObject.class), options.capture()))
+          .thenReturn(beforeDocument);
+
+      final Optional<Document> result = mongoCollection.upsertAndReturnOlderDocument(key, document);
+
+      assertTrue(result.isPresent());
+      assertTrue(result.get().toJson().contains("OldSoap"));
+      assertTrue(options.getValue().isUpsert());
+      assertEquals(BEFORE, options.getValue().getReturnDocument());
     }
   }
 }

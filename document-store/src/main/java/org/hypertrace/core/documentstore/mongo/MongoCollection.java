@@ -300,6 +300,26 @@ public class MongoCollection implements Collection {
     return dbObjectToDocument(upsertResult);
   }
 
+  @Override
+  public Optional<Document> upsertAndReturnOlderDocument(Key key, Document document)
+      throws IOException {
+    BasicDBObject upsertResult =
+        Failsafe.with(upsertRetryPolicy)
+            .get(
+                () ->
+                    collection.findOneAndUpdate(
+                        this.selectionCriteriaForKey(key),
+                        this.prepareUpsert(key, document),
+                        new FindOneAndUpdateOptions()
+                            .upsert(true)
+                            .returnDocument(ReturnDocument.BEFORE)));
+    if (upsertResult == null) {
+      return Optional.empty();
+    }
+
+    return Optional.of(dbObjectToDocument(upsertResult));
+  }
+
   @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
   private List<BasicDBObject> prepareForCreateOrReplace(final Key key, final Document document)
       throws JsonProcessingException {

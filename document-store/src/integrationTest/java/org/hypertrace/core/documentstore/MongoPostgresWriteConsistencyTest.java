@@ -496,6 +496,73 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
   }
 
   @Nested
+  @DisplayName("UpsertAndReturnOlderDocument Consistency Tests")
+  class UpsertAndReturnOlderDocumentConsistencyTests {
+
+    @ParameterizedTest(name = "{0}: upsertAndReturnOlderDocument new document")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testUpsertAndReturnOlderDocumentNewDoc(String storeName) throws Exception {
+      String docId = generateDocId("upsert-return-older-new");
+      Key key = createKey(docId);
+
+      Collection collection = getCollection(storeName);
+      Document document = createTestDocument(docId);
+
+      Optional<Document> returned = collection.upsertAndReturnOlderDocument(key, document);
+
+      assertTrue(returned.isEmpty());
+
+      Query query = buildQueryById(docId);
+      try (CloseableIterator<Document> iterator = collection.find(query)) {
+        assertTrue(iterator.hasNext());
+        Document retrievedDoc = iterator.next();
+        JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
+
+        assertEquals("TestItem", json.get("item").asText());
+        assertEquals(100, json.get("price").asInt());
+        assertEquals(50, json.get("quantity").asInt());
+      }
+    }
+
+    @ParameterizedTest(name = "{0}: upsertAndReturnOlderDocument existing document")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testUpsertAndReturnOlderDocumentExistingDoc(String storeName) throws Exception {
+      String docId = generateDocId("upsert-return-older-existing");
+      Key key = createKey(docId);
+
+      Collection collection = getCollection(storeName);
+      Document initialDoc = createTestDocument(docId);
+      collection.upsert(key, initialDoc);
+
+      ObjectNode partialNode = OBJECT_MAPPER.createObjectNode();
+      partialNode.put("id", getKeyString(docId));
+      partialNode.put("item", "UpdatedItem");
+      partialNode.put("price", 999);
+      Document partialDoc = new JSONDocument(partialNode);
+
+      Optional<Document> returned = collection.upsertAndReturnOlderDocument(key, partialDoc);
+
+      assertTrue(returned.isPresent());
+      JsonNode returnedJson = OBJECT_MAPPER.readTree(returned.get().toJson());
+      assertEquals("TestItem", returnedJson.get("item").asText());
+      assertEquals(100, returnedJson.get("price").asInt());
+      assertEquals(50, returnedJson.get("quantity").asInt());
+
+      Query query = buildQueryById(docId);
+      try (CloseableIterator<Document> iterator = collection.find(query)) {
+        assertTrue(iterator.hasNext());
+        Document retrievedDoc = iterator.next();
+        JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
+
+        assertEquals("UpdatedItem", json.get("item").asText());
+        assertEquals(999, json.get("price").asInt());
+        assertEquals(50, json.get("quantity").asInt());
+        assertTrue(json.get("in_stock").asBoolean());
+      }
+    }
+  }
+
+  @Nested
   @DisplayName("CreateOrReplace Consistency Tests")
   class CreateOrReplaceConsistencyTests {
 

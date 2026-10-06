@@ -299,6 +299,45 @@ public abstract class PostgresCollection implements Collection {
     }
   }
 
+  @Override
+  public Optional<Document> upsertAndReturnOlderDocument(Key key, Document document)
+      throws IOException {
+    final String selectQuery =
+        String.format("SELECT %s FROM %s WHERE %s = ? FOR UPDATE", DOCUMENT, tableIdentifier, ID);
+
+    try (final Connection connection = client.getTransactionalConnection()) {
+      try {
+        Optional<Document> beforeDocument = empty();
+        try (final PreparedStatement selectStatement = connection.prepareStatement(selectQuery)) {
+          selectStatement.setString(1, key.toString());
+          beforeDocument = getFirstDocument(selectStatement.executeQuery());
+        }
+
+        try (final PreparedStatement upsertStatement =
+            connection.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
+          final String jsonString = prepareDocument(key, document);
+          upsertStatement.setString(1, key.toString());
+          upsertStatement.setString(2, jsonString);
+          upsertStatement.setString(3, jsonString);
+          upsertStatement.executeUpdate();
+        }
+
+        connection.commit();
+        return beforeDocument;
+      } catch (final Exception e) {
+        connection.rollback();
+        throw e;
+      }
+    } catch (final Exception e) {
+      LOGGER.error(
+          "Exception upserting document and returning older version. key: {} content:{}",
+          key,
+          document,
+          e);
+      throw new IOException(e);
+    }
+  }
+
   /**
    * Update the sub document based on subDocPath based on longest key match.
    *
