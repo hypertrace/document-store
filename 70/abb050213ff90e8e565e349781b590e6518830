@@ -1,0 +1,37 @@
+document-store/src/test/java/org/hypertrace/core/documentstore/mongo/MongoCollectionTest.java
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 4,53,457-501
+document-store/src/main/java/org/hypertrace/core/documentstore/Collection.java
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 61-68
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 60
+document-store/src/main/java/org/hypertrace/core/documentstore/mongo/MongoCollection.java
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 303-321
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 302
+document-store/src/main/java/org/hypertrace/core/documentstore/postgres/PostgresCollection.java
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 302-340
+document-store/src/integrationTest/java/org/hypertrace/core/documentstore/MongoPostgresWriteConsistencyTest.java
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 499-564
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 498
+document-store/src/integrationTest/java/org/hypertrace/core/documentstore/postgres/PostgresDocStoreTest.java
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 21,23,29,122-158
+document-store/src/main/java/org/hypertrace/core/documentstore/postgres/FlatPostgresCollection.java
+  09fc55ed-771c-4f91-9b7e-a1e56eab403e 58,235-267,1783-1827
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "70abb050213ff90e8e565e349781b590e6518830",
+  "prompts": {
+    "4c05a2530617aec6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "09fc55ed-771c-4f91-9b7e-a1e56eab403e",
+        "model": "composer-2.5-fast"
+      },
+      "human_author": "bhubam <bhuvnesh.bamoriya@harness.io>",
+      "total_additions": 314,
+      "total_deletions": 8,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
