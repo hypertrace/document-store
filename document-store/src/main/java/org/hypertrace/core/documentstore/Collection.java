@@ -58,6 +58,15 @@ public interface Collection {
   Document upsertAndReturn(Key key, Document document) throws IOException;
 
   /**
+   * Atomically perform the same merge-upsert as {@link #upsertAndReturn(Key, Document)} but return
+   * the document as it existed BEFORE the write.
+   *
+   * @return the pre-write document, or {@link Optional#empty()} if the document did not exist (i.e.
+   *     this call created it)
+   */
+  Optional<Document> upsertAndReturnOlderDocument(Key key, Document document) throws IOException;
+
+  /**
    * Update a sub document
    *
    * @param key Unique key of the document in the collection.
