@@ -317,8 +317,7 @@ public abstract class PostgresCollection implements Collection {
         try (final PreparedStatement upsertStatement =
             connection.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
           // createdTime must come from this locked row; a second connection would deadlock.
-          final String jsonString =
-              prepareDocument(key, document, createdTimeFrom(beforeDocument));
+          final String jsonString = prepareDocument(key, document, createdTimeFrom(beforeDocument));
           upsertStatement.setString(1, key.toString());
           upsertStatement.setString(2, jsonString);
           upsertStatement.setString(3, jsonString);
