@@ -1,0 +1,25 @@
+document-store/src/main/java/org/hypertrace/core/documentstore/Collection.java
+  0bd11b85-db9e-4a53-9f0f-342262cb8b50 67-70
+document-store/src/main/java/org/hypertrace/core/documentstore/postgres/PostgresCollection.java
+  0bd11b85-db9e-4a53-9f0f-342262cb8b50 306,313-314,319-321,1194-1198,1212-1221
+  0bd11b85-db9e-4a53-9f0f-342262cb8b50 1222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "81a2aef3a8db1f42490ddd31dd7981c189252b83",
+  "prompts": {
+    "41f8d79183ce3c04": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0bd11b85-db9e-4a53-9f0f-342262cb8b50",
+        "model": "grok-4.6"
+      },
+      "human_author": "bhubam <bhuvnesh.bamoriya@harness.io>",
+      "total_additions": 30,
+      "total_deletions": 9,
+      "accepted_lines": 0,
+      "overriden_lines": 0
+    }
+  }
+}
