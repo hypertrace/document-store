@@ -64,7 +64,10 @@ public interface Collection {
    * @return the pre-write document, or {@link Optional#empty()} if the document did not exist (i.e.
    *     this call created it)
    */
-  Optional<Document> upsertAndReturnOlderDocument(Key key, Document document) throws IOException;
+  default Optional<Document> upsertAndReturnOlderDocument(Key key, Document document)
+      throws IOException {
+    throw new UnsupportedOperationException("upsertAndReturnOlderDocument is not supported");
+  }
 
   /**
    * Update a sub document
