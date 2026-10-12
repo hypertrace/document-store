@@ -1,0 +1,19 @@
+document-store/src/main/java/org/hypertrace/core/documentstore/postgres/PostgresCollection.java
+  s_41f8d79183ce3c::t_1c1b652fdfaba0 320
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8de2b7acc4de68401c93eacb8e80137b7b4b08a",
+  "prompts": {},
+  "sessions": {
+    "s_41f8d79183ce3c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "0bd11b85-db9e-4a53-9f0f-342262cb8b50",
+        "model": "grok-4.6"
+      },
+      "human_author": "bhubam <bhuvnesh.bamoriya@harness.io>"
+    }
+  }
+}
