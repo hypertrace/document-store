@@ -70,6 +70,18 @@ public interface Collection {
   }
 
   /**
+   * Atomically perform the same merge-upsert as {@link #upsertAndReturn(Key, Document)} and return
+   * the document as it existed immediately before and immediately after this write.
+   *
+   * <p>The returned {@link DocumentChange#getBefore()} is empty if this call created the document.
+   * The before and after images always reflect the same atomic write, even under concurrent writers
+   * on the same key.
+   */
+  default DocumentChange upsertAndReturnChange(Key key, Document document) throws IOException {
+    throw new UnsupportedOperationException("upsertAndReturnChange is not supported");
+  }
+
+  /**
    * Update a sub document
    *
    * @param key Unique key of the document in the collection.
@@ -318,6 +330,19 @@ public interface Collection {
    * @throws IOException If the operation could not be performed
    */
   Document createOrReplaceAndReturn(final Key key, final Document document) throws IOException;
+
+  /**
+   * Atomically perform the same full-replace write as {@link #createOrReplace(Key, Document)} and
+   * return the document as it existed immediately before and immediately after this write.
+   *
+   * <p>The returned {@link DocumentChange#getBefore()} is empty if this call created the document.
+   * The before and after images always reflect the same atomic write, even under concurrent writers
+   * on the same key.
+   */
+  default DocumentChange createOrReplaceAndReturnChange(Key key, Document document)
+      throws IOException {
+    throw new UnsupportedOperationException("createOrReplaceAndReturnChange is not supported");
+  }
 
   /**
    * Updates existing documents if the corresponding Filter condition evaluates to true

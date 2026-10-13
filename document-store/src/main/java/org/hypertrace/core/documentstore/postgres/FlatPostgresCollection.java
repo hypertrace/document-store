@@ -49,13 +49,17 @@ import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.CreateStatus;
 import org.hypertrace.core.documentstore.DeepBulkUpdateResult;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentChange;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
 import org.hypertrace.core.documentstore.commons.UpdateValidator;
-import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
+import org.hypertrace.core.documentstore.expression.impl.RelationalExpression;
+import org.hypertrace.core.documentstore.expression.operators.RelationalOperator;
 import org.hypertrace.core.documentstore.model.config.postgres.CollectionConfig;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.exception.SchemaMismatchException;
@@ -97,6 +101,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(FlatPostgresCollection.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final int MAX_FIRST_INSERT_RACE_RETRIES = 3;
   private static final String WRITE_NOT_SUPPORTED =
       "Write operations are not supported for flat collections yet!";
   private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
@@ -239,13 +244,7 @@ public class FlatPostgresCollection extends PostgresCollection {
 
     try (final Connection connection = client.getTransactionalConnection()) {
       try {
-        final Query query =
-            Query.builder()
-                .setFilter(
-                    org.hypertrace.core.documentstore.query.Filter.builder()
-                        .expression(KeyExpression.from(key.toString()))
-                        .build())
-                .build();
+        final Query query = buildPrimaryKeyQuery(tableName, key);
 
         final Optional<Document> beforeDocument = selectFirstDocument(connection, query);
         upsertOnConnection(connection, key, document, tableName);
@@ -261,6 +260,94 @@ public class FlatPostgresCollection extends PostgresCollection {
           key,
           document,
           e);
+      throw new IOException(e);
+    }
+  }
+
+  @Override
+  public DocumentChange createOrReplaceAndReturnChange(Key key, Document document)
+      throws IOException {
+    return createOrReplaceAndReturnChangeWithRetry(key, document, false);
+  }
+
+  private DocumentChange createOrReplaceAndReturnChangeWithRetry(
+      Key key, Document document, boolean isRetry) throws IOException {
+    final String tableName = tableIdentifier.getTableName();
+    final Query keyQuery = buildPrimaryKeyQuery(tableName, key);
+
+    try {
+      for (int attempt = 0; attempt < MAX_FIRST_INSERT_RACE_RETRIES; attempt++) {
+        try (Connection connection = client.getTransactionalConnection()) {
+          try {
+            final Optional<Document> beforeDocument = selectFirstDocument(connection, keyQuery);
+
+            final List<String> skippedFields = new ArrayList<>();
+            final TypedDocument parsed = parseDocument(document, tableName, skippedFields);
+            final String pkColumn = getPKForTable(tableName);
+            final String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+            final PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
+            parsed.add(quotedPkColumn, key.toString(), pkType, false);
+
+            final List<String> allColumns = getAllQuotedColumns(tableName);
+            final String sql = buildCreateOrReplaceSql(allColumns, quotedPkColumn);
+            final boolean isInsert =
+                executeCreateOrReplaceReturningIsInsertOnConnection(
+                    connection, sql, allColumns, parsed);
+
+            // FOR UPDATE locks nothing when the row does not exist; concurrent first writers can
+            // both observe an empty before-image while only one reports is_insert=true.
+            if (beforeDocument.isEmpty() && !isInsert) {
+              connection.rollback();
+              continue;
+            }
+
+            final Document afterDocument =
+                selectFirstDocument(connection, keyQuery)
+                    .orElseThrow(
+                        () ->
+                            new IOException(
+                                "Could not read document after createOrReplace for key: " + key));
+            connection.commit();
+
+            if (beforeDocument.isEmpty()) {
+              return DocumentChange.created(afterDocument);
+            }
+            return DocumentChange.updated(beforeDocument.get(), afterDocument);
+          } catch (PSQLException e) {
+            connection.rollback();
+            throw e;
+          } catch (Exception e) {
+            connection.rollback();
+            if (e instanceof IOException) {
+              throw (IOException) e;
+            }
+            throw new IOException(e);
+          }
+        }
+      }
+      throw new IOException(
+          "Concurrent first insert on key "
+              + key
+              + " could not be resolved after "
+              + MAX_FIRST_INSERT_RACE_RETRIES
+              + " attempts");
+    } catch (PSQLException e) {
+      if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
+        LOGGER.info(
+            "Schema mismatch detected during createOrReplaceAndReturnChange (SQLState: {}), refreshing schema and retrying. key: {}",
+            e.getSQLState(),
+            key);
+        schemaRegistry.invalidate(tableName);
+        return createOrReplaceAndReturnChangeWithRetry(key, document, true);
+      }
+      LOGGER.error(
+          "SQLException in createOrReplaceAndReturnChange. key: {} content: {}", key, document, e);
+      throw new IOException(e);
+    } catch (IOException e) {
+      throw e;
+    } catch (Exception e) {
+      LOGGER.error(
+          "Exception in createOrReplaceAndReturnChange. key: {} content: {}", key, document, e);
       throw new IOException(e);
     }
   }
@@ -1825,6 +1912,35 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
+  /** Returns true if INSERT, false if UPDATE. */
+  private boolean executeCreateOrReplaceReturningIsInsertOnConnection(
+      Connection connection, String sql, List<String> allColumns, TypedDocument parsed)
+      throws SQLException {
+    try (PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(connection, sql)) {
+      int index = 1;
+      final Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
+      for (String column : allColumns) {
+        if (parsedColumns.contains(column)) {
+          setParameter(
+              connection,
+              ps,
+              index++,
+              parsed.getValue(column),
+              parsed.getType(column),
+              parsed.isArray(column));
+        } else {
+          ps.setObject(index++, null);
+        }
+      }
+      try (ResultSet rs = ps.executeQuery()) {
+        if (rs.next()) {
+          return rs.getBoolean("is_insert");
+        }
+      }
+      return false;
+    }
+  }
+
   private boolean executeUpsert(String sql, List<String> allColumns, TypedDocument parsed)
       throws SQLException {
     long ta = System.nanoTime();
@@ -1936,6 +2052,20 @@ public class FlatPostgresCollection extends PostgresCollection {
   private boolean shouldRefreshSchemaAndRetry(String sqlState) {
     return PSQLState.UNDEFINED_COLUMN.getState().equals(sqlState)
         || PSQLState.DATATYPE_MISMATCH.getState().equals(sqlState);
+  }
+
+  /** KeyExpression always targets an "id" column, but flat tables may use a different PK column. */
+  private Query buildPrimaryKeyQuery(String tableName, Key key) {
+    return Query.builder()
+        .setFilter(
+            org.hypertrace.core.documentstore.query.Filter.builder()
+                .expression(
+                    RelationalExpression.of(
+                        IdentifierExpression.of(getPKForTable(tableName)),
+                        RelationalOperator.EQ,
+                        ConstantExpression.of(key.toString())))
+                .build())
+        .build();
   }
 
   private String getPKForTable(String tableName) {

@@ -46,6 +46,7 @@ import org.bson.BsonString;
 import org.bson.conversions.Bson;
 import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentChange;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
@@ -495,6 +496,57 @@ public class MongoCollectionTest {
 
       assertTrue(result.isPresent());
       assertTrue(result.get().toJson().contains("OldSoap"));
+      assertTrue(options.getValue().isUpsert());
+      assertEquals(BEFORE, options.getValue().getReturnDocument());
+    }
+  }
+
+  @Nested
+  class UpsertAndReturnChangeTest {
+
+    private final Key key = new SingleValueKey("default", "testKey");
+    private final Document document;
+
+    UpsertAndReturnChangeTest() throws IOException {
+      document = new JSONDocument("{\"item\":\"Soap\",\"price\":100}");
+    }
+
+    @Test
+    void testUpsertAndReturnChangeCreated() throws IOException {
+      final ArgumentCaptor<FindOneAndUpdateOptions> options =
+          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
+
+      when(collection.findOneAndUpdate(
+              any(BasicDBObject.class), any(BasicDBObject.class), options.capture()))
+          .thenReturn(null);
+
+      final DocumentChange result = mongoCollection.upsertAndReturnChange(key, document);
+
+      assertFalse(result.getBefore().isPresent());
+      assertTrue(result.getAfter().toJson().contains("Soap"));
+      assertTrue(result.getAfter().toJson().contains("100"));
+      assertTrue(options.getValue().isUpsert());
+      assertEquals(BEFORE, options.getValue().getReturnDocument());
+    }
+
+    @Test
+    void testUpsertAndReturnChangeUpdated() throws IOException {
+      final ArgumentCaptor<FindOneAndUpdateOptions> options =
+          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
+      final BasicDBObject beforeDocument =
+          new BasicDBObject("item", "OldSoap").append("price", 50).append("quantity", 3);
+
+      when(collection.findOneAndUpdate(
+              any(BasicDBObject.class), any(BasicDBObject.class), options.capture()))
+          .thenReturn(beforeDocument);
+
+      final DocumentChange result = mongoCollection.upsertAndReturnChange(key, document);
+
+      assertTrue(result.getBefore().isPresent());
+      assertTrue(result.getBefore().get().toJson().contains("OldSoap"));
+      assertTrue(result.getAfter().toJson().contains("Soap"));
+      assertTrue(result.getAfter().toJson().contains("100"));
+      assertTrue(result.getAfter().toJson().contains("quantity"));
       assertTrue(options.getValue().isUpsert());
       assertEquals(BEFORE, options.getValue().getReturnDocument());
     }

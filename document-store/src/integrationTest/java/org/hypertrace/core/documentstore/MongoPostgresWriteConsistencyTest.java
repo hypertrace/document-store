@@ -6,10 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.typesafe.config.ConfigFactory;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -17,6 +20,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.stream.Stream;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
@@ -36,7 +43,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
+import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
 /*Validates write consistency b/w Mongo and Postgres*/
 @Testcontainers
@@ -50,7 +60,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
   public static void init() throws IOException {
     // Start MongoDB and PostgreSQL using BaseWriteTest setup
     initMongo();
-    initPostgres();
+    initPostgresForFlatCollection(COLLECTION_NAME);
 
     datastoreMap.put(MONGO_STORE, mongoDatastore);
     datastoreMap.put(POSTGRES_FLAT_STORE, postgresDatastore);
@@ -67,6 +77,37 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         postgresDatastore.getCollectionForType(COLLECTION_NAME, DocumentType.FLAT));
 
     LOGGER.info("Test setup complete. Collections ready for both Mongo and PostgresFlat.");
+  }
+
+  /**
+   * Same as {@link BaseWriteTest#initPostgres()} but configures {@code timestampFields} so flat
+   * collections populate and preserve {@code created_at} / {@code last_updated} (see {@link
+   * FlatCollectionWriteTest}).
+   */
+  private static void initPostgresForFlatCollection(String tableName) {
+    postgresContainer =
+        new GenericContainer<>(DockerImageName.parse("postgres:13.1"))
+            .withEnv("POSTGRES_PASSWORD", "postgres")
+            .withEnv("POSTGRES_USER", "postgres")
+            .withExposedPorts(5432)
+            .waitingFor(Wait.forListeningPort());
+    postgresContainer.start();
+
+    String postgresConnectionUrl =
+        String.format("jdbc:postgresql://localhost:%s/", postgresContainer.getMappedPort(5432));
+
+    Map<String, String> postgresConfig = new HashMap<>();
+    postgresConfig.put("url", postgresConnectionUrl);
+    postgresConfig.put("user", "postgres");
+    postgresConfig.put("password", "postgres");
+    postgresConfig.put(
+        "postgres.collectionConfigs." + tableName + ".timestampFields.created", "created_at");
+    postgresConfig.put(
+        "postgres.collectionConfigs." + tableName + ".timestampFields.lastUpdated", "last_updated");
+
+    postgresDatastore =
+        DatastoreProvider.getDatastore("Postgres", ConfigFactory.parseMap(postgresConfig));
+    LOGGER.info("Postgres datastore initialized with flat timestampFields for {}", tableName);
   }
 
   @BeforeEach
@@ -559,6 +600,182 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         assertEquals(50, json.get("quantity").asInt());
         assertTrue(json.get("in_stock").asBoolean());
       }
+    }
+  }
+
+  @Nested
+  @DisplayName("DocumentChange atomic write tests")
+  class DocumentChangeConsistencyTests {
+
+    private DocumentChange atomicWrite(
+        String storeName, Collection collection, Key key, Document document) throws IOException {
+      if (MONGO_STORE.equals(storeName)) {
+        return collection.upsertAndReturnChange(key, document);
+      }
+      return collection.createOrReplaceAndReturnChange(key, document);
+    }
+
+    private String createdTimestampField(String storeName) {
+      return MONGO_STORE.equals(storeName) ? "createdTime" : "created_at";
+    }
+
+    @ParameterizedTest(name = "{0}: atomic write on insert returns empty before")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testAtomicWriteInsert(String storeName) throws Exception {
+      String docId = generateDocId("atomic-insert");
+      Key key = createKey(docId);
+      Collection collection = getCollection(storeName);
+
+      DocumentChange change = atomicWrite(storeName, collection, key, createTestDocument(docId));
+
+      assertTrue(change.getBefore().isEmpty());
+      JsonNode afterJson = OBJECT_MAPPER.readTree(change.getAfter().toJson());
+      assertEquals("TestItem", afterJson.get("item").asText());
+      assertEquals(100, afterJson.get("price").asInt());
+      assertNotNull(afterJson.get(createdTimestampField(storeName)));
+    }
+
+    @ParameterizedTest(name = "{0}: atomic write on update preserves created timestamp")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testAtomicWriteUpdate(String storeName) throws Exception {
+      String docId = generateDocId("atomic-update");
+      Key key = createKey(docId);
+      Collection collection = getCollection(storeName);
+      String createdField = createdTimestampField(storeName);
+
+      collection.upsert(key, createTestDocument(docId));
+
+      JsonNode initialJson;
+      Query query = buildQueryById(docId);
+      try (CloseableIterator<Document> iterator = collection.find(query)) {
+        initialJson = OBJECT_MAPPER.readTree(iterator.next().toJson());
+      }
+      assertNotNull(initialJson.get(createdField));
+
+      ObjectNode updateNode = OBJECT_MAPPER.createObjectNode();
+      updateNode.put("id", getKeyString(docId));
+      updateNode.put("item", "UpdatedItem");
+      updateNode.put("price", 999);
+      Document updateDoc = new JSONDocument(updateNode);
+
+      DocumentChange change = atomicWrite(storeName, collection, key, updateDoc);
+
+      assertTrue(change.getBefore().isPresent());
+      JsonNode beforeJson = OBJECT_MAPPER.readTree(change.getBefore().get().toJson());
+      assertEquals("TestItem", beforeJson.get("item").asText());
+      assertEquals(100, beforeJson.get("price").asInt());
+
+      JsonNode afterJson = OBJECT_MAPPER.readTree(change.getAfter().toJson());
+      assertEquals("UpdatedItem", afterJson.get("item").asText());
+      assertEquals(999, afterJson.get("price").asInt());
+      assertEquals(initialJson.get(createdField), afterJson.get(createdField));
+    }
+
+    @ParameterizedTest(name = "{0}: concurrent atomic writes form a single chain")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testConcurrentAtomicWritesFormChain(String storeName) throws Exception {
+      String docId = generateDocId("atomic-concurrent");
+      Key key = createKey(docId);
+      Collection collection = getCollection(storeName);
+      int threadCount = 20;
+
+      ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+      try {
+        List<Callable<DocumentChange>> tasks = new ArrayList<>();
+        for (int seq = 0; seq < threadCount; seq++) {
+          final int value = seq;
+          tasks.add(
+              () -> {
+                ObjectNode node = OBJECT_MAPPER.createObjectNode();
+                node.put("id", getKeyString(docId));
+                node.put("price", value);
+                return atomicWrite(storeName, collection, key, new JSONDocument(node));
+              });
+        }
+
+        List<DocumentChange> changes = new ArrayList<>();
+        for (Future<DocumentChange> future : executor.invokeAll(tasks)) {
+          changes.add(future.get());
+        }
+
+        assertChangesFormSingleChain(changes, "price");
+      } finally {
+        executor.shutdownNow();
+      }
+    }
+
+    private void assertChangesFormSingleChain(List<DocumentChange> changes, String field)
+        throws IOException {
+      long createCount = changes.stream().filter(c -> c.getBefore().isEmpty()).count();
+      assertEquals(1, createCount, "expected exactly one insert in the chain");
+
+      Set<Integer> afterValues = new HashSet<>();
+      Set<Integer> beforeValues = new HashSet<>();
+
+      for (DocumentChange change : changes) {
+        JsonNode afterField = OBJECT_MAPPER.readTree(change.getAfter().toJson()).get(field);
+        assertNotNull(afterField, "after document must include chain field: " + field);
+        afterValues.add(afterField.asInt());
+        change
+            .getBefore()
+            .ifPresent(
+                before -> {
+                  try {
+                    beforeValues.add(OBJECT_MAPPER.readTree(before.toJson()).get(field).asInt());
+                  } catch (IOException e) {
+                    throw new RuntimeException(e);
+                  }
+                });
+      }
+
+      assertEquals(changes.size(), afterValues.size(), "after seq values must be distinct");
+      assertEquals(changes.size() - 1, beforeValues.size());
+
+      for (Integer beforeValue : beforeValues) {
+        assertTrue(
+            afterValues.contains(beforeValue),
+            "before seq " + beforeValue + " must match some other write's after seq");
+      }
+
+      DocumentChange head =
+          changes.stream()
+              .filter(c -> c.getBefore().isEmpty())
+              .findFirst()
+              .orElseThrow(() -> new AssertionError("missing head of chain"));
+
+      int current = OBJECT_MAPPER.readTree(head.getAfter().toJson()).get(field).asInt();
+      Set<DocumentChange> remaining = new HashSet<>();
+      for (DocumentChange change : changes) {
+        if (change.getBefore().isPresent()) {
+          remaining.add(change);
+        }
+      }
+
+      for (int step = 1; step < changes.size(); step++) {
+        int expectedBefore = current;
+        DocumentChange next =
+            remaining.stream()
+                .filter(
+                    c -> {
+                      try {
+                        return OBJECT_MAPPER
+                                .readTree(c.getBefore().get().toJson())
+                                .get(field)
+                                .asInt()
+                            == expectedBefore;
+                      } catch (IOException e) {
+                        throw new RuntimeException(e);
+                      }
+                    })
+                .findFirst()
+                .orElse(null);
+        if (next == null) {
+          fail("chain gap after seq " + current);
+        }
+        remaining.remove(next);
+        current = OBJECT_MAPPER.readTree(next.getAfter().toJson()).get(field).asInt();
+      }
+      assertTrue(remaining.isEmpty());
     }
   }
 

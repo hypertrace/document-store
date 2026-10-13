@@ -56,6 +56,7 @@ import org.hypertrace.core.documentstore.CloseableIterator;
 import org.hypertrace.core.documentstore.Collection;
 import org.hypertrace.core.documentstore.CreateResult;
 import org.hypertrace.core.documentstore.Document;
+import org.hypertrace.core.documentstore.DocumentChange;
 import org.hypertrace.core.documentstore.Filter;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.Query;
@@ -320,6 +321,27 @@ public class MongoCollection implements Collection {
     return Optional.of(dbObjectToDocument(upsertResult));
   }
 
+  @Override
+  public DocumentChange upsertAndReturnChange(Key key, Document document) throws IOException {
+    final long now = System.currentTimeMillis();
+    final BasicDBObject update = prepareUpsert(key, document, now);
+    final BasicDBObject beforeDb =
+        Failsafe.with(upsertRetryPolicy)
+            .get(
+                () ->
+                    collection.findOneAndUpdate(
+                        this.selectionCriteriaForKey(key),
+                        update,
+                        new FindOneAndUpdateOptions()
+                            .upsert(true)
+                            .returnDocument(ReturnDocument.BEFORE)));
+    final BasicDBObject afterDb = deriveAfterImageFromUpsert(beforeDb, update, now);
+    if (beforeDb == null) {
+      return DocumentChange.created(dbObjectToDocument(afterDb));
+    }
+    return DocumentChange.updated(dbObjectToDocument(beforeDb), dbObjectToDocument(afterDb));
+  }
+
   @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
   private List<BasicDBObject> prepareForCreateOrReplace(final Key key, final Document document)
       throws JsonProcessingException {
@@ -341,11 +363,37 @@ public class MongoCollection implements Collection {
   }
 
   private BasicDBObject prepareUpsert(Key key, Document document) throws JsonProcessingException {
-    long now = System.currentTimeMillis();
+    return prepareUpsert(key, document, System.currentTimeMillis());
+  }
+
+  private BasicDBObject prepareUpsert(Key key, Document document, long now)
+      throws JsonProcessingException {
     BasicDBObject setObject = prepareDocument(key, document, now);
     return new BasicDBObject("$set", setObject)
         .append("$currentDate", new BasicDBObject(LAST_UPDATE_TIME, true))
         .append("$setOnInsert", new BasicDBObject(CREATED_TIME, now));
+  }
+
+  /** Derives the post-upsert document in memory. Must stay in sync with {@link #prepareUpsert}. */
+  private BasicDBObject deriveAfterImageFromUpsert(
+      BasicDBObject beforeDb, BasicDBObject update, long now) {
+    BasicDBObject after =
+        beforeDb == null ? new BasicDBObject() : new BasicDBObject(beforeDb.toMap());
+
+    Object setClause = update.get("$set");
+    if (setClause instanceof BasicDBObject) {
+      after.putAll(((BasicDBObject) setClause).toMap());
+    }
+
+    if (beforeDb == null) {
+      Object setOnInsertClause = update.get("$setOnInsert");
+      if (setOnInsertClause instanceof BasicDBObject) {
+        after.putAll(((BasicDBObject) setOnInsertClause).toMap());
+      }
+    }
+
+    after.put(LAST_UPDATE_TIME, new Date(now));
+    return after;
   }
 
   private BasicDBObject prepareInsert(Key key, Document document) throws JsonProcessingException {
