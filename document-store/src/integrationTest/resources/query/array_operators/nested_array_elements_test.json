@@ -1,0 +1,5 @@
+[
+  { "_id": 1, "name": "NestedMulti", "tags": [["red", "blue"], "green"] },
+  { "_id": 2, "name": "ScalarSingle", "tags": ["red"] },
+  { "_id": 3, "name": "NestedSingle", "tags": [["red"]] }
+]

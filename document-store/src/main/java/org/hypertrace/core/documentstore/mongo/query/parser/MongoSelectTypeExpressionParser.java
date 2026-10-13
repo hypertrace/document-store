@@ -3,6 +3,7 @@ package org.hypertrace.core.documentstore.mongo.query.parser;
 import static java.util.stream.Collectors.toMap;
 import static org.hypertrace.core.documentstore.mongo.MongoCollection.ID_KEY;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser.getGroupByAliases;
+import static org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser.groupedFunctionField;
 import static org.hypertrace.core.documentstore.mongo.query.parser.MongoGroupTypeExpressionParser.isFunctionExpressionSelectionWithGroupBy;
 
 import com.google.common.base.Joiner;
@@ -79,7 +80,9 @@ public abstract class MongoSelectTypeExpressionParser implements SelectTypeExpre
                 spec ->
                     isFunctionExpressionSelectionWithGroupBy(spec, groupByAliases)
                         ? SelectionSpec.of(
-                            IdentifierExpression.of(DOT_JOINER.join(ID_KEY, spec.getAlias())),
+                            IdentifierExpression.of(
+                                DOT_JOINER.join(
+                                    ID_KEY, groupedFunctionField(spec, groupByAliases))),
                             spec.getAlias())
                         : spec)
             .map(spec -> MongoSelectTypeExpressionParser.parse(parser, spec))

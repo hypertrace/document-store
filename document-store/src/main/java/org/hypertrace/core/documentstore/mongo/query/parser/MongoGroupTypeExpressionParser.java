@@ -35,11 +35,15 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
   @SuppressWarnings("unchecked")
   @Override
   public Map<String, Object> visit(final FunctionExpression expression) {
-    // To support this, we need to take an alias for GroupingExpressions
-    throw new UnsupportedOperationException(
-        String.format(
-            "Grouping by a function ($%s) is not yet supported by this library for MongoDB",
-            expression));
+    String alias = expression.getAlias();
+    if (alias == null || alias.isBlank()) {
+      throw new UnsupportedOperationException(
+          String.format(
+              "Grouping by a function ($%s) is not yet supported by this library for MongoDB",
+              expression));
+    }
+    // $addFields already computed this alias. Group by that field.
+    return Map.of(encodeKey(alias), PREFIX + alias);
   }
 
   @SuppressWarnings("unchecked")
@@ -56,8 +60,9 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
 
     final List<BasicDBObject> basicDBObjects = new ArrayList<>();
 
+    final List<String> groupByAliases = getGroupByAliases(expressions);
     final List<SelectionSpec> functionExpressionSelectionWithGroupBys =
-        getFunctionExpressionSelectionWithGroupBys(selectionSpecs, expressions);
+        getFunctionExpressionSelectionWithGroupBys(selectionSpecs, groupByAliases);
 
     if (!functionExpressionSelectionWithGroupBys.isEmpty()) {
       MongoSelectTypeExpressionParser parser =
@@ -65,7 +70,12 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
               new MongoIdentifierExpressionParser(new MongoFunctionExpressionParser()));
       Map<String, Object> addFields =
           functionExpressionSelectionWithGroupBys.stream()
-              .map(spec -> MongoGroupTypeExpressionParser.parse(parser, spec))
+              .map(
+                  spec ->
+                      MongoGroupTypeExpressionParser.parse(
+                          parser,
+                          SelectionSpec.of(
+                              spec.getExpression(), groupedFunctionField(spec, groupByAliases))))
               .reduce(
                   new LinkedHashMap<>(),
                   (first, second) -> {
@@ -134,9 +144,7 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
   }
 
   private static List<SelectionSpec> getFunctionExpressionSelectionWithGroupBys(
-      final List<SelectionSpec> selectionSpecs, final List<GroupTypeExpression> expressions) {
-    List<String> groupByAliases = getGroupByAliases(expressions);
-
+      final List<SelectionSpec> selectionSpecs, final List<String> groupByAliases) {
     return selectionSpecs.stream()
         .filter(
             selectionSpec ->
@@ -144,11 +152,29 @@ public final class MongoGroupTypeExpressionParser implements GroupTypeExpression
         .collect(Collectors.toUnmodifiableList());
   }
 
+  /**
+   * Field written by {@code $addFields} and stored under {@code $group._id}. This is the function
+   * alias when that alias is itself a group key, so a selection can expose the same value under a
+   * different name.
+   */
+  static String groupedFunctionField(
+      final SelectionSpec selectionSpec, final List<String> groupByAliases) {
+    if (selectionSpec.getExpression() instanceof FunctionExpression) {
+      String alias = ((FunctionExpression) selectionSpec.getExpression()).getAlias();
+      if (alias != null && !alias.isBlank() && groupByAliases.contains(alias)) {
+        return alias;
+      }
+    }
+    return selectionSpec.getAlias();
+  }
+
   public static boolean isFunctionExpressionSelectionWithGroupBy(
       final SelectionSpec selectionSpec, final List<String> groupByAliases) {
-    return selectionSpec.getAlias() != null
-        && groupByAliases.contains(selectionSpec.getAlias())
-        && (Boolean) selectionSpec.getExpression().accept(FUNCTION_EXPRESSION_CHECKER);
+    if (!(Boolean) selectionSpec.getExpression().accept(FUNCTION_EXPRESSION_CHECKER)) {
+      return false;
+    }
+    String field = groupedFunctionField(selectionSpec, groupByAliases);
+    return field != null && groupByAliases.contains(field);
   }
 
   @SuppressWarnings("unchecked")
