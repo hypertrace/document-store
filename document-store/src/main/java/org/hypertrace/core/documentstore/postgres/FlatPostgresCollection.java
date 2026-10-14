@@ -1,6 +1,7 @@
 package org.hypertrace.core.documentstore.postgres;
 
 import static java.util.Map.entry;
+import static org.hypertrace.core.documentstore.commons.DocStoreConstants.IMPLICIT_ID;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.AFTER_UPDATE;
 import static org.hypertrace.core.documentstore.model.options.ReturnDocumentType.BEFORE_UPDATE;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.ADD;
@@ -10,8 +11,10 @@ import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.REMO
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.SET;
 import static org.hypertrace.core.documentstore.model.subdoc.UpdateOperator.UNSET;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import java.io.IOException;
@@ -53,6 +56,7 @@ import org.hypertrace.core.documentstore.Document;
 import org.hypertrace.core.documentstore.DocumentChange;
 import org.hypertrace.core.documentstore.DocumentType;
 import org.hypertrace.core.documentstore.Filter;
+import org.hypertrace.core.documentstore.JSONDocument;
 import org.hypertrace.core.documentstore.Key;
 import org.hypertrace.core.documentstore.UpdateResult;
 import org.hypertrace.core.documentstore.commons.CommonUpdateValidator;
@@ -104,7 +108,8 @@ public class FlatPostgresCollection extends PostgresCollection {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(FlatPostgresCollection.class);
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final int MAX_FIRST_INSERT_RACE_RETRIES = 3;
+  private static final String IS_INSERT_COLUMN = "is_insert";
+  private static final String RETURNING_ROW_SUFFIX = ", *";
   private static final String WRITE_NOT_SUPPORTED =
       "Write operations are not supported for flat collections yet!";
   private static final String MISSING_COLUMN_STRATEGY_CONFIG = "missingColumnStrategy";
@@ -263,10 +268,18 @@ public class FlatPostgresCollection extends PostgresCollection {
   }
 
   /**
-   * Executes a single-row {@code INSERT ... ON CONFLICT DO UPDATE ... RETURNING is_insert} built by
-   * {@code sqlBuilder} and reads the requested images in one transaction on one connection. The
-   * before-image is read with {@code SELECT ... FOR UPDATE}, so no other writer can change the row
-   * between that read, the write and the after-image read.
+   * Executes a single-row {@code INSERT ... ON CONFLICT DO UPDATE} built by {@code sqlBuilder} in
+   * one transaction on one connection and returns the requested images.
+   *
+   * <ul>
+   *   <li>Before-image: {@code SELECT ... FOR UPDATE}, so no other writer can change the row
+   *       between that read and the write. When the row does not exist, FOR UPDATE locks nothing,
+   *       so a transaction-scoped advisory lock on the key is taken and the row is re-read; this
+   *       serialises concurrent first writers that go through this method.
+   *   <li>After-image: {@code RETURNING *} of the write itself (same columns as {@code find()}).
+   * </ul>
+   *
+   * <p>Statements per call: AFTER = 1; BEFORE / BOTH = 2 when the row exists, 4 on first insert.
    */
   private DocumentChange writeAndReturnChange(
       Key key,
@@ -280,57 +293,38 @@ public class FlatPostgresCollection extends PostgresCollection {
     final boolean readBefore = returnDocuments != ReturnDocuments.AFTER;
     final boolean readAfter = returnDocuments != ReturnDocuments.BEFORE;
     final String tableName = tableIdentifier.getTableName();
-    final Query keyQuery = buildPrimaryKeyQuery(tableName, key);
 
-    try {
-      for (int attempt = 0; attempt < MAX_FIRST_INSERT_RACE_RETRIES; attempt++) {
-        try (Connection connection = client.getTransactionalConnection()) {
-          try {
-            final Document before =
-                readBefore ? selectFirstDocument(connection, keyQuery).orElse(null) : null;
+    try (Connection connection = client.getTransactionalConnection()) {
+      try {
+        final Document before =
+            readBefore
+                ? selectBeforeImageLockingKey(connection, tableName, key).orElse(null)
+                : null;
 
-            final TypedDocument parsed = parseDocument(document, tableName, new ArrayList<>());
-            final String pkColumn = getPKForTable(tableName);
-            final String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
-            parsed.add(
-                quotedPkColumn, key.toString(), getPrimaryKeyType(tableName, pkColumn), false);
-            final List<String> allColumns = getAllQuotedColumns(tableName);
-            final boolean isInsert =
-                executeReturningIsInsertOnConnection(
-                    connection, sqlBuilder.apply(allColumns, quotedPkColumn), allColumns, parsed);
+        final TypedDocument parsed = parseDocument(document, tableName, new ArrayList<>());
+        final String pkColumn = getPKForTable(tableName);
+        final String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
+        parsed.add(quotedPkColumn, key.toString(), getPrimaryKeyType(tableName, pkColumn), false);
+        final List<String> allColumns = getAllQuotedColumns(tableName);
+        final String sql = sqlBuilder.apply(allColumns, quotedPkColumn);
+        final WriteResult result =
+            executeWriteOnConnection(
+                connection, readAfter ? sql + RETURNING_ROW_SUFFIX : sql, allColumns, parsed);
 
-            // FOR UPDATE locks nothing when the row does not exist; concurrent first writers can
-            // both observe an empty before-image while only one reports is_insert=true.
-            if (readBefore && before == null && !isInsert) {
-              connection.rollback();
-              continue;
-            }
-
-            final Document after =
-                readAfter
-                    ? selectFirstDocument(connection, keyQuery)
-                        .orElseThrow(
-                            () ->
-                                new IOException(
-                                    "Could not read document after "
-                                        + operation
-                                        + " for key: "
-                                        + key))
-                    : null;
-            connection.commit();
-            return DocumentChange.of(before, after);
-          } catch (Exception e) {
-            connection.rollback();
-            throw e;
-          }
+        // Only possible when a writer that does not take the advisory lock (e.g. upsert())
+        // inserted the row after our read; the true before-image is unknown, so nothing is
+        // written and the caller may retry.
+        if (readBefore && before == null && !result.isInsert()) {
+          throw new IOException(
+              "Concurrent insert detected on key " + key + " during " + operation + "; retry");
         }
+
+        connection.commit();
+        return DocumentChange.of(before, readAfter ? result.getRow() : null);
+      } catch (Exception e) {
+        connection.rollback();
+        throw e;
       }
-      throw new IOException(
-          "Concurrent first insert on key "
-              + key
-              + " could not be resolved after "
-              + MAX_FIRST_INSERT_RACE_RETRIES
-              + " attempts");
     } catch (PSQLException e) {
       if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
         LOGGER.info(
@@ -1866,10 +1860,32 @@ public class FlatPostgresCollection extends PostgresCollection {
         tableIdentifier, columnList, placeholders, pkColumn, setClause);
   }
 
-  /** Returns true if INSERT, false if UPDATE. */
-  private boolean executeReturningIsInsertOnConnection(
+  private static final class WriteResult {
+    private final boolean insert;
+    private final Document row;
+
+    private WriteResult(boolean insert, Document row) {
+      this.insert = insert;
+      this.row = row;
+    }
+
+    boolean isInsert() {
+      return insert;
+    }
+
+    Document getRow() {
+      return row;
+    }
+  }
+
+  /**
+   * Executes a single-row write ending in {@code RETURNING (xmax = 0) AS is_insert}, optionally
+   * followed by {@link #RETURNING_ROW_SUFFIX}, in which case the returned row is the stored
+   * document.
+   */
+  private WriteResult executeWriteOnConnection(
       Connection connection, String sql, List<String> allColumns, TypedDocument parsed)
-      throws SQLException {
+      throws SQLException, IOException {
     try (PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(connection, sql)) {
       int index = 1;
       final Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
@@ -1887,11 +1903,49 @@ public class FlatPostgresCollection extends PostgresCollection {
         }
       }
       try (ResultSet rs = ps.executeQuery()) {
-        if (rs.next()) {
-          return rs.getBoolean("is_insert");
+        if (!sql.endsWith(RETURNING_ROW_SUFFIX)) {
+          return new WriteResult(rs.next() && rs.getBoolean(IS_INSERT_COLUMN), null);
         }
+        final PostgresResultIteratorWithBasicTypes iterator =
+            new PostgresResultIteratorWithBasicTypes(rs, DocumentType.FLAT);
+        if (!iterator.hasNext()) {
+          throw new IOException("Write returned no row");
+        }
+        final Document row = iterator.next();
+        return new WriteResult(
+            rs.getBoolean(IS_INSERT_COLUMN), withoutFields(row, IS_INSERT_COLUMN, IMPLICIT_ID));
       }
-      return false;
+    }
+  }
+
+  /**
+   * Reads the row for {@code key} with {@code SELECT ... FOR UPDATE}. If absent, takes a
+   * transaction-scoped advisory lock on the key and reads again, so concurrent first writers are
+   * serialised and the later one sees the earlier one's row.
+   */
+  private Optional<Document> selectBeforeImageLockingKey(
+      Connection connection, String tableName, Key key) throws SQLException, IOException {
+    final Query keyQuery = buildPrimaryKeyQuery(tableName, key);
+    Optional<Document> before = selectFirstDocument(connection, keyQuery);
+    if (before.isEmpty()) {
+      try (PreparedStatement ps =
+          queryExecutor.prepareStatementWithTimeout(
+              connection, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))")) {
+        ps.setString(1, tableIdentifier + SHAPE_KEY_DELIMITER + key);
+        ps.execute();
+      }
+      before = selectFirstDocument(connection, keyQuery);
+    }
+    return before.map(document -> withoutFields(document, IMPLICIT_ID));
+  }
+
+  private static Document withoutFields(Document document, String... fields) {
+    try {
+      final ObjectNode node = (ObjectNode) MAPPER.readTree(document.toJson());
+      node.remove(Arrays.asList(fields));
+      return new JSONDocument(node, DocumentType.FLAT);
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException(e);
     }
   }
 

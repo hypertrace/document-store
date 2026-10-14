@@ -147,10 +147,6 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
       this.merge = merge;
     }
 
-    boolean supportsBoth() {
-      return this != MONGO_CREATE_OR_REPLACE;
-    }
-
     String createdTimeField() {
       return MONGO_STORE.equals(storeName) ? "createdTime" : "created_at";
     }
@@ -161,19 +157,15 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
       return Stream.of(AtomicWrite.values())
-          .flatMap(
-              write ->
-                  Stream.of(ReturnDocuments.values())
-                      .filter(rd -> rd != ReturnDocuments.BOTH || write.supportsBoth())
-                      .map(rd -> Arguments.of(write, rd)));
+          .flatMap(write -> Stream.of(ReturnDocuments.values()).map(rd -> Arguments.of(write, rd)));
     }
   }
 
-  private static class BothCapableAtomicWritesProvider implements ArgumentsProvider {
+  private static class AtomicWritesProvider implements ArgumentsProvider {
 
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
-      return Stream.of(AtomicWrite.values()).filter(AtomicWrite::supportsBoth).map(Arguments::of);
+      return Stream.of(AtomicWrite.values()).map(Arguments::of);
     }
   }
 
@@ -604,13 +596,6 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
       }
     }
 
-    /** Flat Postgres images are read with SELECT ... FOR UPDATE, which also selects this alias. */
-    private JsonNode withoutImplicitId(JsonNode json) {
-      ObjectNode copy = json.deepCopy();
-      copy.remove("_implicit_id");
-      return copy;
-    }
-
     private Document partialUpdate(String docId) {
       ObjectNode updateNode = OBJECT_MAPPER.createObjectNode();
       updateNode.put("id", getKeyString(docId));
@@ -642,7 +627,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         assertEquals("TestItem", afterJson.get("item").asText());
         assertEquals(100, afterJson.get("price").asInt());
         assertEquals(50, afterJson.get("quantity").asInt());
-        assertEquals(storedJson, withoutImplicitId(afterJson));
+        assertEquals(storedJson, afterJson);
       }
     }
 
@@ -664,7 +649,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         assertTrue(change.getBefore().isEmpty());
       } else {
         JsonNode beforeJson = OBJECT_MAPPER.readTree(change.getBefore().orElseThrow().toJson());
-        assertEquals(initialJson, withoutImplicitId(beforeJson));
+        assertEquals(initialJson, beforeJson);
         assertEquals("TestItem", beforeJson.get("item").asText());
         assertEquals(100, beforeJson.get("price").asInt());
       }
@@ -686,7 +671,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
         } else {
           assertTrue(quantity == null || quantity.isNull());
         }
-        assertEquals(storedJson, withoutImplicitId(afterJson));
+        assertEquals(storedJson, afterJson);
       }
     }
 
@@ -728,21 +713,48 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
     }
 
     @Test
-    @DisplayName("Mongo createOrReplace BOTH is unsupported")
-    void testMongoCreateOrReplaceBothUnsupported() {
-      String docId = generateDocId("atomic-mongo-replace-both");
-      assertThrows(
-          UnsupportedOperationException.class,
-          () ->
-              atomicWrite(
-                  AtomicWrite.MONGO_CREATE_OR_REPLACE,
-                  createKey(docId),
-                  createTestDocument(docId),
-                  ReturnDocuments.BOTH));
+    @DisplayName("Mongo createOrReplace BOTH: derived after-image equals the stored document")
+    void testMongoCreateOrReplaceBothAfterImageIsExact() throws Exception {
+      String docId = generateDocId("atomic-mongo-replace-exact");
+      Key key = createKey(docId);
+      Collection collection = getCollection(MONGO_STORE);
+
+      DocumentChange inserted =
+          atomicWrite(
+              AtomicWrite.MONGO_CREATE_OR_REPLACE,
+              key,
+              createTestDocument(docId),
+              ReturnDocuments.BOTH);
+      assertTrue(inserted.getBefore().isEmpty());
+      Document storedAfterInsert = readBack(collection, docId);
+      assertEquals(storedAfterInsert, inserted.getAfter().orElseThrow());
+      assertTimestampFieldsPresent(storedAfterInsert);
+
+      Thread.sleep(5);
+      ObjectNode replacement = OBJECT_MAPPER.createObjectNode();
+      replacement.put("id", getKeyString(docId));
+      replacement.put("item", "$price");
+      replacement.putObject("props");
+      DocumentChange replaced =
+          atomicWrite(
+              AtomicWrite.MONGO_CREATE_OR_REPLACE,
+              key,
+              new JSONDocument(replacement),
+              ReturnDocuments.BOTH);
+      assertEquals(storedAfterInsert, replaced.getBefore().orElseThrow());
+      Document storedAfterReplace = readBack(collection, docId);
+      assertEquals(storedAfterReplace, replaced.getAfter().orElseThrow());
+
+      JsonNode insertJson = OBJECT_MAPPER.readTree(storedAfterInsert.toJson());
+      JsonNode replaceJson = OBJECT_MAPPER.readTree(storedAfterReplace.toJson());
+      assertEquals("$price", replaceJson.get("item").asText());
+      assertTrue(replaceJson.get("props").isObject() && replaceJson.get("props").isEmpty());
+      assertNull(replaceJson.get("price"));
+      assertEquals(insertJson.get("createdTime"), replaceJson.get("createdTime"));
     }
 
     @ParameterizedTest(name = "{0}: concurrent BOTH writes form a single chain")
-    @ArgumentsSource(BothCapableAtomicWritesProvider.class)
+    @ArgumentsSource(AtomicWritesProvider.class)
     void testConcurrentWritesFormChain(AtomicWrite write) throws Exception {
       String docId = generateDocId("atomic-concurrent");
       Key key = createKey(docId);

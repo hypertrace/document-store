@@ -14,7 +14,13 @@ import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.options.UpsertOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 
-/** Interface spec for common operations on a collection of documents */
+/**
+ * Interface spec for common operations on a collection of documents.
+ *
+ * <p>Methods are not atomic, and give no isolation from concurrent writers, unless their javadoc
+ * explicitly says so. In particular, reading a document before or after a write with separate calls
+ * can observe other writers' changes (or stale replicas, depending on read preference).
+ */
 public interface Collection {
 
   /**

@@ -308,11 +308,13 @@ public class MongoCollection implements Collection {
    * Performs one atomic server-side write (a single {@code findOneAndUpdate} with upsert).
    *
    * <ul>
-   *   <li>BEFORE / AFTER: the server returns the requested image from that write.
+   *   <li>BEFORE / AFTER: the server returns the requested image from that write; the update is the
+   *       same as {@link #upsert(Key, Document)}.
    *   <li>BOTH: the server returns the before-image from that write; the after-image is computed by
    *       applying that same update to the before-image (no second read). This is exact because the
-   *       update only sets top-level fields to literal values, including {@code _lastUpdateTime},
-   *       which is set from the client clock rather than {@code $currentDate}.
+   *       update only sets top-level fields to literal values. For that reason {@code
+   *       _lastUpdateTime} is set from the client clock instead of {@code $currentDate} in this
+   *       mode only.
    * </ul>
    */
   @Override
@@ -320,10 +322,12 @@ public class MongoCollection implements Collection {
       throws IOException {
     final ReturnDocuments returnDocuments = options.getReturnDocuments();
     final BasicDBObject update =
-        prepareUpsertWithExplicitLastUpdateTime(key, document, System.currentTimeMillis());
+        returnDocuments == ReturnDocuments.BOTH
+            ? prepareUpsertWithExplicitLastUpdateTime(key, document, System.currentTimeMillis())
+            : prepareUpsert(key, document);
     final ReturnDocument serverImage =
         returnDocuments == ReturnDocuments.AFTER ? ReturnDocument.AFTER : ReturnDocument.BEFORE;
-    final BasicDBObject result =
+    final BasicDBObject serverResult =
         Failsafe.with(upsertRetryPolicy)
             .get(
                 () ->
@@ -334,56 +338,107 @@ public class MongoCollection implements Collection {
 
     switch (returnDocuments) {
       case BEFORE:
-        return DocumentChange.of(toDocumentOrNull(result), null);
+        return DocumentChange.of(toDocumentOrNull(serverResult), null);
       case AFTER:
-        if (result == null) {
+        if (serverResult == null) {
           throw new IOException("Could not upsert the document with key: " + key);
         }
-        return DocumentChange.of(null, dbObjectToDocument(result));
+        return DocumentChange.of(null, dbObjectToDocument(serverResult));
       case BOTH:
-        final BasicDBObject after = applyUpsertToBeforeImage(key, result, update);
-        return DocumentChange.of(toDocumentOrNull(result), dbObjectToDocument(after));
+        final BasicDBObject serverBefore = serverResult;
+        final BasicDBObject derivedAfter = applyUpsertToBeforeImage(key, serverBefore, update);
+        return DocumentChange.of(toDocumentOrNull(serverBefore), dbObjectToDocument(derivedAfter));
       default:
         throw new UnsupportedOperationException("Unhandled return documents: " + returnDocuments);
     }
   }
 
   /**
-   * Performs one atomic server-side write (a single {@code findOneAndUpdate} with upsert) and
-   * returns the BEFORE or AFTER image from that write.
+   * Performs one atomic server-side write (a single {@code findOneAndUpdate} with upsert).
    *
-   * <p>BOTH is not supported: the replace pipeline evaluates document values as aggregation
-   * expressions (e.g. a string value starting with {@code $} is read as a field path), so the
-   * stored document cannot always be derived exactly from the before-image without a second read.
+   * <ul>
+   *   <li>BEFORE / AFTER: the server returns the requested image from that write.
+   *   <li>BOTH: the server returns the before-image from that write; the after-image is computed by
+   *       applying the same replace to the before-image (no second read).
+   * </ul>
+   *
+   * <p>Unlike {@link #createOrReplace(Key, Document)}, every top-level value is wrapped in {@code
+   * $literal}, so values are stored exactly as given (e.g. a string starting with {@code $} is not
+   * read as a field path). That is what makes the derived after-image exact.
    */
   @Override
   public DocumentChange createOrReplaceAndReturn(
       final Key key, final Document document, final UpsertOptions options) throws IOException {
     final ReturnDocuments returnDocuments = options.getReturnDocuments();
-    if (returnDocuments == ReturnDocuments.BOTH) {
-      throw new UnsupportedOperationException(
-          "createOrReplaceAndReturn with ReturnDocuments.BOTH is not supported on Mongo");
-    }
-    final boolean returnBefore = returnDocuments == ReturnDocuments.BEFORE;
+    final long now = System.currentTimeMillis();
+    final BasicDBObject replacement = prepareDocumentForLiteralReplace(key, document, now);
+    final ReturnDocument serverImage =
+        returnDocuments == ReturnDocuments.AFTER ? ReturnDocument.AFTER : ReturnDocument.BEFORE;
 
     try {
-      final FindOneAndUpdateOptions findOptions =
-          new FindOneAndUpdateOptions()
-              .upsert(true)
-              .returnDocument(returnBefore ? ReturnDocument.BEFORE : ReturnDocument.AFTER);
-      final BasicDBObject result =
+      final BasicDBObject serverResult =
           collection.findOneAndUpdate(
               this.selectionCriteriaForKey(key),
-              this.prepareForCreateOrReplace(key, document),
-              findOptions);
-      LOGGER.debug("Create or replace result: {}", result);
-      return returnBefore
-          ? DocumentChange.of(toDocumentOrNull(result), null)
-          : DocumentChange.of(null, dbObjectToDocument(requireNonNull(result)));
+              prepareLiteralCreateOrReplace(replacement, now),
+              new FindOneAndUpdateOptions().upsert(true).returnDocument(serverImage));
+      LOGGER.debug("Create or replace result: {}", serverResult);
+
+      switch (returnDocuments) {
+        case BEFORE:
+          return DocumentChange.of(toDocumentOrNull(serverResult), null);
+        case AFTER:
+          return DocumentChange.of(null, dbObjectToDocument(requireNonNull(serverResult)));
+        case BOTH:
+          final BasicDBObject serverBefore = serverResult;
+          final BasicDBObject derivedAfter =
+              applyReplaceToBeforeImage(serverBefore, replacement, now);
+          return DocumentChange.of(
+              toDocumentOrNull(serverBefore), dbObjectToDocument(derivedAfter));
+        default:
+          throw new UnsupportedOperationException("Unhandled return documents: " + returnDocuments);
+      }
     } catch (final Exception e) {
       LOGGER.error("Exception creating/replacing document. key: {} content:{}", key, document, e);
       throw e;
     }
+  }
+
+  private BasicDBObject prepareDocumentForLiteralReplace(Key key, Document document, long now)
+      throws JsonProcessingException {
+    final BasicDBObject replacement = prepareDocument(key, document, now);
+    replacement.put(LAST_UPDATE_TIMESTAMP_ISO_8601, new Date(now));
+    return replacement;
+  }
+
+  /** Same stages as {@link #prepareForCreateOrReplace}, with every value wrapped in $literal. */
+  private List<BasicDBObject> prepareLiteralCreateOrReplace(BasicDBObject replacement, long now) {
+    final BasicDBObject project =
+        new BasicDBObject(
+            PROJECT_CLAUSE,
+            new BasicDBObject(
+                CREATED_TIME,
+                new BasicDBObject(
+                    IF_NULL_CLAUSE,
+                    new BsonValue[] {new BsonString(PREFIX + CREATED_TIME), new BsonInt64(now)})));
+    final BasicDBObject literalSet = new BasicDBObject();
+    replacement.forEach(
+        (field, value) -> literalSet.put(field, new BasicDBObject(PREFIX + "literal", value)));
+    return List.of(project, new BasicDBObject(SET_CLAUSE, literalSet));
+  }
+
+  /**
+   * Applies {@link #prepareLiteralCreateOrReplace} to the before-image the server returned for that
+   * same write: {@code $project} keeps only {@code _id} and {@code createdTime} (defaulting to
+   * {@code now} when missing or null), then {@code $set} adds the replacement fields.
+   */
+  private static BasicDBObject applyReplaceToBeforeImage(
+      @Nullable BasicDBObject before, BasicDBObject replacement, long now) {
+    final BasicDBObject after =
+        new BasicDBObject(ID_KEY, before == null ? replacement.get(ID_KEY) : before.get(ID_KEY));
+    final Object createdTime = before == null ? null : before.get(CREATED_TIME);
+    after.put(CREATED_TIME, createdTime == null ? now : createdTime);
+    after.putAll(replacement.toMap());
+    return after;
   }
 
   @Nullable

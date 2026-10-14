@@ -469,41 +469,12 @@ public class MongoCollectionTest {
     private final ArgumentCaptor<FindOneAndUpdateOptions> options =
         ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
 
+    @SuppressWarnings("unchecked")
+    private final ArgumentCaptor<List<BasicDBObject>> pipeline =
+        ArgumentCaptor.forClass(List.class);
+
     UpsertAndReturnWithOptionsTest() throws IOException {
       document = new JSONDocument("{\"item\":\"Soap\",\"price\":100}");
-    }
-
-    private void stubFindOneAndUpdate(final BasicDBObject result) {
-      when(collection.findOneAndUpdate(
-              any(BasicDBObject.class), update.capture(), options.capture()))
-          .thenReturn(result);
-    }
-
-    private UpsertOptions optionsFor(final ReturnDocuments returnDocuments) {
-      return UpsertOptions.builder().returnDocuments(returnDocuments).build();
-    }
-
-    private BasicDBObject existingDocument() {
-      return new BasicDBObject("_id", key.toString())
-          .append("item", "OldSoap")
-          .append("price", 50)
-          .append("quantity", 3)
-          .append("createdTime", 123L)
-          .append("lastUpdatedTime", 456L);
-    }
-
-    /** Asserts the update uses a literal _lastUpdateTime and returns its $set clause. */
-    private BasicDBObject assertExplicitLastUpdateTime() {
-      final BasicDBObject updateDocument = update.getValue();
-      assertFalse(updateDocument.containsField("$currentDate"));
-      final BasicDBObject set = (BasicDBObject) updateDocument.get("$set");
-      final Object lastUpdateTime = set.get("_lastUpdateTime");
-      assertTrue(lastUpdateTime instanceof Date);
-      assertEquals(set.getLong("lastUpdatedTime"), ((Date) lastUpdateTime).getTime());
-      assertEquals(
-          set.getLong("lastUpdatedTime"),
-          ((BasicDBObject) updateDocument.get("$setOnInsert")).getLong("createdTime"));
-      return set;
     }
 
     @Test
@@ -517,7 +488,7 @@ public class MongoCollectionTest {
       assertFalse(result.getAfter().isPresent());
       assertTrue(options.getValue().isUpsert());
       assertEquals(BEFORE, options.getValue().getReturnDocument());
-      assertExplicitLastUpdateTime();
+      assertServerLastUpdateTime();
     }
 
     @Test
@@ -531,6 +502,7 @@ public class MongoCollectionTest {
           MongoUtils.dbObjectToDocument(existingDocument()), result.getBefore().orElseThrow());
       assertFalse(result.getAfter().isPresent());
       assertEquals(BEFORE, options.getValue().getReturnDocument());
+      assertServerLastUpdateTime();
     }
 
     @Test
@@ -548,7 +520,7 @@ public class MongoCollectionTest {
           result.getAfter().orElseThrow());
       assertTrue(options.getValue().isUpsert());
       assertEquals(AFTER, options.getValue().getReturnDocument());
-      assertExplicitLastUpdateTime();
+      assertServerLastUpdateTime();
     }
 
     @Test
@@ -600,18 +572,8 @@ public class MongoCollectionTest {
     }
 
     @Test
-    void testCreateOrReplaceBothIsUnsupported() {
-      assertThrows(
-          UnsupportedOperationException.class,
-          () ->
-              mongoCollection.createOrReplaceAndReturn(
-                  key, document, optionsFor(ReturnDocuments.BOTH)));
-    }
-
-    @Test
     void testCreateOrReplaceBeforeAndAfter() throws IOException {
-      when(collection.findOneAndUpdate(any(BasicDBObject.class), anyList(), options.capture()))
-          .thenReturn(existingDocument());
+      stubFindOneAndReplacePipeline(existingDocument());
 
       final DocumentChange before =
           mongoCollection.createOrReplaceAndReturn(
@@ -627,6 +589,115 @@ public class MongoCollectionTest {
       assertEquals(AFTER, options.getValue().getReturnDocument());
       assertFalse(after.getBefore().isPresent());
       assertTrue(after.getAfter().isPresent());
+    }
+
+    @Test
+    void testCreateOrReplaceWrapsEveryValueInLiteral() throws IOException {
+      stubFindOneAndReplacePipeline(null);
+
+      mongoCollection.createOrReplaceAndReturn(key, document, optionsFor(ReturnDocuments.BEFORE));
+
+      final BasicDBObject set = (BasicDBObject) pipeline.getValue().get(1).get("$set");
+      for (final String field : set.keySet()) {
+        assertTrue(
+            ((BasicDBObject) set.get(field)).containsField("$literal"),
+            field + " is not wrapped in $literal");
+      }
+      assertEquals("Soap", ((BasicDBObject) set.get("item")).get("$literal"));
+    }
+
+    @Test
+    void testCreateOrReplaceBothOnInsertDerivesAfterImage() throws IOException {
+      stubFindOneAndReplacePipeline(null);
+
+      final DocumentChange result =
+          mongoCollection.createOrReplaceAndReturn(key, document, optionsFor(ReturnDocuments.BOTH));
+
+      assertEquals(BEFORE, options.getValue().getReturnDocument());
+      final BasicDBObject set = literalSetValues();
+      assertFalse(result.getBefore().isPresent());
+      final BasicDBObject expectedAfter =
+          new BasicDBObject("createdTime", set.getLong("lastUpdatedTime"))
+              .append("item", "Soap")
+              .append("price", 100)
+              .append("lastUpdatedTime", set.getLong("lastUpdatedTime"))
+              .append("_lastUpdateTime", set.get("_lastUpdateTime"));
+      assertEquals(MongoUtils.dbObjectToDocument(expectedAfter), result.getAfter().orElseThrow());
+    }
+
+    @Test
+    void testCreateOrReplaceBothOnUpdateDropsOldFieldsAndKeepsCreatedTime() throws IOException {
+      stubFindOneAndReplacePipeline(existingDocument());
+
+      final DocumentChange result =
+          mongoCollection.createOrReplaceAndReturn(key, document, optionsFor(ReturnDocuments.BOTH));
+
+      assertEquals(BEFORE, options.getValue().getReturnDocument());
+      final BasicDBObject set = literalSetValues();
+      assertEquals(
+          MongoUtils.dbObjectToDocument(existingDocument()), result.getBefore().orElseThrow());
+      final BasicDBObject expectedAfter =
+          new BasicDBObject("createdTime", 123L)
+              .append("item", "Soap")
+              .append("price", 100)
+              .append("lastUpdatedTime", set.getLong("lastUpdatedTime"))
+              .append("_lastUpdateTime", set.get("_lastUpdateTime"));
+      assertEquals(MongoUtils.dbObjectToDocument(expectedAfter), result.getAfter().orElseThrow());
+    }
+
+    private void stubFindOneAndUpdate(final BasicDBObject result) {
+      when(collection.findOneAndUpdate(
+              any(BasicDBObject.class), update.capture(), options.capture()))
+          .thenReturn(result);
+    }
+
+    private void stubFindOneAndReplacePipeline(final BasicDBObject result) {
+      when(collection.findOneAndUpdate(
+              any(BasicDBObject.class), pipeline.capture(), options.capture()))
+          .thenReturn(result);
+    }
+
+    private UpsertOptions optionsFor(final ReturnDocuments returnDocuments) {
+      return UpsertOptions.builder().returnDocuments(returnDocuments).build();
+    }
+
+    private BasicDBObject existingDocument() {
+      return new BasicDBObject("_id", key.toString())
+          .append("item", "OldSoap")
+          .append("price", 50)
+          .append("quantity", 3)
+          .append("createdTime", 123L)
+          .append("lastUpdatedTime", 456L);
+    }
+
+    /** Asserts the update uses $currentDate for _lastUpdateTime, like upsert(). */
+    private void assertServerLastUpdateTime() {
+      final BasicDBObject updateDocument = update.getValue();
+      assertTrue(
+          ((BasicDBObject) updateDocument.get("$currentDate")).containsField("_lastUpdateTime"));
+      assertFalse(((BasicDBObject) updateDocument.get("$set")).containsField("_lastUpdateTime"));
+    }
+
+    /** Asserts the update uses a literal _lastUpdateTime and returns its $set clause. */
+    private BasicDBObject assertExplicitLastUpdateTime() {
+      final BasicDBObject updateDocument = update.getValue();
+      assertFalse(updateDocument.containsField("$currentDate"));
+      final BasicDBObject set = (BasicDBObject) updateDocument.get("$set");
+      final Object lastUpdateTime = set.get("_lastUpdateTime");
+      assertTrue(lastUpdateTime instanceof Date);
+      assertEquals(set.getLong("lastUpdatedTime"), ((Date) lastUpdateTime).getTime());
+      assertEquals(
+          set.getLong("lastUpdatedTime"),
+          ((BasicDBObject) updateDocument.get("$setOnInsert")).getLong("createdTime"));
+      return set;
+    }
+
+    /** Returns the replace pipeline's $set values with the $literal wrappers removed. */
+    private BasicDBObject literalSetValues() {
+      final BasicDBObject set = (BasicDBObject) pipeline.getValue().get(1).get("$set");
+      final BasicDBObject values = new BasicDBObject();
+      set.forEach((field, value) -> values.put(field, ((BasicDBObject) value).get("$literal")));
+      return values;
     }
   }
 }
