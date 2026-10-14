@@ -299,47 +299,6 @@ public abstract class PostgresCollection implements Collection {
     }
   }
 
-  @Override
-  public Optional<Document> upsertAndReturnOlderDocument(Key key, Document document)
-      throws IOException {
-    final String selectQuery =
-        String.format("SELECT * FROM %s WHERE %s = ? FOR UPDATE", tableIdentifier, ID);
-
-    try (final Connection connection = client.getTransactionalConnection()) {
-      try {
-        Optional<Document> beforeDocument = empty();
-        try (final PreparedStatement selectStatement = connection.prepareStatement(selectQuery)) {
-          selectStatement.setString(1, key.toString());
-          beforeDocument =
-              getFirstDocument(new PostgresResultIterator(selectStatement.executeQuery()));
-        }
-
-        try (final PreparedStatement upsertStatement =
-            connection.prepareStatement(getUpsertSQL(), Statement.RETURN_GENERATED_KEYS)) {
-          // createdTime must come from this locked row; a second connection would deadlock.
-          final String jsonString = prepareDocument(key, document, createdTimeFrom(beforeDocument));
-          upsertStatement.setString(1, key.toString());
-          upsertStatement.setString(2, jsonString);
-          upsertStatement.setString(3, jsonString);
-          upsertStatement.executeUpdate();
-        }
-
-        connection.commit();
-        return beforeDocument;
-      } catch (final Exception e) {
-        connection.rollback();
-        throw e;
-      }
-    } catch (final Exception e) {
-      LOGGER.error(
-          "Exception upserting document and returning older version. key: {} content:{}",
-          key,
-          document,
-          e);
-      throw new IOException(e);
-    }
-  }
-
   /**
    * Update the sub document based on subDocPath based on longest key match.
    *
@@ -1190,11 +1149,6 @@ public abstract class PostgresCollection implements Collection {
   }
 
   private String prepareDocument(Key key, Document document) throws IOException {
-    return prepareDocument(key, document, getCreatedTime(key));
-  }
-
-  private String prepareDocument(Key key, Document document, Optional<Long> existingCreatedTime)
-      throws IOException {
     String jsonString = document.toJson();
 
     ObjectNode jsonNode = (ObjectNode) MAPPER.readTree(jsonString);
@@ -1202,21 +1156,11 @@ public abstract class PostgresCollection implements Collection {
 
     // update time fields
     long now = System.currentTimeMillis();
+    Optional<Long> existingCreatedTime = getCreatedTime(key);
     jsonNode.put(DocStoreConstants.CREATED_TIME, existingCreatedTime.orElse(now));
     jsonNode.put(DocStoreConstants.LAST_UPDATED_TIME, now);
 
     return MAPPER.writeValueAsString(jsonNode);
-  }
-
-  private Optional<Long> createdTimeFrom(Optional<Document> document) throws IOException {
-    if (document.isEmpty()) {
-      return empty();
-    }
-    JsonNode existingDocument = getDocAsJSON(document.get());
-    if (existingDocument.has(DocStoreConstants.CREATED_TIME)) {
-      return Optional.of(existingDocument.get(DocStoreConstants.CREATED_TIME).asLong());
-    }
-    return empty();
   }
 
   private String prepareDocumentForCreation(final Key key, final Document document)

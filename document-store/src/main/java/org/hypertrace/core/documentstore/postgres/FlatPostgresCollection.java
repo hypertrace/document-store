@@ -39,6 +39,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.hypertrace.core.documentstore.BulkArrayValueUpdateRequest;
 import org.hypertrace.core.documentstore.BulkDeleteResult;
@@ -67,6 +68,8 @@ import org.hypertrace.core.documentstore.model.options.MissingColumnStrategy;
 import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.options.UpsertOptions;
+import org.hypertrace.core.documentstore.model.options.UpsertOptions.ReturnDocuments;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
 import org.hypertrace.core.documentstore.postgres.model.PostgresColumnMetadata;
@@ -237,41 +240,45 @@ public class FlatPostgresCollection extends PostgresCollection {
     }
   }
 
+  /**
+   * Merge-upserts like {@link #upsert(Key, Document)} and returns the requested images from the
+   * same transaction. See {@link #writeAndReturnChange}.
+   */
   @Override
-  public Optional<Document> upsertAndReturnOlderDocument(Key key, Document document)
+  public DocumentChange upsertAndReturn(Key key, Document document, UpsertOptions options)
       throws IOException {
-    final String tableName = tableIdentifier.getTableName();
-
-    try (final Connection connection = client.getTransactionalConnection()) {
-      try {
-        final Query query = buildPrimaryKeyQuery(tableName, key);
-
-        final Optional<Document> beforeDocument = selectFirstDocument(connection, query);
-        upsertOnConnection(connection, key, document, tableName);
-        connection.commit();
-        return beforeDocument;
-      } catch (final Exception e) {
-        connection.rollback();
-        throw e;
-      }
-    } catch (final Exception e) {
-      LOGGER.error(
-          "Exception upserting document and returning older version. key: {} content:{}",
-          key,
-          document,
-          e);
-      throw new IOException(e);
-    }
+    return writeAndReturnChange(
+        key, document, options, this::buildUpsertSql, "upsertAndReturn", false);
   }
 
+  /**
+   * Full-replaces like {@link #createOrReplace(Key, Document)} and returns the requested images
+   * from the same transaction. See {@link #writeAndReturnChange}.
+   */
   @Override
-  public DocumentChange createOrReplaceAndReturnChange(Key key, Document document)
+  public DocumentChange createOrReplaceAndReturn(Key key, Document document, UpsertOptions options)
       throws IOException {
-    return createOrReplaceAndReturnChangeWithRetry(key, document, false);
+    return writeAndReturnChange(
+        key, document, options, this::buildCreateOrReplaceSql, "createOrReplaceAndReturn", false);
   }
 
-  private DocumentChange createOrReplaceAndReturnChangeWithRetry(
-      Key key, Document document, boolean isRetry) throws IOException {
+  /**
+   * Executes a single-row {@code INSERT ... ON CONFLICT DO UPDATE ... RETURNING is_insert} built by
+   * {@code sqlBuilder} and reads the requested images in one transaction on one connection. The
+   * before-image is read with {@code SELECT ... FOR UPDATE}, so no other writer can change the row
+   * between that read, the write and the after-image read.
+   */
+  private DocumentChange writeAndReturnChange(
+      Key key,
+      Document document,
+      UpsertOptions options,
+      BiFunction<List<String>, String, String> sqlBuilder,
+      String operation,
+      boolean isRetry)
+      throws IOException {
+    final ReturnDocuments returnDocuments = options.getReturnDocuments();
+    final boolean readBefore = returnDocuments != ReturnDocuments.AFTER;
+    final boolean readAfter = returnDocuments != ReturnDocuments.BEFORE;
     final String tableName = tableIdentifier.getTableName();
     final Query keyQuery = buildPrimaryKeyQuery(tableName, key);
 
@@ -279,49 +286,42 @@ public class FlatPostgresCollection extends PostgresCollection {
       for (int attempt = 0; attempt < MAX_FIRST_INSERT_RACE_RETRIES; attempt++) {
         try (Connection connection = client.getTransactionalConnection()) {
           try {
-            final Optional<Document> beforeDocument = selectFirstDocument(connection, keyQuery);
+            final Document before =
+                readBefore ? selectFirstDocument(connection, keyQuery).orElse(null) : null;
 
-            final List<String> skippedFields = new ArrayList<>();
-            final TypedDocument parsed = parseDocument(document, tableName, skippedFields);
+            final TypedDocument parsed = parseDocument(document, tableName, new ArrayList<>());
             final String pkColumn = getPKForTable(tableName);
             final String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
-            final PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
-            parsed.add(quotedPkColumn, key.toString(), pkType, false);
-
+            parsed.add(
+                quotedPkColumn, key.toString(), getPrimaryKeyType(tableName, pkColumn), false);
             final List<String> allColumns = getAllQuotedColumns(tableName);
-            final String sql = buildCreateOrReplaceSql(allColumns, quotedPkColumn);
             final boolean isInsert =
-                executeCreateOrReplaceReturningIsInsertOnConnection(
-                    connection, sql, allColumns, parsed);
+                executeReturningIsInsertOnConnection(
+                    connection, sqlBuilder.apply(allColumns, quotedPkColumn), allColumns, parsed);
 
             // FOR UPDATE locks nothing when the row does not exist; concurrent first writers can
             // both observe an empty before-image while only one reports is_insert=true.
-            if (beforeDocument.isEmpty() && !isInsert) {
+            if (readBefore && before == null && !isInsert) {
               connection.rollback();
               continue;
             }
 
-            final Document afterDocument =
-                selectFirstDocument(connection, keyQuery)
-                    .orElseThrow(
-                        () ->
-                            new IOException(
-                                "Could not read document after createOrReplace for key: " + key));
+            final Document after =
+                readAfter
+                    ? selectFirstDocument(connection, keyQuery)
+                        .orElseThrow(
+                            () ->
+                                new IOException(
+                                    "Could not read document after "
+                                        + operation
+                                        + " for key: "
+                                        + key))
+                    : null;
             connection.commit();
-
-            if (beforeDocument.isEmpty()) {
-              return DocumentChange.created(afterDocument);
-            }
-            return DocumentChange.updated(beforeDocument.get(), afterDocument);
-          } catch (PSQLException e) {
-            connection.rollback();
-            throw e;
+            return DocumentChange.of(before, after);
           } catch (Exception e) {
             connection.rollback();
-            if (e instanceof IOException) {
-              throw (IOException) e;
-            }
-            throw new IOException(e);
+            throw e;
           }
         }
       }
@@ -334,20 +334,19 @@ public class FlatPostgresCollection extends PostgresCollection {
     } catch (PSQLException e) {
       if (!isRetry && shouldRefreshSchemaAndRetry(e.getSQLState())) {
         LOGGER.info(
-            "Schema mismatch detected during createOrReplaceAndReturnChange (SQLState: {}), refreshing schema and retrying. key: {}",
+            "Schema mismatch detected during {} (SQLState: {}), refreshing schema and retrying. key: {}",
+            operation,
             e.getSQLState(),
             key);
         schemaRegistry.invalidate(tableName);
-        return createOrReplaceAndReturnChangeWithRetry(key, document, true);
+        return writeAndReturnChange(key, document, options, sqlBuilder, operation, true);
       }
-      LOGGER.error(
-          "SQLException in createOrReplaceAndReturnChange. key: {} content: {}", key, document, e);
+      LOGGER.error("SQLException in {}. key: {} content: {}", operation, key, document, e);
       throw new IOException(e);
     } catch (IOException e) {
       throw e;
     } catch (Exception e) {
-      LOGGER.error(
-          "Exception in createOrReplaceAndReturnChange. key: {} content: {}", key, document, e);
+      LOGGER.error("Exception in {}. key: {} content: {}", operation, key, document, e);
       throw new IOException(e);
     }
   }
@@ -1867,53 +1866,8 @@ public class FlatPostgresCollection extends PostgresCollection {
         tableIdentifier, columnList, placeholders, pkColumn, setClause);
   }
 
-  private void upsertOnConnection(
-      Connection connection, Key key, Document document, String tableName) throws IOException {
-    final List<String> skippedFields = new ArrayList<>();
-
-    try {
-      final TypedDocument parsed = parseDocument(document, tableName, skippedFields);
-      final String pkColumn = getPKForTable(tableName);
-      final String quotedPkColumn = PostgresUtils.wrapFieldNamesWithDoubleQuotes(pkColumn);
-      final PostgresDataType pkType = getPrimaryKeyType(tableName, pkColumn);
-      parsed.add(quotedPkColumn, key.toString(), pkType, false);
-
-      final List<String> allColumns = getAllQuotedColumns(tableName);
-      final String sql = buildUpsertSql(allColumns, quotedPkColumn);
-      executeUpsertOnConnection(connection, sql, allColumns, parsed);
-    } catch (SQLException e) {
-      LOGGER.error("SQLException in upsert. key: {} content: {}", key, document, e);
-      throw new IOException(e);
-    }
-  }
-
-  private void executeUpsertOnConnection(
-      Connection connection, String sql, List<String> allColumns, TypedDocument parsed)
-      throws SQLException {
-    try (PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(connection, sql)) {
-      int index = 1;
-      final Set<String> parsedColumns = new HashSet<>(parsed.getColumns());
-      for (String column : allColumns) {
-        if (parsedColumns.contains(column)) {
-          setParameter(
-              connection,
-              ps,
-              index++,
-              parsed.getValue(column),
-              parsed.getType(column),
-              parsed.isArray(column));
-        } else {
-          ps.setObject(index++, null);
-        }
-      }
-      try (ResultSet rs = ps.executeQuery()) {
-        rs.next();
-      }
-    }
-  }
-
   /** Returns true if INSERT, false if UPDATE. */
-  private boolean executeCreateOrReplaceReturningIsInsertOnConnection(
+  private boolean executeReturningIsInsertOnConnection(
       Connection connection, String sql, List<String> allColumns, TypedDocument parsed)
       throws SQLException {
     try (PreparedStatement ps = queryExecutor.prepareStatementWithTimeout(connection, sql)) {

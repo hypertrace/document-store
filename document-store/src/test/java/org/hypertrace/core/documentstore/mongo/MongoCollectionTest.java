@@ -39,6 +39,7 @@ import com.mongodb.client.model.FindOneAndUpdateOptions;
 import com.mongodb.client.result.UpdateResult;
 import java.io.IOException;
 import java.time.Clock;
+import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -60,6 +61,8 @@ import org.hypertrace.core.documentstore.model.config.AggregatePipelineMode;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions.MissingDocumentStrategy;
+import org.hypertrace.core.documentstore.model.options.UpsertOptions;
+import org.hypertrace.core.documentstore.model.options.UpsertOptions.ReturnDocuments;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.query.SortingSpec;
@@ -457,98 +460,173 @@ public class MongoCollectionTest {
   }
 
   @Nested
-  class UpsertAndReturnOlderDocumentTest {
+  class UpsertAndReturnWithOptionsTest {
 
     private final Key key = new SingleValueKey("default", "testKey");
     private final Document document;
+    private final ArgumentCaptor<BasicDBObject> update =
+        ArgumentCaptor.forClass(BasicDBObject.class);
+    private final ArgumentCaptor<FindOneAndUpdateOptions> options =
+        ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
 
-    UpsertAndReturnOlderDocumentTest() throws IOException {
+    UpsertAndReturnWithOptionsTest() throws IOException {
       document = new JSONDocument("{\"item\":\"Soap\",\"price\":100}");
     }
 
-    @Test
-    void testUpsertAndReturnOlderDocumentReturnsEmptyWhenCreated() throws IOException {
-      final ArgumentCaptor<FindOneAndUpdateOptions> options =
-          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
-
+    private void stubFindOneAndUpdate(final BasicDBObject result) {
       when(collection.findOneAndUpdate(
-              any(BasicDBObject.class), any(BasicDBObject.class), options.capture()))
-          .thenReturn(null);
+              any(BasicDBObject.class), update.capture(), options.capture()))
+          .thenReturn(result);
+    }
 
-      final Optional<Document> result = mongoCollection.upsertAndReturnOlderDocument(key, document);
+    private UpsertOptions optionsFor(final ReturnDocuments returnDocuments) {
+      return UpsertOptions.builder().returnDocuments(returnDocuments).build();
+    }
 
-      assertFalse(result.isPresent());
-      assertTrue(options.getValue().isUpsert());
-      assertEquals(BEFORE, options.getValue().getReturnDocument());
+    private BasicDBObject existingDocument() {
+      return new BasicDBObject("_id", key.toString())
+          .append("item", "OldSoap")
+          .append("price", 50)
+          .append("quantity", 3)
+          .append("createdTime", 123L)
+          .append("lastUpdatedTime", 456L);
+    }
+
+    /** Asserts the update uses a literal _lastUpdateTime and returns its $set clause. */
+    private BasicDBObject assertExplicitLastUpdateTime() {
+      final BasicDBObject updateDocument = update.getValue();
+      assertFalse(updateDocument.containsField("$currentDate"));
+      final BasicDBObject set = (BasicDBObject) updateDocument.get("$set");
+      final Object lastUpdateTime = set.get("_lastUpdateTime");
+      assertTrue(lastUpdateTime instanceof Date);
+      assertEquals(set.getLong("lastUpdatedTime"), ((Date) lastUpdateTime).getTime());
+      assertEquals(
+          set.getLong("lastUpdatedTime"),
+          ((BasicDBObject) updateDocument.get("$setOnInsert")).getLong("createdTime"));
+      return set;
     }
 
     @Test
-    void testUpsertAndReturnOlderDocumentReturnsBeforeImage() throws IOException {
-      final ArgumentCaptor<FindOneAndUpdateOptions> options =
-          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
-      final BasicDBObject beforeDocument = new BasicDBObject("item", "OldSoap");
+    void testBeforeOnInsertReturnsNothing() throws IOException {
+      stubFindOneAndUpdate(null);
 
-      when(collection.findOneAndUpdate(
-              any(BasicDBObject.class), any(BasicDBObject.class), options.capture()))
-          .thenReturn(beforeDocument);
-
-      final Optional<Document> result = mongoCollection.upsertAndReturnOlderDocument(key, document);
-
-      assertTrue(result.isPresent());
-      assertTrue(result.get().toJson().contains("OldSoap"));
-      assertTrue(options.getValue().isUpsert());
-      assertEquals(BEFORE, options.getValue().getReturnDocument());
-    }
-  }
-
-  @Nested
-  class UpsertAndReturnChangeTest {
-
-    private final Key key = new SingleValueKey("default", "testKey");
-    private final Document document;
-
-    UpsertAndReturnChangeTest() throws IOException {
-      document = new JSONDocument("{\"item\":\"Soap\",\"price\":100}");
-    }
-
-    @Test
-    void testUpsertAndReturnChangeCreated() throws IOException {
-      final ArgumentCaptor<FindOneAndUpdateOptions> options =
-          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
-
-      when(collection.findOneAndUpdate(
-              any(BasicDBObject.class), any(BasicDBObject.class), options.capture()))
-          .thenReturn(null);
-
-      final DocumentChange result = mongoCollection.upsertAndReturnChange(key, document);
+      final DocumentChange result =
+          mongoCollection.upsertAndReturn(key, document, optionsFor(ReturnDocuments.BEFORE));
 
       assertFalse(result.getBefore().isPresent());
-      assertTrue(result.getAfter().toJson().contains("Soap"));
-      assertTrue(result.getAfter().toJson().contains("100"));
+      assertFalse(result.getAfter().isPresent());
       assertTrue(options.getValue().isUpsert());
+      assertEquals(BEFORE, options.getValue().getReturnDocument());
+      assertExplicitLastUpdateTime();
+    }
+
+    @Test
+    void testBeforeOnUpdateReturnsBeforeImage() throws IOException {
+      stubFindOneAndUpdate(existingDocument());
+
+      final DocumentChange result =
+          mongoCollection.upsertAndReturn(key, document, optionsFor(ReturnDocuments.BEFORE));
+
+      assertEquals(
+          MongoUtils.dbObjectToDocument(existingDocument()), result.getBefore().orElseThrow());
+      assertFalse(result.getAfter().isPresent());
       assertEquals(BEFORE, options.getValue().getReturnDocument());
     }
 
     @Test
-    void testUpsertAndReturnChangeUpdated() throws IOException {
-      final ArgumentCaptor<FindOneAndUpdateOptions> options =
-          ArgumentCaptor.forClass(FindOneAndUpdateOptions.class);
-      final BasicDBObject beforeDocument =
-          new BasicDBObject("item", "OldSoap").append("price", 50).append("quantity", 3);
+    void testAfterReturnsServerAfterImage() throws IOException {
+      final BasicDBObject serverAfter =
+          new BasicDBObject("_id", key.toString()).append("item", "Soap").append("price", 100);
+      stubFindOneAndUpdate(serverAfter);
 
-      when(collection.findOneAndUpdate(
-              any(BasicDBObject.class), any(BasicDBObject.class), options.capture()))
-          .thenReturn(beforeDocument);
+      final DocumentChange result =
+          mongoCollection.upsertAndReturn(key, document, optionsFor(ReturnDocuments.AFTER));
 
-      final DocumentChange result = mongoCollection.upsertAndReturnChange(key, document);
-
-      assertTrue(result.getBefore().isPresent());
-      assertTrue(result.getBefore().get().toJson().contains("OldSoap"));
-      assertTrue(result.getAfter().toJson().contains("Soap"));
-      assertTrue(result.getAfter().toJson().contains("100"));
-      assertTrue(result.getAfter().toJson().contains("quantity"));
+      assertFalse(result.getBefore().isPresent());
+      assertEquals(
+          MongoUtils.dbObjectToDocument(new BasicDBObject("item", "Soap").append("price", 100)),
+          result.getAfter().orElseThrow());
       assertTrue(options.getValue().isUpsert());
+      assertEquals(AFTER, options.getValue().getReturnDocument());
+      assertExplicitLastUpdateTime();
+    }
+
+    @Test
+    void testAfterThrowsWhenServerReturnsNothing() {
+      stubFindOneAndUpdate(null);
+      assertThrows(
+          IOException.class,
+          () -> mongoCollection.upsertAndReturn(key, document, optionsFor(ReturnDocuments.AFTER)));
+    }
+
+    @Test
+    void testBothOnInsertDerivesAfterImage() throws IOException {
+      stubFindOneAndUpdate(null);
+
+      final DocumentChange result =
+          mongoCollection.upsertAndReturn(key, document, optionsFor(ReturnDocuments.BOTH));
+
       assertEquals(BEFORE, options.getValue().getReturnDocument());
+      final BasicDBObject set = assertExplicitLastUpdateTime();
+      assertFalse(result.getBefore().isPresent());
+      final BasicDBObject expectedAfter =
+          new BasicDBObject("item", "Soap")
+              .append("price", 100)
+              .append("lastUpdatedTime", set.getLong("lastUpdatedTime"))
+              .append("_lastUpdateTime", set.get("_lastUpdateTime"))
+              .append("createdTime", set.getLong("lastUpdatedTime"));
+      assertEquals(MongoUtils.dbObjectToDocument(expectedAfter), result.getAfter().orElseThrow());
+    }
+
+    @Test
+    void testBothOnUpdateDerivesAfterImage() throws IOException {
+      stubFindOneAndUpdate(existingDocument());
+
+      final DocumentChange result =
+          mongoCollection.upsertAndReturn(key, document, optionsFor(ReturnDocuments.BOTH));
+
+      assertEquals(BEFORE, options.getValue().getReturnDocument());
+      final BasicDBObject set = assertExplicitLastUpdateTime();
+      assertEquals(
+          MongoUtils.dbObjectToDocument(existingDocument()), result.getBefore().orElseThrow());
+      final BasicDBObject expectedAfter =
+          new BasicDBObject("item", "Soap")
+              .append("price", 100)
+              .append("quantity", 3)
+              .append("createdTime", 123L)
+              .append("lastUpdatedTime", set.getLong("lastUpdatedTime"))
+              .append("_lastUpdateTime", set.get("_lastUpdateTime"));
+      assertEquals(MongoUtils.dbObjectToDocument(expectedAfter), result.getAfter().orElseThrow());
+    }
+
+    @Test
+    void testCreateOrReplaceBothIsUnsupported() {
+      assertThrows(
+          UnsupportedOperationException.class,
+          () ->
+              mongoCollection.createOrReplaceAndReturn(
+                  key, document, optionsFor(ReturnDocuments.BOTH)));
+    }
+
+    @Test
+    void testCreateOrReplaceBeforeAndAfter() throws IOException {
+      when(collection.findOneAndUpdate(any(BasicDBObject.class), anyList(), options.capture()))
+          .thenReturn(existingDocument());
+
+      final DocumentChange before =
+          mongoCollection.createOrReplaceAndReturn(
+              key, document, optionsFor(ReturnDocuments.BEFORE));
+      assertEquals(BEFORE, options.getValue().getReturnDocument());
+      assertTrue(options.getValue().isUpsert());
+      assertTrue(before.getBefore().isPresent());
+      assertFalse(before.getAfter().isPresent());
+
+      final DocumentChange after =
+          mongoCollection.createOrReplaceAndReturn(
+              key, document, optionsFor(ReturnDocuments.AFTER));
+      assertEquals(AFTER, options.getValue().getReturnDocument());
+      assertFalse(after.getBefore().isPresent());
+      assertTrue(after.getAfter().isPresent());
     }
   }
 }

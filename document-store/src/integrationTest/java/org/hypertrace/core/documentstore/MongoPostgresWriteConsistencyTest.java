@@ -27,6 +27,8 @@ import java.util.concurrent.Future;
 import java.util.stream.Stream;
 import org.hypertrace.core.documentstore.model.options.ReturnDocumentType;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.options.UpsertOptions;
+import org.hypertrace.core.documentstore.model.options.UpsertOptions.ReturnDocuments;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentValue;
 import org.hypertrace.core.documentstore.model.subdoc.UpdateOperator;
@@ -38,6 +40,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -127,6 +130,50 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
     @Override
     public Stream<Arguments> provideArguments(final ExtensionContext context) {
       return Stream.of(Arguments.of(MONGO_STORE), Arguments.of(POSTGRES_FLAT_STORE));
+    }
+  }
+
+  private enum AtomicWrite {
+    MONGO_UPSERT(MONGO_STORE, true),
+    MONGO_CREATE_OR_REPLACE(MONGO_STORE, false),
+    POSTGRES_FLAT_UPSERT(POSTGRES_FLAT_STORE, true),
+    POSTGRES_FLAT_CREATE_OR_REPLACE(POSTGRES_FLAT_STORE, false);
+
+    private final String storeName;
+    private final boolean merge;
+
+    AtomicWrite(String storeName, boolean merge) {
+      this.storeName = storeName;
+      this.merge = merge;
+    }
+
+    boolean supportsBoth() {
+      return this != MONGO_CREATE_OR_REPLACE;
+    }
+
+    String createdTimeField() {
+      return MONGO_STORE.equals(storeName) ? "createdTime" : "created_at";
+    }
+  }
+
+  private static class AtomicWriteAndReturnDocumentsProvider implements ArgumentsProvider {
+
+    @Override
+    public Stream<Arguments> provideArguments(final ExtensionContext context) {
+      return Stream.of(AtomicWrite.values())
+          .flatMap(
+              write ->
+                  Stream.of(ReturnDocuments.values())
+                      .filter(rd -> rd != ReturnDocuments.BOTH || write.supportsBoth())
+                      .map(rd -> Arguments.of(write, rd)));
+    }
+  }
+
+  private static class BothCapableAtomicWritesProvider implements ArgumentsProvider {
+
+    @Override
+    public Stream<Arguments> provideArguments(final ExtensionContext context) {
+      return Stream.of(AtomicWrite.values()).filter(AtomicWrite::supportsBoth).map(Arguments::of);
     }
   }
 
@@ -537,146 +584,168 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
   }
 
   @Nested
-  @DisplayName("UpsertAndReturnOlderDocument Consistency Tests")
-  class UpsertAndReturnOlderDocumentConsistencyTests {
-
-    @ParameterizedTest(name = "{0}: upsertAndReturnOlderDocument new document")
-    @ArgumentsSource(AllStoresProvider.class)
-    void testUpsertAndReturnOlderDocumentNewDoc(String storeName) throws Exception {
-      String docId = generateDocId("upsert-return-older-new");
-      Key key = createKey(docId);
-
-      Collection collection = getCollection(storeName);
-      Document document = createTestDocument(docId);
-
-      Optional<Document> returned = collection.upsertAndReturnOlderDocument(key, document);
-
-      assertTrue(returned.isEmpty());
-
-      Query query = buildQueryById(docId);
-      try (CloseableIterator<Document> iterator = collection.find(query)) {
-        assertTrue(iterator.hasNext());
-        Document retrievedDoc = iterator.next();
-        JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
-
-        assertEquals("TestItem", json.get("item").asText());
-        assertEquals(100, json.get("price").asInt());
-        assertEquals(50, json.get("quantity").asInt());
-      }
-    }
-
-    @ParameterizedTest(name = "{0}: upsertAndReturnOlderDocument existing document")
-    @ArgumentsSource(AllStoresProvider.class)
-    void testUpsertAndReturnOlderDocumentExistingDoc(String storeName) throws Exception {
-      String docId = generateDocId("upsert-return-older-existing");
-      Key key = createKey(docId);
-
-      Collection collection = getCollection(storeName);
-      Document initialDoc = createTestDocument(docId);
-      collection.upsert(key, initialDoc);
-
-      ObjectNode partialNode = OBJECT_MAPPER.createObjectNode();
-      partialNode.put("id", getKeyString(docId));
-      partialNode.put("item", "UpdatedItem");
-      partialNode.put("price", 999);
-      Document partialDoc = new JSONDocument(partialNode);
-
-      Optional<Document> returned = collection.upsertAndReturnOlderDocument(key, partialDoc);
-
-      assertTrue(returned.isPresent());
-      JsonNode returnedJson = OBJECT_MAPPER.readTree(returned.get().toJson());
-      assertEquals("TestItem", returnedJson.get("item").asText());
-      assertEquals(100, returnedJson.get("price").asInt());
-      assertEquals(50, returnedJson.get("quantity").asInt());
-
-      Query query = buildQueryById(docId);
-      try (CloseableIterator<Document> iterator = collection.find(query)) {
-        assertTrue(iterator.hasNext());
-        Document retrievedDoc = iterator.next();
-        JsonNode json = OBJECT_MAPPER.readTree(retrievedDoc.toJson());
-
-        assertEquals("UpdatedItem", json.get("item").asText());
-        assertEquals(999, json.get("price").asInt());
-        assertEquals(50, json.get("quantity").asInt());
-        assertTrue(json.get("in_stock").asBoolean());
-      }
-    }
-  }
-
-  @Nested
-  @DisplayName("DocumentChange atomic write tests")
-  class DocumentChangeConsistencyTests {
+  @DisplayName("Atomic write with UpsertOptions tests")
+  class AtomicWriteWithUpsertOptionsTests {
 
     private DocumentChange atomicWrite(
-        String storeName, Collection collection, Key key, Document document) throws IOException {
-      if (MONGO_STORE.equals(storeName)) {
-        return collection.upsertAndReturnChange(key, document);
+        AtomicWrite write, Key key, Document document, ReturnDocuments returnDocuments)
+        throws IOException {
+      Collection collection = getCollection(write.storeName);
+      UpsertOptions options = UpsertOptions.builder().returnDocuments(returnDocuments).build();
+      return write.merge
+          ? collection.upsertAndReturn(key, document, options)
+          : collection.createOrReplaceAndReturn(key, document, options);
+    }
+
+    private Document readBack(Collection collection, String docId) throws IOException {
+      try (CloseableIterator<Document> iterator = collection.find(buildQueryById(docId))) {
+        assertTrue(iterator.hasNext());
+        return iterator.next();
       }
-      return collection.createOrReplaceAndReturnChange(key, document);
     }
 
-    private String createdTimestampField(String storeName) {
-      return MONGO_STORE.equals(storeName) ? "createdTime" : "created_at";
+    /** Flat Postgres images are read with SELECT ... FOR UPDATE, which also selects this alias. */
+    private JsonNode withoutImplicitId(JsonNode json) {
+      ObjectNode copy = json.deepCopy();
+      copy.remove("_implicit_id");
+      return copy;
     }
 
-    @ParameterizedTest(name = "{0}: atomic write on insert returns empty before")
-    @ArgumentsSource(AllStoresProvider.class)
-    void testAtomicWriteInsert(String storeName) throws Exception {
-      String docId = generateDocId("atomic-insert");
-      Key key = createKey(docId);
-      Collection collection = getCollection(storeName);
-
-      DocumentChange change = atomicWrite(storeName, collection, key, createTestDocument(docId));
-
-      assertTrue(change.getBefore().isEmpty());
-      JsonNode afterJson = OBJECT_MAPPER.readTree(change.getAfter().toJson());
-      assertEquals("TestItem", afterJson.get("item").asText());
-      assertEquals(100, afterJson.get("price").asInt());
-      assertNotNull(afterJson.get(createdTimestampField(storeName)));
-    }
-
-    @ParameterizedTest(name = "{0}: atomic write on update preserves created timestamp")
-    @ArgumentsSource(AllStoresProvider.class)
-    void testAtomicWriteUpdate(String storeName) throws Exception {
-      String docId = generateDocId("atomic-update");
-      Key key = createKey(docId);
-      Collection collection = getCollection(storeName);
-      String createdField = createdTimestampField(storeName);
-
-      collection.upsert(key, createTestDocument(docId));
-
-      JsonNode initialJson;
-      Query query = buildQueryById(docId);
-      try (CloseableIterator<Document> iterator = collection.find(query)) {
-        initialJson = OBJECT_MAPPER.readTree(iterator.next().toJson());
-      }
-      assertNotNull(initialJson.get(createdField));
-
+    private Document partialUpdate(String docId) {
       ObjectNode updateNode = OBJECT_MAPPER.createObjectNode();
       updateNode.put("id", getKeyString(docId));
       updateNode.put("item", "UpdatedItem");
       updateNode.put("price", 999);
-      Document updateDoc = new JSONDocument(updateNode);
-
-      DocumentChange change = atomicWrite(storeName, collection, key, updateDoc);
-
-      assertTrue(change.getBefore().isPresent());
-      JsonNode beforeJson = OBJECT_MAPPER.readTree(change.getBefore().get().toJson());
-      assertEquals("TestItem", beforeJson.get("item").asText());
-      assertEquals(100, beforeJson.get("price").asInt());
-
-      JsonNode afterJson = OBJECT_MAPPER.readTree(change.getAfter().toJson());
-      assertEquals("UpdatedItem", afterJson.get("item").asText());
-      assertEquals(999, afterJson.get("price").asInt());
-      assertEquals(initialJson.get(createdField), afterJson.get(createdField));
+      return new JSONDocument(updateNode);
     }
 
-    @ParameterizedTest(name = "{0}: concurrent atomic writes form a single chain")
-    @ArgumentsSource(AllStoresProvider.class)
-    void testConcurrentAtomicWritesFormChain(String storeName) throws Exception {
+    @ParameterizedTest(name = "{0} {1}: insert")
+    @ArgumentsSource(AtomicWriteAndReturnDocumentsProvider.class)
+    void testInsert(AtomicWrite write, ReturnDocuments returnDocuments) throws Exception {
+      String docId = generateDocId("atomic-insert");
+      Key key = createKey(docId);
+      Collection collection = getCollection(write.storeName);
+
+      DocumentChange change = atomicWrite(write, key, createTestDocument(docId), returnDocuments);
+
+      assertTrue(change.getBefore().isEmpty());
+      Document stored = readBack(collection, docId);
+      JsonNode storedJson = OBJECT_MAPPER.readTree(stored.toJson());
+      assertEquals("TestItem", storedJson.get("item").asText());
+      assertNotNull(storedJson.get(write.createdTimeField()));
+
+      if (returnDocuments == ReturnDocuments.BEFORE) {
+        assertTrue(change.getAfter().isEmpty());
+      } else {
+        Document after = change.getAfter().orElseThrow();
+        JsonNode afterJson = OBJECT_MAPPER.readTree(after.toJson());
+        assertEquals("TestItem", afterJson.get("item").asText());
+        assertEquals(100, afterJson.get("price").asInt());
+        assertEquals(50, afterJson.get("quantity").asInt());
+        assertEquals(storedJson, withoutImplicitId(afterJson));
+      }
+    }
+
+    @ParameterizedTest(name = "{0} {1}: update")
+    @ArgumentsSource(AtomicWriteAndReturnDocumentsProvider.class)
+    void testUpdate(AtomicWrite write, ReturnDocuments returnDocuments) throws Exception {
+      String docId = generateDocId("atomic-update");
+      Key key = createKey(docId);
+      Collection collection = getCollection(write.storeName);
+      String createdField = write.createdTimeField();
+
+      collection.upsert(key, createTestDocument(docId));
+      JsonNode initialJson = OBJECT_MAPPER.readTree(readBack(collection, docId).toJson());
+      assertNotNull(initialJson.get(createdField));
+
+      DocumentChange change = atomicWrite(write, key, partialUpdate(docId), returnDocuments);
+
+      if (returnDocuments == ReturnDocuments.AFTER) {
+        assertTrue(change.getBefore().isEmpty());
+      } else {
+        JsonNode beforeJson = OBJECT_MAPPER.readTree(change.getBefore().orElseThrow().toJson());
+        assertEquals(initialJson, withoutImplicitId(beforeJson));
+        assertEquals("TestItem", beforeJson.get("item").asText());
+        assertEquals(100, beforeJson.get("price").asInt());
+      }
+
+      JsonNode storedJson = OBJECT_MAPPER.readTree(readBack(collection, docId).toJson());
+      assertEquals("UpdatedItem", storedJson.get("item").asText());
+      assertEquals(initialJson.get(createdField), storedJson.get(createdField));
+
+      if (returnDocuments == ReturnDocuments.BEFORE) {
+        assertTrue(change.getAfter().isEmpty());
+      } else {
+        JsonNode afterJson = OBJECT_MAPPER.readTree(change.getAfter().orElseThrow().toJson());
+        assertEquals("UpdatedItem", afterJson.get("item").asText());
+        assertEquals(999, afterJson.get("price").asInt());
+        assertEquals(initialJson.get(createdField), afterJson.get(createdField));
+        JsonNode quantity = afterJson.get("quantity");
+        if (write.merge) {
+          assertEquals(50, quantity.asInt());
+        } else {
+          assertTrue(quantity == null || quantity.isNull());
+        }
+        assertEquals(storedJson, withoutImplicitId(afterJson));
+      }
+    }
+
+    @Test
+    @DisplayName("Mongo upsert BOTH: derived after-image equals the stored document")
+    void testMongoUpsertBothAfterImageIsExact() throws Exception {
+      String docId = generateDocId("atomic-mongo-exact");
+      Key key = createKey(docId);
+      Collection collection = getCollection(MONGO_STORE);
+
+      DocumentChange inserted =
+          atomicWrite(
+              AtomicWrite.MONGO_UPSERT, key, createTestDocument(docId), ReturnDocuments.BOTH);
+      assertTrue(inserted.getBefore().isEmpty());
+      Document storedAfterInsert = readBack(collection, docId);
+      assertEquals(storedAfterInsert, inserted.getAfter().orElseThrow());
+      assertTimestampFieldsPresent(storedAfterInsert);
+
+      Thread.sleep(5);
+      DocumentChange updated =
+          atomicWrite(AtomicWrite.MONGO_UPSERT, key, partialUpdate(docId), ReturnDocuments.BOTH);
+      assertEquals(storedAfterInsert, updated.getBefore().orElseThrow());
+      Document storedAfterUpdate = readBack(collection, docId);
+      assertEquals(storedAfterUpdate, updated.getAfter().orElseThrow());
+      assertTimestampFieldsPresent(storedAfterUpdate);
+
+      JsonNode insertJson = OBJECT_MAPPER.readTree(storedAfterInsert.toJson());
+      JsonNode updateJson = OBJECT_MAPPER.readTree(storedAfterUpdate.toJson());
+      assertEquals(insertJson.get("createdTime"), updateJson.get("createdTime"));
+      assertTrue(
+          updateJson.get("lastUpdatedTime").asLong() > insertJson.get("lastUpdatedTime").asLong());
+    }
+
+    private void assertTimestampFieldsPresent(Document document) throws IOException {
+      JsonNode json = OBJECT_MAPPER.readTree(document.toJson());
+      assertNotNull(json.get("_lastUpdateTime"));
+      assertNotNull(json.get("createdTime"));
+      assertNotNull(json.get("lastUpdatedTime"));
+    }
+
+    @Test
+    @DisplayName("Mongo createOrReplace BOTH is unsupported")
+    void testMongoCreateOrReplaceBothUnsupported() {
+      String docId = generateDocId("atomic-mongo-replace-both");
+      assertThrows(
+          UnsupportedOperationException.class,
+          () ->
+              atomicWrite(
+                  AtomicWrite.MONGO_CREATE_OR_REPLACE,
+                  createKey(docId),
+                  createTestDocument(docId),
+                  ReturnDocuments.BOTH));
+    }
+
+    @ParameterizedTest(name = "{0}: concurrent BOTH writes form a single chain")
+    @ArgumentsSource(BothCapableAtomicWritesProvider.class)
+    void testConcurrentWritesFormChain(AtomicWrite write) throws Exception {
       String docId = generateDocId("atomic-concurrent");
       Key key = createKey(docId);
-      Collection collection = getCollection(storeName);
       int threadCount = 20;
 
       ExecutorService executor = Executors.newFixedThreadPool(threadCount);
@@ -689,7 +758,7 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
                 ObjectNode node = OBJECT_MAPPER.createObjectNode();
                 node.put("id", getKeyString(docId));
                 node.put("price", value);
-                return atomicWrite(storeName, collection, key, new JSONDocument(node));
+                return atomicWrite(write, key, new JSONDocument(node), ReturnDocuments.BOTH);
               });
         }
 
@@ -704,78 +773,47 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
       }
     }
 
+    private int fieldValue(Document document, String field) throws IOException {
+      JsonNode value = OBJECT_MAPPER.readTree(document.toJson()).get(field);
+      assertNotNull(value, "document must include chain field: " + field);
+      return value.asInt();
+    }
+
     private void assertChangesFormSingleChain(List<DocumentChange> changes, String field)
         throws IOException {
-      long createCount = changes.stream().filter(c -> c.getBefore().isEmpty()).count();
-      assertEquals(1, createCount, "expected exactly one insert in the chain");
+      assertEquals(
+          1,
+          changes.stream().filter(c -> c.getBefore().isEmpty()).count(),
+          "expected exactly one insert in the chain");
 
+      Map<Integer, Integer> afterByBefore = new HashMap<>();
       Set<Integer> afterValues = new HashSet<>();
-      Set<Integer> beforeValues = new HashSet<>();
-
+      Integer head = null;
       for (DocumentChange change : changes) {
-        JsonNode afterField = OBJECT_MAPPER.readTree(change.getAfter().toJson()).get(field);
-        assertNotNull(afterField, "after document must include chain field: " + field);
-        afterValues.add(afterField.asInt());
-        change
-            .getBefore()
-            .ifPresent(
-                before -> {
-                  try {
-                    beforeValues.add(OBJECT_MAPPER.readTree(before.toJson()).get(field).asInt());
-                  } catch (IOException e) {
-                    throw new RuntimeException(e);
-                  }
-                });
-      }
-
-      assertEquals(changes.size(), afterValues.size(), "after seq values must be distinct");
-      assertEquals(changes.size() - 1, beforeValues.size());
-
-      for (Integer beforeValue : beforeValues) {
-        assertTrue(
-            afterValues.contains(beforeValue),
-            "before seq " + beforeValue + " must match some other write's after seq");
-      }
-
-      DocumentChange head =
-          changes.stream()
-              .filter(c -> c.getBefore().isEmpty())
-              .findFirst()
-              .orElseThrow(() -> new AssertionError("missing head of chain"));
-
-      int current = OBJECT_MAPPER.readTree(head.getAfter().toJson()).get(field).asInt();
-      Set<DocumentChange> remaining = new HashSet<>();
-      for (DocumentChange change : changes) {
+        int after = fieldValue(change.getAfter().orElseThrow(), field);
+        assertTrue(afterValues.add(after), "after values must be distinct");
         if (change.getBefore().isPresent()) {
-          remaining.add(change);
+          int before = fieldValue(change.getBefore().get(), field);
+          assertNull(afterByBefore.put(before, after), "before values must be distinct");
+        } else {
+          head = after;
         }
       }
 
-      for (int step = 1; step < changes.size(); step++) {
-        int expectedBefore = current;
-        DocumentChange next =
-            remaining.stream()
-                .filter(
-                    c -> {
-                      try {
-                        return OBJECT_MAPPER
-                                .readTree(c.getBefore().get().toJson())
-                                .get(field)
-                                .asInt()
-                            == expectedBefore;
-                      } catch (IOException e) {
-                        throw new RuntimeException(e);
-                      }
-                    })
-                .findFirst()
-                .orElse(null);
-        if (next == null) {
-          fail("chain gap after seq " + current);
-        }
-        remaining.remove(next);
-        current = OBJECT_MAPPER.readTree(next.getAfter().toJson()).get(field).asInt();
+      for (Integer before : afterByBefore.keySet()) {
+        assertTrue(
+            afterValues.contains(before),
+            "before value " + before + " must match some write's after value");
       }
-      assertTrue(remaining.isEmpty());
+
+      Integer current = head;
+      for (int step = 1; step < changes.size(); step++) {
+        Integer next = afterByBefore.get(current);
+        if (next == null) {
+          fail("chain gap after value " + current);
+        }
+        current = next;
+      }
     }
   }
 

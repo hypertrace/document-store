@@ -11,6 +11,7 @@ import org.hypertrace.core.documentstore.expression.impl.KeyExpression;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.options.QueryOptions;
 import org.hypertrace.core.documentstore.model.options.UpdateOptions;
+import org.hypertrace.core.documentstore.model.options.UpsertOptions;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 
 /** Interface spec for common operations on a collection of documents */
@@ -58,27 +59,23 @@ public interface Collection {
   Document upsertAndReturn(Key key, Document document) throws IOException;
 
   /**
-   * Atomically perform the same merge-upsert as {@link #upsertAndReturn(Key, Document)} but return
-   * the document as it existed BEFORE the write.
+   * Atomically perform the same merge-upsert as {@link #upsert(Key, Document)} and return the
+   * document images selected by {@link UpsertOptions#getReturnDocuments()}.
    *
-   * @return the pre-write document, or {@link Optional#empty()} if the document did not exist (i.e.
-   *     this call created it)
+   * <p>Whichever images are requested come from the same atomic write, even under concurrent
+   * writers on the same key: the before-image is exactly the document this write replaced and the
+   * after-image is exactly the document this write produced.
+   *
+   * @param key Unique key of the document in the collection.
+   * @param document Document to be upserted.
+   * @param options Selects which images (BEFORE, AFTER or BOTH) to return.
+   * @return {@link DocumentChange#getBefore()} is empty if not requested or if this call created
+   *     the document; {@link DocumentChange#getAfter()} is empty if not requested.
+   * @throws IOException If the operation could not be performed
    */
-  default Optional<Document> upsertAndReturnOlderDocument(Key key, Document document)
+  default DocumentChange upsertAndReturn(Key key, Document document, UpsertOptions options)
       throws IOException {
-    throw new UnsupportedOperationException("upsertAndReturnOlderDocument is not supported");
-  }
-
-  /**
-   * Atomically perform the same merge-upsert as {@link #upsertAndReturn(Key, Document)} and return
-   * the document as it existed immediately before and immediately after this write.
-   *
-   * <p>The returned {@link DocumentChange#getBefore()} is empty if this call created the document.
-   * The before and after images always reflect the same atomic write, even under concurrent writers
-   * on the same key.
-   */
-  default DocumentChange upsertAndReturnChange(Key key, Document document) throws IOException {
-    throw new UnsupportedOperationException("upsertAndReturnChange is not supported");
+    throw new UnsupportedOperationException("upsertAndReturn with UpsertOptions is not supported");
   }
 
   /**
@@ -333,15 +330,23 @@ public interface Collection {
 
   /**
    * Atomically perform the same full-replace write as {@link #createOrReplace(Key, Document)} and
-   * return the document as it existed immediately before and immediately after this write.
+   * return the document images selected by {@link UpsertOptions#getReturnDocuments()}.
    *
-   * <p>The returned {@link DocumentChange#getBefore()} is empty if this call created the document.
-   * The before and after images always reflect the same atomic write, even under concurrent writers
-   * on the same key.
+   * <p>Whichever images are requested come from the same atomic write, even under concurrent
+   * writers on the same key: the before-image is exactly the document this write replaced and the
+   * after-image is exactly the document this write produced.
+   *
+   * @param key Unique key of the document in the collection.
+   * @param document The document to be created/replaced
+   * @param options Selects which images (BEFORE, AFTER or BOTH) to return.
+   * @return {@link DocumentChange#getBefore()} is empty if not requested or if this call created
+   *     the document; {@link DocumentChange#getAfter()} is empty if not requested.
+   * @throws IOException If the operation could not be performed
    */
-  default DocumentChange createOrReplaceAndReturnChange(Key key, Document document)
-      throws IOException {
-    throw new UnsupportedOperationException("createOrReplaceAndReturnChange is not supported");
+  default DocumentChange createOrReplaceAndReturn(
+      final Key key, final Document document, final UpsertOptions options) throws IOException {
+    throw new UnsupportedOperationException(
+        "createOrReplaceAndReturn with UpsertOptions is not supported");
   }
 
   /**

@@ -42,6 +42,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import net.jodah.failsafe.Failsafe;
 import net.jodah.failsafe.RetryPolicy;
 import org.bson.BsonInt64;
@@ -63,6 +64,8 @@ import org.hypertrace.core.documentstore.Query;
 import org.hypertrace.core.documentstore.model.config.ConnectionConfig;
 import org.hypertrace.core.documentstore.model.exception.DuplicateDocumentException;
 import org.hypertrace.core.documentstore.model.options.QueryOptions;
+import org.hypertrace.core.documentstore.model.options.UpsertOptions;
+import org.hypertrace.core.documentstore.model.options.UpsertOptions.ReturnDocuments;
 import org.hypertrace.core.documentstore.model.subdoc.SubDocumentUpdate;
 import org.hypertrace.core.documentstore.mongo.query.MongoQueryExecutor;
 import org.hypertrace.core.documentstore.mongo.update.MongoUpdateExecutor;
@@ -301,45 +304,91 @@ public class MongoCollection implements Collection {
     return dbObjectToDocument(upsertResult);
   }
 
+  /**
+   * Performs one atomic server-side write (a single {@code findOneAndUpdate} with upsert).
+   *
+   * <ul>
+   *   <li>BEFORE / AFTER: the server returns the requested image from that write.
+   *   <li>BOTH: the server returns the before-image from that write; the after-image is computed by
+   *       applying that same update to the before-image (no second read). This is exact because the
+   *       update only sets top-level fields to literal values, including {@code _lastUpdateTime},
+   *       which is set from the client clock rather than {@code $currentDate}.
+   * </ul>
+   */
   @Override
-  public Optional<Document> upsertAndReturnOlderDocument(Key key, Document document)
+  public DocumentChange upsertAndReturn(Key key, Document document, UpsertOptions options)
       throws IOException {
-    BasicDBObject upsertResult =
-        Failsafe.with(upsertRetryPolicy)
-            .get(
-                () ->
-                    collection.findOneAndUpdate(
-                        this.selectionCriteriaForKey(key),
-                        this.prepareUpsert(key, document),
-                        new FindOneAndUpdateOptions()
-                            .upsert(true)
-                            .returnDocument(ReturnDocument.BEFORE)));
-    if (upsertResult == null) {
-      return Optional.empty();
-    }
-
-    return Optional.of(dbObjectToDocument(upsertResult));
-  }
-
-  @Override
-  public DocumentChange upsertAndReturnChange(Key key, Document document) throws IOException {
-    final long now = System.currentTimeMillis();
-    final BasicDBObject update = prepareUpsert(key, document, now);
-    final BasicDBObject beforeDb =
+    final ReturnDocuments returnDocuments = options.getReturnDocuments();
+    final BasicDBObject update =
+        prepareUpsertWithExplicitLastUpdateTime(key, document, System.currentTimeMillis());
+    final ReturnDocument serverImage =
+        returnDocuments == ReturnDocuments.AFTER ? ReturnDocument.AFTER : ReturnDocument.BEFORE;
+    final BasicDBObject result =
         Failsafe.with(upsertRetryPolicy)
             .get(
                 () ->
                     collection.findOneAndUpdate(
                         this.selectionCriteriaForKey(key),
                         update,
-                        new FindOneAndUpdateOptions()
-                            .upsert(true)
-                            .returnDocument(ReturnDocument.BEFORE)));
-    final BasicDBObject afterDb = deriveAfterImageFromUpsert(beforeDb, update, now);
-    if (beforeDb == null) {
-      return DocumentChange.created(dbObjectToDocument(afterDb));
+                        new FindOneAndUpdateOptions().upsert(true).returnDocument(serverImage)));
+
+    switch (returnDocuments) {
+      case BEFORE:
+        return DocumentChange.of(toDocumentOrNull(result), null);
+      case AFTER:
+        if (result == null) {
+          throw new IOException("Could not upsert the document with key: " + key);
+        }
+        return DocumentChange.of(null, dbObjectToDocument(result));
+      case BOTH:
+        final BasicDBObject after = applyUpsertToBeforeImage(key, result, update);
+        return DocumentChange.of(toDocumentOrNull(result), dbObjectToDocument(after));
+      default:
+        throw new UnsupportedOperationException("Unhandled return documents: " + returnDocuments);
     }
-    return DocumentChange.updated(dbObjectToDocument(beforeDb), dbObjectToDocument(afterDb));
+  }
+
+  /**
+   * Performs one atomic server-side write (a single {@code findOneAndUpdate} with upsert) and
+   * returns the BEFORE or AFTER image from that write.
+   *
+   * <p>BOTH is not supported: the replace pipeline evaluates document values as aggregation
+   * expressions (e.g. a string value starting with {@code $} is read as a field path), so the
+   * stored document cannot always be derived exactly from the before-image without a second read.
+   */
+  @Override
+  public DocumentChange createOrReplaceAndReturn(
+      final Key key, final Document document, final UpsertOptions options) throws IOException {
+    final ReturnDocuments returnDocuments = options.getReturnDocuments();
+    if (returnDocuments == ReturnDocuments.BOTH) {
+      throw new UnsupportedOperationException(
+          "createOrReplaceAndReturn with ReturnDocuments.BOTH is not supported on Mongo");
+    }
+    final boolean returnBefore = returnDocuments == ReturnDocuments.BEFORE;
+
+    try {
+      final FindOneAndUpdateOptions findOptions =
+          new FindOneAndUpdateOptions()
+              .upsert(true)
+              .returnDocument(returnBefore ? ReturnDocument.BEFORE : ReturnDocument.AFTER);
+      final BasicDBObject result =
+          collection.findOneAndUpdate(
+              this.selectionCriteriaForKey(key),
+              this.prepareForCreateOrReplace(key, document),
+              findOptions);
+      LOGGER.debug("Create or replace result: {}", result);
+      return returnBefore
+          ? DocumentChange.of(toDocumentOrNull(result), null)
+          : DocumentChange.of(null, dbObjectToDocument(requireNonNull(result)));
+    } catch (final Exception e) {
+      LOGGER.error("Exception creating/replacing document. key: {} content:{}", key, document, e);
+      throw e;
+    }
+  }
+
+  @Nullable
+  private static Document toDocumentOrNull(@Nullable final BasicDBObject dbObject) {
+    return dbObject == null ? null : dbObjectToDocument(dbObject);
   }
 
   @SuppressWarnings("MismatchedQueryAndUpdateOfCollection")
@@ -363,36 +412,41 @@ public class MongoCollection implements Collection {
   }
 
   private BasicDBObject prepareUpsert(Key key, Document document) throws JsonProcessingException {
-    return prepareUpsert(key, document, System.currentTimeMillis());
-  }
-
-  private BasicDBObject prepareUpsert(Key key, Document document, long now)
-      throws JsonProcessingException {
+    long now = System.currentTimeMillis();
     BasicDBObject setObject = prepareDocument(key, document, now);
     return new BasicDBObject("$set", setObject)
         .append("$currentDate", new BasicDBObject(LAST_UPDATE_TIME, true))
         .append("$setOnInsert", new BasicDBObject(CREATED_TIME, now));
   }
 
-  /** Derives the post-upsert document in memory. Must stay in sync with {@link #prepareUpsert}. */
-  private BasicDBObject deriveAfterImageFromUpsert(
-      BasicDBObject beforeDb, BasicDBObject update, long now) {
-    BasicDBObject after =
-        beforeDb == null ? new BasicDBObject() : new BasicDBObject(beforeDb.toMap());
+  /**
+   * Same as {@link #prepareUpsert} except {@code _lastUpdateTime} is a literal client-clock value,
+   * so the stored document is fully determined by the before-image and this update.
+   */
+  private BasicDBObject prepareUpsertWithExplicitLastUpdateTime(
+      Key key, Document document, long now) throws JsonProcessingException {
+    BasicDBObject setObject = prepareDocument(key, document, now);
+    setObject.put(LAST_UPDATE_TIME, new Date(now));
+    return new BasicDBObject("$set", setObject)
+        .append("$setOnInsert", new BasicDBObject(CREATED_TIME, now));
+  }
 
-    Object setClause = update.get("$set");
-    if (setClause instanceof BasicDBObject) {
-      after.putAll(((BasicDBObject) setClause).toMap());
+  /**
+   * Applies an update from {@link #prepareUpsertWithExplicitLastUpdateTime} to the before-image the
+   * server returned for that same write, yielding the stored document. Exact because the update
+   * only sets top-level fields to literal values ({@code $setOnInsert} applies only on insert).
+   */
+  @SuppressWarnings("unchecked")
+  private static BasicDBObject applyUpsertToBeforeImage(
+      Key key, @Nullable BasicDBObject before, BasicDBObject update) {
+    final BasicDBObject after =
+        before == null
+            ? new BasicDBObject(ID_KEY, key.toString())
+            : new BasicDBObject(before.toMap());
+    after.putAll((Map<String, Object>) update.get("$set"));
+    if (before == null) {
+      after.putAll((Map<String, Object>) update.get("$setOnInsert"));
     }
-
-    if (beforeDb == null) {
-      Object setOnInsertClause = update.get("$setOnInsert");
-      if (setOnInsertClause instanceof BasicDBObject) {
-        after.putAll(((BasicDBObject) setOnInsertClause).toMap());
-      }
-    }
-
-    after.put(LAST_UPDATE_TIME, new Date(now));
     return after;
   }
 
