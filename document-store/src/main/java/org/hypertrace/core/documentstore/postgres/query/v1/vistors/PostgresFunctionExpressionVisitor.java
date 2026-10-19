@@ -6,6 +6,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
+import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
@@ -84,6 +85,21 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
   }
 
   private String getParsedExpression(final SelectTypeExpression expression) {
+    if (expression instanceof FunctionExpression) {
+      String nested = visit((FunctionExpression) expression);
+      return nested != null ? String.format("(%s)", nested) : null;
+    }
+
+    if (expression instanceof ConstantExpression) {
+      // Inlined rather than bound so a GROUP BY repeats the selected expression verbatim.
+      Object value = ((ConstantExpression) expression).getValue();
+      if (!(value instanceof Number)) {
+        throw new UnsupportedOperationException(
+            String.format("Only numeric constants are supported in functions: %s", expression));
+      }
+      return value.toString();
+    }
+
     Optional<String> identifier =
         Optional.ofNullable(expression.accept(identifierExpressionVisitor));
     return identifier
