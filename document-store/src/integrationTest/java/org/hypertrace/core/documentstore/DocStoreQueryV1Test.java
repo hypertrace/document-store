@@ -1918,6 +1918,54 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
+  void testLikeFilterWithRegexMetacharactersInValue(String dataStoreName) {
+    // Reproduces a bug where a LIKE/"contains" filter whose value contains regex
+    // metacharacters (e.g. "{{") works on Mongo (lenient PCRE-style regex engine, where an
+    // unmatched "{" is treated as a literal) but fails on Postgres, whose `~*` operator uses
+    // POSIX ARE and throws "invalid regular expression: quantifier operand invalid" for the
+    // same value. Postgres now sanitizes values that are not valid regexes (see
+    // PostgresUtils#sanitizeRegexValue) so they are matched literally instead of erroring out.
+    Collection collection = getCollection(dataStoreName);
+
+    Query bracesQuery =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("notes"), LIKE, ConstantExpression.of("{{")))
+            .build();
+
+    // Only id=8 has a "notes" field, containing the literal substring "{{". PCRE (Mongo) treats
+    // the unmatched "{{" as literal, and Postgres now escapes it to match literally too, so both
+    // data stores agree here.
+    long bracesCount = collection.count(bracesQuery);
+    assertEquals(1, bracesCount);
+
+    Query dollarBraceQuery =
+        Query.builder()
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("notes"), LIKE, ConstantExpression.of("${${8gs")))
+            .build();
+
+    // "${${8gs" is NOT parity between the two data stores, and that is expected/correct, not a
+    // bug: it is a syntactically valid PCRE pattern (Mongo's engine), but the "$" appearing
+    // mid-pattern is an end-of-line anchor rather than a literal "$", so the pattern can never
+    // actually match anywhere in the "notes" value and Mongo legitimately returns 0 matches.
+    // Postgres/Java's regex engine rejects this same string outright as an illegal repetition
+    // (unmatched quantifier brace), so PostgresUtils#sanitizeRegexValue falls back to escaping it
+    // and matching it literally, which DOES match the "notes" value, returning 1. This is a
+    // genuine, pre-existing semantic difference between a lenient-but-unsatisfiable PCRE pattern
+    // and a literal-string fallback - not something the LIKE-filter fix can or should paper over.
+    long dollarBraceCount = collection.count(dollarBraceQuery);
+    if (MONGO_STORE.equals(dataStoreName)) {
+      assertEquals(0, dollarBraceCount);
+    } else {
+      assertEquals(1, dollarBraceCount);
+    }
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
   void testContainsAndUnnestFilters(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
