@@ -182,7 +182,6 @@
     "item": "Soap",
     "price": 10,
     "quantity": 5,
-    "date": "2016-02-06T20:20:13Z",
-    "notes": "weird {{bracket}} and ${${8gs} value"
+    "date": "2016-02-06T20:20:13Z"
   }
 ]

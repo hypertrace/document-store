@@ -1918,7 +1918,7 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
-  void testLikeFilterWithRegexMetacharactersInValue(String dataStoreName) {
+  void testLikeFilterWithRegexMetacharactersInValue(String dataStoreName) throws IOException {
     // Reproduces a bug where a LIKE/"contains" filter whose value contains regex
     // metacharacters (e.g. "{{") works on Mongo (lenient PCRE-style regex engine, where an
     // unmatched "{" is treated as a literal) but fails on Postgres, whose `~*` operator uses
@@ -1927,6 +1927,14 @@ public class DocStoreQueryV1Test {
     // PostgresUtils#sanitizeRegexValue) so they are matched literally instead of erroring out.
     Collection collection = getCollection(dataStoreName);
 
+    // Upserted here (rather than added to collection_data.json) so this document, which has none
+    // of the item/price/quantity/sales/props fields that the shared fixture's other documents
+    // have, cannot be picked up by the broader filters in unrelated tests that share this
+    // collection.
+    collection.upsert(
+        new SingleValueKey(TENANT_ID, "regex-metacharacters-notes-doc"),
+        new JSONDocument("{\"notes\": \"weird {{bracket}} and ${${8gs} value\"}"));
+
     Query bracesQuery =
         Query.builder()
             .setFilter(
@@ -1934,9 +1942,9 @@ public class DocStoreQueryV1Test {
                     IdentifierExpression.of("notes"), LIKE, ConstantExpression.of("{{")))
             .build();
 
-    // Only id=8 has a "notes" field, containing the literal substring "{{". PCRE (Mongo) treats
-    // the unmatched "{{" as literal, and Postgres now escapes it to match literally too, so both
-    // data stores agree here.
+    // Only the upserted doc above has a "notes" field, containing the literal substring "{{".
+    // PCRE (Mongo) treats the unmatched "{{" as literal, and Postgres now escapes it to match
+    // literally too, so both data stores agree here.
     long bracesCount = collection.count(bracesQuery);
     assertEquals(1, bracesCount);
 
