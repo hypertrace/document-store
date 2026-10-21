@@ -1919,18 +1919,13 @@ public class DocStoreQueryV1Test {
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
   void testLikeFilterWithRegexMetacharactersInValue(String dataStoreName) throws IOException {
-    // Reproduces a bug where a LIKE/"contains" filter whose value contains regex
-    // metacharacters (e.g. "{{") works on Mongo (lenient PCRE-style regex engine, where an
-    // unmatched "{" is treated as a literal) but fails on Postgres, whose `~*` operator uses
-    // POSIX ARE and throws "invalid regular expression: quantifier operand invalid" for the
-    // same value. Postgres now sanitizes values that are not valid regexes (see
-    // PostgresUtils#sanitizeRegexValue) so they are matched literally instead of erroring out.
+    // A LIKE value containing regex metacharacters (e.g. "{{") used to throw on Postgres's
+    // `~*` engine while matching fine on Mongo's lenient PCRE. sanitizeRegexValue now escapes
+    // such values so Postgres matches them literally instead of erroring out.
     Collection collection = getCollection(dataStoreName);
 
-    // Upserted here (rather than added to collection_data.json) so this document, which has none
-    // of the item/price/quantity/sales/props fields that the shared fixture's other documents
-    // have, cannot be picked up by the broader filters in unrelated tests that share this
-    // collection.
+    // Upserted here instead of in collection_data.json so this single-field doc can't be
+    // picked up by other tests' broader filters on the shared fixture.
     collection.upsert(
         new SingleValueKey(TENANT_ID, "regex-metacharacters-notes-doc"),
         new JSONDocument("{\"notes\": \"weird {{bracket}} and ${${8gs} value\"}"));
@@ -1942,9 +1937,8 @@ public class DocStoreQueryV1Test {
                     IdentifierExpression.of("notes"), LIKE, ConstantExpression.of("{{")))
             .build();
 
-    // Only the upserted doc above has a "notes" field, containing the literal substring "{{".
-    // PCRE (Mongo) treats the unmatched "{{" as literal, and Postgres now escapes it to match
-    // literally too, so both data stores agree here.
+    // "{{" is an unmatched brace: Mongo's PCRE treats it as literal, and Postgres now escapes
+    // it to match literally too, so both stores agree.
     long bracesCount = collection.count(bracesQuery);
     assertEquals(1, bracesCount);
 
@@ -1955,15 +1949,9 @@ public class DocStoreQueryV1Test {
                     IdentifierExpression.of("notes"), LIKE, ConstantExpression.of("${${8gs")))
             .build();
 
-    // "${${8gs" is NOT parity between the two data stores, and that is expected/correct, not a
-    // bug: it is a syntactically valid PCRE pattern (Mongo's engine), but the "$" appearing
-    // mid-pattern is an end-of-line anchor rather than a literal "$", so the pattern can never
-    // actually match anywhere in the "notes" value and Mongo legitimately returns 0 matches.
-    // Postgres/Java's regex engine rejects this same string outright as an illegal repetition
-    // (unmatched quantifier brace), so PostgresUtils#sanitizeRegexValue falls back to escaping it
-    // and matching it literally, which DOES match the "notes" value, returning 1. This is a
-    // genuine, pre-existing semantic difference between a lenient-but-unsatisfiable PCRE pattern
-    // and a literal-string fallback - not something the LIKE-filter fix can or should paper over.
+    // "${${8gs" is a valid PCRE where mid-pattern "$" is an anchor, so Mongo legitimately
+    // finds no match; Postgres rejects it as invalid regex and falls back to a literal match,
+    // which does hit. This divergence is expected, not a bug.
     long dollarBraceCount = collection.count(dollarBraceQuery);
     if (MONGO_STORE.equals(dataStoreName)) {
       assertEquals(0, dollarBraceCount);
