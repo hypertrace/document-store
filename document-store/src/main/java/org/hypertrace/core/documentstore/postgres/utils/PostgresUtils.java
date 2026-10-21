@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +45,9 @@ public class PostgresUtils {
   private static final String JSON_DATA_ACCESSOR = "->>";
   private static final String DOT_STR = "_dot_";
   private static final String DOT = ".";
+  // Every character that is special at the regex pattern level, for use by
+  // #escapeRegexMetacharacters(Object).
+  private static final String REGEX_METACHARACTERS = "\\.^$*+?()[]{}|";
 
   public static final Set<String> OUTER_COLUMNS =
       new TreeSet<>(List.of(ID, CREATED_AT, UPDATED_AT));
@@ -179,6 +184,42 @@ public class PostgresUtils {
     return "(" + collect + ")";
   }
 
+  /**
+   * Escapes POSIX ARE metacharacters so the value matches literally under Postgres's {@code ~*}
+   * operator. Fallback only - use {@link #sanitizeRegexValue(Object)} to decide whether escaping is
+   * needed, since a value that is itself a valid regex must be passed through unescaped.
+   */
+  public static String escapeRegexMetacharacters(final Object value) {
+    // String.valueOf() preserves the pre-existing null-handling behaviour (literal "null").
+    final String stringValue = String.valueOf(value);
+    final StringBuilder escaped = new StringBuilder(stringValue.length());
+    for (int i = 0; i < stringValue.length(); i++) {
+      final char c = stringValue.charAt(i);
+      // Built char by char, so an inserted backslash is never re-escaped.
+      if (REGEX_METACHARACTERS.indexOf(c) >= 0) {
+        escaped.append('\\');
+      }
+      escaped.append(c);
+    }
+    return escaped.toString();
+  }
+
+  /**
+   * {@code LIKE} is actually a regex match (see {@code RelationalOperator.LIKE}), so a value that
+   * is already a valid regex is passed through unchanged; otherwise it is escaped via {@link
+   * #escapeRegexMetacharacters(Object)} so Postgres's stricter {@code ~*} engine matches it
+   * literally instead of erroring out on malformed patterns that Mongo's PCRE tolerates.
+   */
+  public static String sanitizeRegexValue(final Object value) {
+    final String stringValue = String.valueOf(value);
+    try {
+      Pattern.compile(stringValue);
+      return stringValue;
+    } catch (final PatternSyntaxException e) {
+      return escapeRegexMetacharacters(stringValue);
+    }
+  }
+
   public static String parseNonCompositeFilterWithCasting(
       String fieldName, String columnName, String op, Object value, Builder paramsBuilder) {
     String parsedExpression =
@@ -235,10 +276,10 @@ public class PostgresUtils {
         break;
       case "LIKE":
       case "~":
-        // Case insensitive regex search, Append % at beginning and end of value to do a regex
-        // search
+        // Postgres's `~*` is an unanchored, case-insensitive regex search (not a full-string
+        // match), so no additional ".*" wrapping is needed to do a "contains" style search.
         sqlOperator = " ~* ";
-        value = ".*" + value + ".*";
+        value = sanitizeRegexValue(value);
         break;
       case "NOT_IN":
       case "NOT IN":
@@ -444,10 +485,10 @@ public class PostgresUtils {
         break;
       case "LIKE":
       case "~":
-        // Case insensitive regex search, Append % at beginning and end of value to do a regex
-        // search
+        // Postgres's `~*` is an unanchored, case-insensitive regex search (not a full-string
+        // match), so no additional ".*" wrapping is needed to do a "contains" style search.
         sqlOperator = " ~* ";
-        value = ".*" + value + ".*";
+        value = sanitizeRegexValue(value);
         break;
       case "NOT_IN":
       case "NOT IN":

@@ -102,6 +102,39 @@ class PostgresQueryParserTest {
     }
 
     {
+      // "a{{b" is not a valid regex (unmatched quantifier brace), so POSIX ARE metacharacters
+      // in the LIKE value must be escaped so that the value is matched literally instead of
+      // being rejected outright by Postgres's strict ~* operator.
+      Filter filter = new Filter(Filter.Op.LIKE, ID, "a{{b");
+      Params.Builder paramsBuilder = initParams();
+      String query =
+          PostgresUtils.parseNonCompositeFilterWithCasting(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              paramsBuilder);
+      Assertions.assertEquals(ID + " ~* ?", query);
+      Assertions.assertEquals(Map.of(1, "a\\{\\{b"), paramsBuilder.build().getObjectParams());
+    }
+
+    {
+      // A value that is already a valid regex (e.g. "^Sun") must be passed through unchanged,
+      // since LIKE is a case-insensitive regex match, not a literal "contains".
+      Filter filter = new Filter(Filter.Op.LIKE, ID, "^Sun");
+      Params.Builder paramsBuilder = initParams();
+      String query =
+          PostgresUtils.parseNonCompositeFilterWithCasting(
+              filter.getFieldName(),
+              PostgresUtils.DOCUMENT_COLUMN,
+              filter.getOp().toString(),
+              filter.getValue(),
+              paramsBuilder);
+      Assertions.assertEquals(ID + " ~* ?", query);
+      Assertions.assertEquals(Map.of(1, "^Sun"), paramsBuilder.build().getObjectParams());
+    }
+
+    {
       Filter filter = new Filter(Filter.Op.IN, ID, List.of("abc", "xyz"));
       String query =
           PostgresUtils.parseNonCompositeFilterWithCasting(

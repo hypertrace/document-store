@@ -1918,6 +1918,53 @@ public class DocStoreQueryV1Test {
 
   @ParameterizedTest
   @ArgumentsSource(AllProvider.class)
+  void testLikeFilterWithRegexMetacharactersInValue(String dataStoreName) throws IOException {
+    // A LIKE value containing regex metacharacters (e.g. "{{") used to throw on Postgres's
+    // `~*` engine while matching fine on Mongo's lenient PCRE. sanitizeRegexValue now escapes
+    // such values so Postgres matches them literally instead of erroring out.
+    Collection collection = getCollection(dataStoreName);
+
+    // Upserted here instead of in collection_data.json, and deleted in the finally block below,
+    // so this transient doc never affects other tests' counts on the shared fixture.
+    SingleValueKey key = new SingleValueKey(TENANT_ID, "regex-metacharacters-notes-doc");
+    collection.upsert(
+        key, new JSONDocument("{\"notes\": \"weird {{bracket}} and ${${8gs} value\"}"));
+    try {
+      Query bracesQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("notes"), LIKE, ConstantExpression.of("{{")))
+              .build();
+
+      // "{{" is an unmatched brace: Mongo's PCRE treats it as literal, and Postgres now escapes
+      // it to match literally too, so both stores agree.
+      long bracesCount = collection.count(bracesQuery);
+      assertEquals(1, bracesCount);
+
+      Query dollarBraceQuery =
+          Query.builder()
+              .setFilter(
+                  RelationalExpression.of(
+                      IdentifierExpression.of("notes"), LIKE, ConstantExpression.of("${${8gs")))
+              .build();
+
+      // "${${8gs" is a valid PCRE where mid-pattern "$" is an anchor, so Mongo legitimately
+      // finds no match; Postgres rejects it as invalid regex and falls back to a literal match,
+      // which does hit. This divergence is expected, not a bug.
+      long dollarBraceCount = collection.count(dollarBraceQuery);
+      if (MONGO_STORE.equals(dataStoreName)) {
+        assertEquals(0, dollarBraceCount);
+      } else {
+        assertEquals(1, dollarBraceCount);
+      }
+    } finally {
+      collection.delete(key);
+    }
+  }
+
+  @ParameterizedTest
+  @ArgumentsSource(AllProvider.class)
   void testContainsAndUnnestFilters(String dataStoreName) throws IOException {
     Collection collection = getCollection(dataStoreName);
 
