@@ -308,6 +308,17 @@ public class DocStoreQueryV1Test {
     }
   }
 
+  private static class AllWithFlatProvider implements ArgumentsProvider {
+
+    @Override
+    public Stream<Arguments> provideArguments(final ExtensionContext context) {
+      return Stream.of(
+          Arguments.of(MONGO_STORE, DocumentType.NESTED),
+          Arguments.of(POSTGRES_STORE, DocumentType.NESTED),
+          Arguments.of(POSTGRES_STORE, DocumentType.FLAT));
+    }
+  }
+
   /**
    * Provides arguments for testing array operations with different expression types. Returns:
    * (datastoreName, expressionType) - "WITH_TYPE": ArrayIdentifierExpression WITH ArrayType
@@ -6881,6 +6892,77 @@ public class DocStoreQueryV1Test {
         dataStoreName, resultDocs, "query/function_expression_group_by_response.json", 3);
 
     testCountApi(dataStoreName, query, "query/function_expression_group_by_response.json");
+  }
+
+  /**
+   * Buckets quantity into intervals of 10 and groups by item and bucket. The flat collection holds
+   * two extra items, which are filtered out so every store sees the same rows.
+   */
+  @ParameterizedTest
+  @ArgumentsSource(AllWithFlatProvider.class)
+  public void testIntervalFunctionGroupBy(String dataStoreName, DocumentType documentType)
+      throws IOException {
+    Collection collection =
+        documentType == DocumentType.FLAT
+            ? getFlatCollection(dataStoreName)
+            : getCollection(dataStoreName);
+
+    FunctionExpression bucket =
+        FunctionExpression.builder()
+            .operator(MULTIPLY)
+            .operand(
+                FunctionExpression.builder()
+                    .operator(FLOOR)
+                    .operand(
+                        FunctionExpression.builder()
+                            .operator(DIVIDE)
+                            .operand(IdentifierExpression.of("quantity"))
+                            .operand(ConstantExpression.of(10))
+                            .build())
+                    .build())
+            .operand(ConstantExpression.of(10))
+            .alias("bucket")
+            .build();
+
+    Query query =
+        Query.builder()
+            .addSelection(IdentifierExpression.of("item"))
+            .addSelection(bucket, "bucket")
+            .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("item")), "count")
+            .setFilter(
+                RelationalExpression.of(
+                    IdentifierExpression.of("item"),
+                    NOT_IN,
+                    ConstantExpression.ofStrings(List.of("Bottle", "Cup"))))
+            .addAggregation(IdentifierExpression.of("item"))
+            .addAggregation(bucket)
+            .build();
+
+    List<Map<String, Object>> actual = new ArrayList<>();
+    try (CloseableIterator<Document> resultDocs = collection.aggregate(query)) {
+      while (resultDocs.hasNext()) {
+        actual.add(normalizeNumbers(Utils.convertDocumentToMap(resultDocs.next())));
+      }
+    }
+
+    List<Map<String, Object>> expected =
+        Utils.convertJsonToMap(
+                readFileFromResource("query/interval_group_by_response.json").orElseThrow())
+            .stream()
+            .map(DocStoreQueryV1Test::normalizeNumbers)
+            .collect(toUnmodifiableList());
+
+    assertEquals(expected.size(), actual.size(), "Unexpected rows: " + actual);
+    assertTrue(actual.containsAll(expected), "Unexpected rows: " + actual);
+  }
+
+  /** Stores return integral results as either integers or doubles, so compare them as doubles. */
+  private static Map<String, Object> normalizeNumbers(Map<String, Object> doc) {
+    Map<String, Object> normalized = new HashMap<>();
+    doc.forEach(
+        (key, value) ->
+            normalized.put(key, value instanceof Number ? ((Number) value).doubleValue() : value));
+    return normalized;
   }
 
   @ParameterizedTest
