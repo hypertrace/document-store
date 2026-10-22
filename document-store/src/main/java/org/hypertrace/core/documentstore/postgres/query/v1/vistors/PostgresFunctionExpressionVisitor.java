@@ -8,16 +8,18 @@ import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.StringUtils;
 import org.hypertrace.core.documentstore.expression.impl.ConstantExpression;
 import org.hypertrace.core.documentstore.expression.impl.FunctionExpression;
+import org.hypertrace.core.documentstore.expression.impl.IdentifierExpression;
 import org.hypertrace.core.documentstore.expression.operators.FunctionOperator;
 import org.hypertrace.core.documentstore.expression.type.SelectTypeExpression;
 import org.hypertrace.core.documentstore.postgres.query.v1.PostgresQueryParser;
+import org.hypertrace.core.documentstore.postgres.utils.PostgresUtils.Type;
 
 @NoArgsConstructor
 public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpressionVisitor {
 
   private static final int ARRAY_DIMENSION = 1;
   private PostgresIdentifierExpressionVisitor identifierExpressionVisitor;
-  private PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor;
+  private PostgresFunctionOperandVisitor operandVisitor;
 
   public PostgresFunctionExpressionVisitor(PostgresSelectTypeExpressionVisitor baseVisitor) {
     super(baseVisitor);
@@ -31,9 +33,10 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
 
   private void initExpressionVisitor() {
     identifierExpressionVisitor = new PostgresIdentifierExpressionVisitor(getPostgresQueryParser());
-    selectTypeExpressionVisitor =
-        new PostgresDataAccessorIdentifierExpressionVisitor(
-            new PostgresConstantExpressionVisitor(getPostgresQueryParser()));
+    operandVisitor =
+        new PostgresFunctionOperandVisitor(
+            new PostgresDataAccessorIdentifierExpressionVisitor(
+                getPostgresQueryParser(), Type.NUMERIC));
   }
 
   @Override
@@ -85,14 +88,30 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
   }
 
   private String getParsedExpression(final SelectTypeExpression expression) {
-    if (expression instanceof FunctionExpression) {
-      String nested = visit((FunctionExpression) expression);
+    return expression.accept(operandVisitor);
+  }
+
+  private class PostgresFunctionOperandVisitor extends PostgresSelectTypeExpressionVisitor {
+
+    private PostgresFunctionOperandVisitor(final PostgresSelectTypeExpressionVisitor baseVisitor) {
+      super(baseVisitor);
+    }
+
+    @Override
+    public PostgresQueryParser getPostgresQueryParser() {
+      return PostgresFunctionExpressionVisitor.this.getPostgresQueryParser();
+    }
+
+    @Override
+    public String visit(final FunctionExpression expression) {
+      String nested = PostgresFunctionExpressionVisitor.this.visit(expression);
       return nested != null ? String.format("(%s)", nested) : null;
     }
 
-    if (expression instanceof ConstantExpression) {
-      // Inlined rather than bound so a GROUP BY repeats the selected expression verbatim.
-      Object value = ((ConstantExpression) expression).getValue();
+    /** Inlined rather than bound so a GROUP BY repeats the selected expression verbatim. */
+    @Override
+    public String visit(final ConstantExpression expression) {
+      Object value = expression.getValue();
       if (!(value instanceof Number)) {
         throw new UnsupportedOperationException(
             String.format("Only numeric constants are supported in functions: %s", expression));
@@ -100,10 +119,12 @@ public class PostgresFunctionExpressionVisitor extends PostgresSelectTypeExpress
       return value.toString();
     }
 
-    Optional<String> identifier =
-        Optional.ofNullable(expression.accept(identifierExpressionVisitor));
-    return identifier
-        .map(v -> getPostgresQueryParser().getPgSelections().get(v))
-        .orElse(expression.accept(selectTypeExpressionVisitor));
+    @Override
+    public String visit(final IdentifierExpression expression) {
+      Optional<String> selection =
+          Optional.ofNullable(identifierExpressionVisitor.visit(expression))
+              .map(identifier -> getPostgresQueryParser().getPgSelections().get(identifier));
+      return selection.orElseGet(() -> super.visit(expression));
+    }
   }
 }
