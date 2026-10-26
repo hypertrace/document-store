@@ -756,7 +756,12 @@ public abstract class PostgresCollection implements Collection {
 
       return true;
     } catch (BatchUpdateException e) {
-      LOGGER.error("BatchUpdateException bulk inserting documents.", e);
+      // Partial application: some entries may have succeeded before EXECUTE_FAILED.
+      LOGGER.error(
+          "BatchUpdateException bulk inserting documents. requested={}, updateCounts={}",
+          documents.size(),
+          Arrays.toString(e.getUpdateCounts()),
+          e);
     } catch (SQLException e) {
       LOGGER.error(
           "SQLException bulk inserting documents. SQLState: {} Error Code:{}",
@@ -774,6 +779,8 @@ public abstract class PostgresCollection implements Collection {
   public CloseableIterator<Document> bulkUpsertAndReturnOlderDocuments(Map<Key, Document> documents)
       throws IOException {
     String query = null;
+    PreparedStatement preparedStatement = null;
+    ResultSet resultSet = null;
     try {
       String collect =
           documents.keySet().stream()
@@ -793,8 +800,8 @@ public abstract class PostgresCollection implements Collection {
               .append(")")
               .toString();
 
-      PreparedStatement preparedStatement = client.getConnection().prepareStatement(query);
-      ResultSet resultSet = preparedStatement.executeQuery();
+      preparedStatement = client.getConnection().prepareStatement(query);
+      resultSet = preparedStatement.executeQuery();
 
       // Now go ahead and bulk upsert the documents.
       int[] updateCounts = bulkUpsertImpl(documents);
@@ -802,14 +809,34 @@ public abstract class PostgresCollection implements Collection {
         LOGGER.debug("Write result: {}", Arrays.toString(updateCounts));
       }
 
-      return new PostgresResultIterator(resultSet);
+      CloseableIterator<Document> iterator = new PostgresResultIterator(resultSet);
+      resultSet = null; // ownership transferred to the iterator
+      return iterator;
+    } catch (BatchUpdateException e) {
+      LOGGER.error(
+          "BatchUpdateException bulk inserting documents. requested={}, updateCounts={}",
+          documents.size(),
+          Arrays.toString(e.getUpdateCounts()),
+          e);
     } catch (IOException e) {
       LOGGER.error("SQLException bulk inserting documents. documents: {}", documents, e);
     } catch (SQLException e) {
       LOGGER.error("SQLException querying documents. query: {}", query, e);
+    } finally {
+      closeQuietly(resultSet);
     }
 
     throw new IOException("Could not bulk upsert the documents.");
+  }
+
+  private static void closeQuietly(final ResultSet resultSet) {
+    if (resultSet != null) {
+      try {
+        resultSet.close();
+      } catch (SQLException e) {
+        LOGGER.warn("Failed to close ResultSet after bulk upsert failure", e);
+      }
+    }
   }
 
   @Override

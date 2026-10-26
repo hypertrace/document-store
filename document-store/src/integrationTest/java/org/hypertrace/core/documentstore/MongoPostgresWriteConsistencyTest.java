@@ -132,6 +132,64 @@ public class MongoPostgresWriteConsistencyTest extends BaseWriteTest {
       }
     }
 
+    @ParameterizedTest(name = "{0}: bulkUpsert returns true and all docs are readable")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testBulkUpsertSuccessIsConsistentAcrossStores(String storeName) throws Exception {
+      Collection collection = getCollection(storeName);
+      Map<Key, Document> documents = new LinkedHashMap<>();
+      List<String> docIds = new java.util.ArrayList<>();
+      for (int i = 1; i <= 5; i++) {
+        String docId = generateDocId("bulk-ok-" + i);
+        docIds.add(docId);
+        documents.put(createKey(docId), createTestDocument(docId));
+      }
+
+      assertTrue(
+          collection.bulkUpsert(documents),
+          storeName + " bulkUpsert should return true for a complete batch");
+
+      for (String docId : docIds) {
+        Query query = buildQueryById(docId);
+        try (CloseableIterator<Document> iterator = collection.find(query)) {
+          assertTrue(iterator.hasNext(), storeName + " missing doc " + docId);
+          Document doc = iterator.next();
+          JsonNode json = OBJECT_MAPPER.readTree(doc.toJson());
+          assertEquals("TestItem", json.get("item").asText());
+          assertFalse(iterator.hasNext());
+        }
+      }
+    }
+
+    @ParameterizedTest(name = "{0}: bulkUpsertAndReturnOlderDocuments is consistent")
+    @ArgumentsSource(AllStoresProvider.class)
+    void testBulkUpsertAndReturnOlderDocumentsIsConsistent(String storeName) throws Exception {
+      Collection collection = getCollection(storeName);
+      String docId = generateDocId("bulk-older");
+      insertTestDocument(docId, collection);
+
+      Map<Key, Document> updates = new HashMap<>();
+      ObjectNode updated = OBJECT_MAPPER.createObjectNode();
+      updated.put("id", getKeyString(docId));
+      updated.put("item", "AfterUpsert");
+      updated.put("price", 42);
+      updates.put(createKey(docId), new JSONDocument(updated));
+
+      try (CloseableIterator<Document> older =
+          collection.bulkUpsertAndReturnOlderDocuments(updates)) {
+        assertTrue(older.hasNext());
+        JsonNode before = OBJECT_MAPPER.readTree(older.next().toJson());
+        assertEquals("TestItem", before.get("item").asText());
+        assertFalse(older.hasNext());
+      }
+
+      try (CloseableIterator<Document> after = collection.find(buildQueryById(docId))) {
+        assertTrue(after.hasNext());
+        JsonNode json = OBJECT_MAPPER.readTree(after.next().toJson());
+        assertEquals("AfterUpsert", json.get("item").asText());
+        assertEquals(42, json.get("price").asInt());
+      }
+    }
+
     @ParameterizedTest(name = "{0}: bulkUpsert merges fields (does not replace entire document)")
     @ArgumentsSource(AllStoresProvider.class)
     void testBulkUpsertMergesFields(String storeName) throws Exception {

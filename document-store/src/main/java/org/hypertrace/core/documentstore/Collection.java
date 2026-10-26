@@ -217,7 +217,8 @@ public interface Collection {
 
   /**
    * @param documents to be upserted in bulk
-   * @return true if the operation succeeded
+   * @return true if every requested document was upserted successfully; false if the write failed
+   *     or only a subset of documents were written
    */
   boolean bulkUpsert(Map<Key, Document> documents);
 
