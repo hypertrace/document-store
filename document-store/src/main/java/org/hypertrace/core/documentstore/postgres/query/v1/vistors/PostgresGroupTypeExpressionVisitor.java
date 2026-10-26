@@ -14,15 +14,20 @@ import org.hypertrace.core.documentstore.query.Query;
 public class PostgresGroupTypeExpressionVisitor implements GroupTypeExpressionVisitor {
 
   private PostgresSelectTypeExpressionVisitor selectTypeExpressionVisitor;
+  private PostgresFunctionExpressionVisitor functionExpressionVisitor;
 
   public PostgresGroupTypeExpressionVisitor(PostgresQueryParser postgresQueryParser) {
     selectTypeExpressionVisitor = new PostgresFieldIdentifierExpressionVisitor(postgresQueryParser);
+    functionExpressionVisitor = new PostgresFunctionExpressionVisitor(postgresQueryParser);
   }
 
+  /**
+   * Renders the function the same way as its selection, so Postgres matches the GROUP BY expression
+   * against the selected one.
+   */
   @Override
   public String visit(final FunctionExpression expression) {
-    throw new UnsupportedOperationException(
-        "FunctionalExpression on Group by is not yet supported");
+    return functionExpressionVisitor.visit(expression);
   }
 
   @Override

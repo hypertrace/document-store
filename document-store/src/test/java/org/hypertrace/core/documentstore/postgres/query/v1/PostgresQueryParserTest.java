@@ -2505,4 +2505,94 @@ public class PostgresQueryParserTest {
     // can never reach the ALL/EXACTLY_ONE parsers
     assertThrows(IllegalArgumentException.class, () -> ConstantExpression.ofStrings(List.of()));
   }
+
+  @Test
+  void testNestedFunctionSelection() {
+    Query query =
+        Query.builder()
+            .addSelection(
+                FunctionExpression.builder()
+                    .operator(MULTIPLY)
+                    .operand(
+                        FunctionExpression.builder()
+                            .operator(FunctionOperator.ADD)
+                            .operand(IdentifierExpression.of("price"))
+                            .operand(ConstantExpression.of(5))
+                            .build())
+                    .operand(IdentifierExpression.of("quantity"))
+                    .build(),
+                "total")
+            .build();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    assertEquals(
+        "SELECT (CAST (document->>'price' AS NUMERIC) + 5) * CAST (document->>'quantity' AS NUMERIC) "
+            + "AS \"total\" FROM \"testCollection\"",
+        postgresQueryParser.parse());
+  }
+
+  @Test
+  void testGroupByIntervalFunction() {
+    Query query = intervalQuery();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(TEST_TABLE, PostgresQueryTransformer.transform(query));
+
+    assertEquals(
+        "SELECT document->'category' AS \"category\", "
+            + "(FLOOR( (CAST (document->>'lastActivity' AS NUMERIC) / 60000) )) * 60000 AS \"bucket\", "
+            + "COUNT( document->>'category' ) AS \"count\" "
+            + "FROM \"testCollection\" "
+            + "GROUP BY document->'category',"
+            + "(FLOOR( (CAST (document->>'lastActivity' AS NUMERIC) / 60000) )) * 60000",
+        postgresQueryParser.parse());
+  }
+
+  @Test
+  void testGroupByIntervalFunctionOnFlatCollection() {
+    Query query = intervalQuery();
+
+    PostgresQueryParser postgresQueryParser =
+        new PostgresQueryParser(
+            TEST_TABLE,
+            PostgresQueryTransformer.transform(query),
+            new FlatPostgresFieldTransformer());
+
+    assertEquals(
+        "SELECT \"category\" AS \"category\", "
+            + "(FLOOR( (\"lastActivity\" / 60000) )) * 60000 AS \"bucket\", "
+            + "COUNT( \"category\" ) AS \"count\" "
+            + "FROM \"testCollection\" "
+            + "GROUP BY \"category\",(FLOOR( (\"lastActivity\" / 60000) )) * 60000",
+        postgresQueryParser.parse());
+  }
+
+  private static Query intervalQuery() {
+    FunctionExpression bucket =
+        FunctionExpression.builder()
+            .operator(MULTIPLY)
+            .operand(
+                FunctionExpression.builder()
+                    .operator(FunctionOperator.FLOOR)
+                    .operand(
+                        FunctionExpression.builder()
+                            .operator(FunctionOperator.DIVIDE)
+                            .operand(IdentifierExpression.of("lastActivity"))
+                            .operand(ConstantExpression.of(60000))
+                            .build())
+                    .build())
+            .operand(ConstantExpression.of(60000))
+            .alias("bucket")
+            .build();
+
+    return Query.builder()
+        .addSelection(IdentifierExpression.of("category"))
+        .addSelection(bucket, "bucket")
+        .addSelection(AggregateExpression.of(COUNT, IdentifierExpression.of("category")), "count")
+        .addAggregation(IdentifierExpression.of("category"))
+        .addAggregation(bucket)
+        .build();
+  }
 }
