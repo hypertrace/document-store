@@ -1,0 +1,32 @@
+[
+  {
+    "item": "Soap",
+    "bucket": 0,
+    "count": 3
+  },
+  {
+    "item": "Mirror",
+    "bucket": 0,
+    "count": 1
+  },
+  {
+    "item": "Shampoo",
+    "bucket": 10,
+    "count": 1
+  },
+  {
+    "item": "Shampoo",
+    "bucket": 20,
+    "count": 1
+  },
+  {
+    "item": "Comb",
+    "bucket": 0,
+    "count": 1
+  },
+  {
+    "item": "Comb",
+    "bucket": 10,
+    "count": 1
+  }
+]
